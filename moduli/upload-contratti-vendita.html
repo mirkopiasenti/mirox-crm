@@ -4564,16 +4564,23 @@ Reload Forever
  updateLoadingOverlay('Caricamento in corso', 'Creazione pratica e contratti...');
  markTechnicalChecking('Verifica...');
 
- // Pre-step: consenso privacy GDPR (migration 034). Garantisce
- // anagrafica, fa dedupe 48 mesi, altrimenti apre modale OTP/cartaceo.
- // Ritorna { consenso_id, anagrafica_id, riusato }.
+ // Pre-step: consenso privacy GDPR. Garantisce anagrafica, fa dedupe,
+ // altrimenti apre modale OTP/cartaceo (v1) o OTP granulare + preview (v2).
+ // Selezione flusso via query string ?consenso=v2 (rollout controllato).
  hideLoadingOverlay();
- const consensoResult = await ensureConsensoPrivacy(payload);
+ const _isPrivacyV2 = new URLSearchParams(location.search).get('consenso') === 'v2';
+ const consensoResult = _isPrivacyV2
+   ? await ensureConsensoPrivacyV2(payload)
+   : await ensureConsensoPrivacy(payload);
  if (!consensoResult || !consensoResult.consenso_id) {
    throw new Error('Consenso privacy non raccolto: impossibile procedere con l\'invio pratica.');
  }
  payload.pratica = payload.pratica || {};
- payload.pratica.consenso_id = consensoResult.consenso_id;
+ if (_isPrivacyV2) {
+   payload.pratica.consenso_id_v2 = consensoResult.consenso_id;
+ } else {
+   payload.pratica.consenso_id = consensoResult.consenso_id;
+ }
 
  showLoadingOverlay('Caricamento in corso', 'Creazione pratica e contratti...');
 
@@ -6660,6 +6667,413 @@ Reload Forever
      });
 
      m.foot.querySelector('[data-cp-cancel]').addEventListener('click', () => { m.close(); resolve(null); });
+   });
+ }
+
+ // =============================================================
+ // ===== FLUSSO PRIVACY v2 (attivo solo con ?consenso=v2) ======
+ // Sviluppo in corso, non ancora esposto agli operatori. Vedi
+ // memoria project-mirox-privacy-v2-refactor per contesto.
+ // =============================================================
+
+ // Parser markdown -> HTML minimale per la preview dell'informativa v2.
+ // Copre solo il subset presente in docs/approved_privacy_copy_v2.md.
+ function cpv2MarkdownToHtml(md) {
+   const escape = (s) => s
+     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+   const lines = md.split('\n');
+   const out = [];
+   let inList = false;
+   const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+   for (let raw of lines) {
+     const line = raw.replace(/\s+$/, '');
+     if (line === '') { closeList(); out.push(''); continue; }
+     if (line.startsWith('# ')) { closeList(); out.push('<h2 class="cpv2-h1">' + escape(line.slice(2)) + '</h2>'); continue; }
+     if (line.startsWith('## ')) { closeList(); out.push('<h3 class="cpv2-h2">' + escape(line.slice(3)) + '</h3>'); continue; }
+     if (line.startsWith('### ')) { closeList(); out.push('<h4 class="cpv2-h3">' + escape(line.slice(4)) + '</h4>'); continue; }
+     if (/^\*\s+/.test(line)) {
+       if (!inList) { out.push('<ul class="cpv2-ul">'); inList = true; }
+       let item = line.replace(/^\*\s+/, '');
+       item = escape(item)
+         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+         .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+       out.push('<li>' + item + '</li>');
+       continue;
+     }
+     closeList();
+     if (line === '---') { out.push('<hr>'); continue; }
+     // "[ ] Label" -> checkbox preview (solo estetica, non selezionabile)
+     const cb = line.match(/^\[\s?\]\s+(.+)$/);
+     if (cb) { out.push('<div class="cpv2-cbline"><span class="cpv2-cbbox"></span> ' + escape(cb[1]) + '</div>'); continue; }
+     let p = escape(line)
+       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+     out.push('<p class="cpv2-p">' + p + '</p>');
+   }
+   closeList();
+   return out.join('\n');
+ }
+
+ // Applica preprocessing coerente con quello del generatore PDF
+ // (rimuove DPO, sostituisce blocco extra-SEE) cosi' la preview mostrata
+ // all'operatore/cliente coincide col PDF finale.
+ function cpv2Preprocess(md) {
+   // Rimuovi DPO
+   md = md.replace(/^\*\*Responsabile della Protezione dei Dati[^\n]*\n(Recapito DPO:[^\n]*\n)?/m, '');
+   // Sostituisci blocco extra-SEE con la frase fissa
+   md = md.replace(
+     /\[Inserire questa frase solo se verificata:\s*"([^"]+)"\]/g,
+     '$1'
+   );
+   // Rimuovi il footer statico (versione + Pagina [X] di [Y]): reso a parte
+   md = md.replace(/\n---\n+Versione informativa:[^\n]*\nPagina \[X\] di \[Y\]\s*$/, '');
+   return md;
+ }
+
+ let _cpv2CachedMd = null;
+ async function cpv2LoadInformativa() {
+   if (_cpv2CachedMd) return _cpv2CachedMd;
+   const res = await fetch('/docs/approved_privacy_copy_v2.md', { cache: 'no-cache' });
+   if (!res.ok) throw new Error('Impossibile caricare l\'informativa (HTTP ' + res.status + ')');
+   const raw = await res.text();
+   _cpv2CachedMd = cpv2Preprocess(raw);
+   return _cpv2CachedMd;
+ }
+
+ // ----- ENTRY POINT v2 ---------------------------------------------
+ async function ensureConsensoPrivacyV2(payload) {
+   const cliente = payload && payload.cliente ? payload.cliente : {};
+   if (!cliente.cf_piva || !cliente.cellulare || !cliente.email || !cliente.ragione_sociale) {
+     throw new Error('Dati cliente incompleti per il consenso privacy. Compila CF/PIVA, ragione sociale, email e cellulare.');
+   }
+
+   // 1) garantisci-anagrafica
+   showLoadingOverlay('Verifica anagrafica', 'Preparazione del cliente in corso...');
+   const garRes = await MiroxApi.fetch('/.netlify/functions/garantisci-anagrafica', {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify({ cliente })
+   });
+   const garJson = await garRes.json().catch(() => ({}));
+   if (!garRes.ok || !garJson.success) {
+     hideLoadingOverlay();
+     throw new Error('Errore preparazione anagrafica: ' + (garJson.error || ('HTTP ' + garRes.status)));
+   }
+   const anagraficaId = garJson.anagrafica_id;
+
+   // 2) check-consenso-privacy-v2 (dedupe legata a versione attiva)
+   updateLoadingOverlay('Verifica consenso privacy', 'Controllo consensi attivi del cliente...');
+   const chkRes = await MiroxApi.fetch('/.netlify/functions/check-consenso-privacy-v2?anagrafica_id=' + encodeURIComponent(anagraficaId));
+   const chkJson = await chkRes.json().catch(() => ({}));
+   if (!chkRes.ok || !chkJson.success) {
+     hideLoadingOverlay();
+     throw new Error('Errore verifica consenso: ' + (chkJson.error || ('HTTP ' + chkRes.status)));
+   }
+   hideLoadingOverlay();
+
+   if (chkJson.valido && chkJson.consenso_id) {
+     MiroxUI.toast('Consenso privacy gia\' attivo (versione ' + (chkJson.active_version?.version_slug || 'attiva') + ')', 'success', 5000);
+     return { consenso_id: chkJson.consenso_id, anagrafica_id: anagraficaId, riusato: true };
+   }
+
+   // 3) Preview informativa + raccolta preferenze
+   const activeVersion = chkJson.active_version || null;
+   const r = await cpv2RunFlow({ anagraficaId, cliente, activeVersion });
+   if (!r) throw new Error('Raccolta consenso privacy annullata');
+   return { consenso_id: r.consenso_id, anagrafica_id: anagraficaId, riusato: false };
+ }
+
+ // ----- MODALE PREVIEW + OTP (v2) ----------------------------------
+ async function cpv2RunFlow({ anagraficaId, cliente, activeVersion }) {
+   const informativaMd = await cpv2LoadInformativa();
+   const informativaHtml = cpv2MarkdownToHtml(informativaMd);
+   const versionSlug = activeVersion?.version_slug || 'attiva';
+
+   const mainPhone = String(cliente.cellulare || '').trim();
+
+   const motivazioniOtp = [
+     'Il numero principale non e\' momentaneamente disponibile',
+     'Il recapito appartiene al legale rappresentante',
+     'Il recapito appartiene al referente commerciale del cliente',
+     'Altro'
+   ];
+
+   return new Promise((resolve) => {
+     const styleId = 'cpv2-style-block';
+     if (!document.getElementById(styleId)) {
+       const st = document.createElement('style');
+       st.id = styleId;
+       st.textContent = `
+         .cpv2-wrap { display:flex; flex-direction:column; gap:14px; }
+         .cpv2-version { font-size:12px; color:#64748b; }
+         .cpv2-preview { max-height:280px; overflow:auto; background:#f8fafc;
+           border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; font-size:12.5px; }
+         .cpv2-preview .cpv2-h1 { font-size:14px; margin:0 0 6px; color:#FF6600; }
+         .cpv2-preview .cpv2-h2 { font-size:13px; margin:12px 0 4px; color:#FF6600; }
+         .cpv2-preview .cpv2-h3 { font-size:12.5px; margin:8px 0 4px; }
+         .cpv2-preview .cpv2-p  { margin:4px 0; line-height:1.4; text-align:justify; }
+         .cpv2-preview .cpv2-ul { margin:4px 0 4px 18px; padding:0; }
+         .cpv2-preview .cpv2-ul li { margin:2px 0; }
+         .cpv2-cbline { margin:4px 0; }
+         .cpv2-cbbox { display:inline-block; width:10px; height:10px;
+           border:1px solid #0f172a; margin-right:6px; vertical-align:middle; }
+         .cpv2-section { border-top:1px solid #e2e8f0; padding-top:10px; }
+         .cpv2-check-row { display:flex; align-items:flex-start; gap:8px; padding:4px 0; }
+         .cpv2-check-row input[type=checkbox] { margin-top:3px; }
+         .cpv2-check-row label { font-size:13px; color:#0A2540; line-height:1.35; }
+         .cpv2-phone-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+         .cpv2-phone-row label { display:block; font-size:12px; color:#64748b; margin-bottom:4px; }
+         .cpv2-phone-row input[type=text] { width:100%; padding:7px 10px; border:1px solid #cbd5e1;
+           border-radius:6px; font-size:13px; }
+         .cpv2-phone-row input[readonly] { background:#f1f5f9; color:#475569; }
+         .cpv2-mot-block { background:#fff7ed; border:1px solid #fed7aa; border-radius:8px;
+           padding:10px; margin-top:8px; display:none; }
+         .cpv2-mot-block.on { display:block; }
+         .cpv2-mot-block label { font-size:12px; color:#7c2d12; display:block; margin-bottom:4px; }
+         .cpv2-mot-block select, .cpv2-mot-block textarea { width:100%; padding:6px 8px;
+           border:1px solid #fdba74; border-radius:6px; font-size:13px; }
+         .cpv2-toggle-btn { background:none; border:none; color:#FF6600; font-size:12px; cursor:pointer;
+           padding:0; text-decoration:underline; }
+         .cpv2-error { color:#b91c1c; font-size:12px; margin-top:6px; display:none; }
+         .cpv2-error.on { display:block; }
+         .cpv2-otp-input { text-align:center; font-size:22px; letter-spacing:6px;
+           padding:10px; width:180px; border:2px solid #cbd5e1; border-radius:8px; }
+         .cpv2-otp-status { font-size:12.5px; margin-top:10px; }
+         .cpv2-otp-status.err { color:#b91c1c; }
+         .cpv2-otp-status.ok { color:#16a34a; }
+       `;
+       document.head.appendChild(st);
+     }
+
+     const html = `
+       <div class="cpv2-wrap">
+         <div class="cpv2-version">Versione informativa: <strong>${versionSlug}</strong></div>
+         <div class="cpv2-preview" id="cpv2Preview">${informativaHtml}</div>
+
+         <div class="cpv2-section">
+           <div class="cpv2-check-row">
+             <input type="checkbox" id="cpv2Presa">
+             <label for="cpv2Presa"><strong>Dichiaro di aver ricevuto e preso visione dell'informativa privacy</strong> ai sensi dell'art. 13 GDPR (obbligatorio per procedere).</label>
+           </div>
+         </div>
+
+         <div class="cpv2-section">
+           <div style="font-size:13px; margin-bottom:8px;"><strong>Preferenze marketing</strong> (facoltative, non preselezionate):</div>
+           <div class="cpv2-check-row">
+             <input type="checkbox" id="cpv2MkEmail">
+             <label for="cpv2MkEmail">Email</label>
+           </div>
+           <div class="cpv2-check-row">
+             <input type="checkbox" id="cpv2MkWa">
+             <label for="cpv2MkWa">WhatsApp</label>
+           </div>
+           <div class="cpv2-check-row">
+             <input type="checkbox" id="cpv2MkTel">
+             <label for="cpv2MkTel">Telefonate effettuate da un operatore umano</label>
+           </div>
+         </div>
+
+         <div class="cpv2-section">
+           <div class="cpv2-phone-row">
+             <div>
+               <label>Numero principale</label>
+               <input type="text" id="cpv2MainPhone" readonly value="${mainPhone.replace(/"/g, '&quot;')}">
+             </div>
+             <div>
+               <label>Numero OTP <button type="button" class="cpv2-toggle-btn" id="cpv2ToggleOtp">Usa numero diverso</button></label>
+               <input type="text" id="cpv2OtpPhone" value="${mainPhone.replace(/"/g, '&quot;')}" readonly>
+             </div>
+           </div>
+           <div class="cpv2-mot-block" id="cpv2MotBlock">
+             <label>Motivazione differenza</label>
+             <select id="cpv2MotSelect">
+               <option value="">-- seleziona --</option>
+               ${motivazioniOtp.map((m, i) => '<option value="' + i + '">' + m + '</option>').join('')}
+             </select>
+             <div id="cpv2MotAltroWrap" style="display:none; margin-top:6px;">
+               <label>Specificare</label>
+               <textarea id="cpv2MotAltro" rows="2" maxlength="500"></textarea>
+             </div>
+             <div class="cpv2-check-row" style="margin-top:6px;">
+               <input type="checkbox" id="cpv2MotConferma">
+               <label for="cpv2MotConferma">Confermo che il numero OTP e' nella disponibilita' dell'interessato.</label>
+             </div>
+           </div>
+         </div>
+         <div class="cpv2-error" id="cpv2Err"></div>
+       </div>
+     `;
+     const footer = `
+       <button type="button" class="mx-btn mx-btn-secondary" data-cpv2-cancel>Annulla</button>
+       <button type="button" class="mx-btn mx-btn-primary" data-cpv2-send disabled>Invia OTP</button>
+     `;
+     const m = MiroxUI._build({
+       title: 'Consenso privacy - Preferenze marketing',
+       bodyHtml: html,
+       footerHtml: footer,
+       large: true,
+       onClose: () => resolve(null)
+     });
+
+     const $ = (id) => m.body.querySelector('#' + id);
+     const btnSend = m.foot.querySelector('[data-cpv2-send]');
+     const btnCancel = m.foot.querySelector('[data-cpv2-cancel]');
+     const err = $('cpv2Err');
+     const showErr = (msg) => { err.textContent = msg; err.classList.add('on'); };
+     const clearErr = () => { err.textContent = ''; err.classList.remove('on'); };
+
+     function validateForm() {
+       clearErr();
+       const presaOk = $('cpv2Presa').checked;
+       const otpDiverso = $('cpv2OtpPhone').value.trim() !== $('cpv2MainPhone').value.trim();
+       let motOk = true;
+       if (otpDiverso) {
+         const sel = $('cpv2MotSelect').value;
+         if (!sel) motOk = false;
+         if (sel && motivazioniOtp[parseInt(sel, 10)] === 'Altro' && !$('cpv2MotAltro').value.trim()) motOk = false;
+         if (!$('cpv2MotConferma').checked) motOk = false;
+       }
+       btnSend.disabled = !(presaOk && motOk);
+     }
+     m.body.addEventListener('change', validateForm);
+     m.body.addEventListener('input', validateForm);
+
+     $('cpv2ToggleOtp').addEventListener('click', () => {
+       const otpInput = $('cpv2OtpPhone');
+       otpInput.readOnly = !otpInput.readOnly;
+       $('cpv2MotBlock').classList.toggle('on', !otpInput.readOnly);
+       if (otpInput.readOnly) {
+         otpInput.value = $('cpv2MainPhone').value;
+         $('cpv2MotSelect').value = '';
+         $('cpv2MotAltro').value = '';
+         $('cpv2MotConferma').checked = false;
+         $('cpv2MotAltroWrap').style.display = 'none';
+       }
+       validateForm();
+     });
+     $('cpv2MotSelect').addEventListener('change', () => {
+       const sel = $('cpv2MotSelect').value;
+       const altro = sel && motivazioniOtp[parseInt(sel, 10)] === 'Altro';
+       $('cpv2MotAltroWrap').style.display = altro ? '' : 'none';
+       validateForm();
+     });
+
+     btnCancel.addEventListener('click', () => { m.close(); resolve(null); });
+
+     btnSend.addEventListener('click', async () => {
+       clearErr();
+       btnSend.disabled = true;
+       btnSend.textContent = 'Invio OTP...';
+       const otpPhone = $('cpv2OtpPhone').value.trim();
+       const mainPhoneVal = $('cpv2MainPhone').value.trim();
+       let motivazione = null;
+       if (otpPhone !== mainPhoneVal) {
+         const sel = $('cpv2MotSelect').value;
+         const label = motivazioniOtp[parseInt(sel, 10)];
+         motivazione = label === 'Altro' ? $('cpv2MotAltro').value.trim() : label;
+       }
+       try {
+         const res = await MiroxApi.fetch('/.netlify/functions/richiedi-otp-privacy-v2', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({
+             anagrafica_id: anagraficaId,
+             main_phone: mainPhoneVal,
+             otp_phone: otpPhone,
+             otp_phone_motivazione: motivazione,
+             marketing_email: $('cpv2MkEmail').checked,
+             marketing_whatsapp: $('cpv2MkWa').checked,
+             marketing_phone_operator: $('cpv2MkTel').checked,
+             informativa_version_id: activeVersion?.id || null
+           })
+         });
+         const json = await res.json().catch(() => ({}));
+         if (!res.ok || !json.success) {
+           showErr('Errore invio OTP: ' + (json.error || ('HTTP ' + res.status)));
+           btnSend.disabled = false;
+           btnSend.textContent = 'Invia OTP';
+           return;
+         }
+         cpv2SwitchToOtpScreen(m, {
+           consenso_id: json.consenso_id,
+           otp_phone: json.otp_phone,
+           scade_at: json.scade_at
+         }, resolve);
+       } catch (e) {
+         showErr('Errore di rete: ' + (e.message || e));
+         btnSend.disabled = false;
+         btnSend.textContent = 'Invia OTP';
+       }
+     });
+   });
+ }
+
+ function cpv2SwitchToOtpScreen(m, ctx, resolve) {
+   const scadenza = ctx.scade_at ? new Date(ctx.scade_at) : null;
+   const scadTxt = scadenza && !Number.isNaN(scadenza.getTime())
+     ? scadenza.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+     : null;
+   m.body.innerHTML = `
+     <div style="text-align:center; padding:12px 0;">
+       <div style="font-size:14px; margin-bottom:6px;">
+         Un codice OTP di 6 cifre e' stato inviato via SMS al numero
+       </div>
+       <div style="font-size:16px; font-weight:600; color:#0A2540; margin-bottom:16px;">
+         ${(ctx.otp_phone || '').replace(/</g, '&lt;')}
+       </div>
+       <input type="text" inputmode="numeric" pattern="\\d*" maxlength="6"
+              class="cpv2-otp-input" id="cpv2OtpCode" autocomplete="one-time-code">
+       <div class="cpv2-otp-status" id="cpv2OtpStatus">
+         ${scadTxt ? 'Scade alle ' + scadTxt : ''}
+       </div>
+     </div>
+   `;
+   m.foot.innerHTML = `
+     <button type="button" class="mx-btn mx-btn-secondary" data-cpv2-cancel>Annulla</button>
+     <button type="button" class="mx-btn mx-btn-primary" data-cpv2-verify disabled>Verifica OTP</button>
+   `;
+   const $ = (id) => m.body.querySelector('#' + id);
+   const btnVerify = m.foot.querySelector('[data-cpv2-verify]');
+   const btnCancel = m.foot.querySelector('[data-cpv2-cancel]');
+   const otpInput = $('cpv2OtpCode');
+   const status = $('cpv2OtpStatus');
+   otpInput.focus();
+   otpInput.addEventListener('input', () => {
+     otpInput.value = otpInput.value.replace(/\D/g, '').slice(0, 6);
+     btnVerify.disabled = otpInput.value.length !== 6;
+   });
+   btnCancel.addEventListener('click', () => { m.close(); resolve(null); });
+   btnVerify.addEventListener('click', async () => {
+     btnVerify.disabled = true;
+     btnVerify.textContent = 'Verifica...';
+     status.className = 'cpv2-otp-status';
+     status.textContent = '';
+     try {
+       const res = await MiroxApi.fetch('/.netlify/functions/verifica-otp-privacy-v2', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ consenso_id: ctx.consenso_id, otp: otpInput.value })
+       });
+       const json = await res.json().catch(() => ({}));
+       if (!res.ok || !json.success) {
+         status.classList.add('err');
+         status.textContent = json.error || ('HTTP ' + res.status);
+         btnVerify.disabled = false;
+         btnVerify.textContent = 'Verifica OTP';
+         return;
+       }
+       status.classList.add('ok');
+       status.textContent = 'Consenso registrato correttamente.';
+       setTimeout(() => {
+         resolve({ consenso_id: json.consenso_id });
+         m.close();
+       }, 900);
+     } catch (e) {
+       status.classList.add('err');
+       status.textContent = 'Errore di rete: ' + (e.message || e);
+       btnVerify.disabled = false;
+       btnVerify.textContent = 'Verifica OTP';
+     }
    });
  }
 </script>
