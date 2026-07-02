@@ -5,7 +5,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 ## Stack
 
 - **Frontend**: HTML statico + JavaScript vanilla (no bundler), Inter via Google Fonts, client Supabase `@supabase/supabase-js@2` da CDN
-- **Backend serverless**: Netlify Functions (Node + esbuild), librerie `@supabase/supabase-js`, `nodemailer`, `busboy`, `pdfkit` (generazione PDF informativa privacy)
+- **Backend serverless**: Netlify Functions (Node + esbuild), librerie `@supabase/supabase-js`, `nodemailer`, `busboy`, `pdfkit` (generazione PDF informativa privacy v1 e v2, ora attiva v2 con testo caricato verbatim da `docs/approved_privacy_copy_v2.md`)
 - **Database**: Supabase Postgres (Auth + Storage + RLS + RPC + Trigger), 9 bucket Storage (`moduli-template` pubblico + 8 privati con signed URL on-demand)
 - **Email**: Gmail SMTP via nodemailer + template DB (`email_template` + `email_log`)
 - **SMS transactional**: Smshosting REST API (consensi privacy via OTP — vedi `docs/SMSHOSTING_SETUP.md`)
@@ -49,11 +49,16 @@ Tutte le functions (eccetto `cron-rientro-sim`) richiedono `Authorization: Beare
 | `cron-rientro-sim` | scheduled | nessuna (cron Netlify) | Notifica giornaliera rientro SIM |
 | `public-prenota` | GET / POST | nessuna (form pubblico) | Endpoint per `prenota.html`: GET slot disponibili + POST creazione appuntamento. Service_role + rate-limiting in-memory |
 | `garantisci-anagrafica` | POST | authenticated | Upsert anagrafica (lookup CF/PIVA, update campi vuoti / cambiati o insert). Usato dal wizard prima della raccolta consenso |
-| `check-consenso-privacy` | GET | authenticated | Dedupe 48 mesi: cerca un consenso `stato='confermato'`, non scaduto, non revocato per `anagrafica_id` |
-| `richiedi-otp-privacy` | POST | authenticated | Genera OTP 6 cifre, salva hash+salt, invia SMS via Smshosting. Rate-limit 3 invii/ora per anagrafica + cooldown 60s |
-| `verifica-otp-privacy` | POST | authenticated | Verifica OTP (max 3 tentativi), genera PDF informativa con metadata firma, upload bucket `consensi-privacy`, segna `stato='confermato'` con `valido_fino_al = now()+48 mesi` |
-| `genera-pdf-consenso-cartaceo` | GET | authenticated | Stream PDF precompilato (riquadro firma vuoto) per il flusso cartaceo |
-| `upload-consenso-cartaceo` | POST multipart | authenticated | Upload scansione del modulo firmato a mano (max 20 MB, application/pdf), crea record `stato='confermato'` modalità `'cartaceo'` |
+| `check-consenso-privacy` | GET | authenticated | **v1 legacy**. Dedupe 48 mesi su `vendita_consensi_privacy`. Attivo solo con `?consenso=v1` sul wizard |
+| `richiedi-otp-privacy` | POST | authenticated | **v1 legacy**. OTP + SMS |
+| `verifica-otp-privacy` | POST | authenticated | **v1 legacy**. Verifica OTP + PDF v1 |
+| `genera-pdf-consenso-cartaceo` | GET | authenticated | **v1 legacy**. Flusso cartaceo (non portato in v2) |
+| `upload-consenso-cartaceo` | POST multipart | authenticated | **v1 legacy**. Upload scansione modulo firmato |
+| `check-consenso-privacy-v2` | GET | authenticated | **v2 default (dal 2026-07-02)**. Dedupe presa visione legata a `informativa_version_id` attiva. Ritorna preferenze marketing correnti + scadenza |
+| `richiedi-otp-privacy-v2` | POST | authenticated | **v2**. Payload esteso: `main_phone` + `otp_phone` + motivazione obbligatoria se differiscono + 3 booleani marketing (email/whatsapp/phone_operator). Rate limit 3/ora + cooldown 60s + audit trail |
+| `verifica-otp-privacy-v2` | POST | authenticated | **v2**. Re-hash + max 3 tentativi, genera PDF markdown-driven, upload bucket, `marketing_valido_fino_al = now + 24 mesi` se almeno un canale marketing e' true, tre audit events |
+| `revoca-consenso-canale` | POST | admin | **v2**. Revoca per singolo canale (email/whatsapp/phone_operator) o tutti. Motivo obbligatorio + audit `revoca_<canale>` |
+| `admin-list-consensi` | GET | admin | **v2**. Elenco paginato con filtri (cliente, stato, versione, marketing scaduto, query) + timeline audit ridotta |
 
 ## Setup locale
 

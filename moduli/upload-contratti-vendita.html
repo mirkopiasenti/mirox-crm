@@ -4564,22 +4564,23 @@ Reload Forever
  updateLoadingOverlay('Caricamento in corso', 'Creazione pratica e contratti...');
  markTechnicalChecking('Verifica...');
 
- // Pre-step: consenso privacy GDPR. Garantisce anagrafica, fa dedupe,
- // altrimenti apre modale OTP/cartaceo (v1) o OTP granulare + preview (v2).
- // Selezione flusso via query string ?consenso=v2 (rollout controllato).
+ // Pre-step: consenso privacy GDPR (v2 di default).
+ // Il flag ?consenso=v1 forza il fallback al vecchio flusso OTP/cartaceo
+ // come safety net per rollback rapido: e' un opt-in interno, non
+ // documentato per gli operatori.
  hideLoadingOverlay();
- const _isPrivacyV2 = new URLSearchParams(location.search).get('consenso') === 'v2';
- const consensoResult = _isPrivacyV2
-   ? await ensureConsensoPrivacyV2(payload)
-   : await ensureConsensoPrivacy(payload);
+ const _isPrivacyV1 = new URLSearchParams(location.search).get('consenso') === 'v1';
+ const consensoResult = _isPrivacyV1
+   ? await ensureConsensoPrivacy(payload)
+   : await ensureConsensoPrivacyV2(payload);
  if (!consensoResult || !consensoResult.consenso_id) {
    throw new Error('Consenso privacy non raccolto: impossibile procedere con l\'invio pratica.');
  }
  payload.pratica = payload.pratica || {};
- if (_isPrivacyV2) {
-   payload.pratica.consenso_id_v2 = consensoResult.consenso_id;
- } else {
+ if (_isPrivacyV1) {
    payload.pratica.consenso_id = consensoResult.consenso_id;
+ } else {
+   payload.pratica.consenso_id_v2 = consensoResult.consenso_id;
  }
 
  showLoadingOverlay('Caricamento in corso', 'Creazione pratica e contratti...');
