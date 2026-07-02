@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consensi Privacy - Admin Mirox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .admin-topbar { background:#fff; border-bottom:1px solid var(--border); padding:6px 36px;
+    display:grid; grid-template-columns:1fr auto 1fr; align-items:center; position:sticky;
+    top:0; z-index:50; gap:24px; }
+  .admin-topbar-left { justify-self:start; display:flex; align-items:center; gap:12px; }
+  .admin-topbar-center { justify-self:center; }
+  .admin-topbar-right { justify-self:end; display:flex; align-items:center; gap:12px; }
+  .admin-topbar-logo { height:62px; width:180px; position:relative; overflow:hidden; }
+  .admin-topbar-logo img { height:200px; position:absolute; top:50%; left:50%;
+    transform:translate(-50%,-50%); display:block; }
+  .admin-back-button { display:inline-flex; align-items:center; gap:8px; background:var(--primary);
+    color:#fff; border:none; padding:9px 16px; border-radius:10px; font-size:13px; font-weight:600;
+    text-decoration:none; cursor:pointer; font-family:inherit; }
+  .admin-back-button:hover { background:var(--primary-dark); }
+  .admin-user-chip { display:flex; align-items:center; gap:10px; padding:5px 14px 5px 5px;
+    background:var(--bg); border-radius:999px; border:1px solid var(--border); }
+  .admin-user-avatar { width:28px; height:28px; border-radius:50%;
+    background:linear-gradient(135deg,var(--primary),var(--primary-light));
+    color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; }
+  .admin-user-name { font-size:13px; font-weight:600; color:var(--text); }
+  .admin-btn-logout { background:#fff; border:1px solid var(--border); color:var(--text-secondary);
+    padding:7px 14px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
+
+  .cx-container { max-width:1400px; margin:20px auto 40px; padding:0 24px; }
+  .cx-title { font-size:20px; font-weight:700; color:var(--text); margin:0 0 4px; }
+  .cx-sub { font-size:13px; color:var(--text-secondary); margin:0 0 16px; }
+
+  .cx-filters { display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:10px;
+    background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:14px; }
+  .cx-filters input, .cx-filters select { width:100%; padding:8px 10px; border:1px solid var(--border);
+    border-radius:8px; font-size:13px; font-family:inherit; }
+  .cx-filters label { display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--text); }
+
+  .cx-table-wrap { background:#fff; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .cx-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  .cx-table th, .cx-table td { padding:9px 10px; border-bottom:1px solid var(--border); text-align:left; vertical-align:middle; }
+  .cx-table th { background:#f8fafc; color:var(--text-secondary); font-weight:600; }
+  .cx-table tr:last-child td { border-bottom:none; }
+  .cx-table tr:hover td { background:#f8fafc; cursor:pointer; }
+
+  .cx-pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
+  .cx-pill-confermato { background:#dcfce7; color:#166534; }
+  .cx-pill-pending    { background:#fef3c7; color:#92400e; }
+  .cx-pill-scaduto    { background:#e2e8f0; color:#475569; }
+  .cx-pill-fallito    { background:#fee2e2; color:#991b1b; }
+  .cx-pill-revocato   { background:#fce7f3; color:#831843; }
+
+  .cx-mk { display:inline-flex; gap:4px; }
+  .cx-mk-badge { padding:1px 6px; border-radius:6px; font-size:10.5px; font-weight:600; letter-spacing:0.2px; }
+  .cx-mk-on  { background:#dbeafe; color:#1e40af; }
+  .cx-mk-off { background:#f1f5f9; color:#94a3b8; text-decoration:line-through; }
+  .cx-mk-scaduto { background:#fef3c7; color:#92400e; }
+
+  .cx-empty { padding:32px; text-align:center; color:var(--text-secondary); font-size:13px; }
+  .cx-pagination { display:flex; gap:8px; align-items:center; justify-content:flex-end; padding:10px 12px;
+    background:#f8fafc; border-top:1px solid var(--border); font-size:12px; color:var(--text-secondary); }
+  .cx-pagination button { padding:5px 10px; background:#fff; border:1px solid var(--border);
+    border-radius:6px; cursor:pointer; font-size:12px; font-family:inherit; }
+  .cx-pagination button:disabled { opacity:0.4; cursor:not-allowed; }
+
+  .cx-detail-section { border-top:1px solid var(--border); padding-top:12px; margin-top:12px; }
+  .cx-detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:12.5px; }
+  .cx-detail-grid > div span { color:var(--text-secondary); }
+  .cx-audit { max-height:220px; overflow:auto; background:#f8fafc; border:1px solid var(--border);
+    border-radius:8px; padding:8px; font-size:12px; }
+  .cx-audit-row { padding:5px 0; border-bottom:1px dashed #cbd5e1; }
+  .cx-audit-row:last-child { border-bottom:none; }
+  .cx-audit-tipo { font-weight:600; color:var(--text); }
+  .cx-revoca-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .cx-revoca-actions button { padding:7px 12px; background:#fff; border:1px solid #fecaca;
+    color:#b91c1c; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .cx-revoca-actions button:hover { background:#fee2e2; }
+  .cx-revoca-actions .cx-revoca-all { background:#b91c1c; color:#fff; border-color:#b91c1c; }
+  .cx-revoca-actions .cx-revoca-all:hover { background:#991b1b; }
+</style>
+</head>
+<body>
+<header class="admin-topbar">
+  <div class="admin-topbar-left">
+    <a href="admin.html" class="admin-back-button">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      Admin
+    </a>
+  </div>
+  <div class="admin-topbar-center">
+    <div class="admin-topbar-logo"><img src="assets/logo_konatech.png" alt="Kona Tech"></div>
+  </div>
+  <div class="admin-topbar-right">
+    <div class="admin-user-chip">
+      <div class="admin-user-avatar" id="userAvatar">A</div>
+      <div class="admin-user-name" id="userName">Admin</div>
+    </div>
+    <button class="admin-btn-logout" id="btnLogout">Esci</button>
+  </div>
+</header>
+
+<div class="cx-container">
+  <h1 class="cx-title">Consensi privacy raccolti</h1>
+  <p class="cx-sub">Elenco consensi GDPR v2 con preferenze marketing correnti e stato scadenza. Clicca una riga per aprire il dettaglio con timeline audit e opzioni di revoca.</p>
+
+  <div class="cx-filters">
+    <input type="text" id="fltQuery" placeholder="Cerca per ragione sociale o CF/PIVA...">
+    <select id="fltStato">
+      <option value="">Stato: tutti</option>
+      <option value="confermato">Confermato</option>
+      <option value="pending">In attesa OTP</option>
+      <option value="scaduto">Scaduto</option>
+      <option value="fallito">Fallito</option>
+      <option value="revocato">Revocato</option>
+    </select>
+    <label><input type="checkbox" id="fltScaduto"> Solo marketing scaduto</label>
+    <button class="mx-btn mx-btn-primary" id="btnRefresh">Aggiorna</button>
+  </div>
+
+  <div class="cx-table-wrap">
+    <table class="cx-table" id="tbl">
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>CF/PIVA</th>
+          <th>Versione</th>
+          <th>Stato</th>
+          <th>Presa visione</th>
+          <th>Marketing</th>
+          <th>Scadenza marketing</th>
+        </tr>
+      </thead>
+      <tbody id="tblBody">
+        <tr><td colspan="7" class="cx-empty">Caricamento...</td></tr>
+      </tbody>
+    </table>
+    <div class="cx-pagination">
+      <span id="paginationInfo"></span>
+      <button id="pgPrev" disabled>Precedente</button>
+      <button id="pgNext" disabled>Successiva</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/mirox-api.js"></script>
+<script src="js/mirox-ui.js"></script>
+<script src="js/mirox-storage.js"></script>
+<script src="js/mirox-error-reporter.js"></script>
+<script>
+if (window.MiroxErrorReporter) MiroxErrorReporter.install({ source: 'admin-consensi-privacy' });
+
+let currentUser = null;
+let currentProfilo = null;
+let currentItems = [];
+let currentOffset = 0;
+let currentTotal = 0;
+const PAGE_SIZE = 50;
+
+async function init() {
+  const profilo = await Auth.richiediAuth();
+  if (!profilo) return;
+  if (profilo.ruolo !== 'admin') {
+    await MiroxUI.alert('Accesso riservato agli amministratori.');
+    window.location.href = 'dashboard.html';
+    return;
+  }
+  currentProfilo = profilo;
+  currentUser = profilo;
+  document.getElementById('userName').textContent = profilo.nome || profilo.email || 'Admin';
+  document.getElementById('userAvatar').textContent = (profilo.nome || profilo.email || 'A').substring(0, 1).toUpperCase();
+  document.getElementById('btnLogout').addEventListener('click', async () => { await Auth.logout(); });
+  document.getElementById('btnRefresh').addEventListener('click', () => { currentOffset = 0; loadList(); });
+  document.getElementById('fltQuery').addEventListener('keydown', (e) => { if (e.key === 'Enter') { currentOffset = 0; loadList(); } });
+  document.getElementById('fltStato').addEventListener('change', () => { currentOffset = 0; loadList(); });
+  document.getElementById('fltScaduto').addEventListener('change', () => { currentOffset = 0; loadList(); });
+  document.getElementById('pgPrev').addEventListener('click', () => { if (currentOffset > 0) { currentOffset = Math.max(0, currentOffset - PAGE_SIZE); loadList(); } });
+  document.getElementById('pgNext').addEventListener('click', () => { if (currentOffset + PAGE_SIZE < currentTotal) { currentOffset += PAGE_SIZE; loadList(); } });
+  await loadList();
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;" }[c]));
+}
+
+function statoPill(s) { return `<span class="cx-pill cx-pill-${s || 'pending'}">${escapeHtml(s || 'pending')}</span>`; }
+
+function marketingBadge(consenso) {
+  const scaduto = consenso.marketing_valido_fino_al && new Date(consenso.marketing_valido_fino_al).getTime() < Date.now() && !consenso.revocato_at;
+  const badge = (label, on) => {
+    const cls = scaduto && on ? 'cx-mk-scaduto' : (on ? 'cx-mk-on' : 'cx-mk-off');
+    return `<span class="cx-mk-badge ${cls}">${escapeHtml(label)}</span>`;
+  };
+  return `<span class="cx-mk">${badge('EM', !!consenso.marketing_email)}${badge('WA', !!consenso.marketing_whatsapp)}${badge('TEL', !!consenso.marketing_phone_operator)}</span>`;
+}
+
+function formatIT(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+function formatITfull(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleString('it-IT', { timeZone: 'Europe/Rome' });
+}
+
+async function loadList() {
+  const params = new URLSearchParams();
+  params.set('limit', PAGE_SIZE);
+  params.set('offset', currentOffset);
+  const q = document.getElementById('fltQuery').value.trim();
+  const stato = document.getElementById('fltStato').value;
+  const scad = document.getElementById('fltScaduto').checked;
+  if (q) params.set('query', q);
+  if (stato) params.set('stato', stato);
+  if (scad) params.set('marketing_scaduto', '1');
+
+  document.getElementById('tblBody').innerHTML = '<tr><td colspan="7" class="cx-empty">Caricamento...</td></tr>';
+  try {
+    const res = await MiroxApi.fetch('/.netlify/functions/admin-list-consensi?' + params.toString());
+    const json = await res.json();
+    if (!res.ok || !json.success) throw new Error(json.error || ('HTTP ' + res.status));
+    currentItems = json.items || [];
+    currentTotal = json.total || 0;
+    renderTable();
+    updatePagination();
+  } catch (e) {
+    document.getElementById('tblBody').innerHTML = `<tr><td colspan="7" class="cx-empty">Errore caricamento: ${escapeHtml(e.message || e)}</td></tr>`;
+  }
+}
+
+function renderTable() {
+  if (!currentItems.length) {
+    document.getElementById('tblBody').innerHTML = '<tr><td colspan="7" class="cx-empty">Nessun consenso trovato.</td></tr>';
+    return;
+  }
+  const html = currentItems.map((c) => {
+    const anag = c.anagrafica || {};
+    const ver = c.versione || {};
+    return `
+      <tr data-id="${c.id}">
+        <td>${escapeHtml(anag.ragione_sociale || '(anonimo)')}</td>
+        <td>${escapeHtml(anag.cf_piva || '')}</td>
+        <td><span style="font-family:monospace; font-size:11px;">${escapeHtml(ver.version_slug || '')}</span></td>
+        <td>${statoPill(c.stato)}</td>
+        <td>${formatIT(c.presa_visione_at)}</td>
+        <td>${marketingBadge(c)}</td>
+        <td>${c.marketing_valido_fino_al ? formatIT(c.marketing_valido_fino_al) : '-'}</td>
+      </tr>
+    `;
+  }).join('');
+  document.getElementById('tblBody').innerHTML = html;
+  document.querySelectorAll('#tblBody tr').forEach((tr) => {
+    tr.addEventListener('click', () => openDetail(tr.getAttribute('data-id')));
+  });
+}
+
+function updatePagination() {
+  const start = currentTotal === 0 ? 0 : currentOffset + 1;
+  const end = Math.min(currentOffset + PAGE_SIZE, currentTotal);
+  document.getElementById('paginationInfo').textContent = `${start}-${end} di ${currentTotal}`;
+  document.getElementById('pgPrev').disabled = currentOffset <= 0;
+  document.getElementById('pgNext').disabled = currentOffset + PAGE_SIZE >= currentTotal;
+}
+
+async function openDetail(consensoId) {
+  const consenso = currentItems.find((c) => c.id === consensoId);
+  if (!consenso) return;
+  const anag = consenso.anagrafica || {};
+  const ver = consenso.versione || {};
+  const audit = consenso.audit_recent || [];
+
+  let pdfLinkHtml = '-';
+  if (consenso.pdf_storage_path) {
+    pdfLinkHtml = `<a href="#" id="cxPdfLink" style="color:var(--primary);">Apri PDF</a>`;
+  }
+
+  const html = `
+    <div class="cx-detail-grid">
+      <div><span>Cliente:</span> <strong>${escapeHtml(anag.ragione_sociale || '-')}</strong></div>
+      <div><span>CF/PIVA:</span> ${escapeHtml(anag.cf_piva || '-')}</div>
+      <div><span>Cluster:</span> ${escapeHtml(anag.cluster || '-')}</div>
+      <div><span>Cellulare (anagrafica):</span> ${escapeHtml(anag.cellulare || '-')}</div>
+      <div><span>Versione informativa:</span> ${escapeHtml(ver.version_slug || '-')}</div>
+      <div><span>Stato:</span> ${statoPill(consenso.stato)}</div>
+      <div><span>Presa visione:</span> ${formatITfull(consenso.presa_visione_at)}</div>
+      <div><span>Scadenza marketing:</span> ${consenso.marketing_valido_fino_al ? formatITfull(consenso.marketing_valido_fino_al) : '-'}</div>
+      <div><span>Numero principale:</span> ${escapeHtml(consenso.main_phone || '-')}</div>
+      <div><span>Numero OTP:</span> ${escapeHtml(consenso.otp_phone || '-')}${consenso.otp_phone_motivazione ? ' <em style="color:#94a3b8;">(' + escapeHtml(consenso.otp_phone_motivazione) + ')</em>' : ''}</div>
+      <div><span>Consent UUID:</span> <code style="font-size:11px;">${escapeHtml(consenso.consent_uuid || '-')}</code></div>
+      <div><span>PDF:</span> ${pdfLinkHtml}</div>
+    </div>
+
+    <div class="cx-detail-section">
+      <div style="font-weight:600; margin-bottom:6px;">Preferenze marketing correnti</div>
+      ${marketingBadge(consenso)}
+      ${consenso.revocato_at ? `<div style="margin-top:8px; color:#b91c1c; font-size:12px;"><strong>Revocato:</strong> ${escapeHtml(consenso.revocato_motivo || '')} (${formatITfull(consenso.revocato_at)})</div>` : ''}
+    </div>
+
+    <div class="cx-detail-section">
+      <div style="font-weight:600; margin-bottom:6px;">Timeline audit (ultimi 5 eventi)</div>
+      <div class="cx-audit">
+        ${audit.length === 0 ? '<div style="color:#94a3b8;">Nessun evento</div>' : audit.map((a) => `
+          <div class="cx-audit-row">
+            <span class="cx-audit-tipo">${escapeHtml(a.evento_tipo)}</span>
+            &middot; ${formatITfull(a.evento_at)} &middot; <em style="color:#64748b;">${escapeHtml(a.attore_tipo)}</em>
+            ${a.dettaglio ? `<div style="font-size:11px; color:#475569; margin-top:2px; font-family:monospace; white-space:pre-wrap;">${escapeHtml(JSON.stringify(a.dettaglio, null, 2))}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="cx-detail-section">
+      <div style="font-weight:600; margin-bottom:4px;">Revoca preferenze</div>
+      <div style="font-size:12px; color:var(--text-secondary); margin-bottom:6px;">Revoca il consenso per il singolo canale (mantiene attivi gli altri) o per tutti insieme.</div>
+      <div class="cx-revoca-actions">
+        <button data-canale="email"          ${consenso.marketing_email ? '' : 'disabled'}>Revoca Email</button>
+        <button data-canale="whatsapp"       ${consenso.marketing_whatsapp ? '' : 'disabled'}>Revoca WhatsApp</button>
+        <button data-canale="phone_operator" ${consenso.marketing_phone_operator ? '' : 'disabled'}>Revoca Telefonate</button>
+        <button data-canale="all" class="cx-revoca-all" ${consenso.stato === 'revocato' ? 'disabled' : ''}>Revoca tutto</button>
+      </div>
+    </div>
+  `;
+
+  const footer = `<button type="button" class="mx-btn mx-btn-secondary" data-close>Chiudi</button>`;
+  const m = MiroxUI._build({
+    title: 'Dettaglio consenso privacy',
+    bodyHtml: html,
+    footerHtml: footer,
+    large: true
+  });
+
+  if (consenso.pdf_storage_path) {
+    m.body.querySelector('#cxPdfLink').addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      try {
+        await MiroxStorage.openAttachment('consensi-privacy', consenso.pdf_storage_path);
+      } catch (e) {
+        MiroxUI.alert('Impossibile aprire il PDF: ' + (e.message || e));
+      }
+    });
+  }
+
+  m.body.querySelectorAll('[data-canale]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const canale = btn.getAttribute('data-canale');
+      await revocaCanale(consenso.id, canale, m);
+    });
+  });
+  m.foot.querySelector('[data-close]').addEventListener('click', () => m.close());
+}
+
+async function revocaCanale(consensoId, canale, detailModal) {
+  const label = canale === 'all' ? 'TUTTE le preferenze marketing' : `il canale ${canale}`;
+  const motivo = await MiroxUI.prompt({
+    title: 'Motivo revoca',
+    message: `Stai per revocare ${label}. Motivo (obbligatorio):`,
+    placeholder: 'Es. richiesta esplicita dell\'interessato via email del ...'
+  });
+  if (motivo === null) return;
+  if (!motivo || !motivo.trim()) {
+    MiroxUI.alert('Il motivo e\' obbligatorio.');
+    return;
+  }
+  try {
+    MiroxUI.loading.show('Revoca in corso...');
+    const res = await MiroxApi.fetch('/.netlify/functions/revoca-consenso-canale', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ consenso_id: consensoId, canale, motivo: motivo.trim() })
+    });
+    const json = await res.json();
+    MiroxUI.loading.hide();
+    if (!res.ok || !json.success) {
+      MiroxUI.alert('Errore revoca: ' + (json.error || ('HTTP ' + res.status)));
+      return;
+    }
+    MiroxUI.toast('Revoca applicata con successo', 'success');
+    if (detailModal) detailModal.close();
+    await loadList();
+  } catch (e) {
+    MiroxUI.loading.hide();
+    MiroxUI.alert('Errore di rete: ' + (e.message || e));
+  }
+}
+
+init();
+</script>
+</body>
+</html>
