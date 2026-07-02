@@ -43,6 +43,7 @@ Tutte le functions (eccetto `cron-rientro-sim`) richiedono `Authorization: Beare
 | `admin-vendita-config` | GET / POST | **admin** | CRUD admin del catalogo |
 | `crea-vendita-pratica-carrello` | POST | authenticated | Crea pratica + N contratti con validazioni; promuove i PDA da staging |
 | `upload-vendita-documento` | POST multipart | authenticated | Upload PDF su bucket `contratti-vendita` (anche staging `temp/<sess>/`) |
+| `elimina-vendita-contratto` | POST | **admin** | Eliminazione definitiva da Verifica Contratti: cancella il contratto, i record collegati, gli allegati Storage e la pratica se resta vuota |
 | `ocr-pda` | POST multipart | authenticated | OCR del PDA (Pratica di Adesione PDF) via Claude API — pre-compila l'anagrafica. In caso di errore Anthropic ritorna `error_code` strutturato (`ocr_credit_exhausted`, `ocr_rate_limited`, `ocr_unavailable`, `ocr_auth_error`, `ocr_generic_error`) per popup mirato lato client |
 | `search-anagrafica` | GET | authenticated | Ricerca cliente per CF/PIVA |
 | `mirox-send-email` | POST | authenticated | Invio email con template DB |
@@ -216,6 +217,7 @@ Dettagli operativi: vedi [CLAUDE.md](CLAUDE.md) sezione "Sistema di error report
 - `moduli/dashboard_pezzi.html`: la griglia giornaliera usa larghezze fisse compatte per offerte e operatori, con colore pieno sulla cella come nel foglio originale. La tabella e' fissata a 622px totali (270px offerte + 4 colonne da 88px) per evitare espansioni a tutta pagina.
 - `moduli/upload-contratti-vendita.html`: dopo l'invio riuscito di una pratica, il wizard mostra il successo e torna automaticamente alla Home Vendita (`dashboard.html`).
 - `moduli/upload-contratti-vendita.html`: per cluster `Turista` il wizard nasconde provincia/comune/via/civico, forza categoria/offerta dedicate e non blocca piu' l'avanzamento chiedendo provincia o opzione.
+- `moduli/verifica_contratti.html`: nel popup dettaglio contratto e' presente il tasto "Elimina definitivamente". Gli operatori lo vedono disabilitato; gli admin possono usarlo con doppia conferma. La cancellazione passa dalla function admin-only `elimina-vendita-contratto`.
 - Favicon Mirox standard (`assets/favicon.png`) allineata sulle pagine HTML che ne erano prive.
 - I bottoni delle email di comunicazione basate su template (segnalazioni, rientro Switch SIM, ordini smartphone) puntano a [`https://www.mirox-crm.it`](https://www.mirox-crm.it). Le mail tecniche di errore restano escluse.
 

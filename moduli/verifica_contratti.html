@@ -185,6 +185,16 @@ body {
 }
 .foot-actions .left { display: flex; gap: 8px; }
 .foot-actions .right { display: flex; gap: 8px; }
+.foot-actions .mx-btn[disabled] {
+  opacity: .48;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.foot-actions .mx-btn-danger[disabled] {
+  background: #FEE2E2;
+  color: #991b1b;
+  border-color: #FECACA;
+}
 </style>
 </head>
 <body>
@@ -316,6 +326,28 @@ function setCount(id, n) {
     el.style.background = '#f1f5f9';
     el.style.color = '#697386';
   }
+}
+
+async function getProfiloCorrenteVC() {
+  if (window.__profilo) return window.__profilo;
+  if (typeof Auth !== 'undefined' && Auth.getSessione) {
+    window.__profilo = await Auth.getSessione();
+    return window.__profilo;
+  }
+  return null;
+}
+
+function isAdminVerificaContratti() {
+  const profilo = window.__profilo || (typeof Auth !== 'undefined' && Auth.getProfilo ? Auth.getProfilo() : null);
+  return !!profilo && profilo.ruolo === 'admin';
+}
+
+function bottoneEliminaContrattoHtml(id) {
+  const safeId = escapeHtml(id);
+  if (isAdminVerificaContratti()) {
+    return `<button type="button" class="mx-btn mx-btn-danger" onclick="eliminaContrattoDefinitivo('${safeId}')">Elimina definitivamente</button>`;
+  }
+  return '<button type="button" class="mx-btn mx-btn-danger" disabled title="Solo gli amministratori possono eliminare definitivamente un contratto">Elimina definitivamente</button>';
 }
 
 // ============================================================
@@ -495,7 +527,8 @@ async function caricaCategorie() {
 // POPUP DETTAGLI / VERIFICA
 // ============================================================
 async function apriDettaglioContratto(id, stateKey) {
-  if (!window.MiroxUI) { alert('UI non pronta. Ricarica la pagina.'); return; }
+  if (!window.MiroxUI) { console.error('UI non pronta. Ricarica la pagina.'); return; }
+  await getProfiloCorrenteVC();
   const isReadOnly = stateKey === 'verificati';
   // Recupera il contratto dallo state
   const fromState = (VCState.daVerificare.concat(VCState.verificati)).find(x => x.id === id);
@@ -768,16 +801,17 @@ function apriPopupDettaglio(c, opts) {
   `;
 
   // Footer azioni: cambia in base a readonly
+  const deleteButtonHtml = bottoneEliminaContrattoHtml(c.id);
   const footerHtml = isReadOnly
     ? `<div class="foot-actions">
-         <div class="left"></div>
+         <div class="left">${deleteButtonHtml}</div>
          <div class="right">
            <button type="button" class="mx-btn mx-btn-secondary" data-mx-close-popup>Chiudi</button>
-           <button type="button" class="mx-btn mx-btn-primary" onclick="rimettiInVerifica('${escapeHtml(c.id)}')">↩ Rimetti in verifica</button>
+           <button type="button" class="mx-btn mx-btn-primary" onclick="rimettiInVerifica('${escapeHtml(c.id)}')">Rimetti in verifica</button>
          </div>
        </div>`
     : `<div class="foot-actions">
-         <div class="left"></div>
+         <div class="left">${deleteButtonHtml}</div>
          <div class="right">
            <button type="button" class="mx-btn mx-btn-secondary" data-mx-close-popup>Annulla</button>
            <button type="button" class="mx-btn mx-btn-secondary" onclick="salvaModifiche('${escapeHtml(c.id)}')">Salva modifica</button>
@@ -1291,6 +1325,73 @@ async function rimettiInVerifica(id) {
   }
 }
 window.rimettiInVerifica = rimettiInVerifica;
+
+// ============================================================
+// ELIMINA DEFINITIVAMENTE (solo admin)
+// ============================================================
+async function eliminaContrattoDefinitivo(id) {
+  const profilo = await getProfiloCorrenteVC();
+  if (!profilo || profilo.ruolo !== 'admin') {
+    await window.MiroxUI.alert('Solo un amministratore può eliminare definitivamente un contratto.', {
+      type: 'warning',
+      title: 'Permesso non disponibile'
+    });
+    return;
+  }
+
+  const c = window.__currentVerificaContratto || (VCState.daVerificare.concat(VCState.verificati)).find(x => x.id === id) || {};
+  const ana = c.anagrafica || {};
+  const nomeCliente = ana.ragione_sociale || c.nome_offerta_snapshot || id;
+  const ok = await window.MiroxUI.confirm(
+    `Stai per eliminare definitivamente il contratto di <strong>${escapeHtml(nomeCliente)}</strong>.<br><br>Verranno cancellati anche i documenti del contratto, le righe post-vendita collegate e la pratica se rimane vuota.<br><br>Questa operazione non si può annullare.`,
+    {
+      title: 'Elimina definitivamente',
+      okText: 'Continua',
+      cancelText: 'Annulla',
+      html: true,
+      danger: true
+    }
+  );
+  if (!ok) return;
+
+  const conferma = await window.MiroxUI.prompt({
+    title: 'Conferma eliminazione',
+    label: 'Per confermare scrivi ELIMINA',
+    placeholder: 'ELIMINA',
+    okText: 'Elimina definitivamente'
+  });
+  if (conferma !== 'ELIMINA') {
+    window.MiroxUI.toast('Eliminazione annullata', 'warning');
+    return;
+  }
+
+  const loader = window.MiroxUI.loading.show('Eliminazione in corso', 'Sto cancellando il contratto e i dati collegati...');
+  try {
+    const res = await window.MiroxApi.fetch('/.netlify/functions/elimina-vendita-contratto', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contratto_id: id })
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok || !payload.success) {
+      throw new Error(payload.error || 'Eliminazione non riuscita');
+    }
+
+    loader.success('Contratto eliminato');
+    setTimeout(async () => {
+      if (window.__currentVerificaModal) window.__currentVerificaModal.close();
+      await Promise.all([caricaContratti('da_controllare'), caricaContratti('controllato')]);
+      const warnings = Array.isArray(payload.warnings) ? payload.warnings.filter(Boolean) : [];
+      if (warnings.length) {
+        window.MiroxUI.toast('Contratto eliminato, ma alcuni allegati potrebbero essere rimasti nello Storage.', 'warning', 6500);
+      }
+    }, 1000);
+  } catch (e) {
+    loader.error('Errore eliminazione');
+    setTimeout(() => window.MiroxUI.alert('Errore eliminazione: ' + e.message, { type: 'error' }), 200);
+  }
+}
+window.eliminaContrattoDefinitivo = eliminaContrattoDefinitivo;
 
 // ============================================================
 // EXPORT funzioni inline + BIND filtri + INIT
