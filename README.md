@@ -213,7 +213,7 @@ Dettagli operativi: vedi [CLAUDE.md](CLAUDE.md) sezione "Sistema di error report
 
 ## Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
-- `moduli/dashboard_pezzi.html`: la griglia giornaliera usa colonne operatore più compatte e la colonna offerte resta larga solo quanto il testo più lungo, con circa 1 cm di respiro.
+- `moduli/dashboard_pezzi.html`: la griglia giornaliera usa colonne operatore più compatte e le fasce colorate delle offerte finiscono quasi subito dopo il testo.
 - `moduli/upload-contratti-vendita.html`: dopo l'invio riuscito di una pratica, il wizard mostra il successo e torna automaticamente alla Home Vendita (`dashboard.html`).
 - Favicon Mirox standard (`assets/favicon.png`) allineata sulle pagine HTML che ne erano prive.
 - I bottoni delle email di comunicazione basate su template (segnalazioni, rientro Switch SIM, ordini smartphone) puntano a [`https://www.mirox-crm.it`](https://www.mirox-crm.it). Le mail tecniche di errore restano escluse.

@@ -141,7 +141,14 @@ table.pezzi tbody td.cell-label {
   text-align: left !important; font-weight: 700 !important; font-size: 11.5px !important; color: var(--text) !important;
   font-style: italic !important;
   white-space: nowrap !important;
-  padding-right: 38px !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+table.pezzi tbody td.cell-label .label-strip {
+  display: inline-block;
+  padding: 1px 10px 1px 9px;
+  min-height: 16px;
+  line-height: 1.15;
 }
 table.pezzi tbody td.cell-num {
   font-weight: 700 !important; font-size: 12px !important;
@@ -438,7 +445,7 @@ function renderGriglia() {
       return `<td class="cell-num ${v === 0 ? 'zero' : ''}">${v === 0 ? '' : v}</td>`;
     }).join('');
     html += `<tr>
-      <td class="cell-label" style="background:${escapeHtml(rowColor)};">${escapeHtml(r.nome)}</td>
+      <td class="cell-label"><span class="label-strip" style="background:${escapeHtml(rowColor)};">${escapeHtml(r.nome)}</span></td>
       ${tdCells}
     </tr>`;
   });
