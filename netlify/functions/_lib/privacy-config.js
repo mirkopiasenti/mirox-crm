@@ -65,6 +65,21 @@ function resetCacheForTests() {
     markdownCache = null;
 }
 
+// Aggiunge N mesi a una data trattando in modo sicuro i casi di overflow
+// (es. 31 gennaio + 1 mese = 28/29 febbraio, non "3 marzo").
+// Usata per calcolare marketing_valido_fino_al = now + VALIDITA_MARKETING_MESI.
+function addMonthsClamped(date, months) {
+    const src = new Date(date.getTime());
+    const y = src.getUTCFullYear();
+    const m = src.getUTCMonth();
+    const d = src.getUTCDate();
+    const target = new Date(Date.UTC(y, m + months, 1));
+    const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+    target.setUTCDate(Math.min(d, lastDay));
+    target.setUTCHours(src.getUTCHours(), src.getUTCMinutes(), src.getUTCSeconds(), src.getUTCMilliseconds());
+    return target;
+}
+
 // Config validato al primo accesso. Failing early se manca qualcosa.
 function assertConfigValid() {
     const md = loadMarkdown();
@@ -128,4 +143,5 @@ module.exports = {
     loadMarkdown,
     resetCacheForTests,
     assertConfigValid,
+    addMonthsClamped,
 };
