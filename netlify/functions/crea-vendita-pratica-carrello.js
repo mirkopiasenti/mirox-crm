@@ -653,36 +653,68 @@ exports.handler = async (event) => {
     }
 
     // ----------------------------------------------------------------
-    // GUARD CONSENSO PRIVACY (migration 034).
-    // La pratica non puo' essere creata se per l'anagrafica non esiste
-    // un consenso 'confermato', non scaduto, non revocato. Il wizard
-    // dovrebbe averlo raccolto (modale OTP o cartaceo) prima del submit
-    // oppure trovato in dedupe 48 mesi. Il client puo' passare
-    // pratica.consenso_id per evitare race su consensi multipli; se
-    // passato, verifichiamo che corrisponda davvero a quello attivo.
+    // GUARD CONSENSO PRIVACY.
+    // La pratica non puo' essere creata senza un consenso 'confermato',
+    // non revocato per l'anagrafica.
+    //
+    // Il client puo' passare uno dei due:
+    //   - pratica.consenso_id_v2  -> verifica su vendita_consensi_privacy_v2
+    //                                (nuovo flusso, dal 2026-07)
+    //   - pratica.consenso_id     -> verifica su vendita_consensi_privacy
+    //                                (v1 legacy, ancora supportata durante il
+    //                                 rollout finche' non avviene lo switch)
+    // Se nessuno dei due e' passato, fallback su lookup v1 legacy per
+    // backwards compat con client che non conoscono ancora v2.
     // ----------------------------------------------------------------
-    const consensoIdInput = normalizeUuidOrNull(pratica.consenso_id);
-    const { data: consensoAttivo, error: consensoLookupError } = await supabase
-      .from('vendita_consensi_privacy')
-      .select('id, anagrafica_id, stato, modalita, valido_fino_al, revocato_at')
-      .eq('anagrafica_id', anagraficaId)
-      .eq('stato', 'confermato')
-      .is('revocato_at', null)
-      .gt('valido_fino_al', new Date().toISOString())
-      .order('valido_fino_al', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const consensoIdV2Input = normalizeUuidOrNull(pratica.consenso_id_v2);
+    const consensoIdV1Input = normalizeUuidOrNull(pratica.consenso_id);
+    let consensoIdValidato = null;
+    let consensoTabella = null; // 'v1' | 'v2'
 
-    if (consensoLookupError) {
-      throw new Error(readableError(consensoLookupError, 'Errore verifica consenso privacy'));
+    if (consensoIdV2Input) {
+      const { data: consensoV2, error: consensoV2LookupError } = await supabase
+        .from('vendita_consensi_privacy_v2')
+        .select('id, anagrafica_id, stato, revocato_at, pratica_id')
+        .eq('id', consensoIdV2Input)
+        .maybeSingle();
+      if (consensoV2LookupError) {
+        throw new Error(readableError(consensoV2LookupError, 'Errore verifica consenso privacy v2'));
+      }
+      if (!consensoV2) {
+        throw new Error('Consenso privacy v2 non trovato (consenso_id_v2 passato dal client)');
+      }
+      if (consensoV2.anagrafica_id !== anagraficaId) {
+        throw new Error('Consenso privacy v2 non appartiene all\'anagrafica indicata');
+      }
+      if (consensoV2.stato !== 'confermato' || consensoV2.revocato_at) {
+        throw new Error(`Consenso privacy v2 non utilizzabile: stato=${consensoV2.stato}${consensoV2.revocato_at ? ' + revocato' : ''}`);
+      }
+      consensoIdValidato = consensoV2.id;
+      consensoTabella = 'v2';
+    } else {
+      // v1 (legacy). Lookup by anagrafica_id + validita' dedupe 48 mesi.
+      const { data: consensoAttivo, error: consensoLookupError } = await supabase
+        .from('vendita_consensi_privacy')
+        .select('id, anagrafica_id, stato, modalita, valido_fino_al, revocato_at')
+        .eq('anagrafica_id', anagraficaId)
+        .eq('stato', 'confermato')
+        .is('revocato_at', null)
+        .gt('valido_fino_al', new Date().toISOString())
+        .order('valido_fino_al', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (consensoLookupError) {
+        throw new Error(readableError(consensoLookupError, 'Errore verifica consenso privacy'));
+      }
+      if (!consensoAttivo) {
+        throw new Error('Consenso privacy mancante o scaduto per questo cliente. Raccogliere un nuovo consenso (OTP via SMS o modulo cartaceo firmato) prima di inviare la pratica.');
+      }
+      if (consensoIdV1Input && consensoIdV1Input !== consensoAttivo.id) {
+        throw new Error('consenso_id passato dal client non corrisponde al consenso attivo per questa anagrafica');
+      }
+      consensoIdValidato = consensoAttivo.id;
+      consensoTabella = 'v1';
     }
-    if (!consensoAttivo) {
-      throw new Error('Consenso privacy mancante o scaduto per questo cliente. Raccogliere un nuovo consenso (OTP via SMS o modulo cartaceo firmato) prima di inviare la pratica.');
-    }
-    if (consensoIdInput && consensoIdInput !== consensoAttivo.id) {
-      throw new Error('consenso_id passato dal client non corrisponde al consenso attivo per questa anagrafica');
-    }
-    const consensoIdValidato = consensoAttivo.id;
 
     const { data: praticaRow, error: praticaInsertError } = await supabase
       .from('vendita_pratiche')
@@ -707,9 +739,12 @@ exports.handler = async (event) => {
     // Back-link al consenso privacy: se il consenso non aveva pratica_id (es.
     // appena raccolto senza pratica_id forward dal client), lo agganciamo qui.
     // Best-effort: se l'update fallisce non rompiamo la pratica.
+    const consensoTabellaBackLink = consensoTabella === 'v2'
+      ? 'vendita_consensi_privacy_v2'
+      : 'vendita_consensi_privacy';
     try {
       await supabase
-        .from('vendita_consensi_privacy')
+        .from(consensoTabellaBackLink)
         .update({ pratica_id: praticaRow.id })
         .eq('id', consensoIdValidato)
         .is('pratica_id', null);
