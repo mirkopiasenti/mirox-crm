@@ -60,4 +60,4 @@ Lo schema reale di Supabase contiene anche modifiche fatte:
 
 ## Aggiornamenti senza migrazione
 
-- **2026-07-02**: modifiche solo frontend/mailer, nessun cambio schema Supabase. Aggiornati layout `dashboard_pezzi` con colonna offerte compatta, redirect post-invio di `upload-contratti-vendita`, favicon mancanti e link CTA delle email di comunicazione verso `https://www.mirox-crm.it`.
+- **2026-07-02**: modifiche solo frontend/mailer, nessun cambio schema Supabase. Aggiornati layout `dashboard_pezzi` con colonne operatori/offerte compatte, redirect post-invio di `upload-contratti-vendita`, favicon mancanti e link CTA delle email di comunicazione verso `https://www.mirox-crm.it`.

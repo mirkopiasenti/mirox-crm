@@ -521,7 +521,7 @@ Ogni errore tecnico nel CRM (rete, OCR, submit, JS non gestiti...) viene notific
 
 ### Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
-- `moduli/dashboard_pezzi.html`: layout più compatto. Le colonne operatori (`MATTEO`, `MIRKO`, `FRANCESCA`, `CEREA`) hanno larghezza fissa ridotta; la colonna offerte resta stretta e mantiene il colore pieno sulla cella come nel foglio originale, senza espandersi a tutta pagina.
+- `moduli/dashboard_pezzi.html`: layout più compatto. Le colonne operatori (`MATTEO`, `MIRKO`, `FRANCESCA`, `CEREA`) hanno larghezza fissa compatta; la colonna offerte resta stretta e mantiene il colore pieno sulla cella come nel foglio originale, senza espandersi a tutta pagina.
 - `moduli/upload-contratti-vendita.html`: dopo submit pratica riuscito il wizard mostra il popup di successo e redirige automaticamente alla dashboard (`../dashboard.html`), cioè la Home del reparto Vendita.
 - Favicon standard Mirox (`assets/favicon.png`) presente anche su `admin-vendita-config.html`, `moduli/upload-contratti-vendita.html`, `moduli/segnalazioni.html`.
 - `netlify/functions/_lib/mailer.js`: per le email di comunicazione basate su template, tutte le variabili link CTA (`link_*`, `__cta_url__`) vengono normalizzate a `https://www.mirox-crm.it`. Le mail di errore inviate con HTML diretto da `MiroxErrorReporter` non sono coinvolte.
