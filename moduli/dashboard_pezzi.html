@@ -101,11 +101,13 @@ body > .container.dp-page.dp-page {
   flex: 1; min-height: 0;
 }
 table.pezzi {
-  width: max-content; border-collapse: collapse; min-width: 0;
+  display: inline-table;
+  width: auto; border-collapse: collapse; min-width: 0;
   font-size: 11.5px;
   table-layout: auto;
   --operator-col-width: 150px;
 }
+table.pezzi col.col-label { width: 1%; }
 table.pezzi col.col-op { width: var(--operator-col-width); }
 table.pezzi thead th {
   background: #fff !important; color: var(--text) !important;
@@ -121,7 +123,8 @@ table.pezzi thead th.col-data {
   letter-spacing: 0.02em !important;
 }
 table.pezzi thead th.col-label {
-  text-align: left !important; width: auto;
+  text-align: left !important;
+  width: 1%;
 }
 table.pezzi thead th.col-op {
   width: var(--operator-col-width);
@@ -141,14 +144,8 @@ table.pezzi tbody td.cell-label {
   text-align: left !important; font-weight: 700 !important; font-size: 11.5px !important; color: var(--text) !important;
   font-style: italic !important;
   white-space: nowrap !important;
-  padding: 0 !important;
-  background: transparent !important;
-}
-table.pezzi tbody td.cell-label .label-strip {
-  display: inline-block;
-  padding: 1px 10px 1px 9px;
-  min-height: 16px;
-  line-height: 1.15;
+  width: 1%;
+  padding: 1px 14px 1px 9px !important;
 }
 table.pezzi tbody td.cell-num {
   font-weight: 700 !important; font-size: 12px !important;
@@ -445,7 +442,7 @@ function renderGriglia() {
       return `<td class="cell-num ${v === 0 ? 'zero' : ''}">${v === 0 ? '' : v}</td>`;
     }).join('');
     html += `<tr>
-      <td class="cell-label"><span class="label-strip" style="background:${escapeHtml(rowColor)};">${escapeHtml(r.nome)}</span></td>
+      <td class="cell-label" style="background:${escapeHtml(rowColor)};">${escapeHtml(r.nome)}</td>
       ${tdCells}
     </tr>`;
   });
