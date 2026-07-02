@@ -3044,6 +3044,7 @@ Reload Forever
  }
 
  function shouldShowOpzione(categoriaNome, availableOptions) {
+ if (isTuristaCluster(refs.cluster.value)) return false;
  return availableOptions.length> 0;
  }
 

@@ -292,7 +292,7 @@ Da questo momento il modulo segnalazioni funziona **solo da Mirox loggato**. Se 
 - CF italiano (16 char, regex con caratteri omocodia) → `Consumer`
 - P.IVA (11 cifre + Luhn IT) → `Business`
 - Nessuno dei due → errore "verifica il dato" (no fallback)
-- `Turista` → forza `categoria=Mobile`, `offerta="Untied - Call Your Country"`. Accettato solo da `crea-vendita-pratica-carrello.js`.
+- `Turista` → forza `categoria=Mobile`, `offerta="Untied - Call Your Country"` e non richiede opzione nel wizard. Accettato solo da `crea-vendita-pratica-carrello.js`.
 
 ### Campi anagrafici obbligatori
 Sia UI (`validateClienteData` in `upload-contratti-vendita.html`) sia backend (`crea-vendita-pratica-carrello.js`) **bloccano** la pratica se uno qualsiasi di questi campi e' vuoto o malformato:
@@ -522,7 +522,7 @@ Ogni errore tecnico nel CRM (rete, OCR, submit, JS non gestiti...) viene notific
 ### Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
 - `moduli/dashboard_pezzi.html`: layout più compatto. La colonna offerte e le colonne operatori (`MATTEO`, `MIRKO`, `FRANCESCA`, `CEREA`) hanno larghezze fisse compatte; il colore resta pieno sulla cella come nel foglio originale. La tabella e' fissata a 622px totali (270px offerte + 4 colonne da 88px) per evitare espansioni a tutta pagina.
-- `moduli/upload-contratti-vendita.html`: dopo submit pratica riuscito il wizard mostra il popup di successo e redirige automaticamente alla dashboard (`../dashboard.html`), cioè la Home del reparto Vendita. Per cluster `Turista`, il wizard nasconde provincia/comune/via/civico, li invia come `null` e non li richiede in validazione client.
+- `moduli/upload-contratti-vendita.html`: dopo submit pratica riuscito il wizard mostra il popup di successo e redirige automaticamente alla dashboard (`../dashboard.html`), cioè la Home del reparto Vendita. Per cluster `Turista`, il wizard nasconde provincia/comune/via/civico, li invia come `null`, non li richiede in validazione client e non richiede l'opzione contratto prima del carrello.
 - Favicon standard Mirox (`assets/favicon.png`) presente anche su `admin-vendita-config.html`, `moduli/upload-contratti-vendita.html`, `moduli/segnalazioni.html`.
 - `netlify/functions/_lib/mailer.js`: per le email di comunicazione basate su template, tutte le variabili link CTA (`link_*`, `__cta_url__`) vengono normalizzate a `https://www.mirox-crm.it`. Le mail di errore inviate con HTML diretto da `MiroxErrorReporter` non sono coinvolte.
 

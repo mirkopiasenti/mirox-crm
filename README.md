@@ -215,7 +215,7 @@ Dettagli operativi: vedi [CLAUDE.md](CLAUDE.md) sezione "Sistema di error report
 
 - `moduli/dashboard_pezzi.html`: la griglia giornaliera usa larghezze fisse compatte per offerte e operatori, con colore pieno sulla cella come nel foglio originale. La tabella e' fissata a 622px totali (270px offerte + 4 colonne da 88px) per evitare espansioni a tutta pagina.
 - `moduli/upload-contratti-vendita.html`: dopo l'invio riuscito di una pratica, il wizard mostra il successo e torna automaticamente alla Home Vendita (`dashboard.html`).
-- `moduli/upload-contratti-vendita.html`: per cluster `Turista` il wizard nasconde provincia/comune/via/civico e non blocca piu' l'avanzamento chiedendo una provincia non selezionabile.
+- `moduli/upload-contratti-vendita.html`: per cluster `Turista` il wizard nasconde provincia/comune/via/civico, forza categoria/offerta dedicate e non blocca piu' l'avanzamento chiedendo provincia o opzione.
 - Favicon Mirox standard (`assets/favicon.png`) allineata sulle pagine HTML che ne erano prive.
 - I bottoni delle email di comunicazione basate su template (segnalazioni, rientro Switch SIM, ordini smartphone) puntano a [`https://www.mirox-crm.it`](https://www.mirox-crm.it). Le mail tecniche di errore restano escluse.
 
