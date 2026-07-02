@@ -66,19 +66,20 @@ Per le functions in locale servono le env vars (vedi sotto). Mettile in un file 
 
 ## Deploy Netlify
 
-- **Production**: [`mirox-crm.it`](https://mirox-crm.it) (dal 2026-06-29). Custom domain Netlify, qui sono configurate tutte le env vars (Supabase, Smshosting, ecc.)
-- Vecchio URL di test `test-upload-contratti-konahub.netlify.app` non e' piu' aggiornato — considerare deprecato
-- Da non confondere con `mirox-crm.netlify.app`, che e' il sito Call Center prod (altro repo)
+- **Netlify site**: `mirox-crm` (rinominato il 2026-07-02 in coerenza col repo GitHub `mirkopiasenti/mirox-crm`)
+- **Production URL**: [`mirox-crm.it`](https://mirox-crm.it) (custom domain, dal 2026-06-29). Qui sono configurate tutte le env vars (Supabase, Smshosting, Anthropic, SMTP)
+- Vecchio URL di test `test-upload-contratti-konahub.netlify.app` non è più aggiornato — deprecato
+- **NON confondere** con `mirox-crm.netlify.app`: è un altro Netlify site, di un altro repo GitHub, che ospita il Call Center prod. Condivide solo il DB Supabase
 
 Setup:
-1. Repo gia' collegato su Netlify
-2. Le build settings vengono lette da `netlify.toml` (base directory vuota se il contenuto sta in root del repo)
+1. Repo già collegato su Netlify (site `mirox-crm`)
+2. Le build settings vengono lette da `netlify.toml` (base directory vuota, il contenuto sta in root del repo)
 3. Imposta le env vars nel pannello Netlify (sezione Site settings → Environment variables)
-4. Deploy automatico al push
+4. Deploy automatico al `git push origin main`
 
 ## Workflow di aggiornamento
 
-Il repo è sincronizzato con GitHub via `git` (chiave SSH già configurata). Per ogni modifica:
+Il repo è sincronizzato con GitHub via `git` (chiave SSH già configurata). Remote: `git@github.com:mirkopiasenti/mirox-crm.git` (dal 2026-07-02, prima `konahub-vendita-test`). Per ogni modifica:
 
 ```bash
 git add -A
@@ -87,6 +88,18 @@ git push origin main
 ```
 
 **Non caricare più file tramite l'interfaccia web GitHub** (`Add files via upload`): si creerebbe drift fra locale e remoto, esattamente il problema che abbiamo risolto in fase di setup. Se proprio serve modificare qualcosa al volo dalla web UI, sincronizza poi qui con `git pull` prima di riprendere a lavorare in locale.
+
+### Collaborazione Claude Code + Codex
+
+Dal 2026-07-02 sul progetto lavorano due AI assistant: **Claude Code** per gli sviluppi grandi (nuovi moduli, function, migration, refactor) e **Codex** per le sistemazioni puntuali. Entrambi seguono le stesse regole:
+
+- Aggiornare README + `CLAUDE.md` + `database/README.md` nella stessa sessione della modifica (no doc drift)
+- No emoji in HTML/JS visibili, no `alert/confirm` nativi (usare `MiroxUI.*`), no `fetch` diretto (usare `MiroxApi.fetch`) — vedi convenzioni in `CLAUDE.md`
+- Commit locali in autonomia, `git push` **solo su richiesta esplicita** dell'utente (ogni push è deploy production su `mirox-crm.it`)
+- Nessuna azione irreversibile (DROP, `push --force`, revoca policy RLS, cambio env var) senza conferma
+- Prima di iniziare un task, leggere `git log --oneline -20` per allinearsi con l'ultima sessione dell'altro assistant
+
+Dettagli e regole complete nella sezione "Collaborazione Claude Code + Codex" di [`CLAUDE.md`](CLAUDE.md).
 
 ## Env vars Netlify
 

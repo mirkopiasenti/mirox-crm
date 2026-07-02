@@ -1,8 +1,8 @@
 {
-  "name": "konahub-netlify-functions",
+  "name": "mirox-crm-netlify-functions",
   "private": true,
   "version": "1.0.0",
-  "description": "Serverless functions per CRM KonaHub/Mirox",
+  "description": "Serverless functions per Mirox CRM (mirox-crm.it)",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
     "@supabase/supabase-js": "^2.49.8",

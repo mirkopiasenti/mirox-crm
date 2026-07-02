@@ -39,6 +39,28 @@ Prima di dichiarare un task concluso:
 
 ---
 
+## Collaborazione Claude Code + Codex (dal 2026-07-02)
+
+Sul progetto lavorano **due AI assistant** in parallelo, coordinati dallo stesso utente:
+
+- **Claude Code** (questo assistant) → **sviluppi grandi**: nuovi moduli, nuove Netlify functions, migration DB, refactor architetturali, integrazioni con nuove API, cambi al wizard/dashboard. Ha accesso autonomo al DB Supabase remoto via `.bin/supabase db query --linked ...`
+- **Codex** → **sistemazione**: fix bug puntuali, piccoli miglioramenti UI, correzioni tipografiche, allineamenti tra doc e codice, refactor locali senza impatto architetturale
+
+Ognuno deve poter leggere lo stato del progetto e capire cosa ha fatto l'altro **senza chiedere all'utente**. Regole non negoziabili per garantirlo:
+
+1. **Fonti di verità condivise**: `README.md` (utente-facing) + `CLAUDE.md` (questo file) + `database/README.md` (schema). Ogni modifica va riflessa in questi 3 doc **nella stessa sessione** in cui si tocca il codice. Vale sia per Claude Code sia per Codex. La tabella "trigger → cosa aggiornare" sopra è l'oracolo condiviso.
+2. **Nessuna azione irreversibile senza conferma esplicita dell'utente**: no `git push --force`, no DROP tabelle/colonne, no `rm -rf` fuori dallo scratchpad, no revoca policy RLS, no cambio env var Netlify. Se una modifica DB rompe potenzialmente il CC prod (vedi lista tabelle condivise in "Roadmap & boundaries") → **bloccarsi e chiedere prima**.
+3. **Push su GitHub solo quando l'utente lo dice**: entrambi gli assistant possono `git add` + `git commit` in autonomia (i commit sono locali, reversibili), ma `git push origin main` va lanciato solo su richiesta esplicita ("push", "carica su github", "manda in produzione"). Netlify fa deploy automatico al push, quindi ogni push è un deploy production su `mirox-crm.it`.
+4. **Un commit = un cambio coerente**: ogni commit deve poter essere letto dall'altro assistant come "ok, qui hanno fatto X per Y". Messaggio in italiano, primo verbo all'imperativo (`fix(...)`, `feat(...)`, `docs(...)`, `refactor(...)`, `chore(...)`). Corpo opzionale con contesto se non ovvio. Sempre firma `Co-Authored-By` per capire chi ha scritto (Claude Code aggiunge la propria, Codex la propria).
+5. **Prima di iniziare, leggere gli ultimi commit**: `git log --oneline -20` mostra cosa ha fatto l'altro. Se un commit recente tocca la stessa area del task che stai per fare, allineati con lo stato attuale invece di sovrascriverlo.
+6. **Convenzioni tecniche identiche**: no emoji in HTML/JS visibili (vedi sezione dedicata), niente `alert()`/`confirm()` nativi (usare `MiroxUI.*`), niente `fetch()` diretto verso Netlify functions (usare `MiroxApi.fetch()`), niente `db.storage.from().upload()` dal client (solo via Netlify function). Vedi sezione "Convenzioni" per l'elenco completo.
+7. **Note operative consapevoli**: prima di "correggere" qualcosa che sembra sbagliato, controllare la sezione "Note operative consapevoli" — molte scelte apparentemente inconsistenti sono volute (es. cluster `Turista`, catalogo Reload dismesso, file SQL parziali).
+8. **In caso di conflitto**: se una convenzione, un pattern o un vincolo non è documentato qui e la tua modifica lo richiederebbe, **prima documentalo** in `CLAUDE.md` (sezione appropriata) e poi implementalo. Non lasciare tribal knowledge nel codice.
+
+L'utente può chiedere in qualsiasi momento "cosa ha fatto Codex nell'ultima sessione?" / "cosa ha fatto Claude Code?": la risposta si costruisce da `git log --author=...` + diff dei commit + eventuali sezioni nuove in `CLAUDE.md`.
+
+---
+
 ## Convenzione UI — Niente emoji (regola permanente)
 
 **Regola assoluta**: nessuna emoji è ammessa in nessun file HTML o JS del progetto — né nelle pagine esistenti né in quelle nuove. Questo vale per:
@@ -58,9 +80,10 @@ Sostituire sempre con testo descrittivo (es. `🔄 Aggiorna` → `Aggiorna`, `�
 - **Fasi successive previste** (non ancora fatte): estensione `storico_cliente`, backfill `chiamate.anagrafica_id`, convergenza Upload Contratti con `origine_pratica` automatica
 
 ### URL deploy
-- `mirox-crm.it` — **dominio production di questa codebase** (dal 2026-06-29). Custom domain Netlify sul sito Mirox: tutte le 6 OTP functions + il resto del backend rispondono qui. Le env vars (Supabase, Smshosting, ecc.) sono configurate su questo Netlify site
-- `test-upload-contratti-konahub.netlify.app` — vecchio URL di test del repo. **Non e' piu' aggiornato** (le functions OTP rispondono 404). Considerare deprecato — l'URL "buono" e' `mirox-crm.it`
-- `mirox-crm.netlify.app` — sito Call Center **PROD** (altro repo, NON in questa codebase, condivide DB Supabase). Continua a funzionare invariato dopo l'integrazione. Da non confondere con `mirox-crm.it` (sono due Netlify site distinti su due repo distinti, ma puntano allo stesso DB Supabase)
+- **Repo GitHub**: `git@github.com:mirkopiasenti/mirox-crm.git` (dal 2026-07-02, prima era `konahub-vendita-test` — redirect ancora attivo ma va usato il nome nuovo)
+- **Netlify site di questa codebase**: **`mirox-crm`** (nome sito Netlify dal 2026-07-02, prima era il vecchio nome legato al test). Custom domain **`mirox-crm.it`** in production dal 2026-06-29 — tutte le functions (auth + OTP + backend) rispondono qui. Env vars (Supabase, Smshosting, Anthropic, SMTP) configurate su questo site
+- `test-upload-contratti-konahub.netlify.app` — vecchio URL di test del repo. **Non è più aggiornato** (le functions OTP rispondono 404). Deprecato — l'URL "buono" è `mirox-crm.it`
+- `mirox-crm.netlify.app` — **DIVERSO PROGETTO**: sito Call Center prod (altro repo GitHub, NON in questa codebase). Condivide lo stesso DB Supabase. Da non confondere col Netlify site `mirox-crm` di cui sopra (che è custom-domain su `mirox-crm.it`)
 
 ### Tabelle condivise — toccare con cautela (regole NON negoziabili)
 
@@ -99,7 +122,7 @@ Pagine HTML statiche, no bundler. `/moduli/call-center/` contiene il modulo CC i
 
 ### 2. Server (`/netlify/functions/`)
 
-Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo, dal 2026-06-24 (Fase B hardening) **TUTTE le functions tranne `cron-rientro-sim` e `public-prenota`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `admin-vendita-config` richiede ulteriore check `ruolo='admin'`. Le 2 functions non-auth (`cron-rientro-sim` cron-only, `public-prenota` form pubblico) sono esplicitamente esposte. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. 9 functions + 2 lib condivise:
+Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo, dal 2026-06-24 (Fase B hardening) **TUTTE le functions tranne `cron-rientro-sim` e `public-prenota`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `admin-vendita-config` richiede ulteriore check `ruolo='admin'`. Le 2 functions non-auth (`cron-rientro-sim` cron-only, `public-prenota` form pubblico) sono esplicitamente esposte. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. 15 functions + 4 lib condivise (`_lib/mailer.js`, `_lib/require-auth.js`, `_lib/smshosting.js`, `_lib/pdf-consenso.js`):
 
 - `vendita-config.js` (GET) — catalogo per wizard
 - `admin-vendita-config.js` (GET/POST action-based) — CRUD admin offerte/opzioni/reload + replace regole documentali
@@ -617,7 +640,7 @@ A regime stimato (300 contratti/mese → ~100 OTP/mese dopo dedupe 48 mesi): ~�
 - **Nomi cartelle Storage**: via `MiroxFolder.build()` lato client o pattern equivalente nelle Netlify functions (`sanitizeSegment`)
 - **Timestamp**: `timestamptz` salvati in UTC, mostrati in `Europe/Rome` lato UI (vedi pattern `formatCrmDateTime` nei moduli)
 - **Nessun bundler**: import solo come `<script src=...>`, niente `import` / `require` lato browser
-- **Sync con GitHub**: SOLO via `git push` dalla cartella locale (SSH già configurato per `mirkopiasenti`). **Mai upload via interfaccia web** GitHub — causerebbe drift fra locale e remoto. Repo: `git@github.com:mirkopiasenti/mirox-crm.git` (rinominato da `konahub-vendita-test`, redirect ancora attivo)
+- **Sync con GitHub**: SOLO via `git push` dalla cartella locale (SSH già configurato per `mirkopiasenti`). **Mai upload via interfaccia web** GitHub — causerebbe drift fra locale e remoto. Repo: `git@github.com:mirkopiasenti/mirox-crm.git` (rinominato da `konahub-vendita-test` il 2026-07-02; remote locale aggiornato, redirect GitHub ancora attivo per sicurezza). Netlify site collegato: `mirox-crm` con custom domain `mirox-crm.it`
 - **Accesso Supabase autonomo (AI)**: il binario portable della Supabase CLI è in `.bin/supabase` (gitignored), già loggato via PAT salvato in `~/.supabase/access-token`, e il progetto è già linkato. Per introspezione/SQL su DB remoto: `.bin/supabase db query --linked "SELECT ..."` (passa per Management API, NON richiede DB password). Per applicare un file: `.bin/supabase db query --linked --file <path>`. Per migrations versionate: `.bin/supabase migration new <nome>` (crea file in `supabase/migrations/`), poi `db push` (questo richiede DB password — chiedere all'utente al momento)
 
 ---
