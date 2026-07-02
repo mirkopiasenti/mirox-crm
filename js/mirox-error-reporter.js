@@ -28,7 +28,21 @@
  *     della pagina (idempotente). I global handlers usano level='error' e
  *     non aprono popup: passano solo per la mail.
  *
+ *   MiroxErrorReporter.classify(input)
+ *     -> { what, where, action, tellClaude }
+ *     Ritorna la traduzione dell'errore in italiano semplice (usata dalla mail
+ *     per il blocco "Cosa e' successo"). Esposta pubblicamente per test manuali
+ *     o per riutilizzo in altre UI (es. popup diagnostica).
+ *
  * Destinatario: mirko.piasenti@gmail.com (override via install({ownerEmail:...})).
+ *
+ * Struttura della mail generata (dall'alto verso il basso):
+ *   1) Titolo (rosso)
+ *   2) Blocco "Cosa e' successo" — spiegazione non tecnica in 4 righe
+ *      (In poche parole / Dove-quando / Cosa fare adesso / Cosa dire a Claude)
+ *   3) Messaggio originale
+ *   4) Metadata (data/ora, livello, sorgente, utente, pagina, browser)
+ *   5) Dettagli tecnici (stack) + Contesto (JSON) per debug tecnico
  *
  * Dipendenze opzionali:
  *   - window.MiroxApi.fetch   -> per iniettare Authorization Bearer (preferito)
@@ -129,23 +143,305 @@
             .replace(/'/g, '&#039;');
     }
 
+    // --- Classificazione errore in linguaggio non-tecnico -------------------
+    //
+    // Scopo: tradurre l'errore in una spiegazione capibile per il proprietario
+    // del CRM (non tecnico). L'output ha 4 campi:
+    //   - what:       cosa e' successo, in italiano semplice
+    //   - where:      dove/quando probabilmente e' successo (contesto operativo)
+    //   - action:     cosa fare adesso (azione immediata per proprietario o operatore)
+    //   - tellClaude: frase pronta da girare a Claude per un fix futuro
+    //
+    // Ordine importante: pattern piu' specifici prima (error_code strutturato),
+    // poi codici HTTP, poi keyword generiche, infine fallback.
+
+    function getErrorCode(input) {
+        if (!input || !input.context) return '';
+        var ec = input.context.error_code || input.context.errorCode || '';
+        return String(ec || '').toLowerCase();
+    }
+
+    function getHttpStatus(input) {
+        if (!input) return 0;
+        var ctx = input.context || {};
+        var s = ctx.http_status || ctx.httpStatus || ctx.status || 0;
+        if (s && !isNaN(Number(s))) return Number(s);
+        // Prova a estrarre dal testo (message/technical) un pattern "HTTP 500" / "status 401"
+        var hay = String((input.message || '') + ' ' + (input.technical || ''));
+        var m = hay.match(/(?:HTTP|status|response)\s*[:=]?\s*(\d{3})/i);
+        if (m) return Number(m[1]);
+        return 0;
+    }
+
+    function buildHaystack(input) {
+        var ctxStr = '';
+        try { ctxStr = input.context ? JSON.stringify(input.context) : ''; }
+        catch (e) { ctxStr = ''; }
+        return [
+            String(input.title || ''),
+            String(input.message || ''),
+            String(input.technical || ''),
+            ctxStr,
+            String(input.source || '')
+        ].join(' \n ');
+    }
+
+    var SOURCE_LABELS = {
+        'upload-contratti-vendita': 'wizard di caricamento contratti (Vendita)',
+        'dashboard': 'dashboard principale',
+        'dashboard_pezzi': 'dashboard "Pezzi venduti"',
+        'verifica_contratti': 'pagina Verifica Contratti',
+        'controllo_fissi': 'pagina Controllo Fissi (post-vendita)',
+        'controllo_lg': 'pagina Controllo L&G (post-vendita Energia)',
+        'controllo_allarmi': 'pagina Controllo Allarmi (post-vendita)',
+        'controllo_assicurazioni': 'pagina Controllo Assicurazioni (post-vendita)',
+        'apri_chiudi': 'modulo Apri/Chiudi',
+        'switch_sim': 'modulo Switch SIM',
+        'ordini_smartphone': 'modulo Ordini Smartphone',
+        'simulatore_protecta': 'simulatore Protecta',
+        'dispositivi_comodato': 'modulo Dispositivi in Comodato',
+        'gestione_rimborsi': 'modulo Gestione Rimborsi',
+        'storico_cliente': 'storico cliente',
+        'ticket': 'ticket',
+        'admin': 'pannello Admin',
+        'admin-utenti': 'gestione utenti (Admin)',
+        'admin-vendita-config': 'catalogo Vendita (Admin)',
+        'admin-call-center-config': 'configurazione Call Center (Admin)',
+        'registra-chiamata': 'registrazione chiamata (Call Center)',
+        'registra-chiamata-outbound': 'registrazione chiamata outbound (Call Center)',
+        'elenco-chiamate': 'elenco chiamate (Call Center)',
+        'rilavorazione': 'rilavorazione ricontatti (Call Center)',
+        'call-center-lead-outbound': 'lead outbound (Call Center)',
+        'appuntamenti': 'appuntamenti (Call Center)',
+        'appuntamenti-oggi': 'appuntamenti di oggi (Call Center)',
+        'esiti-appuntamenti': 'esiti appuntamenti (Call Center)',
+        'prenota-interno': 'prenotazione interna (Call Center)',
+        'prenota-interno-outbound': 'prenotazione interna outbound (Call Center)',
+        'blacklist': 'blacklist (Call Center)'
+    };
+
+    function labelForSource(source) {
+        if (!source) return 'una pagina del CRM';
+        var key = String(source).toLowerCase();
+        if (SOURCE_LABELS[key]) return SOURCE_LABELS[key];
+        // Prova senza suffissi / prefissi
+        var cleaned = key.replace(/^mirox[-_]?/, '').replace(/[-_]/g, ' ');
+        return 'la pagina "' + cleaned + '"';
+    }
+
+    function classify(input) {
+        var code = getErrorCode(input);
+        var status = getHttpStatus(input);
+        var hay = buildHaystack(input);
+        var lo = hay.toLowerCase();
+        var sourceLabel = labelForSource(input.source);
+
+        // 1) Error code strutturato (OCR ha codici ben definiti)
+        if (code === 'ocr_credit_exhausted') {
+            return {
+                what: 'Il servizio di lettura automatica del PDA (AI) e\' fermo perche\' il credito Anthropic e\' esaurito.',
+                where: 'Un operatore ha caricato un PDA in ' + sourceLabel + ' e ha cliccato "Analizza con AI".',
+                action: 'Ricarica il credito su console.anthropic.com. Nel frattempo l\'operatore puo\' completare la pratica cliccando "Continua senza AI" e compilando i dati a mano.',
+                tellClaude: 'Il credito Anthropic e\' esaurito, l\'OCR del PDA non funziona finche\' non ricarichi il saldo.'
+            };
+        }
+        if (code === 'ocr_rate_limited') {
+            return {
+                what: 'Troppe richieste OCR in poco tempo: Anthropic ha temporaneamente bloccato le chiamate.',
+                where: 'OCR di un PDA in ' + sourceLabel + '. Puo\' capitare se piu\' operatori premono "Analizza con AI" contemporaneamente.',
+                action: 'Aspetta 1-2 minuti e riprova. Se ricapita spesso, valuta un upgrade del piano Anthropic o attiva il fallback "Continua senza AI".',
+                tellClaude: 'OCR rate-limited (429 da Anthropic), succede quando ci sono chiamate contemporanee.'
+            };
+        }
+        if (code === 'ocr_unavailable') {
+            return {
+                what: 'Il servizio Anthropic (che legge i PDA) e\' momentaneamente irrangiungibile.',
+                where: 'OCR di un PDA in ' + sourceLabel + '.',
+                action: 'Riprova tra qualche minuto. L\'operatore puo\' usare "Continua senza AI" per non bloccare la pratica.',
+                tellClaude: 'OCR non disponibile (5xx da Anthropic), disservizio lato provider.'
+            };
+        }
+        if (code === 'ocr_auth_error') {
+            return {
+                what: 'La chiave di accesso a Anthropic (ANTHROPIC_API_KEY) non e\' piu\' valida.',
+                where: 'La function Netlify "ocr-pda" ha chiamato Anthropic e ha ricevuto 401/403.',
+                action: 'Vai su Netlify (site "mirox-crm") -> Environment variables e verifica/aggiorna ANTHROPIC_API_KEY. Poi rilascia (Deploys -> Trigger deploy).',
+                tellClaude: 'ANTHROPIC_API_KEY non valida su Netlify, va rigenerata e sostituita.'
+            };
+        }
+        if (code === 'ocr_generic_error') {
+            return {
+                what: 'C\'e\' stato un problema generico durante l\'analisi automatica del PDA.',
+                where: 'Function Netlify "ocr-pda".',
+                action: 'Controlla i log su Netlify (Functions -> ocr-pda -> ultimo invocation) per capire cosa e\' fallito. L\'operatore intanto usa "Continua senza AI".',
+                tellClaude: 'OCR fallito con generic error, servono i log di Netlify per la function ocr-pda.'
+            };
+        }
+
+        // 2) HTTP status
+        if (status === 401 || status === 403 || /\b(401|403)\b|unauthorized|forbidden/i.test(lo)) {
+            return {
+                what: 'La sessione dell\'operatore e\' scaduta oppure non ha i permessi per l\'azione richiesta.',
+                where: 'L\'operatore ha tentato un\'azione in ' + sourceLabel + ' (submit pratica, upload documento, o accesso ad Admin).',
+                action: 'L\'operatore deve fare logout e rientrare. Se succede spesso a piu\' persone, il sistema di refresh automatico del token potrebbe avere un problema.',
+                tellClaude: 'Errore ' + (status || 'auth') + ' su chiamata al backend: probabile JWT scaduto o permesso mancante in ' + (input.source || 'pagina') + '.'
+            };
+        }
+        if (status === 404 || /\b404\b|not found/i.test(lo)) {
+            return {
+                what: 'Il codice ha chiesto una risorsa (pagina o dato) che non esiste sul server.',
+                where: 'Chiamata partita da ' + sourceLabel + '. Puo\' essere un link vecchio, un id sbagliato o una function non ancora rilasciata.',
+                action: 'Segnala a Claude con la pagina e (se presente) l\'id nella sezione Contesto qui sotto.',
+                tellClaude: 'Errore 404 su ' + (input.source || 'pagina') + ', risorsa richiesta non trovata (vedi dettagli tecnici nella mail).'
+            };
+        }
+        if (status === 413 || /\b413\b|payload too large|entity too large/i.test(lo)) {
+            return {
+                what: 'Il file che stavi caricando e\' troppo grande.',
+                where: 'Upload PDF (PDA, documento identita\', scansione consenso, ecc.) in ' + sourceLabel + '.',
+                action: 'Chiedi all\'operatore di ridurre la dimensione del PDF (max 20 MB). Se il limite serve piu\' alto, segnalalo a Claude.',
+                tellClaude: 'Upload rifiutato per dimensione oltre 20 MB in ' + (input.source || 'pagina') + '.'
+            };
+        }
+        if (status === 429 || /\b429\b|too many requests/i.test(lo)) {
+            return {
+                what: 'Troppe richieste in poco tempo: il server ha temporaneamente rallentato o bloccato.',
+                where: 'Chiamata dal ' + sourceLabel + '. Spesso e\' un rate-limit di un servizio esterno (SMS, OCR).',
+                action: 'Aspetta un minuto e riprova.',
+                tellClaude: 'Rate-limit 429 su ' + (input.source || 'pagina') + '.'
+            };
+        }
+        if (status >= 500 && status < 600) {
+            return {
+                what: 'Il server ha risposto con un errore interno (' + status + '). Il codice sul server e\' andato in eccezione.',
+                where: 'Chiamata dal ' + sourceLabel + ' verso una function Netlify.',
+                action: 'Controlla i log su Netlify (Functions -> quella coinvolta -> ultimo invocation). Segnala a Claude con l\'orario esatto (vedi tabella sotto).',
+                tellClaude: 'Errore ' + status + ' da Netlify function chiamata da ' + (input.source || 'pagina') + ', servono i log Netlify.'
+            };
+        }
+        if (/http\s*5\d\d|internal server error|bad gateway|gateway timeout/i.test(lo)) {
+            return {
+                what: 'Il server ha risposto con un errore interno (5xx).',
+                where: 'Chiamata dal ' + sourceLabel + ' verso una function Netlify.',
+                action: 'Controlla i log su Netlify della function coinvolta.',
+                tellClaude: 'Errore 5xx da Netlify function chiamata da ' + (input.source || 'pagina') + '.'
+            };
+        }
+
+        // 3) Keyword pattern
+        if (/failed to fetch|network\s*error|networkerror|net::err|typeerror.*fetch|load failed/i.test(lo)) {
+            return {
+                what: 'Problema di rete: il browser non e\' riuscito a raggiungere il server.',
+                where: 'L\'operatore in ' + sourceLabel + ' ha perso momentaneamente la connessione oppure Netlify era irrangiungibile.',
+                action: 'Chiedi all\'operatore di verificare la connessione (wifi/dati) e riprovare. Se piu\' operatori riportano lo stesso, controlla lo status di Netlify.',
+                tellClaude: 'Errore di rete su ' + (input.source || 'pagina') + ', fetch non riuscito.'
+            };
+        }
+        if (/timeout|timed out|aborterror|abortcontroller/i.test(lo)) {
+            return {
+                what: 'La richiesta ha impiegato troppo tempo ed e\' stata annullata (timeout).',
+                where: 'In ' + sourceLabel + '. Tipico su upload grandi o quando un servizio esterno e\' lento (OCR, SMS).',
+                action: 'Riprovare. Se ricapita su file grandi, valuta di ridurre la dimensione del PDF.',
+                tellClaude: 'Timeout su richiesta in ' + (input.source || 'pagina') + '.'
+            };
+        }
+        if (/\brls\b|row.?level|permission denied|policy .* violat|pgrst|postgrest|rpc .*error/i.test(lo)) {
+            return {
+                what: 'Il database ha rifiutato un\'operazione per motivi di permessi (regole RLS).',
+                where: 'Il codice in ' + sourceLabel + ' ha provato a leggere/scrivere una tabella senza autorizzazione, o senza un JWT valido.',
+                action: 'Segnalalo a Claude: probabile che manchi una policy o che una chiamata bypassi MiroxApi.fetch (JWT non iniettato).',
+                tellClaude: 'Errore RLS/PostgREST su ' + (input.source || 'pagina') + ', da capire quale query e con quale ruolo.'
+            };
+        }
+        if (/consenso privacy|consenso.*scaduto|consenso.*mancante/i.test(lo)) {
+            return {
+                what: 'Il cliente non ha un consenso privacy valido: la pratica e\' stata bloccata.',
+                where: 'Submit pratica in ' + sourceLabel + '. Puo\' essere consenso mai raccolto, scaduto (48 mesi) o revocato.',
+                action: 'L\'operatore deve rifare il pre-step "Consenso privacy" (OTP via SMS o modulo cartaceo) prima di reinviare la pratica.',
+                tellClaude: 'Submit pratica bloccato per consenso privacy assente/scaduto.'
+            };
+        }
+        if (/smshosting|sms.*failed|otp.*invalid|otp.*scad|cellulare.*non valido/i.test(lo)) {
+            return {
+                what: 'C\'e\' stato un problema con l\'invio o la verifica dell\'OTP via SMS.',
+                where: 'Flusso Consenso Privacy in ' + sourceLabel + '.',
+                action: 'Verifica il credito Smshosting e le env vars SMSHOSTING_API_KEY / SMSHOSTING_API_SECRET su Netlify. L\'operatore puo\' usare il modulo cartaceo come fallback.',
+                tellClaude: 'Smshosting/OTP fallito in ' + (input.source || 'pagina') + ', dettagli nella technical.'
+            };
+        }
+        if (/cannot read propert|is not defined|is not a function|undefined is not/i.test(lo)) {
+            return {
+                what: 'Bug JavaScript: una parte del codice ha provato a usare qualcosa che non c\'era.',
+                where: 'Errore imprevisto in ' + sourceLabel + '. L\'operatore probabilmente vede un popup o una schermata bloccata.',
+                action: 'Segnalalo a Claude con la pagina esatta e cosa stava facendo l\'operatore. I dettagli tecnici sotto (stack trace) mi bastano per capire.',
+                tellClaude: 'Eccezione JS non gestita in ' + (input.source || 'pagina') + ' (vedi stack nella mail).'
+            };
+        }
+        if (/promise .*reject|unhandledrejection/i.test(lo)) {
+            return {
+                what: 'Una richiesta in background e\' fallita e nessuno l\'ha gestita.',
+                where: 'In ' + sourceLabel + '. Puo\' essere una fetch caduta o una promise andata in errore.',
+                action: 'Segnalalo a Claude: va probabilmente aggiunto un catch/gestione errore mirato.',
+                tellClaude: 'Promise non gestita in ' + (input.source || 'pagina') + '.'
+            };
+        }
+        if (/quotaexceedederror|storage.*full|localstorage/i.test(lo)) {
+            return {
+                what: 'La memoria del browser (localStorage/sessionStorage) e\' piena.',
+                where: 'In ' + sourceLabel + '. Puo\' capitare su PC molto vecchi o dopo mesi di uso senza pulizia.',
+                action: 'Chiedi all\'operatore di svuotare la cache del browser e riprovare.',
+                tellClaude: 'Quota storage browser esaurita in ' + (input.source || 'pagina') + '.'
+            };
+        }
+
+        // 4) Fallback generico
+        return {
+            what: 'C\'e\' stato un errore inatteso nel CRM che il sistema non e\' riuscito a classificare automaticamente.',
+            where: 'In ' + sourceLabel + '. Guarda i dettagli tecnici sotto (stack trace + contesto) per capire dove esattamente.',
+            action: 'Se l\'errore si ripete o blocca il lavoro dell\'operatore, girami questa mail intera (con "Cosa dire a Claude" qui sotto).',
+            tellClaude: 'Errore non classificato in ' + (input.source || 'pagina') + ': titolo "' + (input.title || '') + '", messaggio "' + (input.message || '') + '". Serve controllare stack e contesto.'
+        };
+    }
+
+    function buildExplanationBlock(explanation) {
+        // Blocco "Cosa e' successo" — la sezione in alto pensata per chi legge
+        // senza background tecnico. Ogni riga ha un'etichetta chiara + testo semplice.
+        function row(label, value, bg, labelColor) {
+            return '<tr>'
+                + '<td style="padding:10px 12px;background:' + bg + ';border:1px solid #FCA5A5;font-weight:700;color:' + labelColor + ';white-space:nowrap;vertical-align:top;width:170px">'
+                + escapeHtml(label)
+                + '</td>'
+                + '<td style="padding:10px 12px;border:1px solid #FCA5A5;background:#FFFFFF;color:#0A2540;line-height:1.5;font-size:13px">'
+                + escapeHtml(value)
+                + '</td>'
+                + '</tr>';
+        }
+
+        return '<div style="border:2px solid #b91c1c;border-radius:8px;overflow:hidden;margin:0 0 20px">'
+            + '<div style="background:#b91c1c;color:#fff;padding:10px 14px;font-size:14px;font-weight:700;letter-spacing:0.3px">'
+            + 'COSA E\' SUCCESSO (in italiano semplice)'
+            + '</div>'
+            + '<table style="border-collapse:collapse;width:100%;font-family:Arial,Helvetica,sans-serif">'
+            + row('In poche parole', explanation.what, '#FEF2F2', '#991B1B')
+            + row('Dove/quando', explanation.where, '#FFF7ED', '#9A3412')
+            + row('Cosa fare adesso', explanation.action, '#ECFDF5', '#065F46')
+            + row('Cosa dire a Claude', explanation.tellClaude, '#EFF6FF', '#1E40AF')
+            + '</table>'
+            + '</div>';
+    }
+
     function buildHtml(input) {
         var contextStr = '';
         if (input.context) {
             try { contextStr = JSON.stringify(input.context, null, 2); }
             catch (e) { contextStr = '[contesto non serializzabile: ' + (e && e.message) + ']'; }
         }
-        var userEmail = '';
-        try {
-            // Best-effort: lettura email dalla sessione Supabase via auth helper se disponibile
-            if (window.Auth && typeof window.Auth.getProfilo === 'function') {
-                // getProfilo e' async, non possiamo aspettare qui; lo lasciamo a richiamo
-            }
-        } catch (e) { /* ignore */ }
         var pageUrl = '';
         try { pageUrl = String(window.location && window.location.href || ''); } catch (e) { /* ignore */ }
         var userAgent = '';
         try { userAgent = String(navigator && navigator.userAgent || ''); } catch (e) { /* ignore */ }
+
+        var explanation = classify(input);
 
         var rows = [
             ['Data/ora (Europe/Rome)', input.timestamp.formatted],
@@ -165,7 +461,7 @@
         }).join('');
 
         var sectionTechnical = input.technical
-            ? '<h3 style="margin:18px 0 6px;color:#0A2540;font-size:14px">Dettagli tecnici</h3>'
+            ? '<h3 style="margin:18px 0 6px;color:#0A2540;font-size:14px">Dettagli tecnici (per Claude / Codex)</h3>'
               + '<pre style="background:#0A2540;color:#E3E8EE;padding:12px;border-radius:6px;font-size:11px;white-space:pre-wrap;word-break:break-word">'
               + escapeHtml(input.technical) + '</pre>'
             : '';
@@ -176,20 +472,24 @@
               + escapeHtml(contextStr) + '</pre>'
             : '';
 
-        return '<div style="font-family:Arial,Helvetica,sans-serif;color:#0A2540;max-width:680px">'
-            + '<h2 style="margin:0 0 12px;color:#b91c1c;font-size:18px">[MIROX CRM] '
+        return '<div style="font-family:Arial,Helvetica,sans-serif;color:#0A2540;max-width:720px">'
+            + '<h2 style="margin:0 0 14px;color:#b91c1c;font-size:18px">[MIROX CRM] '
             + escapeHtml(input.title || 'Errore')
             + '</h2>'
-            + '<p style="margin:0 0 12px;color:#697386;font-size:14px">'
+            + buildExplanationBlock(explanation)
+            + '<h3 style="margin:0 0 6px;color:#0A2540;font-size:14px">Messaggio originale</h3>'
+            + '<p style="margin:0 0 14px;color:#475569;font-size:13px;background:#F8FAFC;padding:10px 12px;border-left:3px solid #94A3B8;border-radius:2px">'
             + escapeHtml(input.message || '(nessun messaggio)')
             + '</p>'
+            + '<h3 style="margin:0 0 6px;color:#0A2540;font-size:14px">Metadata</h3>'
             + '<table style="border-collapse:collapse;width:100%;font-size:13px">'
             + rowsHtml
             + '</table>'
             + sectionTechnical
             + sectionContext
             + '<p style="margin-top:18px;color:#94a3b8;font-size:11px">'
-            + 'Notifica automatica generata dal sistema di error reporting Mirox.'
+            + 'Notifica automatica generata dal sistema di error reporting Mirox. '
+            + 'Il blocco "Cosa e\' successo" e\' una classificazione automatica basata su codici errore, status HTTP e parole chiave: potrebbe non essere sempre precisa.'
             + '</p>'
             + '</div>';
     }
@@ -337,6 +637,7 @@
     window.MiroxErrorReporter = {
         now: now,
         report: report,
-        install: install
+        install: install,
+        classify: classify
     };
 })(window);

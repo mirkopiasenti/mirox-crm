@@ -117,7 +117,7 @@ Pagine HTML statiche, no bundler. `/moduli/call-center/` contiene il modulo CC i
 | `js/mirox-upload.js` | `window.MiroxUpload` | drag-drop binding su `.mx-drop-zone` |
 | `js/mirox-folder.js` | `window.MiroxFolder` | `build(oldName, newName, date)` per nomi cartella Storage |
 | `js/mirox-mailer.js` | `window.MiroxMailer` | `send({to, template, vars})` |
-| `js/mirox-error-reporter.js` | `window.MiroxErrorReporter` | `now()` timestamp Europe/Rome; `report({source, level, title, message, technical, context, silent})` invia mail di notifica al proprietario via `mirox-send-email` con throttling 60s per fingerprint; `install({source, ownerEmail})` aggancia handler globali `window.error` + `unhandledrejection`. Destinatario default `mirko.piasenti@gmail.com`. Vedi sezione "Sistema di error reporting via email" |
+| `js/mirox-error-reporter.js` | `window.MiroxErrorReporter` | `now()` timestamp Europe/Rome; `report({source, level, title, message, technical, context, silent})` invia mail di notifica al proprietario via `mirox-send-email` con throttling 60s per fingerprint; `install({source, ownerEmail})` aggancia handler globali `window.error` + `unhandledrejection`; `classify(input)` traduce l'errore in italiano semplice (usata dal blocco "Cosa e' successo" nella mail, esposta per test/riuso). Destinatario default `mirko.piasenti@gmail.com`. Vedi sezione "Sistema di error reporting via email" |
 | `js/vendita-storage-helper.js` | `uploadVenditaDocumento(...)` | wrapper upload PDF via Netlify function |
 
 ### 2. Server (`/netlify/functions/`)
@@ -526,11 +526,24 @@ Ogni errore tecnico nel CRM (rete, OCR, submit, JS non gestiti...) viene notific
 - Favicon standard Mirox (`assets/favicon.png`) presente anche su `admin-vendita-config.html`, `moduli/upload-contratti-vendita.html`, `moduli/segnalazioni.html`.
 - `netlify/functions/_lib/mailer.js`: per le email di comunicazione basate su template, tutte le variabili link CTA (`link_*`, `__cta_url__`) vengono normalizzate a `https://www.mirox-crm.it`. Le mail di errore inviate con HTML diretto da `MiroxErrorReporter` non sono coinvolte.
 
+### Mail leggibili con blocco "Cosa e' successo" (dal 2026-07-02)
+
+Le mail di errore avevano solo output tecnico (titolo/messaggio/stack/JSON): illeggibili per chi non e' sviluppatore. Ora ogni mail ha in cima un box rosso con 4 righe in italiano semplice, generate da un classificatore automatico in `js/mirox-error-reporter.js` (funzione `classify(input)`, esposta anche come `MiroxErrorReporter.classify(...)`):
+
+1. **In poche parole** — descrizione umana del problema
+2. **Dove/quando** — pagina + contesto operativo probabile (nome pagina espanso in linguaggio naturale via mappa `SOURCE_LABELS`)
+3. **Cosa fare adesso** — azione operativa immediata per il proprietario o l'operatore
+4. **Cosa dire a Claude** — frase copiabile per riportare l'errore a Claude/Codex
+
+Sotto al blocco restano `Messaggio originale`, `Metadata` (data/ora, livello, sorgente, utente, pagina, browser), `Dettagli tecnici` (stack) e `Contesto` (JSON) per il debug tecnico. Nessun altro cambiamento API: `report/install/now` restano identici, la struttura dell'email cambia solo nel layout HTML.
+
+Il classificatore riconosce in ordine di priorita': (a) `error_code` strutturato — oggi `ocr_credit_exhausted`, `ocr_rate_limited`, `ocr_unavailable`, `ocr_auth_error`, `ocr_generic_error`; (b) status HTTP letti da `context.http_status` o estratti dal testo — 401/403 (sessione), 404 (risorsa mancante), 413 (file troppo grande), 429 (rate limit), 5xx (server error); (c) keyword — network/fetch, timeout, RLS/PostgREST, consenso privacy, Smshosting/OTP, TypeError JS, promise reject, quota storage; (d) fallback generico che invita a girarmi la mail intera. Quando si aggiungono nuovi `error_code` strutturati nelle Netlify functions, estendere il primo blocco `if` in `classify()` per avere spiegazioni mirate.
+
 ### Componenti
 
 - **Client**: `js/mirox-error-reporter.js` → `window.MiroxErrorReporter` (vedi tabella JS condivisi). Throttling 60s per fingerprint per evitare flood in loop. Destinatario default `mirko.piasenti@gmail.com` (override con `install({ownerEmail})`).
-- **Trasporto**: la mail viene inviata via `MiroxApi.fetch('/.netlify/functions/mirox-send-email')` con HTML inline (no template DB). Subject `[MIROX][LEVEL] <titolo> — <timestamp>`. Body con tabella metadata (livello, sorgente, utente, pagina, browser) + dettagli tecnici + contesto JSON. Loggata su `email_log` con `related_table='error_report'`.
-- **Backend OCR** (`netlify/functions/ocr-pda.js`): l'errore Anthropic viene classificato in `error_code` strutturato e ritornato in payload `{success:false, error, error_code, http_status, provider_status, provider_message}` con HTTP 503/500 a seconda. Codici: `ocr_credit_exhausted` (credit balance low), `ocr_rate_limited` (429), `ocr_unavailable` (5xx/529), `ocr_auth_error` (401/403), `ocr_generic_error`. Il client `fetchJsonOrTechnicalError` propaga `error_code` su `err.serverErrorCode` e `err.httpStatus`.
+- **Trasporto**: la mail viene inviata via `MiroxApi.fetch('/.netlify/functions/mirox-send-email')` con HTML inline (no template DB). Subject `[MIROX][LEVEL] <titolo> — <timestamp>`. Body: (1) blocco "Cosa e' successo" con spiegazione non tecnica (In poche parole / Dove-quando / Cosa fare adesso / Cosa dire a Claude), (2) messaggio originale, (3) tabella metadata (livello, sorgente, utente, pagina, browser), (4) dettagli tecnici + contesto JSON. Loggata su `email_log` con `related_table='error_report'`.
+- **Backend OCR** (`netlify/functions/ocr-pda.js`): l'errore Anthropic viene classificato in `error_code` strutturato e ritornato in payload `{success:false, error, error_code, http_status, provider_status, provider_message}` con HTTP 503/500 a seconda. Codici: `ocr_credit_exhausted` (credit balance low), `ocr_rate_limited` (429), `ocr_unavailable` (5xx/529), `ocr_auth_error` (401/403), `ocr_generic_error`. Il client `fetchJsonOrTechnicalError` propaga `error_code` su `err.serverErrorCode` e `err.httpStatus`, che a loro volta finiscono nel `context` del report e vengono usati da `classify()` per la spiegazione mirata nella mail.
 
 ### Livelli mail
 
