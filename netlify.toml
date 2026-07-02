@@ -12,6 +12,11 @@
   # pdfkit: ha font AFM e asset binari interni che esbuild non riesce a
   #   bundlare correttamente (a runtime fallirebbe con ENOENT su Helvetica.afm).
   external_node_modules = ["@supabase/supabase-js", "nodemailer", "pdfkit"]
+  # File aggiuntivi da includere nel bundle di tutte le functions.
+  # docs/approved_privacy_copy_v2.md: fonte di verita' del testo legale per il
+  # generatore PDF v2 (_lib/pdf-consenso-v2.js) e per il seed della tabella
+  # privacy_policy_versions. Caricato via _lib/privacy-config.js.
+  included_files = ["docs/approved_privacy_copy_v2.md"]
 
 # Headers di sicurezza/cache base
 [[headers]]
