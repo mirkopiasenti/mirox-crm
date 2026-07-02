@@ -46,10 +46,18 @@ const COL_TEXT = '#0f172a';
 const COL_MUTED = '#64748b';
 const COL_BORDER = '#cbd5e1';
 
-const PAGE_MARGIN = 50;
+// Layout compattato per stare in ~2 pagine A4 leggibili con font 8.5pt.
+// Vedi anche assertConfigValid + preprocessing in privacy-config per la
+// coerenza del rendering.
+const PAGE_MARGIN = 36;
 const FONT_REGULAR = 'Helvetica';
 const FONT_BOLD = 'Helvetica-Bold';
 const FONT_ITALIC = 'Helvetica-Oblique';
+const FS_TITLE = 12;
+const FS_H2 = 9.5;
+const FS_H3 = 8.5;
+const FS_BODY = 8;
+const FS_FOOTER = 6.5;
 
 const MARKETING_LABELS = privacyConfig.MARKETING_CHANNEL_LABELS;
 
@@ -267,16 +275,16 @@ function drawFooter(doc, meta) {
     const total = range.count;
     for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
-        const bottom = doc.page.height - 32;
-        doc.font(FONT_REGULAR).fontSize(7).fillColor(COL_MUTED);
+        const bottom = doc.page.height - 22;
+        doc.font(FONT_REGULAR).fontSize(FS_FOOTER).fillColor(COL_MUTED);
         const leftText = `Versione ${meta.version}  |  ID ${meta.consentUuid}  |  Hash ${meta.hashShort}`;
         doc.text(leftText, PAGE_MARGIN, bottom, {
-            width: doc.page.width - 2 * PAGE_MARGIN - 100,
+            width: doc.page.width - 2 * PAGE_MARGIN - 90,
             lineBreak: false,
             align: 'left',
         });
-        doc.text(`Pagina ${i - range.start + 1} di ${total}`, doc.page.width - PAGE_MARGIN - 100, bottom, {
-            width: 100,
+        doc.text(`Pagina ${i - range.start + 1} di ${total}`, doc.page.width - PAGE_MARGIN - 90, bottom, {
+            width: 90,
             lineBreak: false,
             align: 'right',
         });
@@ -296,9 +304,12 @@ function renderMarkdown(doc, md, marketingPrefs) {
     let inParagraph = false;
     const usableWidth = doc.page.width - 2 * PAGE_MARGIN;
 
+    // Compattazione: line-height ridotto tramite lineGap 0 e paragraphGap
+    // stretto. Le moveDown sono in unita' di "current line height" quindi
+    // resto in ratio piccoli.
     function ensureParagraphBreak() {
         if (inParagraph) {
-            doc.moveDown(0.6);
+            doc.moveDown(0.18);
             inParagraph = false;
         }
     }
@@ -315,41 +326,47 @@ function renderMarkdown(doc, md, marketingPrefs) {
         // H1 -> titolo del documento
         if (line.startsWith('# ') && !line.startsWith('## ')) {
             ensureParagraphBreak();
-            doc.moveDown(0.3);
-            doc.font(FONT_BOLD).fontSize(15).fillColor(COL_PRIMARY);
-            doc.text(line.replace(/^#\s+/, ''), { align: 'center', width: usableWidth });
+            doc.font(FONT_BOLD).fontSize(FS_TITLE).fillColor(COL_PRIMARY);
+            doc.text(line.replace(/^#\s+/, ''), { align: 'center', width: usableWidth, lineGap: 0 });
             doc.fillColor(COL_TEXT);
-            doc.moveDown(0.6);
+            doc.moveDown(0.2);
             continue;
         }
 
         // H2 -> sezione principale (## 1. Titolare...)
         if (line.startsWith('## ')) {
             ensureParagraphBreak();
-            doc.moveDown(0.5);
-            doc.font(FONT_BOLD).fontSize(12).fillColor(COL_PRIMARY);
-            doc.text(line.replace(/^##\s+/, ''), { width: usableWidth });
+            doc.moveDown(0.15);
+            doc.font(FONT_BOLD).fontSize(FS_H2).fillColor(COL_PRIMARY);
+            doc.text(line.replace(/^##\s+/, ''), { width: usableWidth, lineGap: 0 });
             doc.fillColor(COL_TEXT);
-            doc.moveDown(0.25);
+            doc.moveDown(0.08);
             continue;
         }
 
         // H3 -> sottosezione (### a) Gestione...)
         if (line.startsWith('### ')) {
             ensureParagraphBreak();
-            doc.moveDown(0.3);
-            doc.font(FONT_BOLD).fontSize(10.5).fillColor(COL_TEXT);
-            doc.text(line.replace(/^###\s+/, ''), { width: usableWidth });
-            doc.moveDown(0.15);
+            doc.moveDown(0.08);
+            doc.font(FONT_BOLD).fontSize(FS_H3).fillColor(COL_TEXT);
+            doc.text(line.replace(/^###\s+/, ''), { width: usableWidth, lineGap: 0 });
+            doc.moveDown(0.04);
             continue;
         }
 
-        // Bullet list "* ..."
+        // Bullet list "* ..." (compatta: lineGap 0, paragraphGap 0)
         if (/^\*\s+/.test(line)) {
             ensureParagraphBreak();
             const bulletText = stripInlineMarkdown(line.replace(/^\*\s+/, ''));
-            doc.font(FONT_REGULAR).fontSize(9.5).fillColor(COL_TEXT);
-            doc.list([bulletText], { bulletRadius: 1.5, textIndent: 12, bulletIndent: 4, width: usableWidth });
+            doc.font(FONT_REGULAR).fontSize(FS_BODY).fillColor(COL_TEXT);
+            doc.list([bulletText], {
+                bulletRadius: 1.2,
+                textIndent: 10,
+                bulletIndent: 3,
+                width: usableWidth,
+                lineGap: 0,
+                paragraphGap: 0,
+            });
             continue;
         }
 
@@ -361,15 +378,10 @@ function renderMarkdown(doc, md, marketingPrefs) {
             const key = labelToMarketingKey(label);
             const checked = key ? Boolean(marketingPrefs && marketingPrefs[key]) : false;
             drawCheckbox(doc, checked, label, usableWidth);
-            doc.moveDown(0.2);
+            doc.moveDown(0.1);
             continue;
         }
 
-        // Riga con **bold**: potrebbe essere:
-        //  - "**Base giuridica:** esecuzione del contratto..."
-        //  - "**Trasferimenti verso Paesi extra-SEE:**" (standalone)
-        //  - "**Responsabile...**" (gia' rimossa se HAS_DPO=false)
-        // Uso un rendering "bold prefix + regolare resto" quando il bold e' a inizio riga.
         if (/^\*\*[^*]+\*\*/.test(line)) {
             ensureParagraphBreak();
             renderMixedBoldLine(doc, line, usableWidth);
@@ -377,9 +389,9 @@ function renderMarkdown(doc, md, marketingPrefs) {
             continue;
         }
 
-        // Paragrafo normale
-        doc.font(FONT_REGULAR).fontSize(9.5).fillColor(COL_TEXT);
-        doc.text(stripInlineMarkdown(line), { width: usableWidth, align: 'justify' });
+        // Paragrafo normale (no justify: gli spazi bianchi extra allungano)
+        doc.font(FONT_REGULAR).fontSize(FS_BODY).fillColor(COL_TEXT);
+        doc.text(stripInlineMarkdown(line), { width: usableWidth, lineGap: 0 });
         inParagraph = true;
     }
     ensureParagraphBreak();
@@ -394,17 +406,17 @@ function labelToMarketingKey(label) {
 }
 
 function drawCheckbox(doc, checked, label, usableWidth) {
-    const size = 10;
+    const size = 8;
     const startX = PAGE_MARGIN;
     const startY = doc.y;
-    doc.lineWidth(0.8).strokeColor(COL_TEXT);
-    doc.rect(startX, startY + 2, size, size).stroke();
+    doc.lineWidth(0.7).strokeColor(COL_TEXT);
+    doc.rect(startX, startY + 1.5, size, size).stroke();
     if (checked) {
-        doc.moveTo(startX + 2, startY + 6).lineTo(startX + 4, startY + 10).stroke();
-        doc.moveTo(startX + 4, startY + 10).lineTo(startX + 9, startY + 4).stroke();
+        doc.moveTo(startX + 1.5, startY + 5).lineTo(startX + 3.5, startY + 8).stroke();
+        doc.moveTo(startX + 3.5, startY + 8).lineTo(startX + 7, startY + 3).stroke();
     }
-    doc.font(FONT_REGULAR).fontSize(10).fillColor(COL_TEXT);
-    doc.text(label, startX + size + 8, startY, { width: usableWidth - size - 8 });
+    doc.font(FONT_REGULAR).fontSize(FS_BODY).fillColor(COL_TEXT);
+    doc.text(label, startX + size + 6, startY, { width: usableWidth - size - 6, lineGap: 0 });
 }
 
 function stripInlineMarkdown(text) {
@@ -415,24 +427,21 @@ function stripInlineMarkdown(text) {
 }
 
 function renderMixedBoldLine(doc, line, usableWidth) {
-    // Cerca il primo **...** e lo rende bold; il resto della riga come normale.
-    // Sufficiente per righe "**Base giuridica:** esecuzione..." e
-    // "**Trasferimenti verso Paesi extra-SEE:**".
     const match = line.match(/^\*\*([^*]+)\*\*(.*)$/);
     if (!match) {
-        doc.font(FONT_REGULAR).fontSize(9.5).fillColor(COL_TEXT);
-        doc.text(stripInlineMarkdown(line), { width: usableWidth, align: 'justify' });
+        doc.font(FONT_REGULAR).fontSize(FS_BODY).fillColor(COL_TEXT);
+        doc.text(stripInlineMarkdown(line), { width: usableWidth, lineGap: 0 });
         return;
     }
     const bold = match[1];
     const rest = stripInlineMarkdown(match[2]).trim();
-    doc.font(FONT_BOLD).fontSize(9.5).fillColor(COL_TEXT);
+    doc.font(FONT_BOLD).fontSize(FS_BODY).fillColor(COL_TEXT);
     if (rest) {
-        doc.text(bold + ' ', { continued: true, width: usableWidth });
+        doc.text(bold + ' ', { continued: true, width: usableWidth, lineGap: 0 });
         doc.font(FONT_REGULAR);
-        doc.text(rest, { width: usableWidth, align: 'justify' });
+        doc.text(rest, { width: usableWidth, lineGap: 0 });
     } else {
-        doc.text(bold, { width: usableWidth });
+        doc.text(bold, { width: usableWidth, lineGap: 0 });
     }
 }
 
@@ -464,10 +473,10 @@ async function generateConsensoV2Pdf(ctx) {
     const identificativo = `${sec11.consentUuid} / SHA256:${hashShort}`;
     md = md.replace('__IDENTIFICATIVO_DOCUMENTO__', identificativo);
 
-    // Render PDF
+    // Render PDF - margini bottom un po' piu' larghi per lasciare posto al footer
     const doc = new PDFDocument({
         size: 'A4',
-        margins: { top: PAGE_MARGIN, bottom: PAGE_MARGIN + 20, left: PAGE_MARGIN, right: PAGE_MARGIN },
+        margins: { top: PAGE_MARGIN, bottom: PAGE_MARGIN + 12, left: PAGE_MARGIN, right: PAGE_MARGIN },
         bufferPages: true,
         info: {
             Title: 'Informativa privacy e preferenze marketing',
