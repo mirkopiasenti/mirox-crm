@@ -57,3 +57,7 @@ Lo schema reale di Supabase contiene anche modifiche fatte:
 - Per nuove modifiche schema: applicare via SQL Editor Supabase E aggiungere il file qui con prefisso numerico progressivo (`015_`, `016_`, ...)
 - Le **RLS policies**, **RPC** e **trigger** possono evolvere senza file associato qui: per uno snapshot affidabile esportare via dashboard Supabase o via query di introspezione
 - Quando si aggiunge un nuovo file `.sql` in questa cartella, **aggiornare contestualmente la tabella "Elenco file"** sopra (regola di manutenzione documentale — vedi sezione "Manutenzione di questa guida" in `../CLAUDE.md`)
+
+## Aggiornamenti senza migrazione
+
+- **2026-07-02**: modifiche solo frontend/mailer, nessun cambio schema Supabase. Aggiornati layout `dashboard_pezzi`, redirect post-invio di `upload-contratti-vendita`, favicon mancanti e link CTA delle email di comunicazione verso `https://www.mirox-crm.it`.

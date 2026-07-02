@@ -101,9 +101,12 @@ body > .container.dp-page.dp-page {
   flex: 1; min-height: 0;
 }
 table.pezzi {
-  width: 100%; border-collapse: collapse; min-width: 700px;
+  width: max-content; border-collapse: collapse; min-width: 0;
   font-size: 11.5px;
+  table-layout: auto;
+  --operator-col-width: 150px;
 }
+table.pezzi col.col-op { width: var(--operator-col-width); }
 table.pezzi thead th {
   background: #fff !important; color: var(--text) !important;
   font-weight: 700 !important; font-size: 11.5px !important;
@@ -118,7 +121,12 @@ table.pezzi thead th.col-data {
   letter-spacing: 0.02em !important;
 }
 table.pezzi thead th.col-label {
-  text-align: left !important; min-width: 240px;
+  text-align: left !important; width: auto;
+}
+table.pezzi thead th.col-op {
+  width: var(--operator-col-width);
+  min-width: var(--operator-col-width);
+  max-width: var(--operator-col-width);
 }
 table.pezzi tbody td {
   padding: 1px 9px !important;
@@ -132,10 +140,15 @@ table.pezzi tbody tr:hover { background: transparent !important; }
 table.pezzi tbody td.cell-label {
   text-align: left !important; font-weight: 700 !important; font-size: 11.5px !important; color: var(--text) !important;
   font-style: italic !important;
+  white-space: nowrap !important;
+  padding-right: 38px !important;
 }
 table.pezzi tbody td.cell-num {
   font-weight: 700 !important; font-size: 12px !important;
   text-align: center !important;
+  width: var(--operator-col-width);
+  min-width: var(--operator-col-width);
+  max-width: var(--operator-col-width);
 }
 table.pezzi tbody td.cell-num.zero { color: var(--text-light) !important; font-weight: 500 !important; }
 
@@ -189,7 +202,7 @@ table.pezzi tbody tr.gruppo-header td {
 <div class="grid-wrap">
   <div class="scroll">
     <div id="pezziTable">
-      <div class="empty-state"><div class="empty-icon">⏳</div>Caricamento...</div>
+      <div class="empty-state"><div class="empty-icon"></div>Caricamento...</div>
     </div>
   </div>
 </div>
@@ -405,8 +418,9 @@ function renderGriglia() {
     return;
   }
 
-  const opCols = OPERATORI.map(op => `<th>${escapeHtml(op)}</th>`).join('');
-  let html = `<table class="pezzi"><thead><tr>
+  const opCols = OPERATORI.map(op => `<th class="col-op">${escapeHtml(op)}</th>`).join('');
+  const colGroup = `<colgroup><col class="col-label">${OPERATORI.map(() => '<col class="col-op">').join('')}</colgroup>`;
+  let html = `<table class="pezzi">${colGroup}<thead><tr>
     <th class="col-data col-label">${escapeHtml(fmtDataLabel(DPState.dataSelezionata))}</th>
     ${opCols}
   </tr></thead><tbody>`;

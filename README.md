@@ -115,7 +115,6 @@ Dettagli e regole complete nella sezione "Collaborazione Claude Code + Codex" di
 | `SMSHOSTING_SENDER` | no | Mittente alfanumerico SMS, max 11 caratteri. Default `MIROX`. Va dichiarato in fase di setup account Smshosting |
 | `SMSHOSTING_SIMULATE` | no | `true` per attivare modalità simulazione (logga SMS senza inviarlo). Utile per test dev senza spendere credito |
 | `NOTIFICA_RIENTRO_TO` | no | Default `info@konatech.it` |
-| `PUBLIC_BASE_URL` | no | Base URL del sito per i link nelle mail |
 | `MAIL_FROM_NAME` | no | Default `Mirox CRM` |
 
 ## Modulo Call Center (integrato, Fase 1)
@@ -211,6 +210,13 @@ Componente: `js/mirox-error-reporter.js` → `window.MiroxErrorReporter`. Traspo
 Sulle 30 pagine batch è installato solo l'handler globale (`window.error` + `unhandledrejection`), che cattura tutti gli errori JS non gestiti. Per mail mirate su catch specifici si segue il pattern del wizard upload-contratti (vedi `CLAUDE.md` per dettagli).
 
 Dettagli operativi: vedi [CLAUDE.md](CLAUDE.md) sezione "Sistema di error reporting via email".
+
+## Aggiornamenti UI e comunicazioni (dal 2026-07-02)
+
+- `moduli/dashboard_pezzi.html`: la griglia giornaliera usa colonne operatore più compatte e la colonna offerte resta larga solo quanto il testo più lungo, con circa 1 cm di respiro.
+- `moduli/upload-contratti-vendita.html`: dopo l'invio riuscito di una pratica, il wizard mostra il successo e torna automaticamente alla Home Vendita (`dashboard.html`).
+- Favicon Mirox standard (`assets/favicon.png`) allineata sulle pagine HTML che ne erano prive.
+- I bottoni delle email di comunicazione basate su template (segnalazioni, rientro Switch SIM, ordini smartphone) puntano a [`https://www.mirox-crm.it`](https://www.mirox-crm.it). Le mail tecniche di errore restano escluse.
 
 ## Schedulazioni
 

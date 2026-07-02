@@ -2,6 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" type="image/png" href="../assets/favicon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2040,6 +2041,10 @@ Reload Forever
  }
 
  hideLoadingOverlay();
+ }
+
+ function goToSalesHome() {
+ window.location.href = '../dashboard.html';
  }
 
  function showLoadingOverlay(title, text) {
@@ -4782,9 +4787,13 @@ Reload Forever
  markTechnicalConnected('Connesso');
  showSuccessOverlay(
  'Pratica inviata con successo',
- 'La pratica è stata salvata e i documenti sono stati caricati correttamente.',
+ 'La pratica è stata salvata e i documenti sono stati caricati correttamente. Torno alla Home Vendita...',
  successSummaryRows
  );
+ setOverlayActions({
+ primary: { label: 'Vai alla Home Vendita', onClick: () => goToSalesHome() }
+ });
+ window.setTimeout(goToSalesHome, 1800);
  } catch (error) {
  const technical = isTechnicalError(error);
  setMessage(error.message, 'err');

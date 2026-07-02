@@ -15,13 +15,13 @@
  *   - SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  *   - SMTP_USER, SMTP_PASS
  *   - NOTIFICA_RIENTRO_TO   (default: info@konatech.it)
- *   - PUBLIC_BASE_URL       (per i link nella mail, es. https://...netlify.app)
  */
 
 const { sendEmail, getSupabase } = require('./_lib/mailer');
 
 const TIMEZONE = 'Europe/Rome';
 const schedule = '0 7 * * *';
+const MIROX_HOME_URL = 'https://www.mirox-crm.it';
 
 function todayInRome() {
     const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -40,7 +40,6 @@ function fmtItDate(iso) {
 
 const handler = async () => {
     const destinatario = process.env.NOTIFICA_RIENTRO_TO || 'info@konatech.it';
-    const baseUrl = process.env.PUBLIC_BASE_URL || '';
 
     let supabase;
     try {
@@ -81,7 +80,7 @@ const handler = async () => {
                     gestore: p.gestore || '-',
                     operatore: p.operatore_nome || '-',
                     data_inserimento: fmtItDate(p.data_inserimento),
-                    link_switch: baseUrl ? `${baseUrl}/moduli/switch_sim.html` : '#'
+                    link_switch: MIROX_HOME_URL
                 },
                 related_table: 'vendita_switch_sim',
                 related_id: p.id

@@ -19,6 +19,8 @@
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 
+const COMMUNICATION_CTA_URL = 'https://www.mirox-crm.it';
+
 let _supabase = null;
 function getSupabase() {
     if (_supabase) return _supabase;
@@ -54,6 +56,19 @@ function renderPlaceholders(template, vars) {
         const v = vars && vars[key];
         return (v === undefined || v === null) ? '' : String(v);
     });
+}
+
+function normalizeTemplateVars(templateSlug, vars) {
+    const normalized = Object.assign({}, vars || {});
+    if (!templateSlug) return normalized;
+
+    Object.keys(normalized).forEach((key) => {
+        if (key.startsWith('link_') || key === '__cta_url__') {
+            normalized[key] = COMMUNICATION_CTA_URL;
+        }
+    });
+
+    return normalized;
 }
 
 /**
@@ -103,7 +118,7 @@ async function sendEmail(opts) {
 
     let subject = opts.subject || '';
     let html = opts.html || '';
-    const vars = opts.vars || {};
+    const vars = normalizeTemplateVars(opts.template, opts.vars || {});
 
     // Se template, carica e renderizza
     if (opts.template) {
