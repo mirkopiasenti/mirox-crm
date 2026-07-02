@@ -6351,7 +6351,14 @@ Reload Forever
      }
 
      async function maybeUpdateAnagrafica(newNumber) {
-       if (!newNumber || newNumber === cliente.cellulare) return;
+       if (!newNumber) return;
+       // Confronto in forma canonica E.164 per evitare falsi positivi tra
+       // formati equivalenti (es. "3331234567" salvato in anagrafica vs
+       // "+393331234567" ritornato da cpNormalizeMobile). Se l'anagrafica
+       // ha un valore non parsabile, existingNorm e' null e mostriamo il
+       // popup come prima.
+       const existingNorm = cpNormalizeMobile(cliente.cellulare);
+       if (existingNorm && existingNorm === newNumber) return;
        const ok = await MiroxUI.confirm(
          'Hai usato un numero diverso da quello salvato in anagrafica (' + cpEsc(cliente.cellulare || '-') + '). Vuoi aggiornare anche il cellulare nell\'anagrafica del cliente con ' + cpEsc(newNumber) + '?',
          { title: 'Aggiornare anagrafica?', okText: 'Si, aggiorna', cancelText: 'No, solo OTP' }
