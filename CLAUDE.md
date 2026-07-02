@@ -300,7 +300,7 @@ Sia UI (`validateClienteData` in `upload-contratti-vendita.html`) sia backend (`
 - `nome_referente`
 - `cellulare`
 - `email` (formato verificato con regex)
-- `provincia`, `comune`, `via`, `civico` (indirizzo completo obbligatorio)
+- `provincia`, `comune`, `via`, `civico` (indirizzo completo obbligatorio per `Consumer`/`Business`; per `Turista` il wizard nasconde i campi e li invia `null`)
 
 L'email viene normalizzata in lowercase. Nota: nel backend il flag `allowStrictContacts` controlla la severita' (oggi `false` per backwards compat con vecchi consumer della API).
 
@@ -522,7 +522,7 @@ Ogni errore tecnico nel CRM (rete, OCR, submit, JS non gestiti...) viene notific
 ### Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
 - `moduli/dashboard_pezzi.html`: layout più compatto. La colonna offerte e le colonne operatori (`MATTEO`, `MIRKO`, `FRANCESCA`, `CEREA`) hanno larghezze fisse compatte; il colore resta pieno sulla cella come nel foglio originale. La tabella e' fissata a 622px totali (270px offerte + 4 colonne da 88px) per evitare espansioni a tutta pagina.
-- `moduli/upload-contratti-vendita.html`: dopo submit pratica riuscito il wizard mostra il popup di successo e redirige automaticamente alla dashboard (`../dashboard.html`), cioè la Home del reparto Vendita.
+- `moduli/upload-contratti-vendita.html`: dopo submit pratica riuscito il wizard mostra il popup di successo e redirige automaticamente alla dashboard (`../dashboard.html`), cioè la Home del reparto Vendita. Per cluster `Turista`, il wizard nasconde provincia/comune/via/civico, li invia come `null` e non li richiede in validazione client.
 - Favicon standard Mirox (`assets/favicon.png`) presente anche su `admin-vendita-config.html`, `moduli/upload-contratti-vendita.html`, `moduli/segnalazioni.html`.
 - `netlify/functions/_lib/mailer.js`: per le email di comunicazione basate su template, tutte le variabili link CTA (`link_*`, `__cta_url__`) vengono normalizzate a `https://www.mirox-crm.it`. Le mail di errore inviate con HTML diretto da `MiroxErrorReporter` non sono coinvolte.
 
