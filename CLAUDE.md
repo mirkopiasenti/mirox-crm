@@ -242,11 +242,11 @@ Dal 2026-06-24 (migration `029`) i bucket dati clienti sono **PRIVATI**. Lettura
 
 **RLS storage**: SELECT/INSERT/DELETE ristretti a `authenticated` per i bucket privati; le scritture passano comunque per Netlify functions con service_role.
 
-**Eccezione `segnalazioni-files` + tabella `segnalazioni` per konahub legacy** (migration `032`, 2026-06-25): il konahub (CRM provvisorio su deploy separato) usa `moduli/segnalazioni.html` senza Supabase Auth — tutte le chiamate sono `anon`. La 029 (storage) + la 030 (tabella) avevano rotto il modulo. La 032 riapre solo il minimo per `anon` (additivo alle policy authenticated esistenti, Mirox NON è toccato):
-- Tabella `segnalazioni`: SELECT + INSERT + UPDATE (no DELETE)
-- Bucket `segnalazioni-files`: SELECT + INSERT (no DELETE)
+**Segnalazioni hardened al pari degli altri moduli** (migration `036` + refactor `moduli/segnalazioni.html`, 2026-07-02): storicamente il modulo segnalazioni faceva le sue chiamate come `anon` — la pagina Mirox creava un proprio client Supabase con la anon key hardcoded (`sb = createClient(URL, ANON_KEY)`), senza `js/config.js` ne' `Auth.richiediAuth`. Per non romperlo la migration 032 aveva riaperto `anon` (SELECT/INSERT/UPDATE su tabella + SELECT/INSERT su bucket). Il konahub legacy usava lo stesso trick.
 
-Bucket resta `public=false`. Da revocare quando il konahub verrà dismesso — vedi "Note operative consapevoli".
+Al 2026-07-02 il konahub e' stato dismesso e `moduli/segnalazioni.html` e' stata **modernizzata**: include `js/config.js` + `js/auth.js`, chiama `Auth.richiediAuth()` al boot, aliasa `const sb = window.db` (client persistSession della sessione Mirox). Tutte le chiamate ora viaggiano col JWT `authenticated` e vengono coperte dalle policy `segnalazioni_authenticated_all` / `Read|Upload|Delete auth segnalazioni files`. La migration 036 revoca quindi le 5 policy `anon` residue.
+
+Da questo momento il modulo segnalazioni funziona **solo da Mirox loggato**. Se qualcuno prova a chiamare `segnalazioni` come `anon` (konahub tornante online, client esterni) riceve RLS violation.
 
 ---
 
@@ -564,13 +564,12 @@ Il classificatore riconosce in ordine di priorita': (a) `error_code` strutturato
 **Integrazione globale (31 pagine, ogni pagina ha `install({source:'<nome>'})` al boot per catturare errori JS non gestiti):**
 
 - **Root** (5): `dashboard`, `admin`, `admin-utenti`, `admin-vendita-config`, `admin-call-center-config`
-- **Vendita/Post-Vendita** (15): `upload-contratti-vendita` (integrazione completa con `reportInfo` sui 5 catch tecnici principali + branching OCR credito esaurito), `apri_chiudi`, `switch_sim`, `ordini_smartphone`, `simulatore_protecta`, `dashboard_pezzi`, `storico_cliente`, `dispositivi_comodato`, `gestione_rimborsi`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `ticket`
+- **Vendita/Post-Vendita** (16): `upload-contratti-vendita` (integrazione completa con `reportInfo` sui 5 catch tecnici principali + branching OCR credito esaurito), `apri_chiudi`, `switch_sim`, `ordini_smartphone`, `simulatore_protecta`, `dashboard_pezzi`, `storico_cliente`, `dispositivi_comodato`, `gestione_rimborsi`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `ticket`, `segnalazioni` (integrata il 2026-07-02 col refactor auth guard)
 - **Call Center** (11): `appuntamenti`, `appuntamenti-oggi`, `blacklist`, `call-center-lead-outbound`, `elenco-chiamate`, `esiti-appuntamenti`, `prenota-interno`, `prenota-interno-outbound`, `registra-chiamata`, `registra-chiamata-outbound`, `rilavorazione`
 
 **Pagine escluse (volutamente)**:
 
 - `index.html` — schermata di login, prima dell'autenticazione (nessun JWT da iniettare)
-- `moduli/segnalazioni.html` — esclusa per scelta operativa (da integrare in seconda battuta)
 - `moduli/call-center/prenota.html` — form pubblico anon (nessuna auth, `mirox-send-email` ritornerebbe 401)
 
 **Tipo di integrazione applicato sulle 30 pagine batch** (dal 2026-06-25):
@@ -676,15 +675,7 @@ A regime stimato (300 contratti/mese → ~100 OTP/mese dopo dedupe 48 mesi): ~�
 - **Catalogo `vendita_reload` dismesso** (migration `035`, 2026-06-26): la dropdown Reload nel wizard upload-contratti, la sezione "Reload (catalogo)" in `admin-vendita-config.html` e il multiselect "Reload disponibili" nelle offerte sono **disabilitati** (UI nascosta o no-op via shim JS). La tabella DB `vendita_reload`, il link `vendita_offerte_reload` e la colonna `vendita_contratti.reload_id` sono **conservati** per dati storici — niente DROP. Le Netlify functions `vendita-config.js` e `admin-vendita-config.js` continuano a leggere/scrivere ma il wizard non invia più `reload_id` né nuovi link. Se serve riabilitare in futuro: ripristinare HTML/JS nei 3 punti citati e gli shim no-op in `upload-contratti-vendita.html`. **Non eliminare** la tabella DB senza prima migrare i contratti storici.
 - **`vendita_contratti.smartphone_reload` + `smartphone_reload_modalita`** (migration `035`, 2026-06-26): non confondere con il vecchio catalogo Reload. Sono campi del singolo contratto, ricavati dalla riga "SMARTPHONE RELOAD SI/NO" del PDA. Il CHECK DB `vc_smartphone_reload_coerenza_chk` impone `modalita NOT NULL ⇔ smartphone_reload IS TRUE`: se vuoi cambiare smartphone_reload da true a false, **prima** azzera la modalita.
 - **Import storico konahub completato** (2026-06-29): importati 1665 contratti + 1366 pratiche + 81 anagrafiche + dati post-vendita (217 fissi, 271 L&G, 10 allarmi, 8 assicurazioni) + switch (57) + apri/chiudi (36) + comodato (7) + ordini (27) + protecta (26) + ticket (136). Tutti i contratti con `stato_controllo='controllato'`, `stato_inserimento='inserimento'`, `origine_pratica='spontaneo'`. **35 contratti hanno `operatore_id=NULL`** (33 Cerea + 2 vuoti) — appena crei profilo `Cerea` lancia: `UPDATE vendita_contratti SET operatore_id='<uuid_cerea>' WHERE operatore_id IS NULL AND data_contratto >= '2026-01-01';`. **81 anagrafiche nuove sono passaporti** (cluster='Consumer' a DB ma cf_piva contiene un codice passaporto, NON un CF italiano). Script di import in `database/imports/konahub/` (`.gitignored` per CSV/zip/docs). Backup pre-import in `database/backups/pre_cleanup_2026-06-29/`.
-- **TODO cleanup konahub** (migration `032`, 2026-06-25): quando il konahub (CRM provvisorio, deploy separato) verrà dismesso e tutte le segnalazioni passeranno per Mirox, **revocare le 5 policy anon** ripristinando lo stato hardened post-029/030. Cleanup SQL:
-  ```sql
-  DROP POLICY "segnalazioni_anon_select"        ON segnalazioni;
-  DROP POLICY "segnalazioni_anon_insert"        ON segnalazioni;
-  DROP POLICY "segnalazioni_anon_update"        ON segnalazioni;
-  DROP POLICY "Read anon segnalazioni files"    ON storage.objects;
-  DROP POLICY "Upload anon segnalazioni files"  ON storage.objects;
-  ```
-  Le policy authenticated restano in piedi → nessuna azione lato Mirox.
+- **Cleanup konahub segnalazioni fatto** (migration `036` + refactor `moduli/segnalazioni.html`, 2026-07-02): konahub dismesso, pagina segnalazioni modernizzata (auth guard + `window.db` di `js/config.js`), 5 policy `anon` revocate. Da adesso il modulo funziona solo da Mirox loggato — vedi sezione "Storage buckets" per il dettaglio.
 
 ---
 
