@@ -3392,7 +3392,9 @@ Reload Forever
  throw new Error('Email non valida (es. cliente@example.com)');
  }
 
- // Indirizzo obbligatorio (provincia, comune, via, civico)
+ // Indirizzo obbligatorio solo per Consumer/Business: per Turista i campi
+ // indirizzo sono nascosti e inviati come null.
+ if (!isTuristaCluster(cliente.cluster)) {
  if (!cliente.provincia) {
  throw new Error('Compila il campo Provincia');
  }
@@ -3404,6 +3406,7 @@ Reload Forever
  }
  if (!cliente.civico) {
  throw new Error('Compila il campo Civico');
+ }
  }
  }
 
