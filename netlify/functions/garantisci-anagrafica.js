@@ -101,12 +101,13 @@ exports.handler = async (event) => {
     try { cluster = normalizeCluster(cliente.cluster); }
     catch (e) { return response(400, { success: false, error: e.message }); }
     const anagraficaCluster = clusterForAnagrafica(cluster);
+    const isTurista = cluster === 'Turista';
 
     if (!cfPiva) return response(400, { success: false, error: 'cf_piva mancante' });
     if (!ragioneSociale) return response(400, { success: false, error: 'ragione_sociale mancante' });
     if (!cellulare) return response(400, { success: false, error: 'cellulare mancante' });
-    if (!email) return response(400, { success: false, error: 'email mancante' });
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return response(400, { success: false, error: 'email non valida' });
+    if (!isTurista && !email) return response(400, { success: false, error: 'email mancante' });
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return response(400, { success: false, error: 'email non valida' });
 
     const SUPABASE_URL = process.env.SUPABASE_URL;
     const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;

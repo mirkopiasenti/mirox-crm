@@ -41,7 +41,7 @@ Tutte le functions (eccetto `cron-rientro-sim`) richiedono `Authorization: Beare
 |---|---|---|---|
 | `vendita-config` | GET | authenticated | Carica catalogo per il wizard contratti |
 | `admin-vendita-config` | GET / POST | **admin** | CRUD admin del catalogo |
-| `crea-vendita-pratica-carrello` | POST | authenticated | Crea pratica + N contratti con validazioni; promuove i PDA da staging. Per cluster `Turista` salva `cluster_cliente='Turista'` sui contratti ma usa `Consumer` su `anagrafica` |
+| `crea-vendita-pratica-carrello` | POST | authenticated | Crea pratica + N contratti con validazioni; promuove i PDA da staging. Per cluster `Turista` salva `cluster_cliente='Turista'` sui contratti, usa `Consumer` su `anagrafica` e non richiede email |
 | `upload-vendita-documento` | POST multipart | authenticated | Upload PDF su bucket `contratti-vendita` (anche staging `temp/<sess>/`) |
 | `elimina-vendita-contratto` | POST | **admin** | Eliminazione definitiva da Verifica Contratti: cancella il contratto, i record collegati, gli allegati Storage e la pratica se resta vuota |
 | `ocr-pda` | POST multipart | authenticated | OCR del PDA (Pratica di Adesione PDF) via Claude API — pre-compila l'anagrafica. In caso di errore Anthropic ritorna `error_code` strutturato (`ocr_credit_exhausted`, `ocr_rate_limited`, `ocr_unavailable`, `ocr_auth_error`, `ocr_generic_error`) per popup mirato lato client |
@@ -49,7 +49,7 @@ Tutte le functions (eccetto `cron-rientro-sim`) richiedono `Authorization: Beare
 | `mirox-send-email` | POST | authenticated | Invio email con template DB |
 | `cron-rientro-sim` | scheduled | nessuna (cron Netlify) | Notifica giornaliera rientro SIM |
 | `public-prenota` | GET / POST | nessuna (form pubblico) | Endpoint per `prenota.html`: GET slot disponibili + POST creazione appuntamento. Service_role + rate-limiting in-memory |
-| `garantisci-anagrafica` | POST | authenticated | Upsert anagrafica (lookup CF/PIVA, update campi vuoti / cambiati o insert). Usato dal wizard prima della raccolta consenso; per `Turista` salva `Consumer` su `anagrafica` |
+| `garantisci-anagrafica` | POST | authenticated | Upsert anagrafica (lookup CF/PIVA, update campi vuoti / cambiati o insert). Usato dal wizard prima della raccolta consenso; per `Turista` salva `Consumer` su `anagrafica` e non richiede email |
 | `check-consenso-privacy` | GET | authenticated | Dedupe 48 mesi: cerca un consenso `stato='confermato'`, non scaduto, non revocato per `anagrafica_id` |
 | `richiedi-otp-privacy` | POST | authenticated | Genera OTP 6 cifre, salva hash+salt, invia SMS via Smshosting. Rate-limit 3 invii/ora per anagrafica + cooldown 60s |
 | `verifica-otp-privacy` | POST | authenticated | Verifica OTP (max 3 tentativi), genera PDF informativa con metadata firma, upload bucket `consensi-privacy`, segna `stato='confermato'` con `valido_fino_al = now()+48 mesi` |
@@ -216,7 +216,7 @@ Dettagli operativi: vedi [CLAUDE.md](CLAUDE.md) sezione "Sistema di error report
 
 - `moduli/dashboard_pezzi.html`: la griglia giornaliera usa larghezze fisse compatte per offerte e operatori, con colore pieno sulla cella come nel foglio originale. La tabella e' fissata a 622px totali (270px offerte + 4 colonne da 88px) per evitare espansioni a tutta pagina.
 - `moduli/upload-contratti-vendita.html`: dopo l'invio riuscito di una pratica, il wizard mostra il successo e torna automaticamente alla Home Vendita (`dashboard.html`).
-- `moduli/upload-contratti-vendita.html` + functions vendita: per cluster `Turista` il wizard nasconde provincia/comune/via/civico, forza categoria/offerta dedicate e non blocca piu' l'avanzamento chiedendo provincia o opzione; la pratica resta `Turista`, mentre l'anagrafica condivisa viene salvata come `Consumer`.
+- `moduli/upload-contratti-vendita.html` + functions vendita: per cluster `Turista` il wizard nasconde email/provincia/comune/via/civico, forza categoria/offerta dedicate e non blocca piu' l'avanzamento chiedendo provincia, opzione o email; la pratica resta `Turista`, mentre l'anagrafica condivisa viene salvata come `Consumer`.
 - `moduli/verifica_contratti.html`: nel popup dettaglio contratto e' presente il tasto "Elimina definitivamente". Gli operatori lo vedono disabilitato; gli admin possono usarlo con doppia conferma. La cancellazione passa dalla function admin-only `elimina-vendita-contratto`.
 - `moduli/verifica_contratti.html`: aggiunto filtro `Giorno` nelle tab Da Verificare e Verificati per isolare i contratti caricati in una data specifica.
 - `moduli/verifica_contratti.html`: per i contratti Fisso il popup dettaglio mostra anche la convergenza scelta, accanto al prezzo di vendita Fisso.

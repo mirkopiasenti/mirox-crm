@@ -1149,7 +1149,7 @@ Dati pre-compilati dall'AI sulla base del PDA caricato. Verifica e correggi prim
 </div> <div class="field">
 <label for="cellulare">Cellulare *</label>
 <input id="cellulare" autocomplete="off" placeholder="es. 3331234567">
-</div> <div class="field">
+</div> <div id="fieldEmail" class="field">
 <label for="email">Email *</label>
 <input id="email" type="email" autocomplete="off" placeholder="es. cliente@example.com">
 </div> <div id="fieldProvincia" class="field">
@@ -1536,6 +1536,7 @@ Reload Forever
  nomeReferente: document.getElementById('nome_referente'),
  cellulare: document.getElementById('cellulare'),
  email: document.getElementById('email'),
+ fieldEmail: document.getElementById('fieldEmail'),
  provincia: document.getElementById('provincia'),
  comune: document.getElementById('comune'),
  via: document.getElementById('via'),
@@ -2565,12 +2566,14 @@ Reload Forever
 
  function applyClusterFieldVisibility() {
  const turista = isTuristaCluster(refs.cluster.value);
+ refs.fieldEmail.classList.toggle('hidden', turista);
  refs.fieldProvincia.classList.toggle('hidden', turista);
  refs.fieldComune.classList.toggle('hidden', turista);
  refs.fieldVia.classList.toggle('hidden', turista);
  refs.fieldCivico.classList.toggle('hidden', turista);
 
  if (turista) {
+ refs.email.value = '';
  refs.provincia.value = '';
  refs.comune.value = '';
  refs.via.value = '';
@@ -3362,7 +3365,7 @@ Reload Forever
  ragione_sociale: refs.ragioneSociale.value.trim(),
  nome_referente: refs.nomeReferente.value.trim() || null,
  cellulare: refs.cellulare.value.trim() || null,
- email: refs.email ? (refs.email.value.trim().toLowerCase() || null) : null,
+ email: turista ? null : (refs.email ? (refs.email.value.trim().toLowerCase() || null) : null),
  provincia: turista ? null : (refs.provincia.value.trim() || null),
  comune: turista ? null : (refs.comune.value.trim() || null),
  via: turista ? null : (refs.via.value.trim() || null),
@@ -3391,20 +3394,22 @@ Reload Forever
  throw new Error('Compila il campo Nome Referente');
  }
 
- // Email e cellulare obbligatori (allineato al backend allowStrictContacts)
+ const turista = isTuristaCluster(cliente.cluster);
+
+ // Cellulare sempre obbligatorio. Email obbligatoria solo per Consumer/Business.
  if (!cliente.cellulare) {
  throw new Error('Compila il campo Cellulare');
  }
- if (!cliente.email) {
+ if (!turista && !cliente.email) {
  throw new Error('Compila il campo Email');
  }
- if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cliente.email)) {
+ if (cliente.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cliente.email)) {
  throw new Error('Email non valida (es. cliente@example.com)');
  }
 
  // Indirizzo obbligatorio solo per Consumer/Business: per Turista i campi
  // indirizzo sono nascosti e inviati come null.
- if (!isTuristaCluster(cliente.cluster)) {
+ if (!turista) {
  if (!cliente.provincia) {
  throw new Error('Compila il campo Provincia');
  }
@@ -6155,6 +6160,7 @@ Reload Forever
 
  function cpBuildClientCard(cliente) {
    const isBusiness = String(cliente.cluster || '').toLowerCase() === 'business';
+   const isTurista = isTuristaCluster(cliente.cluster);
    const labelCfPiva = isBusiness ? 'P.IVA' : 'Codice fiscale';
    const labelRagSoc = isBusiness ? 'Ragione sociale' : 'Nome e cognome';
    const addr = [cliente.via, cliente.civico].filter(Boolean).join(' ').trim();
@@ -6167,7 +6173,7 @@ Reload Forever
        <div class="cp-row"><span>${labelCfPiva}</span><span>${cpEsc(cliente.cf_piva || '-')}</span></div>
        <div class="cp-row"><span>Cluster</span><span>${cpEsc(cliente.cluster || '-')}</span></div>
        <div class="cp-row"><span>Indirizzo</span><span>${cpEsc(fullAddr)}</span></div>
-       <div class="cp-row"><span>Email</span><span>${cpEsc(cliente.email || '-')}</span></div>
+       ${isTurista ? '' : `<div class="cp-row"><span>Email</span><span>${cpEsc(cliente.email || '-')}</span></div>`}
        <div class="cp-row"><span>Cellulare</span><span>${cpEsc(cliente.cellulare || '-')}</span></div>
      </div>`;
  }
@@ -6175,8 +6181,11 @@ Reload Forever
  // ----- ENTRY POINT ------------------------------------------------
  async function ensureConsensoPrivacy(payload) {
    const cliente = payload && payload.cliente ? payload.cliente : {};
-   if (!cliente.cf_piva || !cliente.cellulare || !cliente.email || !cliente.ragione_sociale) {
-     throw new Error('Dati cliente incompleti per il consenso privacy. Compila CF/PIVA, ragione sociale, email e cellulare.');
+   const turista = isTuristaCluster(cliente.cluster);
+   if (!cliente.cf_piva || !cliente.cellulare || (!turista && !cliente.email) || !cliente.ragione_sociale) {
+     throw new Error(turista
+       ? 'Dati cliente incompleti per il consenso privacy. Compila CF/PIVA, ragione sociale e cellulare.'
+       : 'Dati cliente incompleti per il consenso privacy. Compila CF/PIVA, ragione sociale, email e cellulare.');
    }
 
    // 1) garantisci-anagrafica -> anagrafica_id

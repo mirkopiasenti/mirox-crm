@@ -527,6 +527,7 @@ exports.handler = async (event) => {
     return response(400, { success: false, error: error.message });
   }
   const anagraficaCluster = clusterForAnagrafica(cluster);
+  const isTurista = cluster === 'Turista';
 
   if (!cfPiva) {
     return response(400, { success: false, error: 'Campo obbligatorio mancante: cliente.cf_piva' });
@@ -536,16 +537,15 @@ exports.handler = async (event) => {
     return response(400, { success: false, error: 'Campo obbligatorio mancante: cliente.ragione_sociale' });
   }
 
-  // Strict contacts validation: il nuovo wizard PDA-first richiede sempre cellulare + email
-  // validi. L'UI lo applica gia' lato client (validateClienteData), ma il backend e' la
-  // source of truth.
+  // Strict contacts validation: cellulare sempre obbligatorio; email obbligatoria
+  // per Consumer/Business e facoltativa per Turista. Il backend resta la source of truth.
   if (!cellulare) {
     return response(400, { success: false, error: 'Campo obbligatorio mancante: cliente.cellulare' });
   }
-  if (!email) {
+  if (!isTurista && !email) {
     return response(400, { success: false, error: 'Campo obbligatorio mancante: cliente.email' });
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return response(400, { success: false, error: 'cliente.email non e\' un indirizzo valido' });
   }
 
