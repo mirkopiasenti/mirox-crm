@@ -44,7 +44,7 @@ body {
   padding: 14px 18px;
   margin-bottom: 14px;
   display: grid;
-  grid-template-columns: 1fr 200px 160px;
+  grid-template-columns: minmax(220px, 1fr) 190px 170px 140px;
   gap: 12px;
   align-items: end;
 }
@@ -240,6 +240,10 @@ body {
       <select id="filterCategoriaDaVerificare"><option value="">Tutte</option></select>
     </div>
     <div>
+      <label>Giorno</label>
+      <input type="date" id="filterDataDaVerificare">
+    </div>
+    <div>
       <label>&nbsp;</label>
       <button type="button" class="btn-mini" onclick="caricaContratti('da_controllare')">Aggiorna</button>
     </div>
@@ -261,6 +265,10 @@ body {
     <div>
       <label>Categoria</label>
       <select id="filterCategoriaVerificati"><option value="">Tutte</option></select>
+    </div>
+    <div>
+      <label>Giorno</label>
+      <input type="date" id="filterDataVerificati">
     </div>
     <div>
       <label>&nbsp;</label>
@@ -286,6 +294,8 @@ const VCState = {
   categorie: [],
   filtroCatDaVerificare: '',
   filtroCatVerificati: '',
+  filtroDataDaVerificare: '',
+  filtroDataVerificati: '',
   searchDaVerificare: '',
   searchVerificati: ''
 };
@@ -306,6 +316,21 @@ function fmtDate(iso) {
   if (!iso) return '-';
   const d = new Date(iso); if (isNaN(d)) return iso;
   return d.toLocaleDateString('it-IT', { day:'2-digit', month:'2-digit', year:'numeric' });
+}
+function toRomeDateFilterValue(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Rome',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(d).reduce((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value;
+    return acc;
+  }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 // Converte un ISO timestamptz nel formato richiesto da <input type="datetime-local">
 // (YYYY-MM-DDTHH:mm) usando l'ora locale del browser (Europe/Rome).
@@ -432,10 +457,13 @@ async function caricaContratti(statoControllo) {
 function applicaFiltri(items, stateKey) {
   const searchKey = stateKey === 'daVerificare' ? 'searchDaVerificare' : 'searchVerificati';
   const catKey = stateKey === 'daVerificare' ? 'filtroCatDaVerificare' : 'filtroCatVerificati';
+  const dateKey = stateKey === 'daVerificare' ? 'filtroDataDaVerificare' : 'filtroDataVerificati';
   const q = (VCState[searchKey] || '').toLowerCase().trim();
   const cat = VCState[catKey] || '';
+  const day = VCState[dateKey] || '';
   return items.filter(c => {
     if (cat && c.categoria_id !== cat) return false;
+    if (day && toRomeDateFilterValue(c.data_contratto) !== day) return false;
     if (!q) return true;
     const ana = c.anagrafica || {};
     const haystack = [
@@ -1415,6 +1443,14 @@ document.getElementById('filterCategoriaDaVerificare').addEventListener('change'
 });
 document.getElementById('filterCategoriaVerificati').addEventListener('change', (e) => {
   VCState.filtroCatVerificati = e.target.value;
+  renderListaContratti('verificati');
+});
+document.getElementById('filterDataDaVerificare').addEventListener('input', (e) => {
+  VCState.filtroDataDaVerificare = e.target.value;
+  renderListaContratti('daVerificare');
+});
+document.getElementById('filterDataVerificati').addEventListener('input', (e) => {
+  VCState.filtroDataVerificati = e.target.value;
   renderListaContratti('verificati');
 });
 
