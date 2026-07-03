@@ -1030,7 +1030,7 @@
 <input type="text" id="numero-ask" placeholder="Es: ASK123456" required>
 </div> <div class="form-group" style="margin-bottom: 1rem;">
 <label>Allega File PDF (multipli consentiti)<span class="required">*</span></label>
-<div class="mx-drop-zone" id="dropzone-disdetta" data-target="files-disdetta">
+<div class="mx-drop-zone" id="dropzone-disdetta" data-target="files-disdetta" data-mx-upload="manual">
 <div class="mx-drop-text">Trascina qui i PDF firmati o clicca per selezionare</div>
 <div class="mx-drop-hint">PDF — puoi selezionare più file</div>
 </div>
@@ -1990,7 +1990,7 @@
  
  files.forEach(file => {
  // Verifica che sia un PDF
- if (file.type !== 'application/pdf') {
+ if (file.type !== 'application/pdf' && !String(file.name || '').toLowerCase().endsWith('.pdf')) {
  mxAlert('Solo file PDF sono consentiti: ' + file.name, 'warn');
  return;
  }
@@ -2039,15 +2039,22 @@
    dz.addEventListener('click', () => inp.click());
    dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
-   dz.addEventListener('drop', (e) => {
+   dz.addEventListener('drop', async (e) => {
      e.preventDefault();
      dz.classList.remove('dragover');
      const files = Array.from(e.dataTransfer.files || []);
+     const validFiles = [];
      files.forEach(file => {
-       if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+       if (file.type !== 'application/pdf' && !String(file.name || '').toLowerCase().endsWith('.pdf')) {
          window.MiroxUI && window.MiroxUI.alert('Solo file PDF sono consentiti: ' + file.name, {type:'warning', title:'Attenzione'});
          return;
        }
+       validFiles.push(file);
+     });
+     const acceptedFiles = window.MiroxUpload && window.MiroxUpload.previewPdfFiles
+       ? await window.MiroxUpload.previewPdfFiles(validFiles, { title: 'Anteprima disdetta' })
+       : validFiles;
+     acceptedFiles.forEach(file => {
        if (!filesDisdettaSelezionati.find(f => f.name === file.name && f.size === file.size)) {
          filesDisdettaSelezionati.push(file);
        }

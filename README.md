@@ -218,6 +218,7 @@ Dettagli operativi: vedi [CLAUDE.md](CLAUDE.md) sezione "Sistema di error report
 - `moduli/upload-contratti-vendita.html`: dopo l'invio riuscito di una pratica, il wizard mostra il successo e torna automaticamente alla Home Vendita (`dashboard.html`).
 - `moduli/upload-contratti-vendita.html`: per cluster `Turista` il wizard nasconde provincia/comune/via/civico, forza categoria/offerta dedicate e non blocca piu' l'avanzamento chiedendo provincia o opzione.
 - `moduli/verifica_contratti.html`: nel popup dettaglio contratto e' presente il tasto "Elimina definitivamente". Gli operatori lo vedono disabilitato; gli admin possono usarlo con doppia conferma. La cancellazione passa dalla function admin-only `elimina-vendita-contratto`.
+- `js/mirox-upload.js`: prima di accettare un PDF selezionato o trascinato apre un popup di anteprima con `X` per rimuovere il file e `Conferma` per mantenerlo. La regola vale per Upload Contratti, Switch SIM, Apri/Chiudi, Verifica Contratti, Segnalazioni e Dispositivo Comodato.
 - Favicon Mirox standard (`assets/favicon.png`) allineata sulle pagine HTML che ne erano prive.
 - I bottoni delle email di comunicazione basate su template (segnalazioni, rientro Switch SIM, ordini smartphone) puntano a [`https://www.mirox-crm.it`](https://www.mirox-crm.it). Le mail tecniche di errore restano escluse.
 

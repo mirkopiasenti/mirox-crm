@@ -2085,21 +2085,7 @@ Mostra anche ricariche in OK
    if (!targetId) return;
    const inp = document.getElementById(targetId);
    if (!inp) return;
-   dz.addEventListener('click', () => inp.click());
    inp.addEventListener('change', () => renderSwitchFileList(targetId));
-   dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dragover'); });
-   dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
-   dz.addEventListener('drop', (e) => {
-     e.preventDefault();
-     dz.classList.remove('dragover');
-     const file = (e.dataTransfer.files || [])[0];
-     if (!file) return;
-     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) return;
-     const dt = new DataTransfer();
-     dt.items.add(file);
-     inp.files = dt.files;
-     renderSwitchFileList(targetId);
-   });
  });
 
  // Auto-fill operatore dal profilo
