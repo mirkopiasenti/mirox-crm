@@ -363,7 +363,7 @@ async function revocaCanale(consensoId, canale, detailModal) {
   const label = canale === 'all' ? 'TUTTE le preferenze marketing' : `il canale ${canale}`;
   const motivo = await MiroxUI.prompt({
     title: 'Motivo revoca',
-    message: `Stai per revocare ${label}. Motivo (obbligatorio):`,
+    label: `Stai per revocare ${label}. Motivo (obbligatorio):`,
     placeholder: 'Es. richiesta esplicita dell\'interessato via email del ...'
   });
   if (motivo === null) return;

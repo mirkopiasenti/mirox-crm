@@ -234,6 +234,40 @@ test('caso 11: preprocessing inserisce versione, ID consenso e identificativo ha
 });
 
 // =====================================================================
+// 12-bis (regression). Il preprocessing sostituisce davvero i placeholder
+// della sezione 9 - fix del bug apostrofo curly vs ASCII che lasciava
+// [VALORE DINAMICO] letterale nel PDF cliente.
+// =====================================================================
+test('regression: sezione 9 placeholder sostituiti (no apostrofo curly)', () => {
+    const ctx = {
+        cliente: sampleCliente(),
+        otp: sampleOtp(),
+        consentUuid: '00000000-0000-4000-8000-000000000abc',
+    };
+    const { md } = preprocessAll(ctx);
+    // Nessun [VALORE DINAMICO] deve restare tra i placeholder statici
+    // della sezione 9 (nome, CF, referente, indirizzo, telefono, email,
+    // presa visione). Il "Recapito WhatsApp" ha un placeholder diverso
+    // ([VALORE DINAMICO / NON INDICATO]) gestito a parte.
+    const sez9Prefixes = [
+        'Nome e cognome / Ragione sociale:',
+        'Codice fiscale / Partita IVA:',
+        'Persona di riferimento:',
+        'Indirizzo:',
+        'Telefono:',
+        'Email:',
+        "Data di presa visione dell'informativa:",
+    ];
+    for (const p of sez9Prefixes) {
+        const idx = md.indexOf(p);
+        assert.ok(idx !== -1, `prefix mancante nel testo: ${p}`);
+        const line = md.slice(idx).split('\n')[0];
+        assert.ok(!line.includes('[VALORE DINAMICO]'),
+            `placeholder [VALORE DINAMICO] NON sostituito nella riga: ${line}`);
+    }
+});
+
+// =====================================================================
 // 12. assertConfigValid fallisce se il testo md e' assente o troncato
 // =====================================================================
 test('caso 12: assertConfigValid throws se manca il testo o versione errata', () => {

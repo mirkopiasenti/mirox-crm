@@ -159,14 +159,15 @@ function substituteSection9(md, cliente) {
         { prefix: 'Telefono:', value: safe(cliente.cellulare) },
         { prefix: 'Email:', value: safe(cliente.email) },
         {
-            prefix: 'Data di presa visione dell’informativa:',
+            prefix: "Data di presa visione dell'informativa:",
             value: cliente.data_presa_visione
                 ? formatItalianDate(cliente.data_presa_visione)
                 : formatItalianDate(new Date()),
         },
-        // NB: la stringa nel markdown consegnato usa un apostrofo curly
-        // (’). La copia esatta e' preservata; se in futuro cambia in
-        // apostrofo normale, aggiornare il prefix corrispondente.
+        // NB: il file docs/approved_privacy_copy_v2.md usa apostrofi ASCII
+        // U+0027 (non curly), il prefix qui deve corrispondere bit-per-bit.
+        // Se il testo legale viene aggiornato con apostrofi curly, aggiornare
+        // questo prefix di conseguenza.
     ];
     let out = md;
     for (const m of mapping) {
