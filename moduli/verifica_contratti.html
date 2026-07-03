@@ -250,7 +250,7 @@ body {
   </div>
   <div class="contracts-table-wrap">
     <div id="listaDaVerificare">
-      <div class="empty-state"><div class="empty-icon">⏳</div><h3>Caricamento...</h3></div>
+      <div class="empty-state"><div class="empty-icon"></div><h3>Caricamento...</h3></div>
     </div>
   </div>
 </div>
@@ -277,7 +277,7 @@ body {
   </div>
   <div class="contracts-table-wrap">
     <div id="listaVerificati">
-      <div class="empty-state"><div class="empty-icon">⏳</div><h3>Caricamento...</h3></div>
+      <div class="empty-state"><div class="empty-icon"></div><h3>Caricamento...</h3></div>
     </div>
   </div>
 </div>
@@ -394,7 +394,7 @@ async function caricaContratti(statoControllo) {
   const containerId = statoControllo === 'da_controllare' ? 'listaDaVerificare' : 'listaVerificati';
   const stateKey = statoControllo === 'da_controllare' ? 'daVerificare' : 'verificati';
   const wrap = document.getElementById(containerId);
-  wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div><h3>Caricamento...</h3></div>';
+  wrap.innerHTML = '<div class="empty-state"><div class="empty-icon"></div><h3>Caricamento...</h3></div>';
   try {
     // Step 1: contratti + anagrafica (FK presente: anagrafica_id REFERENCES anagrafica)
     // NB: operatore_id e controllato_da NON hanno FK esplicite verso profili,
@@ -409,7 +409,7 @@ async function caricaContratti(statoControllo) {
         tipo_attivazione, apri_chiudi, intestatario, switch_sim, modalita_pagamento,
         dispositivo_associato, imei, fascia_prezzo, tipo_acquisto, finanziaria, kolme,
         smartphone_reload, smartphone_reload_modalita,
-        pod_pdr, numero_contratto_energia, ex_fornitore, prezzo_fisso, reload_exchange, reload_forever,
+        pod_pdr, numero_contratto_energia, ex_fornitore, prezzo_fisso, convergenza, reload_exchange, reload_forever,
         punteggio_offerta, punteggio_opzione, punteggio_extra, punteggio_totale,
         stato_controllo, controllato_da, controllato_at, note_controllo,
         data_contratto, created_at, updated_at,
@@ -630,6 +630,10 @@ function apriPopupDettaglio(c, opts) {
     (!c.offerta_id || o.offerta_id === c.offerta_id)
   );
   const reloadFiltered = reload;
+  const valoriConvergenzaFisso = ['Mobile', 'L&G', 'Allarme', 'Assicurazione', 'Sim Interna', 'NO Convergenza', 'Coupon'];
+  const opzioniConvergenzaFisso = valoriConvergenzaFisso.map(v =>
+    `<option value="${escapeHtml(v)}" ${c.convergenza === v ? 'selected' : ''}>${escapeHtml(v)}</option>`
+  ).join('');
 
   const bodyHtml = `
     <div class="det-section">
@@ -777,6 +781,13 @@ function apriPopupDettaglio(c, opts) {
         <div class="det-field" id="vc_field_prezzo_fisso">
           <label>Prezzo di vendita Fisso (€)</label>
           <input type="number" id="vc_prezzo_fisso" min="0" step="0.01" value="${c.prezzo_fisso !== null && c.prezzo_fisso !== undefined ? c.prezzo_fisso : ''}" ${ro}>
+        </div>
+        <div class="det-field" id="vc_field_convergenza">
+          <label>Convergenza Fisso</label>
+          <select id="vc_convergenza" ${disabled}>
+            <option value="">—</option>
+            ${opzioniConvergenzaFisso}
+          </select>
         </div>
         <div class="det-field" id="vc_field_reload_exchange">
           <label>Reload Exchange</label>
@@ -992,6 +1003,7 @@ function applyVisibilityRules() {
   _show('vc_field_num_contratto_energia', isEnergia);
   _show('vc_field_ex_fornitore', isEnergia);
   _show('vc_field_prezzo_fisso', isFisso);
+  _show('vc_field_convergenza', isFisso);
   _show('vc_field_reload_exchange', isMobile || isCustomerBase);
   _show('vc_field_reload_forever', isMobile || isCustomerBase);
   // Mostra/nascondi tutta la sezione extra se non c'è nulla da mostrare
@@ -1192,6 +1204,7 @@ function leggiPayloadDalPopup() {
       const n = parseFloat(s);
       return Number.isFinite(n) ? n : null;
     })() : null,
+    convergenza: isFisso ? (v('vc_convergenza') || null) : null,
     reload_exchange: showRX ? ck('vc_reload_exchange') : false,
     reload_forever: showRX ? ck('vc_reload_forever') : false
   };
