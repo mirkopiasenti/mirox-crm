@@ -65,6 +65,11 @@ function normalizeCluster(value) {
     return normalized;
 }
 
+function clusterForAnagrafica(cluster) {
+    // Turista resta cluster vendita, ma anagrafica e' condivisa e accetta i passaporti come Consumer.
+    return cluster === 'Turista' ? 'Consumer' : cluster;
+}
+
 exports.handler = async (event) => {
     if (event.httpMethod === 'OPTIONS') {
         return { statusCode: 200, headers: CORS_HEADERS, body: '' };
@@ -95,6 +100,7 @@ exports.handler = async (event) => {
     let cluster;
     try { cluster = normalizeCluster(cliente.cluster); }
     catch (e) { return response(400, { success: false, error: e.message }); }
+    const anagraficaCluster = clusterForAnagrafica(cluster);
 
     if (!cfPiva) return response(400, { success: false, error: 'cf_piva mancante' });
     if (!ragioneSociale) return response(400, { success: false, error: 'ragione_sociale mancante' });
@@ -126,7 +132,7 @@ exports.handler = async (event) => {
         if (esistente) {
             const updates = {};
             const candidates = {
-                cluster, ragione_sociale: ragioneSociale, nome_referente: nomeReferente,
+                cluster: anagraficaCluster, ragione_sociale: ragioneSociale, nome_referente: nomeReferente,
                 cellulare, email, provincia, comune, via, civico
             };
             if (cleanString(esistente.cf_piva) !== cfPiva) updates.cf_piva = cfPiva;
@@ -150,7 +156,7 @@ exports.handler = async (event) => {
             .from('anagrafica')
             .insert({
                 cf_piva: cfPiva,
-                cluster,
+                cluster: anagraficaCluster,
                 ragione_sociale: ragioneSociale,
                 nome_referente: nomeReferente,
                 cellulare,

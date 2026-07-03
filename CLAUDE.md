@@ -134,7 +134,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `mirox-send-email.js` (POST) — endpoint pubblico mailer
 - `cron-rientro-sim.js` (scheduled `0 7 * * *`) — notifica giornaliera switch SIM. **Non auth-gated** (chiamata dal cron Netlify, non da utente)
 - `public-prenota.js` (GET/POST) — **endpoint pubblico** chiamato dal form `prenota.html` (anon). GET `?action=slots&data=YYYY-MM-DD` ritorna gli slot via RPC `get_slot_disponibili` (SECURITY DEFINER). POST crea l'appuntamento con validazione lato server e re-check disponibilità slot. Rate-limiting in-memory (6 richieste / 10 min per IP). Usa `service_role` per bypassare le RLS che dopo migration 031 chiudono `appuntamenti`/`slot_bloccati`/`blocchi`/`orari_standard`/`impostazioni` a `authenticated`. **Non auth-gated** (intenzionalmente pubblico)
-- `garantisci-anagrafica.js` (POST) — upsert anagrafica (lookup CF/PIVA → update campi vuoti / cambiati o insert). Chiamato dal wizard upload-contratti PRIMA della raccolta consenso privacy: il consenso ha bisogno di `anagrafica_id` ma il backend del carrello finora la creava solo al submit. Idempotente con `crea-vendita-pratica-carrello` (entrambi fanno lo stesso lookup/update). Vedi sezione "Sistema consensi privacy GDPR".
+- `garantisci-anagrafica.js` (POST) — upsert anagrafica (lookup CF/PIVA → update campi vuoti / cambiati o insert). Chiamato dal wizard upload-contratti PRIMA della raccolta consenso privacy: il consenso ha bisogno di `anagrafica_id` ma il backend del carrello finora la creava solo al submit. Idempotente con `crea-vendita-pratica-carrello` (entrambi fanno lo stesso lookup/update). Per cluster vendita `Turista`, salva/aggiorna `anagrafica.cluster='Consumer'` perché la tabella condivisa non deve contenere il cluster vendita turistico. Vedi sezione "Sistema consensi privacy GDPR".
 - `check-consenso-privacy.js` (GET) — `?anagrafica_id=<uuid>`. Cerca il consenso `stato='confermato'`, non scaduto, non revocato. Usato dal wizard per dedupe 48 mesi: se valido, salta tutto il flusso OTP/cartaceo e procede direttamente al submit.
 - `richiedi-otp-privacy.js` (POST) — genera OTP 6 cifre, salva hash SHA256+salt random, invia SMS via Smshosting. Rate-limit 3 invii/ora per `anagrafica_id` + cooldown 60s tra invii. Invalida automaticamente i record `pending` precedenti dello stesso cliente. Richiede `SMSHOSTING_API_KEY`, `SMSHOSTING_API_SECRET`. Se `SMSHOSTING_SIMULATE=true` non invia davvero, logga e ritorna id fittizio (utile per dev/test).
 - `verifica-otp-privacy.js` (POST) — `{consenso_id, otp}`. Re-hash dell'OTP inserito e confronto. Max 3 tentativi (poi `stato='fallito'`). Se OK genera PDF informativa con metadata firma (cellulare, timestamp, IP, hash documento, ID SMS), upload su bucket `consensi-privacy`, segna `stato='confermato'` + `valido_fino_al = now()+48 mesi` + `informativa_hash`.
@@ -155,7 +155,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 
 ### Anagrafica & Auth (condiviso)
 - `profili` — utenti CRM, `ruolo` IN ('admin','operatore'), `pagine_accessibili` jsonb per ACL Call Center
-- `anagrafica` — cliente unificato, `cf_piva` UNIQUE, `cluster` IN ('Consumer','Business','Turista'). Colonna `email` (text, NULL ammesso a livello DB ma obbligatoria lato wizard vendita). RPC `cerca_o_crea_anagrafica(p_..., p_email)` UPSERT
+- `anagrafica` — cliente unificato, `cf_piva` UNIQUE, `cluster` operativo condiviso (`Consumer`/`Business`; i passaporti cluster vendita `Turista` vengono salvati qui come `Consumer`). Colonna `email` (text, NULL ammesso a livello DB ma obbligatoria lato wizard vendita). RPC `cerca_o_crea_anagrafica(p_..., p_email)` UPSERT
 
 ### Call Center (condiviso, gestito dall'altro progetto)
 - `chiamate`, `appuntamenti`, `blacklist`, `orari_standard`, `blocchi`, `slot_bloccati`, `impostazioni`
@@ -293,7 +293,7 @@ Da questo momento il modulo segnalazioni funziona **solo da Mirox loggato**. Se 
 - CF italiano (16 char, regex con caratteri omocodia) → `Consumer`
 - P.IVA (11 cifre + Luhn IT) → `Business`
 - Nessuno dei due → errore "verifica il dato" (no fallback)
-- `Turista` → forza `categoria=Mobile`, `offerta="Untied - Call Your Country"` e non richiede opzione nel wizard. Accettato solo da `crea-vendita-pratica-carrello.js`.
+- `Turista` → forza `categoria=Mobile`, `offerta="Untied - Call Your Country"` e non richiede opzione nel wizard. Accettato da `garantisci-anagrafica.js` e `crea-vendita-pratica-carrello.js`: nei contratti/pratica resta `Turista`, mentre in `anagrafica.cluster` viene scritto `Consumer`.
 
 ### Campi anagrafici obbligatori
 Sia UI (`validateClienteData` in `upload-contratti-vendita.html`) sia backend (`crea-vendita-pratica-carrello.js`) **bloccano** la pratica se uno qualsiasi di questi campi e' vuoto o malformato:
@@ -523,7 +523,7 @@ Ogni errore tecnico nel CRM (rete, OCR, submit, JS non gestiti...) viene notific
 ### Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
 - `moduli/dashboard_pezzi.html`: layout più compatto. La colonna offerte e le colonne operatori (`MATTEO`, `MIRKO`, `FRANCESCA`, `CEREA`) hanno larghezze fisse compatte; il colore resta pieno sulla cella come nel foglio originale. La tabella e' fissata a 622px totali (270px offerte + 4 colonne da 88px) per evitare espansioni a tutta pagina.
-- `moduli/upload-contratti-vendita.html`: dopo submit pratica riuscito il wizard mostra il popup di successo e redirige automaticamente alla dashboard (`../dashboard.html`), cioè la Home del reparto Vendita. Per cluster `Turista`, il wizard nasconde provincia/comune/via/civico, li invia come `null`, non li richiede in validazione client e non richiede l'opzione contratto prima del carrello.
+- `moduli/upload-contratti-vendita.html`: dopo submit pratica riuscito il wizard mostra il popup di successo e redirige automaticamente alla dashboard (`../dashboard.html`), cioè la Home del reparto Vendita. Per cluster `Turista`, il wizard nasconde provincia/comune/via/civico, li invia come `null`, non li richiede in validazione client e non richiede l'opzione contratto prima del carrello. Le functions vendita salvano il cliente in `anagrafica` come `Consumer`, mantenendo `Turista` su pratica/contratti.
 - `moduli/verifica_contratti.html`: nelle tab Da Verificare e Verificati e' disponibile il filtro `Giorno`, basato su `vendita_contratti.data_contratto` in fuso Europe/Rome.
 - `moduli/verifica_contratti.html`: per i contratti Fisso il popup dettaglio mostra anche la convergenza scelta, accanto al prezzo di vendita Fisso.
 - `js/mirox-upload.js`: anteprima PDF centralizzata prima di confermare file selezionati o trascinati. I moduli coperti sono Upload Contratti, Switch SIM, Apri/Chiudi, Verifica Contratti, Segnalazioni e Dispositivo Comodato.
@@ -672,7 +672,7 @@ A regime stimato (300 contratti/mese → ~100 OTP/mese dopo dedupe 48 mesi): ~�
 ## Note operative consapevoli (non "correggere" senza chiedere)
 
 - **Edge Functions Supabase**: non in uso, non aggiungerne senza discutere prima
-- **Cluster `Turista`**: accettato solo da `crea-vendita-pratica-carrello.js`. È voluto.
+- **Cluster `Turista`**: è un cluster di vendita, non un cluster anagrafico condiviso. `garantisci-anagrafica.js` e `crea-vendita-pratica-carrello.js` lo accettano dal wizard, mantengono `Turista` su pratica/contratti e salvano `anagrafica.cluster='Consumer'`.
 - **File SQL in `/database/`**: parziali, NON riflettono lo stato attuale del DB (vedi `database/README.md`)
 - **Modulo `simulatore_protecta.html`**: ~960 KB, molto pesante perché contiene asset embedded. Modificare con cautela.
 - **Permessi granulari Vendita/Post-Vendita**: non esistono ancora. Solo CC ha permessi fine-grained via `pagine_accessibili`. Le pagine Vendita/Post-Vendita sono accessibili a tutti gli utenti attivi, indipendentemente dal ruolo (admin/operatore). Eccezioni admin-only note: pannello Admin e cancellazione definitiva in Verifica Contratti (`elimina-vendita-contratto`).

@@ -69,6 +69,11 @@ function normalizeCluster(value) {
   return normalized;
 }
 
+function clusterForAnagrafica(cluster) {
+  // Turista resta cluster vendita, ma anagrafica e' condivisa e accetta i passaporti come Consumer.
+  return cluster === 'Turista' ? 'Consumer' : cluster;
+}
+
 function normalizeUuidOrNull(value) {
   const raw = cleanString(value);
   if (!raw) return null;
@@ -521,6 +526,7 @@ exports.handler = async (event) => {
   } catch (error) {
     return response(400, { success: false, error: error.message });
   }
+  const anagraficaCluster = clusterForAnagrafica(cluster);
 
   if (!cfPiva) {
     return response(400, { success: false, error: 'Campo obbligatorio mancante: cliente.cf_piva' });
@@ -593,7 +599,7 @@ exports.handler = async (event) => {
 
       const updates = {};
       const candidateFields = {
-        cluster,
+        cluster: anagraficaCluster,
         ragione_sociale: ragioneSociale,
         nome_referente: nomeReferente,
         cellulare,
@@ -632,7 +638,7 @@ exports.handler = async (event) => {
         .from('anagrafica')
         .insert({
           cf_piva: cfPiva,
-          cluster,
+          cluster: anagraficaCluster,
           ragione_sociale: ragioneSociale,
           nome_referente: nomeReferente,
           cellulare,
