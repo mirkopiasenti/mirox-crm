@@ -39,6 +39,9 @@ body {
   -webkit-font-smoothing: antialiased;
   font-size: 14px;
 }
+/* Override container: Controllo L&G ha molte colonne, serve piu' spazio orizzontale */
+.container { max-width: 1720px !important; padding-left: 20px !important; padding-right: 20px !important; }
+@media (max-width: 1780px) { .container { max-width: calc(100vw - 40px) !important; } }
 
 .filters-card {
   background: var(--bg-card);
@@ -52,8 +55,9 @@ body {
   align-items: end;
 }
 .filters-card.lg-filters {
-  grid-template-columns: 1.4fr 170px 170px auto auto;
+  grid-template-columns: 1.2fr 130px 150px 130px 100px auto auto;
 }
+@media (max-width: 1400px) { .filters-card.lg-filters { grid-template-columns: 1fr 1fr 1fr 1fr; } }
 @media (max-width: 1100px) { .filters-card.lg-filters { grid-template-columns: 1fr 1fr 1fr; } }
 @media (max-width: 800px)  { .filters-card, .filters-card.lg-filters { grid-template-columns: 1fr; } }
 .filters-card label { font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;display:block; }
@@ -86,31 +90,34 @@ body {
   border-radius: 14px;
   overflow: auto;
 }
-.contracts-table { width:100%;border-collapse:separate;border-spacing:0; }
+.contracts-table { width:100%;border-collapse:separate;border-spacing:0;table-layout:auto; }
 .contracts-table thead th {
   background: var(--border-light);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 12px;
+  letter-spacing: 0.03em;
+  padding: 10px 8px;
   border-bottom: 1px solid var(--border);
   text-align: left;
   white-space: nowrap;
   position: sticky; top: 0;
 }
 .contracts-table tbody td {
-  padding: 12px;
+  padding: 10px 8px;
   border-bottom: 1px solid var(--border-light);
-  font-size: 13.5px;
+  font-size: 13px;
   color: var(--text);
   vertical-align: middle;
 }
 .contracts-table tbody tr:hover { background: var(--bg); }
 .contracts-table tbody tr:last-child td { border-bottom: none; }
 .contracts-table .cell-cliente { font-weight: 700; }
-.contracts-table .cell-mono { font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; }
+.contracts-table .cell-mono { font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 11.8px; }
+.contracts-table td, .contracts-table th { white-space: nowrap; }
+.contracts-table .cell-cliente { white-space: normal; min-width: 140px; max-width: 220px; }
+.contracts-table .cell-fornitore { white-space: normal; min-width: 100px; max-width: 160px; }
 
 .stato-pill {
   display: inline-flex; align-items:center; padding:4px 10px; border-radius:999px;
@@ -266,6 +273,30 @@ body {
     </select>
   </div>
   <div>
+    <label>Mese</label>
+    <select id="filtroMeseLg">
+      <option value="">Tutti</option>
+      <option value="1">Gennaio</option>
+      <option value="2">Febbraio</option>
+      <option value="3">Marzo</option>
+      <option value="4">Aprile</option>
+      <option value="5">Maggio</option>
+      <option value="6">Giugno</option>
+      <option value="7">Luglio</option>
+      <option value="8">Agosto</option>
+      <option value="9">Settembre</option>
+      <option value="10">Ottobre</option>
+      <option value="11">Novembre</option>
+      <option value="12">Dicembre</option>
+    </select>
+  </div>
+  <div>
+    <label>Anno</label>
+    <select id="filtroAnnoLg">
+      <option value="">Tutti</option>
+    </select>
+  </div>
+  <div>
     <label>&nbsp;</label>
     <button type="button" class="btn-csv" id="btnImportCsv" title="Carica file CSV WindTre per aggiornare gli stati">
       Carica CSV WindTre
@@ -296,6 +327,8 @@ const LGState = {
   search: '',
   filtroCluster: '',
   filtroStato: '',
+  filtroMese: '',
+  filtroAnno: '',
   profiliMap: new Map()
 };
 
@@ -347,6 +380,7 @@ async function loadAll() {
     }
     LGState.righe = righe;
     aggiornaContatori();
+    popolaFiltroAnno();
     render();
   } catch (e) {
     console.error('Errore caricamento Controllo L&G:', e);
@@ -365,6 +399,22 @@ function dataInserimento(r) {
   if (r.contratto && r.contratto.data_contratto) return r.contratto.data_contratto;
   if (r.contratto && r.contratto.created_at) return r.contratto.created_at;
   return r.created_at;
+}
+
+function popolaFiltroAnno() {
+  const sel = document.getElementById('filtroAnnoLg');
+  if (!sel) return;
+  const anniSet = new Set();
+  for (const r of LGState.righe) {
+    const iso = dataInserimento(r);
+    if (!iso) continue;
+    const d = new Date(iso);
+    if (!isNaN(d)) anniSet.add(d.getFullYear());
+  }
+  const anniOrdinati = Array.from(anniSet).sort((a, b) => b - a);
+  const val = LGState.filtroAnno;
+  sel.innerHTML = '<option value="">Tutti</option>' + anniOrdinati.map(y => `<option value="${y}">${y}</option>`).join('');
+  if (val && anniOrdinati.includes(Number(val))) sel.value = val;
 }
 
 function aggiornaContatori() {
@@ -428,10 +478,24 @@ function render() {
         lista = lista.filter(r => r.stato === LGState.filtroStato);
       }
     }
+    if (LGState.filtroMese || LGState.filtroAnno) {
+      const meseF = LGState.filtroMese ? Number(LGState.filtroMese) : null;
+      const annoF = LGState.filtroAnno ? Number(LGState.filtroAnno) : null;
+      lista = lista.filter(r => {
+        const iso = dataInserimento(r);
+        if (!iso) return false;
+        const d = new Date(iso);
+        if (isNaN(d)) return false;
+        if (annoF !== null && d.getFullYear() !== annoF) return false;
+        if (meseF !== null && (d.getMonth() + 1) !== meseF) return false;
+        return true;
+      });
+    }
   }
 
   if (lista.length === 0) {
-    wrap.innerHTML = `<div class="empty-state"><div class="empty-icon"></div><h3>Nessun contratto</h3><p>${q || LGState.filtroCluster || LGState.filtroStato ? 'Nessun risultato con i filtri attuali.' : 'Nessun contratto Energia verificato.'}</p></div>`;
+    const filtriAttivi = q || LGState.filtroCluster || LGState.filtroStato || LGState.filtroMese || LGState.filtroAnno;
+    wrap.innerHTML = `<div class="empty-state"><div class="empty-icon"></div><h3>Nessun contratto</h3><p>${filtriAttivi ? 'Nessun risultato con i filtri attuali.' : 'Nessun contratto Energia verificato.'}</p></div>`;
     return;
   }
 
@@ -457,7 +521,7 @@ function render() {
       <td class="cell-mono">${escapeHtml(ana.cf_piva || '-')}</td>
       <td class="cell-mono">${escapeHtml(c.numero_contratto_energia || '—')}</td>
       <td class="cell-mono">${escapeHtml(c.pod_pdr || '—')}</td>
-      <td>${escapeHtml(c.ex_fornitore || '—')}</td>
+      <td class="cell-fornitore">${escapeHtml(c.ex_fornitore || '—')}</td>
       <td class="cell-mono">${escapeHtml(ana.cellulare || '—')}</td>
       <td>${escapeHtml(operatoreNome(r))}</td>
       <td>${r.stato ? `<span class="stato-pill ${statoSlug(r.stato)}">${escapeHtml(r.stato)}</span>` : '<span style="color:var(--text-light);">—</span>'}</td>
@@ -911,8 +975,12 @@ document.getElementById('searchLG').addEventListener('input', e => {
     // Reset filtri visivi + logici
     LGState.filtroCluster = '';
     LGState.filtroStato = '';
+    LGState.filtroMese = '';
+    LGState.filtroAnno = '';
     document.getElementById('filtroClusterLg').value = '';
     document.getElementById('filtroStatoLg').value = '';
+    document.getElementById('filtroMeseLg').value = '';
+    document.getElementById('filtroAnnoLg').value = '';
     document.getElementById('lgFiltersBox').classList.add('disabled-by-search');
   } else {
     document.getElementById('lgFiltersBox').classList.remove('disabled-by-search');
@@ -933,6 +1001,8 @@ function bindLgFiltro(id, key) {
 }
 bindLgFiltro('filtroClusterLg', 'filtroCluster');
 bindLgFiltro('filtroStatoLg', 'filtroStato');
+bindLgFiltro('filtroMeseLg', 'filtroMese');
+bindLgFiltro('filtroAnnoLg', 'filtroAnno');
 
 // ============================================================
 // INIT
