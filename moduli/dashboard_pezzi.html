@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <link rel="icon" type="image/png" href="../assets/favicon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard Pezzi Giornaliera — Mirox</title>
+<title>Dashboard Pezzi — Mirox</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/mirox-modules.css">
@@ -20,6 +20,8 @@
   --border-light: #EEF3F8;
   --bg: #F6F9FC;
   --bg-card: #ffffff;
+  --success: #16a34a;
+  --danger: #dc2626;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -29,7 +31,6 @@ body {
   -webkit-font-smoothing: antialiased; font-size: 12px;
   display: flex; flex-direction: column; overflow: hidden;
 }
-/* Header compatto */
 body > .header,
 body > .header.header {
   padding: 6px 16px !important;
@@ -47,46 +48,41 @@ body > .container.dp-page.dp-page {
   margin: 0 !important; padding: 6px 12px 8px !important;
 }
 
+/* Tab bar */
+.tab-bar {
+  display: flex; gap: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+.tab {
+  background: transparent; border: none; color: var(--text-secondary);
+  padding: 7px 16px; border-radius: 8px;
+  font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+  transition: all .18s;
+}
+.tab:hover { color: var(--text); background: var(--border-light); }
+.tab.active { background: var(--primary); color: #fff; }
+
 .toolbar {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 5px 12px;
   margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  flex-shrink: 0;
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; flex-shrink: 0;
 }
-.toolbar .date-label { font-size: 10.5px !important; }
-.toolbar input[type="date"] { padding: 4px 8px !important; font-size: 11.5px !important; }
-.toolbar .info-pill { padding: 3px 9px !important; font-size: 11px !important; }
-.toolbar .date-block {
-  display: flex; align-items: center; gap: 8px;
-}
-.toolbar .date-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); }
-.toolbar input[type="date"] {
-  padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px;
-  font-size: 13.5px; font-family: inherit; background: #fff; color: var(--text);
-}
-.toolbar input[type="date"]:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(255,102,0,.12); }
-.toolbar .btn-nav {
-  padding: 8px 14px; font-size: 13px; font-weight: 600; font-family: inherit;
-  background: #fff; color: var(--text); border: 1px solid var(--border);
-  border-radius: 10px; cursor: pointer; transition: all .15s ease;
-}
-.toolbar .btn-nav:hover { background: var(--primary-bg); color: var(--primary-dark); border-color: var(--primary); }
-.toolbar .btn-today {
-  background: var(--primary); color: #fff; border-color: var(--primary);
-}
-.toolbar .btn-today:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
+.toolbar .date-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); }
+.toolbar input[type="date"], .toolbar select { padding: 4px 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 11.5px; font-family: inherit; background: #fff; color: var(--text); }
+.toolbar input[type="date"]:focus, .toolbar select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(255,102,0,.12); }
+.toolbar .info-pill { padding: 3px 9px; font-size: 11px; display: inline-flex; align-items: center; gap: 8px; background: var(--primary-bg); color: var(--primary-dark); border-radius: 999px; font-weight: 600; }
+.toolbar .date-block { display: flex; align-items: center; gap: 8px; }
 .toolbar .spacer { flex: 1; }
-.toolbar .info-pill {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 6px 12px; background: var(--primary-bg); color: var(--primary-dark);
-  border-radius: 999px; font-size: 12px; font-weight: 600;
-}
 
 .grid-wrap {
   background: var(--bg-card);
@@ -99,15 +95,15 @@ body > .container.dp-page.dp-page {
 .grid-wrap .scroll {
   overflow: auto;
   flex: 1; min-height: 0;
+  padding: 8px;
 }
+
+/* Tabella pezzi (Day by Day) - invariata */
 table.pezzi {
   display: inline-table;
-  width: 622px;
-  min-width: 622px;
-  max-width: 622px;
+  width: 622px; min-width: 622px; max-width: 622px;
   border-collapse: collapse;
-  font-size: 11.5px;
-  table-layout: fixed;
+  font-size: 11.5px; table-layout: fixed;
   --label-col-width: 270px;
   --operator-col-width: 88px;
 }
@@ -126,28 +122,20 @@ table.pezzi thead th.col-data {
   background: var(--primary) !important; color: #fff !important; font-size: 12.5px !important; text-align: center !important;
   letter-spacing: 0.02em !important;
 }
-table.pezzi thead th.col-label {
-  text-align: left !important;
-  width: var(--label-col-width);
-}
+table.pezzi thead th.col-label { text-align: left !important; width: var(--label-col-width); }
 table.pezzi thead th.col-op {
-  width: var(--operator-col-width);
-  min-width: var(--operator-col-width);
-  max-width: var(--operator-col-width);
+  width: var(--operator-col-width); min-width: var(--operator-col-width); max-width: var(--operator-col-width);
 }
 table.pezzi tbody td {
   padding: 1px 9px !important;
   border-bottom: 1px solid var(--border-light) !important;
   text-align: center !important; vertical-align: middle !important;
-  line-height: 1.15 !important;
-  font-size: 11.5px !important;
-  color: var(--text) !important;
+  line-height: 1.15 !important; font-size: 11.5px !important; color: var(--text) !important;
 }
 table.pezzi tbody tr:hover { background: transparent !important; }
 table.pezzi tbody td.cell-label {
   text-align: left !important; font-weight: 700 !important; font-size: 11.5px !important; color: var(--text) !important;
-  font-style: italic !important;
-  white-space: nowrap !important;
+  font-style: italic !important; white-space: nowrap !important;
   width: var(--label-col-width);
   padding: 1px 14px 1px 9px !important;
 }
@@ -159,16 +147,83 @@ table.pezzi tbody td.cell-num {
   max-width: var(--operator-col-width);
 }
 table.pezzi tbody td.cell-num.zero { color: var(--text-light) !important; font-weight: 500 !important; }
-
 table.pezzi tbody tr.gruppo-header td {
-  background: #f1f5f9 !important;
-  color: var(--text) !important;
+  background: #f1f5f9 !important; color: var(--text) !important;
   font-size: 10.5px !important; font-weight: 700 !important;
   text-transform: uppercase !important; letter-spacing: 0.06em !important;
   padding: 2px 9px !important;
-  text-align: left !important;
-  line-height: 1.2 !important;
+  text-align: left !important; line-height: 1.2 !important;
 }
+
+/* Gare Individuali */
+.gare-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+}
+.gara-card {
+  background: #fff; border: 1px solid var(--border); border-radius: 12px;
+  overflow: hidden;
+}
+.gara-card-head {
+  background: #C6F6D5; padding: 8px 12px; text-align: center;
+  font-size: 13px; font-weight: 800; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+table.gara-tab { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.gara-tab thead th {
+  background: var(--bg); font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  color: var(--text-secondary); letter-spacing: .04em;
+  padding: 5px 8px; text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+table.gara-tab thead th:first-child { text-align: left; }
+table.gara-tab tbody td {
+  padding: 4px 8px; text-align: center; vertical-align: middle;
+  border-bottom: 1px solid var(--border-light); font-size: 12px;
+}
+table.gara-tab tbody td.metrica {
+  text-align: left; font-weight: 700; color: var(--text);
+  border-right: 1px solid var(--border-light);
+}
+table.gara-tab tbody td.compenso { font-weight: 700; }
+table.gara-tab tbody tr.tot td {
+  background: #f1f5f9; font-weight: 800; font-size: 12.5px;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+table.gara-tab tbody tr.tot td.compenso-tot {
+  background: #FFF9C4; color: var(--text);
+}
+.badge-dec { color: var(--danger); font-weight: 800; }
+
+/* Avanzamento Mensile */
+.av-section { margin-bottom: 20px; }
+.av-section h3 {
+  font-size: 12px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--text-secondary);
+  padding: 8px 4px 6px; border-bottom: 1px solid var(--border);
+}
+table.avanz { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+table.avanz thead th {
+  background: var(--bg); font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  color: var(--text-secondary); letter-spacing: .04em;
+  padding: 5px 8px; text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+table.avanz thead th.gr-pezzi { background: #FFF7ED; color: var(--primary-dark); }
+table.avanz thead th:first-child { text-align: left; }
+table.avanz tbody td {
+  padding: 4px 8px; text-align: center;
+  border-bottom: 1px solid var(--border-light); font-size: 12px;
+}
+table.avanz tbody td.metrica {
+  text-align: left; font-weight: 700; color: var(--text);
+}
+table.avanz tbody td.punteggio { font-weight: 700; background: #FEFCE8; }
+table.avanz tbody td.eccedenza { font-weight: 700; }
+table.avanz tbody td.eccedenza.pos { background: #DCFCE7; color: var(--success); }
+table.avanz tbody td.andamento.perc { font-weight: 700; }
+table.avanz tbody td.andamento.raggiunto { background: #DCFCE7; color: var(--success); }
 
 .empty-state { padding: 40px 20px; text-align: center; color: var(--text-secondary); }
 .empty-state .empty-icon { font-size: 36px; margin-bottom: 8px; opacity: 0.45; }
@@ -184,11 +239,10 @@ table.pezzi tbody tr.gruppo-header td {
 <script>if (window.MiroxErrorReporter) window.MiroxErrorReporter.install({ source: 'dashboard-pezzi' });</script>
 <script>(async () => { window.__profilo = await Auth.richiediAuth(); })();</script>
 
-<!-- Header uniforme Mirox -->
 <div class="header">
 <div class="header-content">
 <div>
-<h1>Dashboard Pezzi Giornaliera</h1>
+<h1>Dashboard Pezzi</h1>
 </div>
 <a href="../dashboard.html" class="btn-back">← Torna alla dashboard</a>
 </div>
@@ -196,94 +250,100 @@ table.pezzi tbody tr.gruppo-header td {
 
 <div class="container dp-page">
 
-<!-- Toolbar: solo date picker (modificabile dal calendarietto del browser) -->
-<div class="toolbar">
-  <div class="date-block">
-    <span class="date-label">Data</span>
-    <input type="date" id="dataPezzi">
+  <div class="tab-bar" id="tabBar">
+    <button class="tab active" data-tab="day">Day by Day</button>
+    <button class="tab" data-tab="gare">Gare Individuali</button>
+    <button class="tab" data-tab="avanzamento">Avanzamento Mensile</button>
   </div>
-  <div class="spacer"></div>
-  <span class="info-pill" id="infoTotale">Totale pezzi: 0</span>
-</div>
 
-<!-- Griglia pezzi -->
-<div class="grid-wrap">
-  <div class="scroll">
-    <div id="pezziTable">
-      <div class="empty-state"><div class="empty-icon"></div>Caricamento...</div>
+  <div class="toolbar">
+    <div class="date-block" id="dayToolbar">
+      <span class="date-label">Data</span>
+      <input type="date" id="dataPezzi">
+    </div>
+    <div class="date-block" id="monthToolbar" style="display:none">
+      <span class="date-label">Mese</span>
+      <select id="selMese"></select>
+      <span class="date-label">Anno</span>
+      <select id="selAnno"></select>
+    </div>
+    <div class="spacer"></div>
+    <span class="info-pill" id="infoRiepilogo">Totale pezzi: 0</span>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="scroll">
+      <div id="tabContentDay">
+        <div id="pezziTable">
+          <div class="empty-state"><div class="empty-icon"></div>Caricamento...</div>
+        </div>
+      </div>
+      <div id="tabContentGare" style="display:none">
+        <div class="empty-state"><div class="empty-icon"></div>Caricamento...</div>
+      </div>
+      <div id="tabContentAvanzamento" style="display:none">
+        <div class="empty-state"><div class="empty-icon"></div>Caricamento...</div>
+      </div>
     </div>
   </div>
-</div>
 
 </div>
 
 <script>
 const sb = db;
 
-// Colonne operatori HARDCODED (richiesta utente).
-// Per aggiungere/rimuovere un operatore modifica questo array.
+// Colonne operatori HARDCODED per la Day by Day (compatibilita' col codice esistente).
 const OPERATORI = ['MATTEO', 'MIRKO', 'FRANCESCA', 'CEREA'];
+const MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 
-// Stato runtime
 const DPState = {
-  dataSelezionata: null,    // YYYY-MM-DD
-  righe: [],                // dashboard_righe_giornaliera (cache)
-  contratti: []             // vendita_contratti del giorno
+  activeTab: 'day',
+  dataSelezionata: null,        // Day by Day
+  anno: null, mese: null,       // tab mensili
+  righeDay: [],                 // dashboard_righe_giornaliera
+  contrattiDay: [],
+  metricheGara: [],             // gara_metriche
+  operatoriInGara: [],          // profili in_gara=true
+  operatoriAttiviMese: [],      // profili unici sui contratti del mese (per Avanzamento)
+  obiettivi: [],                // gara_obiettivi_mensili del mese/anno
+  contrattiMese: [],
+  profiliMap: new Map(),
+  loadedMonthKey: null          // 'YYYY-MM' per invalidare cache
 };
 
 // ============================================================
-// UTILITY
+// UTIL
 // ============================================================
-function escapeHtml(s) {
-  if (s === null || s === undefined) return '';
-  const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML;
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
+function normalizzaNome(s) { return String(s || '').trim().toUpperCase(); }
+function isoOggi() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 function fmtDataLabel(iso) {
   if (!iso) return '';
   const d = new Date(iso + 'T00:00:00');
-  if (isNaN(d)) return iso;
-  const giorno = d.getDate();
   const mesi = ['GENNAIO','FEBBRAIO','MARZO','APRILE','MAGGIO','GIUGNO','LUGLIO','AGOSTO','SETTEMBRE','OTTOBRE','NOVEMBRE','DICEMBRE'];
-  return giorno + ' ' + mesi[d.getMonth()];
+  return d.getDate() + ' ' + mesi[d.getMonth()];
 }
-function isoOggi() {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-function normalizzaNome(s) {
-  return String(s || '').trim().toUpperCase();
-}
+function fmtEur(n) { if (n === null || n === undefined || isNaN(n)) return '-'; return '€ ' + Number(n).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
 
 // ============================================================
-// MATCHING ENGINE — verifica se un contratto soddisfa una regola JSONB
+// MATCHING ENGINE (comune Day + Mensile)
 // ============================================================
 function matchRegola(contratto, regola) {
   if (!regola || typeof regola !== 'object') return true;
   const c = contratto;
-
-  // Helper di matching su stringhe
   const strEq = (got, want) => String(got || '').trim().toLowerCase() === String(want || '').trim().toLowerCase();
   const strInArr = (got, arr) => Array.isArray(arr) && arr.some(v => strEq(got, v));
   const reMatch = (got, pattern) => {
     if (!pattern) return true;
-    try {
-      const re = new RegExp(pattern, 'i');
-      return re.test(String(got || ''));
-    } catch (e) { return false; }
+    try { return new RegExp(pattern, 'i').test(String(got || '')); } catch (e) { return false; }
   };
-
-  // CATEGORIA
   if (regola.categoria && !strEq(c.categoria_snapshot, regola.categoria)) return false;
   if (regola.categoria_in && !strInArr(c.categoria_snapshot, regola.categoria_in)) return false;
-
-  // CLUSTER
   if (regola.cluster && !strEq(c.cluster_cliente, regola.cluster)) return false;
   if (regola.cluster_in && !strInArr(c.cluster_cliente, regola.cluster_in)) return false;
-
-  // Match diretti
   if (regola.tipo_attivazione && !strEq(c.tipo_attivazione, regola.tipo_attivazione)) return false;
   if (regola.apri_chiudi && !strEq(c.apri_chiudi, regola.apri_chiudi)) return false;
   if (regola.intestatario && !strEq(c.intestatario, regola.intestatario)) return false;
@@ -293,26 +353,16 @@ function matchRegola(contratto, regola) {
   if (regola.fascia_prezzo && !strEq(c.fascia_prezzo, regola.fascia_prezzo)) return false;
   if (regola.fascia_prezzo_in && !strInArr(c.fascia_prezzo, regola.fascia_prezzo_in)) return false;
   if (regola.finanziaria && !strEq(c.finanziaria, regola.finanziaria)) return false;
-
-  // Boolean
   if (regola.dispositivo_associato !== undefined && Boolean(c.dispositivo_associato) !== Boolean(regola.dispositivo_associato)) return false;
   if (regola.kolme !== undefined && Boolean(c.kolme) !== Boolean(regola.kolme)) return false;
   if (regola.reload_exchange !== undefined && Boolean(c.reload_exchange) !== Boolean(regola.reload_exchange)) return false;
-
-  // Regex su offerta / opzione / reload (case-insensitive)
   if (regola.offerta_match && !reMatch(c.nome_offerta_snapshot, regola.offerta_match)) return false;
   if (regola.offerta_not_match && reMatch(c.nome_offerta_snapshot, regola.offerta_not_match)) return false;
   if (regola.opzione_match && !reMatch(c.nome_opzione_snapshot, regola.opzione_match)) return false;
   if (regola.reload_match && !reMatch(c.nome_reload_snapshot, regola.reload_match)) return false;
-
   return true;
 }
 
-// ============================================================
-// MATCHING OPERATORE: confronta il nome operatore del contratto con
-// la colonna hardcoded (MATTEO/MIRKO/FRANCESCA/CEREA).
-// Necessita di un campo "operatore_nome" che ricaviamo da profili (cached).
-// ============================================================
 function operatoreContratto(contratto, profiliMap) {
   const id = contratto.operatore_id;
   if (!id) return null;
@@ -322,109 +372,95 @@ function operatoreContratto(contratto, profiliMap) {
 }
 
 // ============================================================
-// CARICAMENTO DATI
+// COMPENSO — DSL scaglioni + bonus (allineato ad admin-gare)
 // ============================================================
-async function caricaRighe() {
-  if (DPState.righe.length) return DPState.righe;
-  const { data, error } = await sb
-    .from('dashboard_righe_giornaliera')
-    .select('id, nome, gruppo, colore_hex, ordine, regola')
-    .eq('attiva', true)
-    .order('ordine', { ascending: true });
-  if (error) throw error;
-  DPState.righe = data || [];
-  return DPState.righe;
+function calcolaCompenso(attuale, regola) {
+  if (!regola || typeof regola !== 'object') return { euro: 0, label: '' };
+  if (regola.tipo === 'nessuno') return { euro: 0, label: regola.label || '' };
+  if (regola.tipo !== 'scaglioni') return { euro: 0, label: regola.label || '' };
+  const scaglioni = Array.isArray(regola.scaglioni) ? regola.scaglioni : [];
+  const bonus = Array.isArray(regola.bonus_soglie) ? regola.bonus_soglie : [];
+  let totale = 0;
+  scaglioni.forEach(s => {
+    const da = Number(s.da || 0);
+    const a = (s.a === null || s.a === undefined || s.a === '') ? Infinity : Number(s.a);
+    const perPezzo = Number(s.per_pezzo || 0);
+    if (attuale > da) {
+      const pezziNelloScaglione = Math.min(attuale, a) - da;
+      if (pezziNelloScaglione > 0) totale += pezziNelloScaglione * perPezzo;
+    }
+  });
+  bonus.forEach(b => { if (attuale >= Number(b.soglia || 0)) totale += Number(b.bonus || 0); });
+  return { euro: totale, label: regola.label || '' };
 }
 
-async function caricaContrattiDelGiorno(dataIso) {
-  // Filtra per data_contratto (timestamptz) usando un range [start, end).
-  // Calcoliamo il giorno successivo in modo UTC-safe (la versione con
-  // `new Date(...).setDate(...)` rompeva su browser in TZ != UTC perché
-  // interpretava la stringa come ora locale).
-  const [y, m, d] = dataIso.split('-').map(Number);
-  const nextUtc = new Date(Date.UTC(y, m - 1, d + 1));
-  const nextIso = nextUtc.toISOString().slice(0, 10);
-  const start = `${dataIso}T00:00:00.000Z`;   // 00:00 UTC del giorno
-  const end   = `${nextIso}T00:00:00.000Z`;   // 00:00 UTC del giorno dopo
-  console.log('[DashboardPezzi] range query:', { start, end });
-  const { data, error } = await sb
-    .from('vendita_contratti')
-    .select(`
-      id, operatore_id, cluster_cliente,
-      categoria_snapshot, nome_offerta_snapshot, nome_opzione_snapshot, nome_reload_snapshot,
-      tipo_attivazione, apri_chiudi, intestatario, switch_sim, modalita_pagamento,
-      dispositivo_associato, tipo_acquisto, fascia_prezzo, finanziaria, kolme,
-      reload_exchange, data_contratto, stato_controllo
-    `)
-    .gte('data_contratto', start)
-    .lt('data_contratto', end);
-  if (error) { console.error('[DashboardPezzi] errore query contratti:', error); throw error; }
-  console.log(`[DashboardPezzi] contratti trovati: ${(data || []).length}`, data);
-  return data || [];
-}
-
+// ============================================================
+// LOAD comuni
+// ============================================================
 async function caricaProfili(ids) {
-  if (!ids || !ids.length) { console.log('[DashboardPezzi] nessun operatore_id da risolvere'); return new Map(); }
-  console.log('[DashboardPezzi] cerco profili per ids:', ids);
-  const { data, error } = await sb.from('profili').select('id, nome').in('id', ids);
-  if (error) { console.warn('[DashboardPezzi] Lookup profili fallito:', error.message); return new Map(); }
-  console.log(`[DashboardPezzi] profili trovati: ${(data || []).length}`, data);
+  if (!ids || !ids.length) return new Map();
+  const { data } = await sb.from('profili').select('id, nome, in_gara').in('id', ids);
   const map = new Map();
   (data || []).forEach(p => map.set(p.id, p));
   return map;
 }
 
 // ============================================================
-// RENDERING GRIGLIA
+// TAB "DAY BY DAY" - invariata
 // ============================================================
-function renderGriglia() {
-  const righe = DPState.righe;
-  const contratti = DPState.contratti;
+async function caricaRigheDay() {
+  if (DPState.righeDay.length) return DPState.righeDay;
+  const { data, error } = await sb.from('dashboard_righe_giornaliera')
+    .select('id, nome, gruppo, colore_hex, ordine, regola')
+    .eq('attiva', true)
+    .order('ordine', { ascending: true });
+  if (error) throw error;
+  DPState.righeDay = data || [];
+  return DPState.righeDay;
+}
+
+async function caricaContrattiDelGiorno(dataIso) {
+  const [y, m, d] = dataIso.split('-').map(Number);
+  const nextUtc = new Date(Date.UTC(y, m - 1, d + 1));
+  const nextIso = nextUtc.toISOString().slice(0, 10);
+  const start = `${dataIso}T00:00:00.000Z`;
+  const end   = `${nextIso}T00:00:00.000Z`;
+  const { data, error } = await sb.from('vendita_contratti')
+    .select(`
+      id, operatore_id, cluster_cliente,
+      categoria_snapshot, nome_offerta_snapshot, nome_opzione_snapshot, nome_reload_snapshot,
+      tipo_attivazione, apri_chiudi, intestatario, switch_sim, modalita_pagamento,
+      dispositivo_associato, tipo_acquisto, fascia_prezzo, finanziaria, kolme,
+      reload_exchange, data_contratto, stato_controllo, stato_inserimento
+    `)
+    .gte('data_contratto', start).lt('data_contratto', end);
+  if (error) throw error;
+  return data || [];
+}
+
+function renderGrigliaDay() {
+  const righe = DPState.righeDay;
+  const contratti = DPState.contrattiDay;
   const profiliMap = DPState.profiliMap;
 
-  // Conteggi: righeId → operatore → count
   const conteggi = {};
-  righe.forEach(r => {
-    conteggi[r.id] = { __total: 0 };
-    OPERATORI.forEach(op => { conteggi[r.id][op] = 0; });
-  });
-  const totaliOperatore = {};
-  OPERATORI.forEach(op => { totaliOperatore[op] = 0; });
+  righe.forEach(r => { conteggi[r.id] = { __total: 0 }; OPERATORI.forEach(op => { conteggi[r.id][op] = 0; }); });
   let totaleGenerale = 0;
 
   contratti.forEach(c => {
     const opNome = operatoreContratto(c, profiliMap);
-    if (!opNome) {
-      console.warn('[DashboardPezzi] contratto senza operatore risolto:', c.id, 'operatore_id:', c.operatore_id);
-      return;
-    }
-    if (!OPERATORI.includes(opNome)) {
-      console.warn(`[DashboardPezzi] contratto ${c.id} → operatore "${opNome}" non è nella lista hardcoded ${JSON.stringify(OPERATORI)}`);
-      return;
-    }
-    let matchato = false;
+    if (!opNome || !OPERATORI.includes(opNome)) return;
     righe.forEach(r => {
       if (matchRegola(c, r.regola)) {
-        matchato = true;
         conteggi[r.id][opNome] += 1;
         conteggi[r.id].__total += 1;
-        totaliOperatore[opNome] += 1;
         totaleGenerale += 1;
-        console.log(`[DashboardPezzi] contratto ${c.id} (${c.nome_offerta_snapshot}) → riga "${r.nome}" / ${opNome}`);
       }
     });
-    if (!matchato) {
-      console.warn(`[DashboardPezzi] contratto ${c.id} (cat=${c.categoria_snapshot}, off=${c.nome_offerta_snapshot}) NON ha matchato NESSUNA riga`);
-    }
   });
-  console.log(`[DashboardPezzi] totale conteggiato: ${totaleGenerale}`);
 
-  // HTML
   const wrap = document.getElementById('pezziTable');
-  if (!righe.length) {
-    wrap.innerHTML = `<div class="empty-state"><div class="empty-icon"></div>Nessuna riga configurata in <code>dashboard_righe_giornaliera</code>.</div>`;
-    return;
-  }
+  if (!righe.length) { wrap.innerHTML = '<div class="empty-state"><div class="empty-icon"></div>Nessuna riga configurata.</div>'; return; }
 
   const opCols = OPERATORI.map(op => `<th class="col-op">${escapeHtml(op)}</th>`).join('');
   const colGroup = `<colgroup><col class="col-label">${OPERATORI.map(() => '<col class="col-op">').join('')}</colgroup>`;
@@ -433,9 +469,8 @@ function renderGriglia() {
     ${opCols}
   </tr></thead><tbody>`;
 
-  // Raggruppa per gruppo, mantieni ordine
   let currentGruppo = null;
-  righe.forEach((r, idx) => {
+  righe.forEach(r => {
     if (r.gruppo !== currentGruppo) {
       html += `<tr class="gruppo-header"><td colspan="${OPERATORI.length + 1}">${escapeHtml(r.gruppo)}</td></tr>`;
       currentGruppo = r.gruppo;
@@ -450,59 +485,261 @@ function renderGriglia() {
       ${tdCells}
     </tr>`;
   });
-  html += `</tbody></table>`;
+  html += '</tbody></table>';
   wrap.innerHTML = html;
-  document.getElementById('infoTotale').textContent = `Totale pezzi: ${totaleGenerale}`;
+  document.getElementById('infoRiepilogo').textContent = `Totale pezzi: ${totaleGenerale}`;
 }
 
-// ============================================================
-// FLUSSO PRINCIPALE
-// ============================================================
-async function caricaDati() {
+async function caricaDay() {
   const wrap = document.getElementById('pezziTable');
   wrap.innerHTML = '<div class="empty-state"><div class="empty-icon"></div>Caricamento...</div>';
   try {
-    await caricaRighe();
+    await caricaRigheDay();
     const contratti = await caricaContrattiDelGiorno(DPState.dataSelezionata);
-    DPState.contratti = contratti;
+    DPState.contrattiDay = contratti;
     const opIds = Array.from(new Set(contratti.map(c => c.operatore_id).filter(Boolean)));
     DPState.profiliMap = await caricaProfili(opIds);
-    renderGriglia();
+    renderGrigliaDay();
   } catch (e) {
-    console.error('[DashboardPezzi] errore:', e);
+    console.error(e);
     wrap.innerHTML = `<div class="empty-state"><div class="empty-icon"></div>Errore: ${escapeHtml(e.message)}</div>`;
   }
 }
 
-function vaiOggi() {
-  const iso = isoOggi();
-  DPState.dataSelezionata = iso;
-  document.getElementById('dataPezzi').value = iso;
-  caricaDati();
+// ============================================================
+// TAB MENSILI - Caricamento dati comune
+// ============================================================
+async function caricaDatiMensili() {
+  const key = `${DPState.anno}-${String(DPState.mese).padStart(2,'0')}`;
+  if (DPState.loadedMonthKey === key) return;
+
+  const start = `${DPState.anno}-${String(DPState.mese).padStart(2,'0')}-01T00:00:00.000Z`;
+  const mesePost = DPState.mese === 12 ? 1 : DPState.mese + 1;
+  const annoPost = DPState.mese === 12 ? DPState.anno + 1 : DPState.anno;
+  const end = `${annoPost}-${String(mesePost).padStart(2,'0')}-01T00:00:00.000Z`;
+
+  const [rContratti, rMetriche, rObiettivi, rProfili] = await Promise.all([
+    sb.from('vendita_contratti').select(`
+        id, operatore_id, cluster_cliente,
+        categoria_snapshot, nome_offerta_snapshot, nome_opzione_snapshot, nome_reload_snapshot,
+        tipo_attivazione, apri_chiudi, intestatario, switch_sim, modalita_pagamento,
+        dispositivo_associato, tipo_acquisto, fascia_prezzo, finanziaria, kolme,
+        reload_exchange, data_contratto, stato_controllo, stato_inserimento
+      `).gte('data_contratto', start).lt('data_contratto', end),
+    sb.from('gara_metriche').select('*').eq('attiva', true).order('tabella').order('ordine'),
+    sb.from('gara_obiettivi_mensili').select('*').eq('anno', DPState.anno).eq('mese', DPState.mese),
+    sb.from('profili').select('id, nome, in_gara').eq('attivo', true).order('nome')
+  ]);
+  if (rContratti.error) throw rContratti.error;
+  if (rMetriche.error) throw rMetriche.error;
+  if (rObiettivi.error) throw rObiettivi.error;
+  if (rProfili.error) throw rProfili.error;
+
+  DPState.contrattiMese = (rContratti.data || []).filter(c => c.stato_inserimento !== 'reinserimento');
+  DPState.metricheGara = rMetriche.data || [];
+  DPState.obiettivi = rObiettivi.data || [];
+  DPState.operatoriInGara = (rProfili.data || []).filter(p => p.in_gara);
+  const profiliMap = new Map();
+  (rProfili.data || []).forEach(p => profiliMap.set(p.id, p));
+  DPState.profiliMap = profiliMap;
+
+  // Operatori attivi nel mese (per l'Avanzamento Mensile): union di in_gara + chi ha almeno un contratto
+  const opConContratti = new Set(DPState.contrattiMese.map(c => c.operatore_id).filter(Boolean));
+  const opIds = new Set([...DPState.operatoriInGara.map(p => p.id), ...opConContratti]);
+  DPState.operatoriAttiviMese = Array.from(opIds).map(id => profiliMap.get(id)).filter(Boolean);
+
+  DPState.loadedMonthKey = key;
 }
-function cambiaGiorno(delta) {
-  const d = new Date(DPState.dataSelezionata + 'T00:00:00');
-  d.setDate(d.getDate() + delta);
-  const iso = d.toISOString().slice(0, 10);
-  DPState.dataSelezionata = iso;
-  document.getElementById('dataPezzi').value = iso;
-  caricaDati();
+
+function getObiettivoMese(metricaId, operatoreId) {
+  return DPState.obiettivi.find(o => o.metrica_id === metricaId && (o.operatore_id || null) === (operatoreId || null)) || null;
+}
+function contaMatchPerOperatore(metrica, operatoreId) {
+  let n = 0;
+  DPState.contrattiMese.forEach(c => {
+    if (c.operatore_id !== operatoreId) return;
+    if (matchRegola(c, metrica.regola)) n++;
+  });
+  return n;
+}
+function contaMatchTotale(metrica) {
+  let n = 0;
+  DPState.contrattiMese.forEach(c => { if (matchRegola(c, metrica.regola)) n++; });
+  return n;
 }
 
-document.getElementById('dataPezzi').addEventListener('change', (e) => {
-  DPState.dataSelezionata = e.target.value || isoOggi();
-  caricaDati();
-});
+// ============================================================
+// TAB "GARE INDIVIDUALI"
+// ============================================================
+function renderGare() {
+  const wrap = document.getElementById('tabContentGare');
+  if (!DPState.operatoriInGara.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon"></div>Nessun operatore in gara. Configura da Admin → Gare & Avanzamento.</div>';
+    document.getElementById('infoRiepilogo').textContent = MESI[DPState.mese-1] + ' ' + DPState.anno;
+    return;
+  }
+  const metriche = DPState.metricheGara.filter(m => m.tabella === 'gara_individuale');
+  let html = '<div class="gare-grid">';
+  DPState.operatoriInGara.forEach(op => {
+    let totCompenso = 0;
+    let bodyHtml = '';
+    metriche.forEach(m => {
+      const attuale = contaMatchPerOperatore(m, op.id);
+      const o = getObiettivoMese(m.id, op.id);
+      const obiettivo = o?.obiettivo ?? 0;
+      const c = calcolaCompenso(attuale, o?.compenso_regola);
+      if (c.label) {
+        bodyHtml += `<tr>
+          <td class="metrica" style="background:${escapeHtml(m.colore_hex)}">${escapeHtml(m.nome)}</td>
+          <td>${attuale}</td>
+          <td>${obiettivo}</td>
+          <td class="compenso"><span class="badge-dec">${escapeHtml(c.label)}</span></td>
+        </tr>`;
+      } else {
+        totCompenso += c.euro;
+        bodyHtml += `<tr>
+          <td class="metrica" style="background:${escapeHtml(m.colore_hex)}">${escapeHtml(m.nome)}</td>
+          <td>${attuale}</td>
+          <td>${obiettivo}</td>
+          <td class="compenso">${fmtEur(c.euro)}</td>
+        </tr>`;
+      }
+    });
+    html += `<div class="gara-card">
+      <div class="gara-card-head">Gara ${escapeHtml(op.nome)}</div>
+      <table class="gara-tab">
+        <thead><tr><th></th><th>Attuale</th><th>Obiettivo</th><th>Compenso</th></tr></thead>
+        <tbody>${bodyHtml}
+          <tr class="tot"><td colspan="3">Totale compensi</td><td class="compenso compenso-tot">${fmtEur(totCompenso)}</td></tr>
+        </tbody>
+      </table>
+    </div>`;
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+  document.getElementById('infoRiepilogo').textContent = MESI[DPState.mese-1] + ' ' + DPState.anno;
+}
 
-// Export per onclick inline
-window.cambiaGiorno = cambiaGiorno;
-window.vaiOggi = vaiOggi;
+// ============================================================
+// TAB "AVANZAMENTO MENSILE"
+// ============================================================
+function renderAvanzamento() {
+  const wrap = document.getElementById('tabContentAvanzamento');
+  const operatori = DPState.operatoriAttiviMese;
+  if (!DPState.metricheGara.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon"></div>Nessuna metrica configurata.</div>';
+    return;
+  }
+  const sezioni = [
+    { tabella: 'avanzamento_standard', titolo: 'Avanzamento' },
+    { tabella: 'avanzamento_piva', titolo: 'Avanzamento P.IVA' },
+    { tabella: 'avanzamento_extra_piva', titolo: 'Extra Gara P.IVA' }
+  ];
+  let html = '';
+  let totaleContratti = 0;
+  sezioni.forEach(sez => {
+    const metriche = DPState.metricheGara.filter(m => m.tabella === sez.tabella);
+    if (!metriche.length) return;
+    html += `<div class="av-section"><h3>${escapeHtml(sez.titolo)}</h3>`;
+    const opHeaders = operatori.map(op => `<th class="gr-pezzi">${escapeHtml(op.nome)}</th>`).join('');
+    html += `<table class="avanz"><thead><tr>
+      <th style="width:200px">Categorie</th>
+      ${opHeaders}
+      <th style="width:80px">Punteggio</th>
+      <th style="width:100px">Obiettivo</th>
+      <th style="width:100px">Andamento</th>
+      <th style="width:100px">Eccedenza</th>
+    </tr></thead><tbody>`;
+    metriche.forEach(m => {
+      const conteggi = operatori.map(op => contaMatchPerOperatore(m, op.id));
+      const attuale = conteggi.reduce((a,b)=>a+b, 0);
+      totaleContratti += attuale;
+      const punteggio = attuale * Number(m.punti_per_pezzo || 1);
+      const o = getObiettivoMese(m.id, null);
+      const obiettivo = o?.obiettivo ?? 0;
+      const andamento = obiettivo > 0 ? (attuale / obiettivo) * 100 : null;
+      const eccedenza = Math.max(0, attuale - obiettivo);
+      const andCls = (andamento !== null && andamento >= 100) ? 'raggiunto' : '';
+      const eccCls = eccedenza > 0 ? 'pos' : '';
+      const opCells = conteggi.map(v => `<td>${v || ''}</td>`).join('');
+      html += `<tr>
+        <td class="metrica" style="background:${escapeHtml(m.colore_hex)}">${escapeHtml(m.nome)}</td>
+        ${opCells}
+        <td class="punteggio">${punteggio.toLocaleString('it-IT', {minimumFractionDigits:0, maximumFractionDigits:2})}</td>
+        <td>${obiettivo || '-'}</td>
+        <td class="andamento perc ${andCls}">${andamento === null ? '-' : andamento.toFixed(1) + '%'}</td>
+        <td class="eccedenza ${eccCls}">${eccedenza || ''}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  });
+  wrap.innerHTML = html;
+  document.getElementById('infoRiepilogo').textContent = `${MESI[DPState.mese-1]} ${DPState.anno} · ${totaleContratti} pezzi`;
+}
 
+// ============================================================
+// TAB SWITCH
+// ============================================================
+async function switchTab(name) {
+  DPState.activeTab = name;
+  document.querySelectorAll('#tabBar .tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.getElementById('tabContentDay').style.display = name === 'day' ? 'block' : 'none';
+  document.getElementById('tabContentGare').style.display = name === 'gare' ? 'block' : 'none';
+  document.getElementById('tabContentAvanzamento').style.display = name === 'avanzamento' ? 'block' : 'none';
+  document.getElementById('dayToolbar').style.display = name === 'day' ? 'flex' : 'none';
+  document.getElementById('monthToolbar').style.display = name === 'day' ? 'none' : 'flex';
+
+  if (name === 'day') {
+    await caricaDay();
+  } else {
+    const wrapGare = document.getElementById('tabContentGare');
+    const wrapAv = document.getElementById('tabContentAvanzamento');
+    if (name === 'gare') wrapGare.innerHTML = '<div class="empty-state"><div class="empty-icon"></div>Caricamento...</div>';
+    if (name === 'avanzamento') wrapAv.innerHTML = '<div class="empty-state"><div class="empty-icon"></div>Caricamento...</div>';
+    try {
+      await caricaDatiMensili();
+      if (name === 'gare') renderGare(); else renderAvanzamento();
+    } catch (e) {
+      console.error(e);
+      const wrap = name === 'gare' ? wrapGare : wrapAv;
+      wrap.innerHTML = `<div class="empty-state"><div class="empty-icon"></div>Errore: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+}
+
+// ============================================================
 // INIT
+// ============================================================
 (function init() {
+  const now = new Date();
   DPState.dataSelezionata = isoOggi();
+  DPState.anno = now.getFullYear();
+  DPState.mese = now.getMonth() + 1;
+
   document.getElementById('dataPezzi').value = DPState.dataSelezionata;
-  caricaDati();
+  document.getElementById('dataPezzi').addEventListener('change', (e) => {
+    DPState.dataSelezionata = e.target.value || isoOggi();
+    if (DPState.activeTab === 'day') caricaDay();
+  });
+
+  const selMese = document.getElementById('selMese');
+  selMese.innerHTML = MESI.map((m, i) => `<option value="${i+1}" ${(i+1===DPState.mese)?'selected':''}>${m}</option>`).join('');
+  const selAnno = document.getElementById('selAnno');
+  const anni = []; for (let a = DPState.anno + 1; a >= DPState.anno - 3; a--) anni.push(a);
+  selAnno.innerHTML = anni.map(a => `<option value="${a}" ${a===DPState.anno?'selected':''}>${a}</option>`).join('');
+  const changeMese = async () => {
+    DPState.mese = Number(selMese.value); DPState.anno = Number(selAnno.value);
+    DPState.loadedMonthKey = null;
+    if (DPState.activeTab !== 'day') switchTab(DPState.activeTab);
+  };
+  selMese.addEventListener('change', changeMese);
+  selAnno.addEventListener('change', changeMese);
+
+  document.querySelectorAll('#tabBar .tab').forEach(b => {
+    b.addEventListener('click', () => switchTab(b.dataset.tab));
+  });
+
+  switchTab('day');
 })();
 </script>
 </body>

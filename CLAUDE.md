@@ -104,7 +104,7 @@ Modifiche a schema / RLS / RPC / trigger su queste tabelle hanno rischio di **ro
 
 ### 1. Frontend (`/`, `/moduli/`, `/moduli/call-center/`, `/js/`, `/css/`)
 
-Pagine HTML statiche, no bundler. `/moduli/call-center/` contiene il modulo CC integrato (Fase 1, vedi sezione dedicata). Le pagine `admin*.html` alla root costituiscono il **Pannello Admin Mirox** (`admin.html` hub + `admin-utenti.html` + `admin-call-center-config.html` + `admin-vendita-config.html`), tutte gated da `profili.ruolo='admin'`. JS condiviso Mirox esposto su `window`:
+Pagine HTML statiche, no bundler. `/moduli/call-center/` contiene il modulo CC integrato (Fase 1, vedi sezione dedicata). Le pagine `admin*.html` alla root costituiscono il **Pannello Admin Mirox** (`admin.html` hub + `admin-utenti.html` + `admin-call-center-config.html` + `admin-vendita-config.html` + `admin-gare.html`), tutte gated da `profili.ruolo='admin'`. JS condiviso Mirox esposto su `window`:
 
 | File JS | Espone | Uso |
 |---|---|---|
@@ -154,7 +154,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 ## Mappa Supabase per dominio
 
 ### Anagrafica & Auth (condiviso)
-- `profili` — utenti CRM, `ruolo` IN ('admin','operatore'), `pagine_accessibili` jsonb per ACL Call Center
+- `profili` — utenti CRM, `ruolo` IN ('admin','operatore'), `pagine_accessibili` jsonb per ACL Call Center, `in_gara` bool (dal 2026-07-09, migration 038) per includere l'operatore nella tab "Gare Individuali" del Dashboard Pezzi
 - `anagrafica` — cliente unificato, `cf_piva` UNIQUE, `cluster` operativo condiviso (`Consumer`/`Business`; i passaporti cluster vendita `Turista` vengono salvati qui come `Consumer`). Colonna `email` (text, NULL ammesso a livello DB; obbligatoria lato wizard solo per `Consumer`/`Business`). RPC `cerca_o_crea_anagrafica(p_..., p_email)` UPSERT
 
 ### Call Center (condiviso, gestito dall'altro progetto)
@@ -186,7 +186,9 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `segnalazioni` (+ `segnalazioni_backup`)
 - `ticket` — badge in dashboard quando `stato='Da gestire'`
 - `email_template` (con `{{placeholder}}`), `email_log` (`status` IN sent/error)
-- `dashboard_righe_giornaliera` — config righe dashboard custom
+- `dashboard_righe_giornaliera` — config righe dashboard custom (tab Day by Day del Dashboard Pezzi)
+- `gara_metriche` (dal 2026-07-09, migration 038) — catalogo righe delle 4 tabelle del modulo Gare (`tabella` IN `gara_individuale`/`avanzamento_standard`/`avanzamento_piva`/`avanzamento_extra_piva`). Ogni riga ha `regola` JSONB (stesso DSL di `dashboard_righe_giornaliera`) + `punti_per_pezzo` numeric (moltiplicatore della colonna "Punteggio" nell'Avanzamento). Trigger `updated_at`. RLS SELECT authenticated, INSERT/UPDATE/DELETE riservati agli admin (migration 039)
+- `gara_obiettivi_mensili` (dal 2026-07-09, migration 038) — obiettivi mensili + regola compenso. Chiave `(anno, mese, metrica_id, operatore_id)` con `operatore_id` NULLABLE (NULL = obiettivo di categoria per l'Avanzamento Mensile; NOT NULL = obiettivo individuale per la Gara). `compenso_regola` jsonb DSL scaglioni + bonus (vedi "Modulo Gare & Avanzamento"). Trigger `updated_at`. RLS SELECT authenticated, INSERT/UPDATE/DELETE riservati agli admin (migration 039)
 
 ### Viste
 - `vw_elenco_chiamate_unificate`, `vw_rilavorazione_ricontatti_unificata` — UNION standard + outbound
@@ -422,6 +424,83 @@ Quando una pratica va in KO post-vendita (o `Rifiutata`/`Annullata`/`In lavorazi
 
 ---
 
+## Modulo Gare & Avanzamento (dal 2026-07-09, migration 038 + 039)
+
+Sostituisce la tab unica del vecchio `dashboard_pezzi.html` con **3 tab**: Day by Day (invariata), Gare Individuali, Avanzamento Mensile. La configurazione (metriche, obiettivi mensili, regole compenso, flag `in_gara` sugli operatori) sta sotto Admin → **Gare & Avanzamento** (`admin-gare.html`).
+
+Motivazione: prima gli obiettivi e i compensi vivevano in un Google Sheet aggiornato a mano; ogni cambio gara aziendale (mensile) richiedeva ri-copiare il foglio e ricomunicarlo ai venditori. Ora tutto e' in Mirox e l'utente admin aggiorna i numeri direttamente da UI, mese per mese.
+
+### Struttura DB
+
+| Tabella | Cosa contiene |
+|---|---|
+| `profili.in_gara` | Flag bool per selezionare quali operatori vedono la loro tabella nella tab "Gare Individuali" |
+| `gara_metriche` | Catalogo righe delle 4 tabelle (`tabella` IN `gara_individuale`/`avanzamento_standard`/`avanzamento_piva`/`avanzamento_extra_piva`). `regola` JSONB stesso engine di `dashboard_righe_giornaliera` (matching contratti). `punti_per_pezzo` numeric per la colonna Punteggio dell'Avanzamento. Trigger `updated_at`. Seed iniziale = 21 righe coerenti col Google Sheet legacy (Attivazioni Tied / Telefoni Finanziati GA / Telefoni CB / Fisso / L&G / P.IVA / Assicurazioni / Protecta per la gara + Mobili / Device Finanziati GA / Telefoni CB / Fissi / L&G / Assicurazioni / Allarmi per l'avanzamento standard + le stesse varianti P.IVA + Extra Gara P.IVA) |
+| `gara_obiettivi_mensili` | Un record per `(anno, mese, metrica_id, operatore_id)`. `operatore_id` NULLABLE: NULL = obiettivo di categoria (avanzamento mensile, calcolato dalla somma di tutti gli operatori), NOT NULL = obiettivo individuale (gara). `obiettivo` int + `compenso_regola` jsonb DSL. Unique index parziale su `(anno, mese, metrica, coalesce(operatore, ffff))` per garantire unicita' anche con NULL. Trigger `updated_at`. RLS SELECT authenticated, scrittura admin |
+
+### DSL compenso (JSONB)
+
+Un solo tipo `scaglioni_e_bonus` copre tutti i casi visti nel Sheet legacy (per pezzo, per pezzo oltre soglia, scaglioni multipli, bonus una tantum al raggiungimento di N pezzi):
+
+```json
+{
+  "tipo": "scaglioni",
+  "scaglioni": [
+    { "da": 0,  "a": 20,   "per_pezzo": 10 },
+    { "da": 20, "a": null, "per_pezzo": 15 }
+  ],
+  "bonus_soglie": [ { "soglia": 40, "bonus": 50 } ],
+  "label": ""
+}
+```
+
+Interpretazione: se `attuale = 25` → 20 × 10 + 5 × 15 = 275 €. Se `attuale = 45` → 20 × 10 + 25 × 15 = 575 € + bonus 50 € = 625 €.
+
+Variante `{ "tipo": "nessuno", "label": "DEC." }` = riga senza calcolo compenso, la cella mostra solo il label (es. la cella "DEC." dei mesi in decurtazione). `a: null` = infinito. Motivazioni della scelta:
+- **Sicuro**: nessuna eval di formula testuale, tutte le operazioni sono `min/max/*/+` con valori numerici tipizzati.
+- **Coerente**: la stessa funzione `calcolaCompenso(attuale, regola)` gira in `admin-gare.html` (preview) e in `moduli/dashboard_pezzi.html` (rendering finale). Se la logica cambia, un solo posto da toccare.
+- **Estendibile**: se in futuro serve un tipo nuovo, si aggiunge `{tipo: 'xyz', ...}` con branch dedicato nella funzione, senza rompere il vecchio.
+
+### UI operatori — `moduli/dashboard_pezzi.html`
+
+3 tab. Toolbar con:
+- **Day by Day**: input `date` (invariato)
+- **Gare Individuali** / **Avanzamento Mensile**: `<select>` Mese + `<select>` Anno (default = mese corrente)
+
+Tab **Gare Individuali**: una card `.gara-card` per ogni operatore con `in_gara=true`, contenente una tabella `Metrica | Attuale | Obiettivo | Compenso` e riga "Totale compensi". "Attuale" = conteggio contratti del mese in cui `operatore_id = ` operatore E `matchRegola(contratto, metrica.regola)`. "Compenso" = `calcolaCompenso(attuale, obiettivo.compenso_regola)`. Se `compenso_regola.tipo='nessuno'` mostra il label (es. "DEC.") in rosso, non contribuisce al totale. Filtro: i contratti con `stato_inserimento='reinserimento'` sono esclusi (coerente con la regola anti-doppio-conteggio).
+
+Tab **Avanzamento Mensile**: 3 sezioni (Standard / P.IVA / Extra Gara P.IVA). Colonne operatore dinamiche = union `profili.in_gara=true` + qualsiasi operatore con almeno un contratto nel mese. Righe: pezzi per operatore + Punteggio (`somma_pezzi × punti_per_pezzo`) + Obiettivo (obiettivo di categoria, `operatore_id=NULL`) + Andamento % (`attuale/obiettivo × 100`, verde ≥100%) + Eccedenza (`max(0, attuale − obiettivo)`, verde >0). Solo numeri, no drill-down (scelta UX dell'utente per non appesantire il render).
+
+### UI admin — `admin-gare.html`
+
+Gated `ruolo='admin'` (vedi guard pattern in "Pannello Admin Mirox").
+
+- **Card "Operatori in gara"** — toggle checkbox `profili.in_gara` con save inline
+- **Card "Obiettivi Gara Individuali"** — dropdown operatore + tabella metriche `gara_individuale` con obiettivo (input number) + colonna "Compenso" con badge riassunto (X scaglioni / Y bonus, oppure "DEC.") + bottone "Modifica compenso" che apre modale editor
+- **Card "Avanzamento Mensile"** — 3 tabelle (Standard / P.IVA / Extra) con obiettivo (input number, `operatore_id=NULL`) + input punti/pezzo direttamente sulla riga metrica (edit di `gara_metriche.punti_per_pezzo`)
+- **Card "Configurazione avanzata metriche"** (collassata di default) — CRUD `nome/attiva/ordine/regola` JSONB delle metriche
+- **Bottone "Duplica dal mese precedente"** — copia tutti gli obiettivi e le regole compenso dal mese precedente. Skip di ogni obiettivo già presente nel mese corrente (idempotente). Confirm-modale prima di procedere
+
+### Editor scaglioni (modale)
+
+Aperto dal bottone "Modifica compenso" nella tab Gara Individuali. Interfaccia:
+- Radio: `Scaglioni + bonus` / `Nessun compenso`
+- Campo `Label` opzionale (es. "DEC.")
+- Elenco scaglioni: righe con `Da` / `A` (vuoto = infinito) / `€ / pezzo` + bottone rimozione + bottone `+ Scaglione`
+- Elenco bonus: righe con `Al raggiungimento di` / `Bonus €` + rimozione + `+ Bonus`
+- Anteprima live: mostra il compenso calcolato a 10 / 20 / 30 / 40 / 50 pezzi con la regola attuale
+
+Alla conferma: upsert su `gara_obiettivi_mensili.compenso_regola`. Nessuna funzione Netlify: il client scrive direttamente grazie alle policy admin di RLS (migration 039).
+
+### Che cosa NON e' incluso
+
+- **Grafici storici** (es. andamento mensile confrontato con mesi passati) — v1 mostra solo il mese corrente
+- **Export CSV/PDF** — se serve, si aggiunge lato client
+- **Notifica automatica agli operatori al raggiungimento del bonus** — nessun trigger email/toast
+- **Compenso lordo/netto o ritenute** — la colonna Compenso e' un numero puro, spetta al proprietario applicare eventuali conversioni
+
+---
+
 ## Modulo Call Center integrato (Fase 1, dal 2026-06-20)
 
 Le 11 pagine CC + asset stanno in `moduli/call-center/` (la 12esima — `configurazione.html` — è stata spostata sotto Admin Mirox il 2026-06-24, vedi sezione "Pannello Admin Mirox"). Sono **port pragmatico** dalle pagine prod del CC: logica interna invariata (è testata in produzione da mesi), modifiche minimali per integrarle in Mirox.
@@ -488,6 +567,7 @@ Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile
 | `admin-utenti.html` | CRUD su `profili`: cambio ruolo admin↔operatore con conferma, abilita/disabilita, modale permessi granulari CC (9 chiavi). Un admin non può togliersi il ruolo né disabilitarsi |
 | `admin-call-center-config.html` | Configurazione CC (orari settimanali, blocchi/chiusure, parametri sistema). Spostata da `moduli/call-center/configurazione.html` (eliminata). NON dipende da `CcHeader` o dai JS del CC: usa solo `js/config.js` + `js/auth.js` + `js/mirox-ui.js` Mirox |
 | `admin-vendita-config.html` | Esistente: CRUD cataloghi vendita. Aggiunto check `ruolo='admin'` (prima era solo `richiediAuth`). Bottone "← Admin" rimpiazza "← Dashboard" |
+| `admin-gare.html` | Nuova dal 2026-07-09. Configurazione **Gare & Avanzamento**: flag `in_gara` sugli operatori, obiettivi mensili + regola compenso a scaglioni per la tab Gare Individuali, obiettivi di categoria + punti/pezzo per la tab Avanzamento Mensile. Editor visuale scaglioni + bonus con anteprima live. Bottone "Duplica dal mese precedente". Scrittura via RLS admin (migration 039), niente Netlify function |
 
 ### Guard pattern (riusato in tutte le pagine admin*)
 
@@ -690,6 +770,9 @@ A regime stimato (300 contratti/mese → ~100 OTP/mese dopo dedupe 48 mesi): ~�
 |---|---|
 | Aggiungere una nuova **regola di business** | Modificare in 3 punti: CHECK constraint DB + UI wizard + Netlify function di validazione |
 | **Verificare un consenso** o gestire una revoca | Query/UPDATE manuale su `vendita_consensi_privacy`. Non c'è ancora UI admin. Per revoca: `UPDATE ... SET revocato_at=now(), revocato_motivo='...', revocato_da=<uuid_admin>` |
+| **Aggiornare gare/obiettivi/compensi** all'inizio del mese | Dashboard → Admin → **Gare & Avanzamento** (`admin-gare.html`). Seleziona mese/anno, clicca "Duplica dal mese precedente" per partire dagli obiettivi del mese scorso, poi correggi i numeri cambiati dall'azienda + modifica le regole compenso con l'editor scaglioni visuale. La tab Dashboard Pezzi → Gare Individuali si aggiorna sola. |
+| Aggiungere una nuova **metrica gara** (nuova riga nella tabella) | Admin Gare → sezione "Configurazione avanzata metriche" (collassata) → nuova riga con nome + tabella (`gara_individuale` / `avanzamento_standard` / `avanzamento_piva` / `avanzamento_extra_piva`) + `regola` JSONB (stesso engine di `dashboard_righe_giornaliera`). L'INSERT via UI oggi manca — aggiungerla o farlo direttamente da SQL editor Supabase. |
+| **Includere/escludere un operatore dalla Gara Individuale** | Admin Gare → prima card "Operatori in gara" → toggle checkbox `in_gara` per profilo. Effetto immediato sulla tab Gare Individuali della Dashboard Pezzi. |
 | Cambiare **testo informativa** | Modificare `_lib/pdf-consenso.js` (`INFORMATIVA_VERSIONE` + corpo). I record nuovi avranno la nuova versione, quelli vecchi mantengono il `informativa_versione` del momento. Far revisionare da legale. |
 | Cambiare **scadenza 48 mesi** | Modificare costante `VALIDITA_MESI` in `verifica-otp-privacy.js` E `upload-consenso-cartaceo.js`. Stessa logica `addMonthsClamped(now, N)` |
 | Aggiungere un **tipo documento** | Aggiornare `vendita_documenti_regole`, UI admin in `admin-vendita-config.html`, e nome standardizzato in `upload-vendita-documento.js` (`suggestedFileName`) |
