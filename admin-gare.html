@@ -363,8 +363,9 @@ async function loadAll() {
 
 async function loadOperatori() {
   const { data, error } = await sb.from('profili')
-    .select('id, nome, in_gara, ruolo, attivo')
+    .select('id, nome, in_gara, ruolo, attivo, alias_di')
     .eq('attivo', true)
+    .is('alias_di', null)                // esclude profili alias (unificati)
     .order('nome');
   if (error) throw error;
   State.operatoriTutti = data || [];

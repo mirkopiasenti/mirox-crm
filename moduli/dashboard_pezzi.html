@@ -528,7 +528,7 @@ async function caricaDatiMensili() {
       `).gte('data_contratto', start).lt('data_contratto', end),
     sb.from('gara_metriche').select('*').eq('attiva', true).order('tabella').order('ordine'),
     sb.from('gara_obiettivi_mensili').select('*').eq('anno', DPState.anno).eq('mese', DPState.mese),
-    sb.from('profili').select('id, nome, in_gara').eq('attivo', true).order('nome')
+    sb.from('profili').select('id, nome, in_gara, alias_di').eq('attivo', true).order('nome')
   ]);
   if (rContratti.error) throw rContratti.error;
   if (rMetriche.error) throw rMetriche.error;
@@ -538,18 +538,40 @@ async function caricaDatiMensili() {
   DPState.contrattiMese = (rContratti.data || []).filter(c => c.stato_inserimento !== 'reinserimento');
   DPState.metricheGara = rMetriche.data || [];
   DPState.obiettivi = rObiettivi.data || [];
-  DPState.operatoriInGara = (rProfili.data || []).filter(p => p.in_gara);
   const profiliMap = new Map();
   (rProfili.data || []).forEach(p => profiliMap.set(p.id, p));
   DPState.profiliMap = profiliMap;
+  // Solo profili canonici (esclude alias) — il DB gia' redirige gli operatore_id via trigger,
+  // ma la lista operatori la teniamo pulita anche a UI.
+  const canonici = (rProfili.data || []).filter(p => !p.alias_di);
+  DPState.operatoriInGara = canonici.filter(p => p.in_gara);
 
-  // Operatori attivi nel mese (per l'Avanzamento Mensile): union di in_gara + chi ha almeno un contratto
-  const opConContratti = new Set(DPState.contrattiMese.map(c => c.operatore_id).filter(Boolean));
+  // Operatori attivi nel mese (per l'Avanzamento Mensile): union in_gara + chi ha contratti,
+  // risolti al canonico se un contratto storico non e' ancora stato backfillato.
+  const opConContratti = new Set(
+    DPState.contrattiMese
+      .map(c => DPState.resolveOperatore(c.operatore_id))
+      .filter(Boolean)
+  );
   const opIds = new Set([...DPState.operatoriInGara.map(p => p.id), ...opConContratti]);
-  DPState.operatoriAttiviMese = Array.from(opIds).map(id => profiliMap.get(id)).filter(Boolean);
+  DPState.operatoriAttiviMese = Array.from(opIds)
+    .map(id => profiliMap.get(id))
+    .filter(p => p && !p.alias_di);
 
   DPState.loadedMonthKey = key;
 }
+
+// Risolve operatore_id → id canonico (segue alias_di, max 3 hop) usando la profiliMap gia' caricata
+DPState.resolveOperatore = function(id) {
+  if (!id) return null;
+  let cur = id;
+  for (let i = 0; i < 3; i++) {
+    const p = DPState.profiliMap.get(cur);
+    if (!p || !p.alias_di) return cur;
+    cur = p.alias_di;
+  }
+  return cur;
+};
 
 function getObiettivoMese(metricaId, operatoreId) {
   return DPState.obiettivi.find(o => o.metrica_id === metricaId && (o.operatore_id || null) === (operatoreId || null)) || null;
@@ -557,7 +579,7 @@ function getObiettivoMese(metricaId, operatoreId) {
 function contaMatchPerOperatore(metrica, operatoreId) {
   let n = 0;
   DPState.contrattiMese.forEach(c => {
-    if (c.operatore_id !== operatoreId) return;
+    if (DPState.resolveOperatore(c.operatore_id) !== operatoreId) return;
     if (matchRegola(c, metrica.regola)) n++;
   });
   return n;
