@@ -154,7 +154,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 ## Mappa Supabase per dominio
 
 ### Anagrafica & Auth (condiviso)
-- `profili` — utenti CRM, `ruolo` IN ('admin','operatore'), `pagine_accessibili` jsonb per ACL Call Center, `in_gara` bool (dal 2026-07-09, migration 038) per includere l'operatore nella tab "Gare Individuali" del Dashboard Pezzi
+- `profili` — utenti CRM, `ruolo` IN ('admin','operatore'), `pagine_accessibili` jsonb per ACL Call Center, `in_gara` bool (dal 2026-07-09, migration 038) per includere l'operatore nella tab "Gare Individuali" del Dashboard Pezzi, `alias_di` uuid (dal 2026-07-09, migration 040) self-FK opzionale per unificare due account della stessa persona: se valorizzato, il profilo e' un alias del profilo canonico indicato e ogni INSERT/UPDATE su tabelle con `operatore_id` viene redirezionato al canonico tramite trigger `trg_alias_operatore`. La RPC `applica_alias_backfill(uuid)` riassegna anche i record storici (chiamata dal bottone in `admin-utenti.html`)
 - `anagrafica` — cliente unificato, `cf_piva` UNIQUE, `cluster` operativo condiviso (`Consumer`/`Business`; i passaporti cluster vendita `Turista` vengono salvati qui come `Consumer`). Colonna `email` (text, NULL ammesso a livello DB; obbligatoria lato wizard solo per `Consumer`/`Business`). RPC `cerca_o_crea_anagrafica(p_..., p_email)` UPSERT
 
 ### Call Center (condiviso, gestito dall'altro progetto)

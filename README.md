@@ -18,7 +18,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `index.html` | Login Supabase Auth |
 | `dashboard.html` | Home con tabs Vendita / Post-Vendita + topbar con bottoni Ticket / Call Center / **Admin** (visibile solo se `ruolo='admin'`) + badge ticket aperti |
 | `admin.html` | **Hub Admin Mirox** — 4 card (Gestione Utenti, Configurazione Call Center, Catalogo Vendita, Gare & Avanzamento). Accesso ristretto a `ruolo='admin'` |
-| `admin-utenti.html` | Gestione utenti: ruoli admin/operatore, abilita/disabilita, permessi granulari Call Center, flag `in_gara`. Solo admin |
+| `admin-utenti.html` | Gestione utenti: ruoli admin/operatore, abilita/disabilita, permessi granulari Call Center, flag `in_gara`, colonna **Alias di** (unifica due account della stessa persona con backfill guidato del pregresso). Solo admin |
 | `admin-call-center-config.html` | Orari, blocchi e parametri di sistema del Call Center (spostata da `moduli/call-center/configurazione.html`). Solo admin |
 | `admin-vendita-config.html` | CRUD cataloghi (categorie, offerte, opzioni, reload, regole documenti). Solo admin |
 | `admin-gare.html` | Configurazione **Gare & Avanzamento** — metriche, obiettivi mensili per operatore, editor compenso a scaglioni + bonus, duplica dal mese precedente, flag operatori "in gara". Solo admin |

@@ -239,19 +239,36 @@ async function caricaUtenti() {
     + '<th>Ruolo</th>'
     + '<th>Stato</th>'
     + '<th>Permessi CC</th>'
+    + '<th style="min-width:180px">Alias di</th>'
     + '<th style="min-width:260px">Azioni</th>'
     + '</tr></thead><tbody>';
+
+  const opzioniAlias = utenti
+    .filter(x => x.attivo)
+    .map(x => ({ id: x.id, nome: x.nome || x.username || x.id.slice(0, 8) }));
 
   for (const u of utenti) {
     const isMe = u.id === currentProfilo.id;
     const permCount = Object.values(u.pagine_accessibili || {}).filter(v => v).length;
     const ruolo = u.ruolo || 'operatore';
+    // Dropdown alias_di: opzioni tutti i profili attivi tranne se stesso e i profili che sono gia' alias di qualcun altro (evita catene)
+    const opzioniHtml = ['<option value="">— Nessuno (canonico) —</option>'].concat(
+      opzioniAlias
+        .filter(o => o.id !== u.id && !utenti.find(x => x.id === o.id)?.alias_di)
+        .map(o => `<option value="${o.id}" ${u.alias_di === o.id ? 'selected' : ''}>${escapeHtml(o.nome)}</option>`)
+    ).join('');
+    const aliasCurrente = u.alias_di ? utenti.find(x => x.id === u.alias_di) : null;
     html += `<tr>
-      <td style="font-weight:600">${escapeHtml(u.nome || '—')}${isMe ? ' <span class="badge badge-info" style="margin-left:6px">tu</span>' : ''}</td>
+      <td style="font-weight:600">${escapeHtml(u.nome || '—')}${isMe ? ' <span class="badge badge-info" style="margin-left:6px">tu</span>' : ''}${aliasCurrente ? ` <span class="badge badge-warning" style="margin-left:6px" title="Alias di ${escapeHtml(aliasCurrente.nome || '')}">alias</span>` : ''}</td>
       <td><span style="font-family:monospace;font-size:12px;color:var(--text-secondary)">${escapeHtml(u.username || u.email || '—')}</span></td>
       <td><span class="role-chip ${ruolo}">${escapeHtml(ruolo)}</span></td>
       <td><span class="badge ${u.attivo ? 'badge-success' : 'badge-danger'}">${u.attivo ? 'Attivo' : 'Disabilitato'}</span></td>
       <td>${ruolo === 'admin' ? '<span class="badge badge-info">Tutte</span>' : `${permCount} / ${Object.keys(PAGINE_LABELS).length}`}</td>
+      <td>
+        <select class="alias-select" data-id="${u.id}" style="width:100%;padding:5px 8px;border:1px solid var(--border,#E3E8EE);border-radius:6px;font-family:inherit;font-size:12.5px">
+          ${opzioniHtml}
+        </select>
+      </td>
       <td>
         <div class="table-actions">
           ${ruolo === 'admin'
@@ -266,6 +283,65 @@ async function caricaUtenti() {
   }
   html += '</tbody></table></div>';
   document.getElementById('utentiContainer').innerHTML = html;
+
+  // Aggancia handler ai dropdown alias
+  document.querySelectorAll('.alias-select').forEach(sel => {
+    sel.addEventListener('change', () => cambiaAlias(sel.dataset.id, sel.value || null));
+  });
+}
+
+async function cambiaAlias(profiloId, nuovoAliasDi) {
+  const profilo = utenti.find(x => x.id === profiloId);
+  if (!profilo) return;
+  const nomeProfilo = profilo.nome || profilo.username || profiloId.slice(0, 8);
+  const canonico = nuovoAliasDi ? utenti.find(x => x.id === nuovoAliasDi) : null;
+  const nomeCanonico = canonico ? (canonico.nome || canonico.username) : null;
+
+  // Conferma cambio alias
+  const ok = await MiroxUI.confirm(
+    nuovoAliasDi
+      ? `Impostare <strong>${escapeHtml(nomeProfilo)}</strong> come alias di <strong>${escapeHtml(nomeCanonico)}</strong>?<br><br>Da qui in avanti, tutti i contratti, pratiche e altri record inseriti con l'account di ${escapeHtml(nomeProfilo)} verranno automaticamente attribuiti a ${escapeHtml(nomeCanonico)} nella Dashboard Pezzi, nelle Gare e negli altri moduli.`
+      : `Rimuovere l'alias per <strong>${escapeHtml(nomeProfilo)}</strong>? Tornera' a essere un profilo indipendente.`,
+    { html: true, okText: nuovoAliasDi ? 'Conferma alias' : 'Rimuovi alias' }
+  );
+  if (!ok) { await caricaUtenti(); return; }
+
+  MiroxUI.loading.show('Aggiornamento alias…');
+  const { error } = await db.from('profili').update({ alias_di: nuovoAliasDi }).eq('id', profiloId);
+  MiroxUI.loading.hide();
+  if (error) {
+    MiroxUI.toast(`Errore: ${error.message}`, 'error', 4500);
+    await caricaUtenti();
+    return;
+  }
+  MiroxUI.toast('Alias aggiornato', 'success');
+
+  // Se e' stato SETTATO un alias, proponi il backfill del pregresso
+  if (nuovoAliasDi) {
+    const okBackfill = await MiroxUI.confirm(
+      `Riassegnare anche tutti i record <strong>gia' esistenti</strong> di ${escapeHtml(nomeProfilo)} al profilo ${escapeHtml(nomeCanonico)}?<br><br>Consigliato: senza backfill i vecchi contratti/pratiche resteranno attribuiti al profilo alias e continueranno a comparire come "operatore separato" nella Dashboard Pezzi.`,
+      { html: true, okText: 'Sì, riassegna il pregresso', cancelText: 'No, solo da qui in avanti' }
+    );
+    if (okBackfill) {
+      MiroxUI.loading.show('Riassegnazione record storici…');
+      const { data, error: rpcErr } = await db.rpc('applica_alias_backfill', { p_alias_id: profiloId });
+      MiroxUI.loading.hide();
+      if (rpcErr) {
+        MiroxUI.alert('Errore backfill: ' + rpcErr.message);
+      } else {
+        const aggiornati = data?.aggiornati || {};
+        const totale = Object.values(aggiornati).reduce((a, b) => a + Number(b || 0), 0);
+        const dettaglio = Object.entries(aggiornati)
+          .filter(([, n]) => Number(n) > 0)
+          .map(([t, n]) => `<li><b>${escapeHtml(t)}</b>: ${n}</li>`).join('');
+        await MiroxUI.alert(
+          `Riassegnati <b>${totale}</b> record.<br><br>${dettaglio ? '<ul style="text-align:left;margin:0 auto;display:inline-block">' + dettaglio + '</ul>' : '<i>Nessun record trovato per il profilo alias.</i>'}`,
+          { html: true, title: 'Backfill completato', type: 'success' }
+        );
+      }
+    }
+  }
+  await caricaUtenti();
 }
 
 async function cambiaRuolo(id, nuovoRuolo) {
