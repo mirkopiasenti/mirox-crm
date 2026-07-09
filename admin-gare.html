@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin - Gare & Avanzamento - Mirox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #FF6600;
+    --primary-dark: #E55A00;
+    --primary-light: #FF8533;
+    --primary-bg: #FFF3E0;
+    --text: #0A2540;
+    --text-secondary: #697386;
+    --text-light: #9BA8B4;
+    --border: #E3E8EE;
+    --border-light: #EEF3F8;
+    --bg: #F6F9FC;
+    --bg-card: #ffffff;
+    --success: #16a34a;
+    --danger: #dc2626;
+    --warn: #ca8a04;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--text); background: var(--bg);
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column; font-size: 13px;
+  }
+  .topbar {
+    background: #fff; border-bottom: 1px solid var(--border);
+    padding: 6px 36px;
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: 24px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar-left { display: flex; align-items: center; justify-self: start; gap: 12px; }
+  .topbar-center { display: flex; justify-content: center; justify-self: center; }
+  .topbar-actions { justify-self: end; display: flex; align-items: center; gap: 12px; }
+  .back-button {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--primary); color: #fff; border: none;
+    padding: 9px 16px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; text-decoration: none;
+    cursor: pointer; transition: all .2s ease; font-family: inherit;
+  }
+  .back-button:hover { background: var(--primary-dark); transform: translateY(-1px); }
+  .topbar-logo { height: 62px; width: 180px; position: relative; overflow: hidden; }
+  .topbar-logo img { height: 200px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+  .user-chip {
+    display: flex; align-items: center; gap: 10px;
+    padding: 5px 14px 5px 5px; background: var(--bg);
+    border-radius: 999px; border: 1px solid var(--border);
+  }
+  .user-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 12px;
+  }
+  .user-name { font-size: 13px; font-weight: 600; }
+  .btn-logout {
+    background: #fff; border: 1px solid var(--border); color: var(--text-secondary);
+    padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .btn-logout:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+
+  .hero { text-align: center; padding: 28px 20px 8px; }
+  .hero h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; }
+  .hero h1 span { background: linear-gradient(135deg, var(--primary), var(--primary-light)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .hero p { color: var(--text-secondary); font-size: 13px; margin-top: 4px; }
+
+  .content {
+    flex: 1; width: 100%;
+    max-width: 1300px; margin: 0 auto;
+    padding: 20px 24px 60px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+
+  .selector-bar {
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px 18px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .selector-bar label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-secondary); letter-spacing: .04em; }
+  .selector-bar select, .selector-bar input {
+    padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px;
+    font-size: 13.5px; font-family: inherit; background: #fff; color: var(--text);
+  }
+  .selector-bar select:focus, .selector-bar input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(255,102,0,.12); }
+  .selector-bar .spacer { flex: 1; }
+  .btn-primary {
+    background: var(--primary); color: #fff; border: none;
+    padding: 9px 16px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+    transition: all .2s;
+  }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-secondary {
+    background: #fff; color: var(--text); border: 1px solid var(--border);
+    padding: 9px 16px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .btn-secondary:hover { background: var(--bg); border-color: var(--primary); color: var(--primary-dark); }
+  .btn-mini {
+    background: #fff; color: var(--text); border: 1px solid var(--border);
+    padding: 4px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .btn-mini:hover { background: var(--primary-bg); border-color: var(--primary); color: var(--primary-dark); }
+  .btn-danger {
+    background: #fff; color: var(--danger); border: 1px solid #fecaca;
+    padding: 4px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; cursor: pointer;
+  }
+  .btn-danger:hover { background: #fef2f2; }
+
+  .card {
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px;
+  }
+  .card h2 {
+    font-size: 16px; font-weight: 800; margin-bottom: 4px;
+  }
+  .card .card-sub { color: var(--text-secondary); font-size: 12.5px; margin-bottom: 14px; }
+
+  table.mx {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  table.mx thead th {
+    background: var(--bg); font-size: 11.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em;
+    color: var(--text-secondary);
+    padding: 8px 10px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  table.mx tbody td {
+    padding: 8px 10px; border-bottom: 1px solid var(--border-light);
+    vertical-align: middle;
+  }
+  table.mx tbody tr:hover { background: var(--bg); }
+  table.mx tbody td input[type="number"], table.mx tbody td input[type="text"] {
+    padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; font-family: inherit; width: 90px;
+  }
+  table.mx tbody td .metric-color {
+    display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle;
+  }
+  table.mx tbody td.actions { text-align: right; white-space: nowrap; }
+  table.mx tbody td.actions button { margin-left: 6px; }
+  .badge-compenso {
+    display: inline-block; padding: 3px 8px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 600;
+    background: var(--bg); color: var(--text);
+  }
+  .badge-compenso.no { background: #fee2e2; color: var(--danger); }
+  .badge-compenso.ok { background: #dcfce7; color: var(--success); }
+  .toolbar-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;
+  }
+  .toolbar-row .spacer { flex: 1; }
+  .empty {
+    padding: 30px; text-align: center; color: var(--text-secondary);
+    background: var(--bg); border-radius: 10px;
+  }
+
+  /* Editor scaglioni (modale) */
+  .modal-scaglioni { padding: 4px; }
+  .modal-scaglioni h3 { font-size: 14px; font-weight: 800; margin: 10px 0 8px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); }
+  .modal-scaglioni .row-scaglione, .modal-scaglioni .row-bonus {
+    display: grid; align-items: center; gap: 8px; padding: 6px 0;
+    border-bottom: 1px dashed var(--border-light);
+  }
+  .modal-scaglioni .row-scaglione { grid-template-columns: auto 1fr auto 1fr auto 1fr auto; }
+  .modal-scaglioni .row-bonus { grid-template-columns: auto 1fr auto 1fr auto; }
+  .modal-scaglioni input[type="number"] {
+    padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; font-family: inherit; width: 100%;
+  }
+  .modal-scaglioni label { font-size: 11.5px; color: var(--text-secondary); font-weight: 600; }
+  .modal-scaglioni .btn-add { margin-top: 8px; }
+  .modal-scaglioni .toggle-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); margin-top: 10px; }
+  .modal-scaglioni .toggle-row input[type="text"] { padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: inherit; }
+  .modal-scaglioni .preview-compenso {
+    background: var(--primary-bg); border-radius: 8px; padding: 8px 12px;
+    font-size: 12px; color: var(--primary-dark); margin-top: 10px; font-family: monospace; white-space: pre-line;
+  }
+
+  .access-denied {
+    max-width: 480px; margin: 80px auto;
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 16px; padding: 36px; text-align: center;
+  }
+  .access-denied h1 { font-size: 22px; margin-bottom: 12px; }
+  .access-denied p { color: var(--text-secondary); margin-bottom: 20px; }
+
+  details.metrica-advanced summary {
+    cursor: pointer; font-weight: 700; font-size: 13px;
+    padding: 6px 0; color: var(--text-secondary);
+  }
+  details.metrica-advanced summary:hover { color: var(--primary); }
+  details.metrica-advanced[open] summary { color: var(--text); }
+  details.metrica-advanced textarea {
+    width: 100%; margin-top: 8px; padding: 8px;
+    border: 1px solid var(--border); border-radius: 8px;
+    font-family: monospace; font-size: 12px; min-height: 80px;
+  }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-left">
+    <a href="admin.html" class="back-button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="19" y1="12" x2="5" y2="12"/>
+        <polyline points="12 19 5 12 12 5"/>
+      </svg>
+      Admin
+    </a>
+  </div>
+  <div class="topbar-center">
+    <div class="topbar-logo"><img src="assets/logo.png" alt="Mirox"></div>
+  </div>
+  <div class="topbar-actions">
+    <div class="user-chip">
+      <div class="user-avatar" id="userAvatar">A</div>
+      <div class="user-name" id="userName">...</div>
+    </div>
+    <button class="btn-logout" id="btnLogout">Esci</button>
+  </div>
+</div>
+
+<div id="mainContent" style="display:none">
+  <div class="hero">
+    <h1>Gare & <span>Avanzamento Mensile</span></h1>
+    <p>Configurazione obiettivi, compensi, metriche e operatori in gara</p>
+  </div>
+
+  <div class="content">
+
+    <!-- Selettore mese/anno -->
+    <div class="selector-bar">
+      <label>Mese</label>
+      <select id="selMese"></select>
+      <label>Anno</label>
+      <select id="selAnno"></select>
+      <div class="spacer"></div>
+      <button class="btn-secondary" id="btnDuplica">Duplica dal mese precedente</button>
+    </div>
+
+    <!-- Card 1: Operatori in gara -->
+    <div class="card">
+      <h2>Operatori in gara</h2>
+      <div class="card-sub">Seleziona quali operatori compaiono nella tab "Gare Individuali" della Dashboard Pezzi.</div>
+      <div id="operatoriWrap"><div class="empty">Caricamento...</div></div>
+    </div>
+
+    <!-- Card 2: Obiettivi Gara Individuali -->
+    <div class="card">
+      <h2>Obiettivi Gara Individuali</h2>
+      <div class="card-sub">Per ogni operatore in gara, imposta obiettivo mensile e regola di compenso per ciascuna metrica.</div>
+      <div class="toolbar-row">
+        <label style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--text-secondary);letter-spacing:.04em">Operatore</label>
+        <select id="selOperatoreGara"></select>
+      </div>
+      <div id="tabGaraIndividuale"><div class="empty">Seleziona un operatore in gara.</div></div>
+    </div>
+
+    <!-- Card 3: Avanzamento mensile -->
+    <div class="card">
+      <h2>Avanzamento Mensile - Obiettivi di categoria</h2>
+      <div class="card-sub">Obiettivi totali (non per operatore) per le tabelle Standard, P.IVA ed Extra Gara P.IVA. Puoi anche modificare il moltiplicatore "punti/pezzo" della metrica.</div>
+      <div id="tabAvanzamento"><div class="empty">Caricamento...</div></div>
+    </div>
+
+    <!-- Card 4 (advanced): Metriche + regole JSONB -->
+    <div class="card">
+      <details class="metrica-advanced">
+        <summary>Configurazione avanzata metriche (regola matching JSONB)</summary>
+        <div style="margin-top:12px" id="metricheAdvanced"><div class="empty">Caricamento...</div></div>
+      </details>
+    </div>
+
+  </div>
+</div>
+
+<div id="accessDenied" class="access-denied" style="display:none">
+  <h1>Accesso negato</h1>
+  <p>Questa area e' riservata agli amministratori.</p>
+  <a href="dashboard.html" class="back-button">Torna alla dashboard</a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/mirox-ui.js"></script>
+<script src="js/mirox-api.js"></script>
+<script src="js/mirox-error-reporter.js"></script>
+<script>if (window.MiroxErrorReporter) window.MiroxErrorReporter.install({ source: 'admin-gare' });</script>
+<script>
+const sb = window.db;
+const MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+
+const State = {
+  profilo: null,
+  anno: null, mese: null,
+  operatoriTutti: [],           // profili attivi
+  operatoriInGara: [],          // subset in_gara=true
+  operatoreSelezionato: null,
+  metriche: [],                 // gara_metriche tutte
+  obiettivi: []                 // gara_obiettivi_mensili del mese selezionato
+};
+
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
+function fmtEur(n) { if (n === null || n === undefined || isNaN(n)) return '-'; return '€ ' + Number(n).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+
+// ============================================================
+// COMPENSO — funzione DSL (stessa che gira lato dashboard_pezzi)
+// ============================================================
+function calcolaCompenso(attuale, regola) {
+  if (!regola || typeof regola !== 'object') return { euro: 0, label: '' };
+  if (regola.tipo === 'nessuno') return { euro: 0, label: regola.label || '' };
+  if (regola.tipo !== 'scaglioni') return { euro: 0, label: regola.label || '' };
+  const scaglioni = Array.isArray(regola.scaglioni) ? regola.scaglioni : [];
+  const bonus = Array.isArray(regola.bonus_soglie) ? regola.bonus_soglie : [];
+  let totale = 0;
+  scaglioni.forEach(s => {
+    const da = Number(s.da || 0);
+    const a = (s.a === null || s.a === undefined || s.a === '') ? Infinity : Number(s.a);
+    const perPezzo = Number(s.per_pezzo || 0);
+    if (attuale > da) {
+      const pezziNelloScaglione = Math.min(attuale, a) - da;
+      if (pezziNelloScaglione > 0) totale += pezziNelloScaglione * perPezzo;
+    }
+  });
+  bonus.forEach(b => {
+    if (attuale >= Number(b.soglia || 0)) totale += Number(b.bonus || 0);
+  });
+  return { euro: totale, label: regola.label || '' };
+}
+
+function riassumiCompenso(regola) {
+  if (!regola || regola.tipo === 'nessuno') return { text: regola?.label || 'Nessuno', cls: 'no' };
+  const scagliomi = (regola.scaglioni || []).length;
+  const bonus = (regola.bonus_soglie || []).length;
+  const parts = [];
+  if (scagliomi) parts.push(scagliomi + ' scagl.');
+  if (bonus) parts.push(bonus + ' bonus');
+  return { text: parts.join(' + ') || 'Vuoto', cls: 'ok' };
+}
+
+// ============================================================
+// LOAD
+// ============================================================
+async function loadAll() {
+  await Promise.all([loadOperatori(), loadMetriche()]);
+  await loadObiettivi();
+  render();
+}
+
+async function loadOperatori() {
+  const { data, error } = await sb.from('profili')
+    .select('id, nome, in_gara, ruolo, attivo')
+    .eq('attivo', true)
+    .order('nome');
+  if (error) throw error;
+  State.operatoriTutti = data || [];
+  State.operatoriInGara = State.operatoriTutti.filter(p => p.in_gara);
+  if (!State.operatoreSelezionato && State.operatoriInGara.length) {
+    State.operatoreSelezionato = State.operatoriInGara[0].id;
+  }
+}
+async function loadMetriche() {
+  const { data, error } = await sb.from('gara_metriche')
+    .select('*').order('tabella').order('ordine');
+  if (error) throw error;
+  State.metriche = data || [];
+}
+async function loadObiettivi() {
+  const { data, error } = await sb.from('gara_obiettivi_mensili')
+    .select('*').eq('anno', State.anno).eq('mese', State.mese);
+  if (error) throw error;
+  State.obiettivi = data || [];
+}
+
+function getObiettivo(metricaId, operatoreId) {
+  return State.obiettivi.find(o => o.metrica_id === metricaId && (o.operatore_id || null) === (operatoreId || null)) || null;
+}
+
+// ============================================================
+// UPSERT obiettivo
+// ============================================================
+async function upsertObiettivo(metricaId, operatoreId, patch) {
+  const esistente = getObiettivo(metricaId, operatoreId);
+  const record = {
+    anno: State.anno, mese: State.mese,
+    metrica_id: metricaId, operatore_id: operatoreId,
+    obiettivo: patch.obiettivo !== undefined ? patch.obiettivo : (esistente?.obiettivo ?? 0),
+    compenso_regola: patch.compenso_regola !== undefined ? patch.compenso_regola : (esistente?.compenso_regola ?? {tipo:'nessuno'})
+  };
+  if (esistente) {
+    const { error } = await sb.from('gara_obiettivi_mensili')
+      .update({ obiettivo: record.obiettivo, compenso_regola: record.compenso_regola })
+      .eq('id', esistente.id);
+    if (error) throw error;
+    Object.assign(esistente, record);
+  } else {
+    const { data, error } = await sb.from('gara_obiettivi_mensili')
+      .insert(record).select().single();
+    if (error) throw error;
+    State.obiettivi.push(data);
+  }
+}
+
+// ============================================================
+// RENDER — Operatori in gara
+// ============================================================
+function renderOperatori() {
+  const wrap = document.getElementById('operatoriWrap');
+  if (!State.operatoriTutti.length) { wrap.innerHTML = '<div class="empty">Nessun profilo attivo.</div>'; return; }
+  let html = '<table class="mx"><thead><tr><th>Operatore</th><th>Ruolo</th><th style="width:120px">In gara</th></tr></thead><tbody>';
+  State.operatoriTutti.forEach(p => {
+    html += `<tr>
+      <td><b>${escapeHtml(p.nome)}</b></td>
+      <td>${escapeHtml(p.ruolo)}</td>
+      <td><input type="checkbox" ${p.in_gara ? 'checked':''} data-op="${p.id}" class="chk-in-gara"></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('.chk-in-gara').forEach(chk => {
+    chk.addEventListener('change', async () => {
+      const id = chk.dataset.op;
+      const nuovoValore = chk.checked;
+      try {
+        const { error } = await sb.from('profili').update({ in_gara: nuovoValore }).eq('id', id);
+        if (error) throw error;
+        const p = State.operatoriTutti.find(x => x.id === id);
+        if (p) p.in_gara = nuovoValore;
+        State.operatoriInGara = State.operatoriTutti.filter(x => x.in_gara);
+        if (!State.operatoreSelezionato || !State.operatoriInGara.find(x => x.id === State.operatoreSelezionato)) {
+          State.operatoreSelezionato = State.operatoriInGara[0]?.id || null;
+        }
+        renderSelectOperatoreGara();
+        renderGaraIndividuale();
+        MiroxUI.toast('Aggiornato', 'success');
+      } catch (e) {
+        chk.checked = !nuovoValore;
+        MiroxUI.alert('Errore: ' + e.message);
+      }
+    });
+  });
+}
+
+// ============================================================
+// RENDER — Gara individuale (tabella metriche editabile per operatore)
+// ============================================================
+function renderSelectOperatoreGara() {
+  const sel = document.getElementById('selOperatoreGara');
+  if (!State.operatoriInGara.length) {
+    sel.innerHTML = '<option>Nessun operatore in gara</option>';
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
+  sel.innerHTML = State.operatoriInGara.map(p => `<option value="${p.id}" ${p.id===State.operatoreSelezionato?'selected':''}>${escapeHtml(p.nome)}</option>`).join('');
+}
+function renderGaraIndividuale() {
+  const wrap = document.getElementById('tabGaraIndividuale');
+  if (!State.operatoreSelezionato) {
+    wrap.innerHTML = '<div class="empty">Nessun operatore in gara. Attiva almeno un operatore sopra.</div>';
+    return;
+  }
+  const metriche = State.metriche.filter(m => m.tabella === 'gara_individuale' && m.attiva);
+  if (!metriche.length) { wrap.innerHTML = '<div class="empty">Nessuna metrica configurata.</div>'; return; }
+  let html = '<table class="mx"><thead><tr><th>Metrica</th><th style="width:110px">Obiettivo</th><th style="width:150px">Compenso</th><th class="actions" style="width:120px"></th></tr></thead><tbody>';
+  metriche.forEach(m => {
+    const o = getObiettivo(m.id, State.operatoreSelezionato);
+    const compRiassunto = riassumiCompenso(o?.compenso_regola);
+    html += `<tr>
+      <td><span class="metric-color" style="background:${escapeHtml(m.colore_hex)}"></span><b>${escapeHtml(m.nome)}</b></td>
+      <td><input type="number" min="0" value="${o?.obiettivo ?? 0}" data-metrica="${m.id}" class="inp-obiettivo"></td>
+      <td><span class="badge-compenso ${compRiassunto.cls}">${escapeHtml(compRiassunto.text)}</span></td>
+      <td class="actions"><button class="btn-mini btn-edit-compenso" data-metrica="${m.id}">Modifica compenso</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('.inp-obiettivo').forEach(inp => {
+    inp.addEventListener('change', async () => {
+      const metricaId = Number(inp.dataset.metrica);
+      const valore = Math.max(0, Math.floor(Number(inp.value) || 0));
+      try {
+        await upsertObiettivo(metricaId, State.operatoreSelezionato, { obiettivo: valore });
+        MiroxUI.toast('Obiettivo aggiornato', 'success');
+      } catch (e) { MiroxUI.alert('Errore: ' + e.message); }
+    });
+  });
+  wrap.querySelectorAll('.btn-edit-compenso').forEach(btn => {
+    btn.addEventListener('click', () => apriEditorScaglioni(Number(btn.dataset.metrica), State.operatoreSelezionato));
+  });
+}
+
+// ============================================================
+// RENDER — Avanzamento mensile (obiettivi di categoria, operatore_id NULL)
+// ============================================================
+function renderAvanzamento() {
+  const wrap = document.getElementById('tabAvanzamento');
+  const gruppi = [
+    { key: 'avanzamento_standard', titolo: 'Standard' },
+    { key: 'avanzamento_piva', titolo: 'P.IVA' },
+    { key: 'avanzamento_extra_piva', titolo: 'Extra Gara P.IVA' }
+  ];
+  let html = '';
+  gruppi.forEach(g => {
+    const metriche = State.metriche.filter(m => m.tabella === g.key && m.attiva);
+    if (!metriche.length) return;
+    html += `<h3 style="font-size:12px;font-weight:800;text-transform:uppercase;color:var(--text-secondary);letter-spacing:.05em;margin:16px 0 8px">${g.titolo}</h3>`;
+    html += '<table class="mx"><thead><tr><th>Metrica</th><th style="width:110px">Obiettivo mese</th><th style="width:130px">Punti/pezzo</th></tr></thead><tbody>';
+    metriche.forEach(m => {
+      const o = getObiettivo(m.id, null);
+      html += `<tr>
+        <td><span class="metric-color" style="background:${escapeHtml(m.colore_hex)}"></span><b>${escapeHtml(m.nome)}</b></td>
+        <td><input type="number" min="0" value="${o?.obiettivo ?? 0}" data-metrica="${m.id}" class="inp-obiettivo-cat"></td>
+        <td><input type="number" min="0" step="0.1" value="${m.punti_per_pezzo}" data-metrica="${m.id}" class="inp-punti"></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+  });
+  wrap.innerHTML = html || '<div class="empty">Nessuna metrica avanzamento configurata.</div>';
+  wrap.querySelectorAll('.inp-obiettivo-cat').forEach(inp => {
+    inp.addEventListener('change', async () => {
+      const metricaId = Number(inp.dataset.metrica);
+      const valore = Math.max(0, Math.floor(Number(inp.value) || 0));
+      try {
+        await upsertObiettivo(metricaId, null, { obiettivo: valore });
+        MiroxUI.toast('Obiettivo aggiornato', 'success');
+      } catch (e) { MiroxUI.alert('Errore: ' + e.message); }
+    });
+  });
+  wrap.querySelectorAll('.inp-punti').forEach(inp => {
+    inp.addEventListener('change', async () => {
+      const metricaId = Number(inp.dataset.metrica);
+      const valore = Math.max(0, Number(inp.value) || 0);
+      try {
+        const { error } = await sb.from('gara_metriche').update({ punti_per_pezzo: valore }).eq('id', metricaId);
+        if (error) throw error;
+        const m = State.metriche.find(x => x.id === metricaId); if (m) m.punti_per_pezzo = valore;
+        MiroxUI.toast('Punti/pezzo aggiornati', 'success');
+      } catch (e) { MiroxUI.alert('Errore: ' + e.message); }
+    });
+  });
+}
+
+// ============================================================
+// RENDER — Metriche avanzate (regola JSONB)
+// ============================================================
+function renderMetricheAdvanced() {
+  const wrap = document.getElementById('metricheAdvanced');
+  const tabelle = [
+    { key: 'gara_individuale', titolo: 'Gara Individuale' },
+    { key: 'avanzamento_standard', titolo: 'Avanzamento Standard' },
+    { key: 'avanzamento_piva', titolo: 'Avanzamento P.IVA' },
+    { key: 'avanzamento_extra_piva', titolo: 'Avanzamento Extra Gara P.IVA' }
+  ];
+  let html = '';
+  tabelle.forEach(t => {
+    const metriche = State.metriche.filter(m => m.tabella === t.key);
+    html += `<h3 style="font-size:12px;font-weight:800;text-transform:uppercase;color:var(--text-secondary);letter-spacing:.05em;margin:16px 0 8px">${t.titolo}</h3>`;
+    html += '<table class="mx"><thead><tr><th style="width:220px">Nome</th><th style="width:70px">Attiva</th><th style="width:80px">Ordine</th><th>Regola JSONB</th><th class="actions" style="width:100px"></th></tr></thead><tbody>';
+    metriche.forEach(m => {
+      html += `<tr>
+        <td><input type="text" value="${escapeHtml(m.nome)}" data-id="${m.id}" data-field="nome" style="width:100%"></td>
+        <td><input type="checkbox" ${m.attiva?'checked':''} data-id="${m.id}" data-field="attiva"></td>
+        <td><input type="number" value="${m.ordine}" data-id="${m.id}" data-field="ordine" style="width:60px"></td>
+        <td><textarea data-id="${m.id}" data-field="regola" style="width:100%;font-family:monospace;font-size:11.5px;padding:5px;border:1px solid var(--border);border-radius:6px;min-height:40px">${escapeHtml(JSON.stringify(m.regola))}</textarea></td>
+        <td class="actions"><button class="btn-mini btn-save-metrica" data-id="${m.id}">Salva</button></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+  });
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('.btn-save-metrica').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.dataset.id);
+      const row = btn.closest('tr');
+      const nome = row.querySelector('[data-field="nome"]').value.trim();
+      const attiva = row.querySelector('[data-field="attiva"]').checked;
+      const ordine = Number(row.querySelector('[data-field="ordine"]').value) || 0;
+      let regola;
+      try { regola = JSON.parse(row.querySelector('[data-field="regola"]').value); }
+      catch (e) { MiroxUI.alert('JSON regola non valido: ' + e.message); return; }
+      try {
+        const { error } = await sb.from('gara_metriche').update({ nome, attiva, ordine, regola }).eq('id', id);
+        if (error) throw error;
+        const m = State.metriche.find(x => x.id === id);
+        if (m) Object.assign(m, { nome, attiva, ordine, regola });
+        MiroxUI.toast('Metrica salvata', 'success');
+      } catch (e) { MiroxUI.alert('Errore: ' + e.message); }
+    });
+  });
+}
+
+// ============================================================
+// EDITOR SCAGLIONI (modale)
+// ============================================================
+function apriEditorScaglioni(metricaId, operatoreId) {
+  const metrica = State.metriche.find(m => m.id === metricaId);
+  const o = getObiettivo(metricaId, operatoreId);
+  const regolaCorrente = o?.compenso_regola || { tipo: 'nessuno' };
+  const draft = JSON.parse(JSON.stringify(regolaCorrente));
+  if (draft.tipo !== 'scaglioni' && draft.tipo !== 'nessuno') draft.tipo = 'nessuno';
+  if (!draft.scaglioni) draft.scaglioni = [];
+  if (!draft.bonus_soglie) draft.bonus_soglie = [];
+
+  const renderBody = () => {
+    let html = '<div class="modal-scaglioni">';
+    html += `<div style="margin-bottom:10px;font-size:12px;color:var(--text-secondary)">Metrica: <b style="color:var(--text)">${escapeHtml(metrica.nome)}</b></div>`;
+    html += `<div class="toggle-row">
+      <label><input type="radio" name="modo" value="scaglioni" ${draft.tipo==='scaglioni'?'checked':''}> Scaglioni + bonus</label>
+      <label><input type="radio" name="modo" value="nessuno" ${draft.tipo==='nessuno'?'checked':''}> Nessun compenso</label>
+      <label style="margin-left:auto">Label (es. "DEC."): <input type="text" id="lblCompenso" value="${escapeHtml(draft.label||'')}" style="width:100px"></label>
+    </div>`;
+
+    if (draft.tipo === 'scaglioni') {
+      html += '<h3>Scaglioni (per pezzo)</h3>';
+      html += '<div id="listaScaglioni">';
+      draft.scaglioni.forEach((s, idx) => {
+        html += `<div class="row-scaglione">
+          <label>Da</label><input type="number" min="0" value="${s.da ?? 0}" data-idx="${idx}" data-fld="da">
+          <label>A (vuoto = inf.)</label><input type="number" min="0" value="${s.a ?? ''}" data-idx="${idx}" data-fld="a">
+          <label>&euro; / pezzo</label><input type="number" min="0" step="0.01" value="${s.per_pezzo ?? 0}" data-idx="${idx}" data-fld="per_pezzo">
+          <button class="btn-danger btn-rm-scaglione" data-idx="${idx}">X</button>
+        </div>`;
+      });
+      html += '</div>';
+      html += '<button class="btn-mini btn-add" id="btnAddScaglione">+ Scaglione</button>';
+
+      html += '<h3 style="margin-top:16px">Bonus una tantum</h3>';
+      html += '<div id="listaBonus">';
+      draft.bonus_soglie.forEach((b, idx) => {
+        html += `<div class="row-bonus">
+          <label>Al raggiungimento di</label><input type="number" min="0" value="${b.soglia ?? 0}" data-idx="${idx}" data-fld="soglia">
+          <label>Bonus &euro;</label><input type="number" min="0" step="0.01" value="${b.bonus ?? 0}" data-idx="${idx}" data-fld="bonus">
+          <button class="btn-danger btn-rm-bonus" data-idx="${idx}">X</button>
+        </div>`;
+      });
+      html += '</div>';
+      html += '<button class="btn-mini btn-add" id="btnAddBonus">+ Bonus</button>';
+
+      html += '<div class="preview-compenso" id="previewCompenso"></div>';
+    }
+    html += '</div>';
+    return html;
+  };
+
+  const attach = () => {
+    document.querySelectorAll('input[name="modo"]').forEach(r => r.addEventListener('change', () => {
+      draft.tipo = document.querySelector('input[name="modo"]:checked').value;
+      refresh();
+    }));
+    const lbl = document.getElementById('lblCompenso');
+    if (lbl) lbl.addEventListener('input', () => { draft.label = lbl.value; });
+
+    document.querySelectorAll('#listaScaglioni input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const idx = Number(inp.dataset.idx);
+        const fld = inp.dataset.fld;
+        const val = inp.value === '' ? (fld==='a' ? null : 0) : Number(inp.value);
+        draft.scaglioni[idx][fld] = val;
+        aggiornaPreview();
+      });
+    });
+    document.querySelectorAll('.btn-rm-scaglione').forEach(b => b.addEventListener('click', () => {
+      draft.scaglioni.splice(Number(b.dataset.idx), 1); refresh();
+    }));
+    const btnAddS = document.getElementById('btnAddScaglione');
+    if (btnAddS) btnAddS.addEventListener('click', () => {
+      const ultimoA = draft.scaglioni.length ? (draft.scaglioni[draft.scaglioni.length-1].a || 0) : 0;
+      draft.scaglioni.push({ da: ultimoA, a: null, per_pezzo: 0 });
+      refresh();
+    });
+
+    document.querySelectorAll('#listaBonus input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const idx = Number(inp.dataset.idx);
+        const fld = inp.dataset.fld;
+        draft.bonus_soglie[idx][fld] = Number(inp.value) || 0;
+        aggiornaPreview();
+      });
+    });
+    document.querySelectorAll('.btn-rm-bonus').forEach(b => b.addEventListener('click', () => {
+      draft.bonus_soglie.splice(Number(b.dataset.idx), 1); refresh();
+    }));
+    const btnAddB = document.getElementById('btnAddBonus');
+    if (btnAddB) btnAddB.addEventListener('click', () => {
+      draft.bonus_soglie.push({ soglia: 0, bonus: 0 });
+      refresh();
+    });
+    aggiornaPreview();
+  };
+
+  const aggiornaPreview = () => {
+    const prev = document.getElementById('previewCompenso');
+    if (!prev) return;
+    const esempi = [10, 20, 30, 40, 50].map(p => {
+      const c = calcolaCompenso(p, draft);
+      return `${p} pezzi → ${fmtEur(c.euro)}`;
+    }).join('\n');
+    prev.textContent = 'Anteprima:\n' + esempi;
+  };
+
+  const refresh = () => {
+    document.getElementById('scaglioniModalBody').innerHTML = renderBody();
+    attach();
+  };
+
+  const footer = '<button type="button" class="mx-btn mx-btn-secondary" data-mx-cancel>Annulla</button>' +
+                 '<button type="button" class="mx-btn mx-btn-primary" data-mx-ok>Salva</button>';
+  const m = MiroxUI._build({
+    title: 'Compenso — ' + metrica.nome,
+    bodyHtml: '<div id="scaglioniModalBody">' + renderBody() + '</div>',
+    footerHtml: footer,
+    large: true
+  });
+  attach();
+  m.foot.querySelector('[data-mx-cancel]').addEventListener('click', () => m.close());
+  m.foot.querySelector('[data-mx-ok]').addEventListener('click', async () => {
+    const nuova = (draft.tipo === 'nessuno')
+      ? { tipo: 'nessuno', label: draft.label || '' }
+      : { tipo: 'scaglioni', scaglioni: draft.scaglioni, bonus_soglie: draft.bonus_soglie, label: draft.label || '' };
+    try {
+      await upsertObiettivo(metricaId, operatoreId, { compenso_regola: nuova });
+      m.close();
+      renderGaraIndividuale();
+      MiroxUI.toast('Compenso salvato', 'success');
+    } catch (e) {
+      MiroxUI.alert('Errore: ' + e.message);
+    }
+  });
+}
+
+// ============================================================
+// DUPLICA MESE PRECEDENTE
+// ============================================================
+async function duplicaDaMesePrecedente() {
+  let annoPrev = State.anno, mesePrev = State.mese - 1;
+  if (mesePrev < 1) { mesePrev = 12; annoPrev -= 1; }
+  const ok = await MiroxUI.confirm(
+    `Copio tutti gli obiettivi e le regole compenso da ${MESI[mesePrev-1]} ${annoPrev} a ${MESI[State.mese-1]} ${State.anno}?<br><br>Gli obiettivi gia' presenti nel mese corrente NON verranno sovrascritti.`,
+    { title: 'Duplica obiettivi', html: true, okText: 'Duplica' }
+  );
+  if (!ok) return;
+  const { data: prev, error } = await sb.from('gara_obiettivi_mensili')
+    .select('*').eq('anno', annoPrev).eq('mese', mesePrev);
+  if (error) { MiroxUI.alert('Errore: ' + error.message); return; }
+  if (!prev.length) { MiroxUI.alert('Nessun obiettivo trovato in ' + MESI[mesePrev-1] + ' ' + annoPrev); return; }
+  let inseriti = 0;
+  for (const p of prev) {
+    const esistente = getObiettivo(p.metrica_id, p.operatore_id);
+    if (esistente) continue;
+    const { data, error: err } = await sb.from('gara_obiettivi_mensili').insert({
+      anno: State.anno, mese: State.mese,
+      metrica_id: p.metrica_id, operatore_id: p.operatore_id,
+      obiettivo: p.obiettivo, compenso_regola: p.compenso_regola
+    }).select().single();
+    if (!err && data) { State.obiettivi.push(data); inseriti++; }
+  }
+  MiroxUI.toast(`Duplicati ${inseriti} obiettivi`, 'success');
+  render();
+}
+
+// ============================================================
+// MAIN
+// ============================================================
+function render() {
+  renderOperatori();
+  renderSelectOperatoreGara();
+  renderGaraIndividuale();
+  renderAvanzamento();
+  renderMetricheAdvanced();
+}
+
+async function init() {
+  State.profilo = await Auth.richiediAuth();
+  if (!State.profilo) return;
+  const nome = State.profilo.nome || State.profilo.email || 'Operatore';
+  document.getElementById('userName').textContent = nome;
+  document.getElementById('userAvatar').textContent = nome.trim().charAt(0).toUpperCase();
+  if (State.profilo.ruolo !== 'admin') {
+    document.getElementById('accessDenied').style.display = 'block';
+    setTimeout(() => { window.location.href = 'dashboard.html'; }, 2000);
+    return;
+  }
+  document.getElementById('mainContent').style.display = 'block';
+
+  // Popola selettori mese/anno
+  const now = new Date();
+  const annoCorrente = now.getFullYear();
+  State.anno = annoCorrente; State.mese = now.getMonth() + 1;
+  const selMese = document.getElementById('selMese');
+  selMese.innerHTML = MESI.map((m, i) => `<option value="${i+1}" ${(i+1===State.mese)?'selected':''}>${m}</option>`).join('');
+  const selAnno = document.getElementById('selAnno');
+  const anni = []; for (let a = annoCorrente + 1; a >= annoCorrente - 3; a--) anni.push(a);
+  selAnno.innerHTML = anni.map(a => `<option value="${a}" ${a===State.anno?'selected':''}>${a}</option>`).join('');
+  selMese.addEventListener('change', async () => { State.mese = Number(selMese.value); await loadObiettivi(); render(); });
+  selAnno.addEventListener('change', async () => { State.anno = Number(selAnno.value); await loadObiettivi(); render(); });
+
+  document.getElementById('selOperatoreGara').addEventListener('change', (e) => {
+    State.operatoreSelezionato = e.target.value; renderGaraIndividuale();
+  });
+  document.getElementById('btnDuplica').addEventListener('click', duplicaDaMesePrecedente);
+  document.getElementById('btnLogout').addEventListener('click', () => Auth.logout());
+
+  await loadAll();
+}
+init().catch(e => {
+  console.error(e);
+  MiroxUI.alert('Errore init: ' + e.message);
+});
+</script>
+</body>
+</html>
