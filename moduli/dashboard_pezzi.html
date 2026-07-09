@@ -377,6 +377,9 @@ function operatoreContratto(contratto, profiliMap) {
 function calcolaCompenso(attuale, regola) {
   if (!regola || typeof regola !== 'object') return { euro: 0, label: '' };
   if (regola.tipo === 'nessuno') return { euro: 0, label: regola.label || '' };
+  if (regola.tipo === 'per_pezzo') {
+    return { euro: Math.max(0, Number(attuale) || 0) * (Number(regola.per_pezzo) || 0), label: regola.label || '' };
+  }
   if (regola.tipo !== 'scaglioni') return { euro: 0, label: regola.label || '' };
   const scaglioni = Array.isArray(regola.scaglioni) ? regola.scaglioni : [];
   const bonus = Array.isArray(regola.bonus_soglie) ? regola.bonus_soglie : [];

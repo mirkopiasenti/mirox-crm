@@ -325,6 +325,9 @@ function fmtEur(n) { if (n === null || n === undefined || isNaN(n)) return '-'; 
 function calcolaCompenso(attuale, regola) {
   if (!regola || typeof regola !== 'object') return { euro: 0, label: '' };
   if (regola.tipo === 'nessuno') return { euro: 0, label: regola.label || '' };
+  if (regola.tipo === 'per_pezzo') {
+    return { euro: Math.max(0, Number(attuale) || 0) * (Number(regola.per_pezzo) || 0), label: regola.label || '' };
+  }
   if (regola.tipo !== 'scaglioni') return { euro: 0, label: regola.label || '' };
   const scaglioni = Array.isArray(regola.scaglioni) ? regola.scaglioni : [];
   const bonus = Array.isArray(regola.bonus_soglie) ? regola.bonus_soglie : [];
@@ -346,6 +349,10 @@ function calcolaCompenso(attuale, regola) {
 
 function riassumiCompenso(regola) {
   if (!regola || regola.tipo === 'nessuno') return { text: regola?.label || 'Nessuno', cls: 'no' };
+  if (regola.tipo === 'per_pezzo') {
+    const v = Number(regola.per_pezzo) || 0;
+    return { text: fmtEur(v) + ' / pz', cls: 'ok' };
+  }
   const scagliomi = (regola.scaglioni || []).length;
   const bonus = (regola.bonus_soglie || []).length;
   const parts = [];
@@ -615,18 +622,29 @@ function apriEditorScaglioni(metricaId, operatoreId) {
   const o = getObiettivo(metricaId, operatoreId);
   const regolaCorrente = o?.compenso_regola || { tipo: 'nessuno' };
   const draft = JSON.parse(JSON.stringify(regolaCorrente));
-  if (draft.tipo !== 'scaglioni' && draft.tipo !== 'nessuno') draft.tipo = 'nessuno';
+  if (!['scaglioni', 'nessuno', 'per_pezzo'].includes(draft.tipo)) draft.tipo = 'nessuno';
   if (!draft.scaglioni) draft.scaglioni = [];
   if (!draft.bonus_soglie) draft.bonus_soglie = [];
+  if (draft.per_pezzo == null) draft.per_pezzo = 0;
 
   const renderBody = () => {
     let html = '<div class="modal-scaglioni">';
     html += `<div style="margin-bottom:10px;font-size:12px;color:var(--text-secondary)">Metrica: <b style="color:var(--text)">${escapeHtml(metrica.nome)}</b></div>`;
     html += `<div class="toggle-row">
+      <label><input type="radio" name="modo" value="per_pezzo" ${draft.tipo==='per_pezzo'?'checked':''}> Ogni pezzo</label>
       <label><input type="radio" name="modo" value="scaglioni" ${draft.tipo==='scaglioni'?'checked':''}> Scaglioni + bonus</label>
       <label><input type="radio" name="modo" value="nessuno" ${draft.tipo==='nessuno'?'checked':''}> Nessun compenso</label>
       <label style="margin-left:auto">Label (es. "DEC."): <input type="text" id="lblCompenso" value="${escapeHtml(draft.label||'')}" style="width:100px"></label>
     </div>`;
+
+    if (draft.tipo === 'per_pezzo') {
+      html += '<h3>Compenso per pezzo</h3>';
+      html += `<div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+        <label style="font-size:13px;font-weight:600">&euro; per ogni pezzo inserito</label>
+        <input type="number" min="0" step="0.01" id="inpPerPezzo" value="${draft.per_pezzo ?? 0}" style="width:140px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13.5px">
+      </div>`;
+      html += '<div class="preview-compenso" id="previewCompenso"></div>';
+    }
 
     if (draft.tipo === 'scaglioni') {
       html += '<h3>Scaglioni (per pezzo)</h3>';
@@ -667,6 +685,12 @@ function apriEditorScaglioni(metricaId, operatoreId) {
     }));
     const lbl = document.getElementById('lblCompenso');
     if (lbl) lbl.addEventListener('input', () => { draft.label = lbl.value; });
+
+    const inpPerPezzo = document.getElementById('inpPerPezzo');
+    if (inpPerPezzo) inpPerPezzo.addEventListener('input', () => {
+      draft.per_pezzo = Number(inpPerPezzo.value) || 0;
+      aggiornaPreview();
+    });
 
     document.querySelectorAll('#listaScaglioni input').forEach(inp => {
       inp.addEventListener('input', () => {
@@ -732,9 +756,14 @@ function apriEditorScaglioni(metricaId, operatoreId) {
   attach();
   m.foot.querySelector('[data-mx-cancel]').addEventListener('click', () => m.close());
   m.foot.querySelector('[data-mx-ok]').addEventListener('click', async () => {
-    const nuova = (draft.tipo === 'nessuno')
-      ? { tipo: 'nessuno', label: draft.label || '' }
-      : { tipo: 'scaglioni', scaglioni: draft.scaglioni, bonus_soglie: draft.bonus_soglie, label: draft.label || '' };
+    let nuova;
+    if (draft.tipo === 'nessuno') {
+      nuova = { tipo: 'nessuno', label: draft.label || '' };
+    } else if (draft.tipo === 'per_pezzo') {
+      nuova = { tipo: 'per_pezzo', per_pezzo: Number(draft.per_pezzo) || 0, label: draft.label || '' };
+    } else {
+      nuova = { tipo: 'scaglioni', scaglioni: draft.scaglioni, bonus_soglie: draft.bonus_soglie, label: draft.label || '' };
+    }
     try {
       await upsertObiettivo(metricaId, operatoreId, { compenso_regola: nuova });
       m.close();
