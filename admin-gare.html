@@ -265,6 +265,8 @@
       <div class="toolbar-row">
         <label style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--text-secondary);letter-spacing:.04em">Operatore</label>
         <select id="selOperatoreGara"></select>
+        <div class="spacer"></div>
+        <button class="btn-secondary" id="btnDuplicaDaAltro">Duplica da altro operatore</button>
       </div>
       <div id="tabGaraIndividuale"><div class="empty">Seleziona un operatore in gara.</div></div>
     </div>
@@ -747,6 +749,78 @@ function apriEditorScaglioni(metricaId, operatoreId) {
 // ============================================================
 // DUPLICA MESE PRECEDENTE
 // ============================================================
+async function duplicaDaAltroOperatore() {
+  if (!State.operatoreSelezionato) {
+    MiroxUI.alert('Seleziona prima un operatore destinazione.');
+    return;
+  }
+  const destinatario = State.operatoriInGara.find(p => p.id === State.operatoreSelezionato);
+  const candidati = State.operatoriInGara.filter(p => p.id !== State.operatoreSelezionato);
+  if (!candidati.length) {
+    MiroxUI.alert('Nessun altro operatore in gara da cui copiare. Attiva almeno un secondo operatore nella card sopra.');
+    return;
+  }
+
+  // Costruisci modale con dropdown sorgente + radio strategy
+  const optsHtml = candidati.map(o =>
+    `<option value="${o.id}">${MiroxUI._esc(o.nome)}</option>`
+  ).join('');
+  const bodyHtml = `
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">
+      Copia gli obiettivi e le regole di compenso di un altro operatore su <b style="color:var(--text)">${MiroxUI._esc(destinatario?.nome || '')}</b> per <b style="color:var(--text)">${MESI[State.mese-1]} ${State.anno}</b>.
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <label style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--text-secondary);letter-spacing:.04em;min-width:80px">Sorgente</label>
+      <select id="selSorgenteDup" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:10px;font-family:inherit;font-size:13.5px">${optsHtml}</select>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;font-size:13px">
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">
+        <input type="radio" name="dupStrategy" value="skip" checked> Non sovrascrivere gli obiettivi gia' impostati
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">
+        <input type="radio" name="dupStrategy" value="overwrite"> Sovrascrivi anche quelli esistenti
+      </label>
+    </div>
+  `;
+  const footer = '<button type="button" class="mx-btn mx-btn-secondary" data-mx-cancel>Annulla</button>' +
+                 '<button type="button" class="mx-btn mx-btn-primary" data-mx-ok>Duplica</button>';
+  const m = MiroxUI._build({ title: 'Duplica da altro operatore', bodyHtml, footerHtml: footer, large: false });
+  m.foot.querySelector('[data-mx-cancel]').addEventListener('click', () => m.close());
+  m.foot.querySelector('[data-mx-ok]').addEventListener('click', async () => {
+    const sorgenteId = m.body.querySelector('#selSorgenteDup').value;
+    const strategy = m.body.querySelector('input[name="dupStrategy"]:checked').value;
+    m.close();
+    if (!sorgenteId) return;
+
+    // Prendo gli obiettivi del sorgente per il mese/anno correnti
+    const sorgenteObs = State.obiettivi.filter(o =>
+      o.operatore_id === sorgenteId && !!State.metriche.find(m => m.id === o.metrica_id && m.tabella === 'gara_individuale')
+    );
+    if (!sorgenteObs.length) {
+      const sorgente = candidati.find(c => c.id === sorgenteId);
+      MiroxUI.alert(`Nessun obiettivo trovato per ${sorgente?.nome || 'operatore sorgente'} in ${MESI[State.mese-1]} ${State.anno}.`);
+      return;
+    }
+
+    MiroxUI.loading.show('Duplicazione in corso...');
+    let inseriti = 0, aggiornati = 0, skippati = 0;
+    for (const src of sorgenteObs) {
+      const esistente = getObiettivo(src.metrica_id, State.operatoreSelezionato);
+      if (esistente && strategy === 'skip') { skippati++; continue; }
+      try {
+        await upsertObiettivo(src.metrica_id, State.operatoreSelezionato, {
+          obiettivo: src.obiettivo,
+          compenso_regola: src.compenso_regola
+        });
+        if (esistente) aggiornati++; else inseriti++;
+      } catch (e) { /* silent, prosegui */ }
+    }
+    MiroxUI.loading.hide();
+    MiroxUI.toast(`Duplicati: ${inseriti} nuovi, ${aggiornati} aggiornati${skippati ? `, ${skippati} skippati` : ''}`, 'success');
+    renderGaraIndividuale();
+  });
+}
+
 async function duplicaDaMesePrecedente() {
   let annoPrev = State.anno, mesePrev = State.mese - 1;
   if (mesePrev < 1) { mesePrev = 12; annoPrev -= 1; }
@@ -814,6 +888,7 @@ async function init() {
     State.operatoreSelezionato = e.target.value; renderGaraIndividuale();
   });
   document.getElementById('btnDuplica').addEventListener('click', duplicaDaMesePrecedente);
+  document.getElementById('btnDuplicaDaAltro').addEventListener('click', duplicaDaAltroOperatore);
   document.getElementById('btnLogout').addEventListener('click', () => Auth.logout());
 
   await loadAll();
