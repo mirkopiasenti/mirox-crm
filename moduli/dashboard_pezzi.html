@@ -609,13 +609,15 @@ function renderGare() {
     let totCompenso = 0;
     let bodyHtml = '';
     metriche.forEach(m => {
-      const attuale = contaMatchPerOperatore(m, op.id);
-      const o = getObiettivoMese(m.id, op.id);
+      const squadra = m.tipo_conteggio === 'squadra';
+      const attuale = squadra ? contaMatchTotale(m) : contaMatchPerOperatore(m, op.id);
+      const o = squadra ? getObiettivoMese(m.id, null) : getObiettivoMese(m.id, op.id);
       const obiettivo = o?.obiettivo ?? 0;
       const c = calcolaCompenso(attuale, o?.compenso_regola);
+      const nomeCol = escapeHtml(m.nome) + (squadra ? ' <span style="font-size:9.5px;background:#DBEAFE;color:#1E40AF;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700;letter-spacing:.04em">SQUADRA</span>' : '');
       if (c.label) {
         bodyHtml += `<tr>
-          <td class="metrica" style="background:${escapeHtml(m.colore_hex)}">${escapeHtml(m.nome)}</td>
+          <td class="metrica" style="background:${escapeHtml(m.colore_hex)}">${nomeCol}</td>
           <td>${attuale}</td>
           <td>${obiettivo}</td>
           <td class="compenso"><span class="badge-dec">${escapeHtml(c.label)}</span></td>
@@ -623,7 +625,7 @@ function renderGare() {
       } else {
         totCompenso += c.euro;
         bodyHtml += `<tr>
-          <td class="metrica" style="background:${escapeHtml(m.colore_hex)}">${escapeHtml(m.nome)}</td>
+          <td class="metrica" style="background:${escapeHtml(m.colore_hex)}">${nomeCol}</td>
           <td>${attuale}</td>
           <td>${obiettivo}</td>
           <td class="compenso">${fmtEur(c.euro)}</td>

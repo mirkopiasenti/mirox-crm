@@ -488,13 +488,17 @@ function renderGaraIndividuale() {
   if (!metriche.length) { wrap.innerHTML = '<div class="empty">Nessuna metrica configurata.</div>'; return; }
   let html = '<table class="mx"><thead><tr><th>Metrica</th><th style="width:110px">Obiettivo</th><th style="width:150px">Compenso</th><th class="actions" style="width:120px"></th></tr></thead><tbody>';
   metriche.forEach(m => {
-    const o = getObiettivo(m.id, State.operatoreSelezionato);
+    const squadra = m.tipo_conteggio === 'squadra';
+    // Metriche squadra: obiettivo/compenso salvati con operatore_id=NULL (comuni)
+    const opTarget = squadra ? null : State.operatoreSelezionato;
+    const o = getObiettivo(m.id, opTarget);
     const compRiassunto = riassumiCompenso(o?.compenso_regola);
+    const badge = squadra ? ' <span style="font-size:9.5px;background:#DBEAFE;color:#1E40AF;padding:1px 6px;border-radius:8px;margin-left:6px;font-weight:700;letter-spacing:.04em">SQUADRA</span>' : '';
     html += `<tr>
-      <td><span class="metric-color" style="background:${escapeHtml(m.colore_hex)}"></span><b>${escapeHtml(m.nome)}</b></td>
-      <td><input type="number" min="0" value="${o?.obiettivo ?? 0}" data-metrica="${m.id}" class="inp-obiettivo"></td>
+      <td><span class="metric-color" style="background:${escapeHtml(m.colore_hex)}"></span><b>${escapeHtml(m.nome)}</b>${badge}</td>
+      <td><input type="number" min="0" value="${o?.obiettivo ?? 0}" data-metrica="${m.id}" data-squadra="${squadra ? '1' : '0'}" class="inp-obiettivo"></td>
       <td><span class="badge-compenso ${compRiassunto.cls}">${escapeHtml(compRiassunto.text)}</span></td>
-      <td class="actions"><button class="btn-mini btn-edit-compenso" data-metrica="${m.id}">Modifica compenso</button></td>
+      <td class="actions"><button class="btn-mini btn-edit-compenso" data-metrica="${m.id}" data-squadra="${squadra ? '1' : '0'}">Modifica compenso</button></td>
     </tr>`;
   });
   html += '</tbody></table>';
@@ -502,15 +506,19 @@ function renderGaraIndividuale() {
   wrap.querySelectorAll('.inp-obiettivo').forEach(inp => {
     inp.addEventListener('change', async () => {
       const metricaId = Number(inp.dataset.metrica);
+      const squadra = inp.dataset.squadra === '1';
       const valore = Math.max(0, Math.floor(Number(inp.value) || 0));
       try {
-        await upsertObiettivo(metricaId, State.operatoreSelezionato, { obiettivo: valore });
-        MiroxUI.toast('Obiettivo aggiornato', 'success');
+        await upsertObiettivo(metricaId, squadra ? null : State.operatoreSelezionato, { obiettivo: valore });
+        MiroxUI.toast(squadra ? 'Obiettivo squadra aggiornato (vale per tutti)' : 'Obiettivo aggiornato', 'success');
       } catch (e) { MiroxUI.alert('Errore: ' + e.message); }
     });
   });
   wrap.querySelectorAll('.btn-edit-compenso').forEach(btn => {
-    btn.addEventListener('click', () => apriEditorScaglioni(Number(btn.dataset.metrica), State.operatoreSelezionato));
+    btn.addEventListener('click', () => apriEditorScaglioni(
+      Number(btn.dataset.metrica),
+      btn.dataset.squadra === '1' ? null : State.operatoreSelezionato
+    ));
   });
 }
 
@@ -580,12 +588,18 @@ function renderMetricheAdvanced() {
   tabelle.forEach(t => {
     const metriche = State.metriche.filter(m => m.tabella === t.key);
     html += `<h3 style="font-size:12px;font-weight:800;text-transform:uppercase;color:var(--text-secondary);letter-spacing:.05em;margin:16px 0 8px">${t.titolo}</h3>`;
-    html += '<table class="mx"><thead><tr><th style="width:220px">Nome</th><th style="width:70px">Attiva</th><th style="width:80px">Ordine</th><th>Regola JSONB</th><th class="actions" style="width:100px"></th></tr></thead><tbody>';
+    const showConteggio = t.key === 'gara_individuale';
+    html += '<table class="mx"><thead><tr><th style="width:220px">Nome</th><th style="width:70px">Attiva</th><th style="width:80px">Ordine</th>' + (showConteggio ? '<th style="width:110px">Conteggio</th>' : '') + '<th>Regola JSONB</th><th class="actions" style="width:100px"></th></tr></thead><tbody>';
     metriche.forEach(m => {
+      const conteggioTd = showConteggio ? `<td><select data-id="${m.id}" data-field="tipo_conteggio" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit">
+        <option value="individuale" ${m.tipo_conteggio !== 'squadra' ? 'selected' : ''}>Individuale</option>
+        <option value="squadra" ${m.tipo_conteggio === 'squadra' ? 'selected' : ''}>Squadra</option>
+      </select></td>` : '';
       html += `<tr>
         <td><input type="text" value="${escapeHtml(m.nome)}" data-id="${m.id}" data-field="nome" style="width:100%"></td>
         <td><input type="checkbox" ${m.attiva?'checked':''} data-id="${m.id}" data-field="attiva"></td>
         <td><input type="number" value="${m.ordine}" data-id="${m.id}" data-field="ordine" style="width:60px"></td>
+        ${conteggioTd}
         <td><textarea data-id="${m.id}" data-field="regola" style="width:100%;font-family:monospace;font-size:11.5px;padding:5px;border:1px solid var(--border);border-radius:6px;min-height:40px">${escapeHtml(JSON.stringify(m.regola))}</textarea></td>
         <td class="actions"><button class="btn-mini btn-save-metrica" data-id="${m.id}">Salva</button></td>
       </tr>`;
@@ -603,11 +617,14 @@ function renderMetricheAdvanced() {
       let regola;
       try { regola = JSON.parse(row.querySelector('[data-field="regola"]').value); }
       catch (e) { MiroxUI.alert('JSON regola non valido: ' + e.message); return; }
+      const conteggioSel = row.querySelector('[data-field="tipo_conteggio"]');
+      const patch = { nome, attiva, ordine, regola };
+      if (conteggioSel) patch.tipo_conteggio = conteggioSel.value;
       try {
-        const { error } = await sb.from('gara_metriche').update({ nome, attiva, ordine, regola }).eq('id', id);
+        const { error } = await sb.from('gara_metriche').update(patch).eq('id', id);
         if (error) throw error;
         const m = State.metriche.find(x => x.id === id);
-        if (m) Object.assign(m, { nome, attiva, ordine, regola });
+        if (m) Object.assign(m, patch);
         MiroxUI.toast('Metrica salvata', 'success');
       } catch (e) { MiroxUI.alert('Errore: ' + e.message); }
     });
@@ -822,9 +839,12 @@ async function duplicaDaAltroOperatore() {
     if (!sorgenteId) return;
 
     // Prendo gli obiettivi del sorgente per il mese/anno correnti
-    const sorgenteObs = State.obiettivi.filter(o =>
-      o.operatore_id === sorgenteId && !!State.metriche.find(m => m.id === o.metrica_id && m.tabella === 'gara_individuale')
-    );
+    // Skip le metriche squadra: l'obiettivo e' comune (operatore_id=NULL) e non va duplicato per operatore
+    const sorgenteObs = State.obiettivi.filter(o => {
+      if (o.operatore_id !== sorgenteId) return false;
+      const met = State.metriche.find(mm => mm.id === o.metrica_id);
+      return met && met.tabella === 'gara_individuale' && met.tipo_conteggio !== 'squadra';
+    });
     if (!sorgenteObs.length) {
       const sorgente = candidati.find(c => c.id === sorgenteId);
       MiroxUI.alert(`Nessun obiettivo trovato per ${sorgente?.nome || 'operatore sorgente'} in ${MESI[State.mese-1]} ${State.anno}.`);
