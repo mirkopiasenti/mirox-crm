@@ -384,7 +384,7 @@ Quando una pratica va in KO post-vendita (o `Rifiutata`/`Annullata`/`In lavorazi
 - Se `'reinserimento'`: valida `reinserimento_di_contratto_id` come UUID, fa SELECT `vendita_contratti` per verificare che esista E appartenga alla **stessa anagrafica** E alla **stessa categoria** (errori 400 altrimenti)
 - Se `'inserimento'`: forza `reinserimento_di_contratto_id=null` (idempotente)
 
-**Dashboard** (futura): WHERE `stato_inserimento <> 'reinserimento'` per il conteggio pezzi del mese. Metrica derivata "tasso di rilavorazione = reinserimenti / inserimenti totali" disponibile come bonus.
+**Dashboard**: i contratti con `stato_inserimento='reinserimento'` sono esclusi dal conteggio sia nel **Day by Day** (`caricaDay` → `DPState.contrattiDay` filtrato in `moduli/dashboard_pezzi.html`) sia nel **mensile** (`caricaDatiMensili` → `DPState.contrattiMese`). Metrica derivata "tasso di rilavorazione = reinserimenti / inserimenti totali" ancora da implementare come bonus.
 
 ### Controllo Fissi (post-vendita)
 - Tabella: `post_vendita_controllo_fissi` (vedi Mappa Supabase → Post-Vendita).

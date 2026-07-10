@@ -504,7 +504,7 @@ async function caricaDay() {
   try {
     await caricaRigheDay();
     const contratti = await caricaContrattiDelGiorno(DPState.dataSelezionata);
-    DPState.contrattiDay = contratti;
+    DPState.contrattiDay = contratti.filter(c => c.stato_inserimento !== 'reinserimento');
     const opIds = Array.from(new Set(contratti.map(c => c.operatore_id).filter(Boolean)));
     DPState.profiliMap = await caricaProfili(opIds);
     renderGrigliaDay();
