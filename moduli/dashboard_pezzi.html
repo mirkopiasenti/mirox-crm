@@ -385,12 +385,17 @@ function calcolaCompenso(attuale, regola) {
   const bonus = Array.isArray(regola.bonus_soglie) ? regola.bonus_soglie : [];
   let totale = 0;
   scaglioni.forEach(s => {
+    const modo = s.tipo_calcolo || 'per_pezzo';
+    const importo = Number(s.importo ?? s.per_pezzo ?? 0);
     const da = Number(s.da || 0);
-    const a = (s.a === null || s.a === undefined || s.a === '') ? Infinity : Number(s.a);
-    const perPezzo = Number(s.per_pezzo || 0);
-    if (attuale > da) {
-      const pezziNelloScaglione = Math.min(attuale, a) - da;
-      if (pezziNelloScaglione > 0) totale += pezziNelloScaglione * perPezzo;
+    if (modo === 'flat') {
+      if (attuale >= da) totale += importo;
+    } else {
+      const a = (s.a === null || s.a === undefined || s.a === '') ? Infinity : Number(s.a);
+      if (attuale > da) {
+        const pezziNelloScaglione = Math.min(attuale, a) - da;
+        if (pezziNelloScaglione > 0) totale += pezziNelloScaglione * importo;
+      }
     }
   });
   bonus.forEach(b => { if (attuale >= Number(b.soglia || 0)) totale += Number(b.bonus || 0); });

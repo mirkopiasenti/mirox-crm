@@ -174,7 +174,9 @@
     display: grid; align-items: center; gap: 8px; padding: 6px 0;
     border-bottom: 1px dashed var(--border-light);
   }
-  .modal-scaglioni .row-scaglione { grid-template-columns: auto 1fr auto 1fr auto 1fr auto; }
+  .modal-scaglioni .row-scaglione { grid-template-columns: auto 1fr auto 1fr auto 1fr auto 1fr auto; }
+  .modal-scaglioni .row-scaglione select { padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; font-family: inherit; background: #fff; }
+  .modal-scaglioni .row-scaglione input:disabled { background: var(--bg); color: var(--text-light); cursor: not-allowed; }
   .modal-scaglioni .row-bonus { grid-template-columns: auto 1fr auto 1fr auto; }
   .modal-scaglioni input[type="number"] {
     padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
@@ -333,12 +335,17 @@ function calcolaCompenso(attuale, regola) {
   const bonus = Array.isArray(regola.bonus_soglie) ? regola.bonus_soglie : [];
   let totale = 0;
   scaglioni.forEach(s => {
+    const modo = s.tipo_calcolo || 'per_pezzo';
+    const importo = Number(s.importo ?? s.per_pezzo ?? 0);
     const da = Number(s.da || 0);
-    const a = (s.a === null || s.a === undefined || s.a === '') ? Infinity : Number(s.a);
-    const perPezzo = Number(s.per_pezzo || 0);
-    if (attuale > da) {
-      const pezziNelloScaglione = Math.min(attuale, a) - da;
-      if (pezziNelloScaglione > 0) totale += pezziNelloScaglione * perPezzo;
+    if (modo === 'flat') {
+      if (attuale >= da) totale += importo;
+    } else {
+      const a = (s.a === null || s.a === undefined || s.a === '') ? Infinity : Number(s.a);
+      if (attuale > da) {
+        const pezziNelloScaglione = Math.min(attuale, a) - da;
+        if (pezziNelloScaglione > 0) totale += pezziNelloScaglione * importo;
+      }
     }
   });
   bonus.forEach(b => {
@@ -643,6 +650,13 @@ function apriEditorScaglioni(metricaId, operatoreId) {
   if (!draft.scaglioni) draft.scaglioni = [];
   if (!draft.bonus_soglie) draft.bonus_soglie = [];
   if (draft.per_pezzo == null) draft.per_pezzo = 0;
+  // Retrocompat: normalizza scaglioni legacy (per_pezzo → importo + tipo_calcolo)
+  draft.scaglioni = draft.scaglioni.map(s => ({
+    da: s.da ?? 0,
+    a: s.a ?? null,
+    tipo_calcolo: s.tipo_calcolo || 'per_pezzo',
+    importo: Number(s.importo ?? s.per_pezzo ?? 0)
+  }));
 
   const renderBody = () => {
     let html = '<div class="modal-scaglioni">';
@@ -664,13 +678,21 @@ function apriEditorScaglioni(metricaId, operatoreId) {
     }
 
     if (draft.tipo === 'scaglioni') {
-      html += '<h3>Scaglioni (per pezzo)</h3>';
+      html += '<h3>Scaglioni</h3>';
       html += '<div id="listaScaglioni">';
       draft.scaglioni.forEach((s, idx) => {
+        const modoScaglione = s.tipo_calcolo || 'per_pezzo';
+        const importo = s.importo ?? s.per_pezzo ?? 0;
+        const isFlat = modoScaglione === 'flat';
         html += `<div class="row-scaglione">
           <label>Da</label><input type="number" min="0" value="${s.da ?? 0}" data-idx="${idx}" data-fld="da">
-          <label>A (vuoto = inf.)</label><input type="number" min="0" value="${s.a ?? ''}" data-idx="${idx}" data-fld="a">
-          <label>&euro; / pezzo</label><input type="number" min="0" step="0.01" value="${s.per_pezzo ?? 0}" data-idx="${idx}" data-fld="per_pezzo">
+          <label>A</label><input type="number" min="0" value="${s.a ?? ''}" data-idx="${idx}" data-fld="a" ${isFlat ? 'disabled title="Non applicabile al modo flat"' : 'title="vuoto = infinito"'}>
+          <label>Modo</label>
+          <select data-idx="${idx}" data-fld="tipo_calcolo">
+            <option value="per_pezzo" ${!isFlat ? 'selected' : ''}>&euro; / pezzo</option>
+            <option value="flat" ${isFlat ? 'selected' : ''}>&euro; fissi al raggiungimento</option>
+          </select>
+          <label>&euro;</label><input type="number" min="0" step="0.01" value="${importo}" data-idx="${idx}" data-fld="importo">
           <button class="btn-danger btn-rm-scaglione" data-idx="${idx}">X</button>
         </div>`;
       });
@@ -718,13 +740,20 @@ function apriEditorScaglioni(metricaId, operatoreId) {
         aggiornaPreview();
       });
     });
+    document.querySelectorAll('#listaScaglioni select').forEach(sel => {
+      sel.addEventListener('change', () => {
+        const idx = Number(sel.dataset.idx);
+        draft.scaglioni[idx].tipo_calcolo = sel.value;
+        refresh(); // ridisegna per abilitare/disabilitare il campo A
+      });
+    });
     document.querySelectorAll('.btn-rm-scaglione').forEach(b => b.addEventListener('click', () => {
       draft.scaglioni.splice(Number(b.dataset.idx), 1); refresh();
     }));
     const btnAddS = document.getElementById('btnAddScaglione');
     if (btnAddS) btnAddS.addEventListener('click', () => {
       const ultimoA = draft.scaglioni.length ? (draft.scaglioni[draft.scaglioni.length-1].a || 0) : 0;
-      draft.scaglioni.push({ da: ultimoA, a: null, per_pezzo: 0 });
+      draft.scaglioni.push({ da: ultimoA, a: null, tipo_calcolo: 'per_pezzo', importo: 0 });
       refresh();
     });
 
@@ -779,7 +808,15 @@ function apriEditorScaglioni(metricaId, operatoreId) {
     } else if (draft.tipo === 'per_pezzo') {
       nuova = { tipo: 'per_pezzo', per_pezzo: Number(draft.per_pezzo) || 0, label: draft.label || '' };
     } else {
-      nuova = { tipo: 'scaglioni', scaglioni: draft.scaglioni, bonus_soglie: draft.bonus_soglie, label: draft.label || '' };
+      // Normalizza scaglioni al formato nuovo (importo + tipo_calcolo, no piu' per_pezzo)
+      const scaglioniPuliti = draft.scaglioni.map(s => {
+        const modo = s.tipo_calcolo || 'per_pezzo';
+        const importo = Number(s.importo ?? s.per_pezzo ?? 0);
+        const base = { da: Number(s.da || 0), tipo_calcolo: modo, importo };
+        if (modo === 'per_pezzo') base.a = (s.a === null || s.a === undefined || s.a === '') ? null : Number(s.a);
+        return base;
+      });
+      nuova = { tipo: 'scaglioni', scaglioni: scaglioniPuliti, bonus_soglie: draft.bonus_soglie, label: draft.label || '' };
     }
     try {
       await upsertObiettivo(metricaId, operatoreId, { compenso_regola: nuova });
