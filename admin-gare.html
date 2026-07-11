@@ -400,9 +400,10 @@ async function loadAll() {
 
 async function loadOperatori() {
   const { data, error } = await sb.from('profili')
-    .select('id, nome, in_gara, ruolo, attivo, alias_di')
+    .select('id, nome, in_gara, ruolo, attivo, alias_di, ordine_gara')
     .eq('attivo', true)
     .is('alias_di', null)                // esclude profili alias (unificati)
+    .order('ordine_gara', { ascending: true, nullsFirst: false })
     .order('nome');
   if (error) throw error;
   State.operatoriTutti = data || [];
@@ -459,12 +460,13 @@ async function upsertObiettivo(metricaId, operatoreId, patch) {
 function renderOperatori() {
   const wrap = document.getElementById('operatoriWrap');
   if (!State.operatoriTutti.length) { wrap.innerHTML = '<div class="empty">Nessun profilo attivo.</div>'; return; }
-  let html = '<table class="mx"><thead><tr><th>Operatore</th><th>Ruolo</th><th style="width:120px">In gara</th></tr></thead><tbody>';
+  let html = '<table class="mx"><thead><tr><th>Operatore</th><th>Ruolo</th><th style="width:120px">In gara</th><th style="width:110px" title="Piu basso = piu a sinistra nelle tabelle Dashboard Pezzi">Ordine</th></tr></thead><tbody>';
   State.operatoriTutti.forEach(p => {
     html += `<tr>
       <td><b>${escapeHtml(p.nome)}</b></td>
       <td>${escapeHtml(p.ruolo)}</td>
       <td><input type="checkbox" ${p.in_gara ? 'checked':''} data-op="${p.id}" class="chk-in-gara"></td>
+      <td><input type="number" value="${p.ordine_gara ?? 0}" data-op="${p.id}" class="inp-ordine-gara" style="width:70px"></td>
     </tr>`;
   });
   html += '</tbody></table>';
@@ -489,6 +491,26 @@ function renderOperatori() {
         chk.checked = !nuovoValore;
         MiroxUI.alert('Errore: ' + e.message);
       }
+    });
+  });
+  wrap.querySelectorAll('.inp-ordine-gara').forEach(inp => {
+    inp.addEventListener('change', async () => {
+      const id = inp.dataset.op;
+      const nuovoOrdine = Math.floor(Number(inp.value) || 0);
+      try {
+        const { error } = await sb.from('profili').update({ ordine_gara: nuovoOrdine }).eq('id', id);
+        if (error) throw error;
+        const p = State.operatoriTutti.find(x => x.id === id);
+        if (p) p.ordine_gara = nuovoOrdine;
+        // Ri-sort operatori tutti + in_gara secondo la nuova chiave
+        const sorter = (a, b) => (a.ordine_gara ?? 0) - (b.ordine_gara ?? 0) || String(a.nome || '').localeCompare(String(b.nome || ''));
+        State.operatoriTutti.sort(sorter);
+        State.operatoriInGara = State.operatoriTutti.filter(x => x.in_gara);
+        renderOperatori();
+        renderSelectOperatoreGara();
+        renderGaraIndividuale();
+        MiroxUI.toast('Ordine aggiornato', 'success');
+      } catch (e) { MiroxUI.alert('Errore: ' + e.message); }
     });
   });
 }

@@ -550,7 +550,7 @@ async function caricaDatiMensili() {
       `).gte('data_contratto', start).lt('data_contratto', end),
     sb.from('gara_metriche').select('*').eq('attiva', true).order('tabella').order('ordine'),
     sb.from('gara_obiettivi_mensili').select('*').eq('anno', DPState.anno).eq('mese', DPState.mese),
-    sb.from('profili').select('id, nome, in_gara, alias_di').eq('attivo', true).order('nome')
+    sb.from('profili').select('id, nome, in_gara, alias_di, ordine_gara').eq('attivo', true).order('ordine_gara', { ascending: true, nullsFirst: false }).order('nome')
   ]);
   if (rContratti.error) throw rContratti.error;
   if (rMetriche.error) throw rMetriche.error;
@@ -578,7 +578,8 @@ async function caricaDatiMensili() {
   const opIds = new Set([...DPState.operatoriInGara.map(p => p.id), ...opConContratti]);
   DPState.operatoriAttiviMese = Array.from(opIds)
     .map(id => profiliMap.get(id))
-    .filter(p => p && !p.alias_di);
+    .filter(p => p && !p.alias_di)
+    .sort((a, b) => (a.ordine_gara ?? 0) - (b.ordine_gara ?? 0) || String(a.nome || '').localeCompare(String(b.nome || '')));
 
   DPState.loadedMonthKey = key;
 }
