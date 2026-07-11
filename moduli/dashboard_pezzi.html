@@ -194,7 +194,7 @@ table.gara-tab tbody tr.tot td {
 table.gara-tab tbody tr.tot td.compenso-tot {
   background: #FFF9C4; color: var(--text);
 }
-.badge-dec { color: var(--danger); font-weight: 800; }
+.badge-dec { color: var(--danger); font-weight: 900; text-transform: uppercase; letter-spacing: .05em; font-size: 11px; }
 
 /* Avanzamento Mensile */
 .av-section { margin-bottom: 20px; }
@@ -376,9 +376,12 @@ function operatoreContratto(contratto, profiliMap) {
 // ============================================================
 function calcolaCompenso(attuale, regola) {
   if (!regola || typeof regola !== 'object') return { euro: 0, label: '' };
+  const attualeNum = Math.max(0, Number(attuale) || 0);
+  const decSoglia = Number(regola.decurtazione_soglia) || 0;
+  if (decSoglia > 0 && attualeNum < decSoglia) return { euro: 0, label: 'DECURTAZIONE' };
   if (regola.tipo === 'nessuno') return { euro: 0, label: regola.label || '' };
   if (regola.tipo === 'per_pezzo') {
-    return { euro: Math.max(0, Number(attuale) || 0) * (Number(regola.per_pezzo) || 0), label: regola.label || '' };
+    return { euro: attualeNum * (Number(regola.per_pezzo) || 0), label: regola.label || '' };
   }
   if (regola.tipo !== 'scaglioni') return { euro: 0, label: regola.label || '' };
   const scaglioni = Array.isArray(regola.scaglioni) ? regola.scaglioni : [];

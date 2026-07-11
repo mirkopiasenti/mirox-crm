@@ -326,9 +326,13 @@ function fmtEur(n) { if (n === null || n === undefined || isNaN(n)) return '-'; 
 // ============================================================
 function calcolaCompenso(attuale, regola) {
   if (!regola || typeof regola !== 'object') return { euro: 0, label: '' };
+  const attualeNum = Math.max(0, Number(attuale) || 0);
+  // Decurtazione: sotto la soglia, zero compenso + label "DECURTAZIONE" (priorita' massima)
+  const decSoglia = Number(regola.decurtazione_soglia) || 0;
+  if (decSoglia > 0 && attualeNum < decSoglia) return { euro: 0, label: 'DECURTAZIONE' };
   if (regola.tipo === 'nessuno') return { euro: 0, label: regola.label || '' };
   if (regola.tipo === 'per_pezzo') {
-    return { euro: Math.max(0, Number(attuale) || 0) * (Number(regola.per_pezzo) || 0), label: regola.label || '' };
+    return { euro: attualeNum * (Number(regola.per_pezzo) || 0), label: regola.label || '' };
   }
   if (regola.tipo !== 'scaglioni') return { euro: 0, label: regola.label || '' };
   const scaglioni = Array.isArray(regola.scaglioni) ? regola.scaglioni : [];
@@ -355,17 +359,19 @@ function calcolaCompenso(attuale, regola) {
 }
 
 function riassumiCompenso(regola) {
-  if (!regola || regola.tipo === 'nessuno') return { text: regola?.label || 'Nessuno', cls: 'no' };
+  const decSoglia = Number(regola?.decurtazione_soglia) || 0;
+  const decSuffix = decSoglia > 0 ? ` · DEC<${decSoglia}` : '';
+  if (!regola || regola.tipo === 'nessuno') return { text: (regola?.label || 'Nessuno') + decSuffix, cls: 'no' };
   if (regola.tipo === 'per_pezzo') {
     const v = Number(regola.per_pezzo) || 0;
-    return { text: fmtEur(v) + ' / pz', cls: 'ok' };
+    return { text: fmtEur(v) + ' / pz' + decSuffix, cls: 'ok' };
   }
   const scagliomi = (regola.scaglioni || []).length;
   const bonus = (regola.bonus_soglie || []).length;
   const parts = [];
   if (scagliomi) parts.push(scagliomi + ' scagl.');
   if (bonus) parts.push(bonus + ' bonus');
-  return { text: parts.join(' + ') || 'Vuoto', cls: 'ok' };
+  return { text: (parts.join(' + ') || 'Vuoto') + decSuffix, cls: 'ok' };
 }
 
 // ============================================================
@@ -665,7 +671,17 @@ function apriEditorScaglioni(metricaId, operatoreId) {
       <label><input type="radio" name="modo" value="per_pezzo" ${draft.tipo==='per_pezzo'?'checked':''}> Ogni pezzo</label>
       <label><input type="radio" name="modo" value="scaglioni" ${draft.tipo==='scaglioni'?'checked':''}> Scaglioni + bonus</label>
       <label><input type="radio" name="modo" value="nessuno" ${draft.tipo==='nessuno'?'checked':''}> Nessun compenso</label>
-      <label style="margin-left:auto">Label (es. "DEC."): <input type="text" id="lblCompenso" value="${escapeHtml(draft.label||'')}" style="width:100px"></label>
+    </div>`;
+    const decOn = Number(draft.decurtazione_soglia) > 0;
+    html += `<div class="toggle-row" style="background:#fef2f2;border-radius:8px;padding:8px 10px;margin-top:8px;border:1px solid #fecaca">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:700;color:#991b1b">
+        <input type="checkbox" id="chkDecurtazione" ${decOn ? 'checked' : ''}> Attiva decurtazione
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;color:#7f1d1d;${decOn ? '' : 'opacity:.4'}">
+        Fino a
+        <input type="number" min="0" id="inpDecSoglia" value="${draft.decurtazione_soglia ?? ''}" ${decOn ? '' : 'disabled'} style="width:80px;padding:5px 8px;border:1px solid #fca5a5;border-radius:6px;font-size:13px">
+        pezzi la cella mostra <b style="color:#dc2626">DECURTAZIONE</b> (compenso 0)
+      </label>
     </div>`;
 
     if (draft.tipo === 'per_pezzo') {
@@ -722,8 +738,18 @@ function apriEditorScaglioni(metricaId, operatoreId) {
       draft.tipo = document.querySelector('input[name="modo"]:checked').value;
       refresh();
     }));
-    const lbl = document.getElementById('lblCompenso');
-    if (lbl) lbl.addEventListener('input', () => { draft.label = lbl.value; });
+    const chkDec = document.getElementById('chkDecurtazione');
+    const inpDecSoglia = document.getElementById('inpDecSoglia');
+    if (chkDec) chkDec.addEventListener('change', () => {
+      if (!chkDec.checked) draft.decurtazione_soglia = null;
+      else if (!Number(draft.decurtazione_soglia)) draft.decurtazione_soglia = 1;
+      refresh();
+    });
+    if (inpDecSoglia) inpDecSoglia.addEventListener('input', () => {
+      const v = Number(inpDecSoglia.value);
+      draft.decurtazione_soglia = v > 0 ? v : null;
+      aggiornaPreview();
+    });
 
     const inpPerPezzo = document.getElementById('inpPerPezzo');
     if (inpPerPezzo) inpPerPezzo.addEventListener('input', () => {
@@ -804,9 +830,9 @@ function apriEditorScaglioni(metricaId, operatoreId) {
   m.foot.querySelector('[data-mx-ok]').addEventListener('click', async () => {
     let nuova;
     if (draft.tipo === 'nessuno') {
-      nuova = { tipo: 'nessuno', label: draft.label || '' };
+      nuova = { tipo: 'nessuno' };
     } else if (draft.tipo === 'per_pezzo') {
-      nuova = { tipo: 'per_pezzo', per_pezzo: Number(draft.per_pezzo) || 0, label: draft.label || '' };
+      nuova = { tipo: 'per_pezzo', per_pezzo: Number(draft.per_pezzo) || 0 };
     } else {
       // Normalizza scaglioni al formato nuovo (importo + tipo_calcolo, no piu' per_pezzo)
       const scaglioniPuliti = draft.scaglioni.map(s => {
@@ -816,8 +842,11 @@ function apriEditorScaglioni(metricaId, operatoreId) {
         if (modo === 'per_pezzo') base.a = (s.a === null || s.a === undefined || s.a === '') ? null : Number(s.a);
         return base;
       });
-      nuova = { tipo: 'scaglioni', scaglioni: scaglioniPuliti, bonus_soglie: draft.bonus_soglie, label: draft.label || '' };
+      nuova = { tipo: 'scaglioni', scaglioni: scaglioniPuliti, bonus_soglie: draft.bonus_soglie };
     }
+    // Decurtazione: aggiunge la soglia solo se > 0
+    const decSoglia = Number(draft.decurtazione_soglia) || 0;
+    if (decSoglia > 0) nuova.decurtazione_soglia = decSoglia;
     try {
       await upsertObiettivo(metricaId, operatoreId, { compenso_regola: nuova });
       m.close();
