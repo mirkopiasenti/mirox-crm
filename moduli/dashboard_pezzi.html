@@ -333,6 +333,10 @@ function fmtEur(n) { if (n === null || n === undefined || isNaN(n)) return '-'; 
 // ============================================================
 function matchRegola(contratto, regola) {
   if (!regola || typeof regola !== 'object') return true;
+  // OR: se presente, ognuna delle sotto-regole viene valutata; basta che una matchi
+  if (Array.isArray(regola.or) && regola.or.length) {
+    return regola.or.some(sub => matchRegola(contratto, sub));
+  }
   const c = contratto;
   const strEq = (got, want) => String(got || '').trim().toLowerCase() === String(want || '').trim().toLowerCase();
   const strInArr = (got, arr) => Array.isArray(arr) && arr.some(v => strEq(got, v));
@@ -605,11 +609,28 @@ function contrattiMatchPerOperatore(metrica, operatoreId) {
 function contrattiMatchTotali(metrica) {
   return DPState.contrattiMese.filter(c => matchRegola(c, metrica.regola));
 }
+// Peso del singolo contratto per una regola: base 1 + eventuali bonus_conteggio
+function pesoContratto(contratto, regola) {
+  if (!matchRegola(contratto, regola)) return 0;
+  let peso = 1;
+  const bonus = (regola && Array.isArray(regola.bonus_conteggio)) ? regola.bonus_conteggio : [];
+  bonus.forEach(b => {
+    const sub = Object.assign({}, b);
+    delete sub.peso;
+    if (matchRegola(contratto, sub)) peso += Number(b.peso || 0);
+  });
+  return peso;
+}
+function contaConPesi(contratti, metrica) {
+  let n = 0;
+  contratti.forEach(c => { n += pesoContratto(c, metrica.regola); });
+  return n;
+}
 function contaMatchPerOperatore(metrica, operatoreId) {
-  return contrattiMatchPerOperatore(metrica, operatoreId).length;
+  return contaConPesi(contrattiMatchPerOperatore(metrica, operatoreId), metrica);
 }
 function contaMatchTotale(metrica) {
-  return contrattiMatchTotali(metrica).length;
+  return contaConPesi(contrattiMatchTotali(metrica), metrica);
 }
 
 // ============================================================
@@ -628,13 +649,15 @@ function renderGare() {
     let totCompenso = 0;
     let bodyHtml = '';
     metriche.forEach(m => {
-      const squadra = m.tipo_conteggio === 'squadra';
-      const contrattiMatched = squadra ? contrattiMatchTotali(m) : contrattiMatchPerOperatore(m, op.id);
-      const attuale = contrattiMatched.length;
-      const o = squadra ? getObiettivoMese(m.id, null) : getObiettivoMese(m.id, op.id);
+      const conteggioSquadra = m.tipo_conteggio === 'squadra';
+      const compensoSquadra = m.tipo_compenso === 'squadra';
+      const contrattiMatched = conteggioSquadra ? contrattiMatchTotali(m) : contrattiMatchPerOperatore(m, op.id);
+      const attuale = contaConPesi(contrattiMatched, m);
+      const o = compensoSquadra ? getObiettivoMese(m.id, null) : getObiettivoMese(m.id, op.id);
       const obiettivo = o?.obiettivo ?? 0;
       const c = calcolaCompenso(attuale, o?.compenso_regola, contrattiMatched);
-      const nomeCol = escapeHtml(m.nome) + (squadra ? ' <span style="font-size:9.5px;background:#DBEAFE;color:#1E40AF;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700;letter-spacing:.04em">SQUADRA</span>' : '');
+      const badgeSquadra = (conteggioSquadra || compensoSquadra) ? ' <span title="' + (conteggioSquadra && compensoSquadra ? 'Conteggio e compenso di squadra' : (compensoSquadra ? 'Compenso di squadra (attuale personale)' : 'Conteggio di squadra (compenso personale)')) + '" style="font-size:9.5px;background:#DBEAFE;color:#1E40AF;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700;letter-spacing:.04em">SQUADRA</span>' : '';
+      const nomeCol = escapeHtml(m.nome) + badgeSquadra;
       if (c.label) {
         bodyHtml += `<tr>
           <td class="metrica" style="background:${escapeHtml(m.colore_hex)}">${nomeCol}</td>
