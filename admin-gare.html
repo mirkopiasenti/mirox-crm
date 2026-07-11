@@ -324,7 +324,7 @@ function fmtEur(n) { if (n === null || n === undefined || isNaN(n)) return '-'; 
 // ============================================================
 // COMPENSO — funzione DSL (stessa che gira lato dashboard_pezzi)
 // ============================================================
-function calcolaCompenso(attuale, regola) {
+function calcolaCompenso(attuale, regola, contratti) {
   if (!regola || typeof regola !== 'object') return { euro: 0, label: '' };
   const attualeNum = Math.max(0, Number(attuale) || 0);
   // Decurtazione: sotto la soglia, zero compenso + label "DECURTAZIONE" (priorita' massima)
@@ -333,6 +333,17 @@ function calcolaCompenso(attuale, regola) {
   if (regola.tipo === 'nessuno') return { euro: 0, label: regola.label || '' };
   if (regola.tipo === 'per_pezzo') {
     return { euro: attualeNum * (Number(regola.per_pezzo) || 0), label: regola.label || '' };
+  }
+  if (regola.tipo === 'per_pezzo_variabile') {
+    if (!Array.isArray(contratti) || !regola.campo) return { euro: 0, label: '' };
+    const casi = Array.isArray(regola.casi) ? regola.casi : [];
+    let euro = 0;
+    contratti.forEach(c => {
+      const val = c[regola.campo];
+      const caso = casi.find(k => String(k.valore || '').trim().toLowerCase() === String(val || '').trim().toLowerCase());
+      euro += Number(caso?.importo || 0);
+    });
+    return { euro, label: regola.label || '' };
   }
   if (regola.tipo !== 'scaglioni') return { euro: 0, label: regola.label || '' };
   const scaglioni = Array.isArray(regola.scaglioni) ? regola.scaglioni : [];
@@ -365,6 +376,10 @@ function riassumiCompenso(regola) {
   if (regola.tipo === 'per_pezzo') {
     const v = Number(regola.per_pezzo) || 0;
     return { text: fmtEur(v) + ' / pz' + decSuffix, cls: 'ok' };
+  }
+  if (regola.tipo === 'per_pezzo_variabile') {
+    const n = (regola.casi || []).length;
+    return { text: n + ' caso' + (n === 1 ? '' : 'i') + ' su ' + (regola.campo || '?') + decSuffix, cls: 'ok' };
   }
   const scagliomi = (regola.scaglioni || []).length;
   const bonus = (regola.bonus_soglie || []).length;
@@ -652,10 +667,12 @@ function apriEditorScaglioni(metricaId, operatoreId) {
   const o = getObiettivo(metricaId, operatoreId);
   const regolaCorrente = o?.compenso_regola || { tipo: 'nessuno' };
   const draft = JSON.parse(JSON.stringify(regolaCorrente));
-  if (!['scaglioni', 'nessuno', 'per_pezzo'].includes(draft.tipo)) draft.tipo = 'nessuno';
+  if (!['scaglioni', 'nessuno', 'per_pezzo', 'per_pezzo_variabile'].includes(draft.tipo)) draft.tipo = 'nessuno';
   if (!draft.scaglioni) draft.scaglioni = [];
   if (!draft.bonus_soglie) draft.bonus_soglie = [];
   if (draft.per_pezzo == null) draft.per_pezzo = 0;
+  if (!draft.campo) draft.campo = 'modalita_pagamento';
+  if (!Array.isArray(draft.casi)) draft.casi = [];
   // Retrocompat: normalizza scaglioni legacy (per_pezzo → importo + tipo_calcolo)
   draft.scaglioni = draft.scaglioni.map(s => ({
     da: s.da ?? 0,
@@ -667,8 +684,9 @@ function apriEditorScaglioni(metricaId, operatoreId) {
   const renderBody = () => {
     let html = '<div class="modal-scaglioni">';
     html += `<div style="margin-bottom:10px;font-size:12px;color:var(--text-secondary)">Metrica: <b style="color:var(--text)">${escapeHtml(metrica.nome)}</b></div>`;
-    html += `<div class="toggle-row">
+    html += `<div class="toggle-row" style="flex-wrap:wrap">
       <label><input type="radio" name="modo" value="per_pezzo" ${draft.tipo==='per_pezzo'?'checked':''}> Ogni pezzo</label>
+      <label><input type="radio" name="modo" value="per_pezzo_variabile" ${draft.tipo==='per_pezzo_variabile'?'checked':''}> Per pezzo variabile</label>
       <label><input type="radio" name="modo" value="scaglioni" ${draft.tipo==='scaglioni'?'checked':''}> Scaglioni + bonus</label>
       <label><input type="radio" name="modo" value="nessuno" ${draft.tipo==='nessuno'?'checked':''}> Nessun compenso</label>
     </div>`;
@@ -690,6 +708,33 @@ function apriEditorScaglioni(metricaId, operatoreId) {
         <label style="font-size:13px;font-weight:600">&euro; per ogni pezzo inserito</label>
         <input type="number" min="0" step="0.01" id="inpPerPezzo" value="${draft.per_pezzo ?? 0}" style="width:140px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13.5px">
       </div>`;
+      html += '<div class="preview-compenso" id="previewCompenso"></div>';
+    }
+
+    if (draft.tipo === 'per_pezzo_variabile') {
+      const campiOpts = [
+        { v: 'modalita_pagamento', l: 'Modalita di pagamento (Finanziamento / Anticipo / ...)' },
+        { v: 'tipo_acquisto', l: 'Tipo acquisto (VAR / Finanziamento)' },
+        { v: 'finanziaria', l: 'Finanziaria (Findomestic / Compass)' },
+        { v: 'cluster_cliente', l: 'Cluster cliente (Consumer / Business / Turista)' },
+        { v: 'tipo_attivazione', l: 'Tipo attivazione (Nuova Attivazione / Portabilita)' }
+      ];
+      const campoOptsHtml = campiOpts.map(o => `<option value="${o.v}" ${draft.campo===o.v?'selected':''}>${escapeHtml(o.l)}</option>`).join('');
+      html += '<h3>Compenso per pezzo variabile</h3>';
+      html += `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;flex-wrap:wrap">
+        <label style="font-size:13px;font-weight:600">Guarda il campo del contratto</label>
+        <select id="selCampoVar" style="padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;min-width:280px">${campoOptsHtml}</select>
+      </div>`;
+      html += '<div id="listaCasi" style="margin-top:8px">';
+      draft.casi.forEach((cs, idx) => {
+        html += `<div class="row-bonus" style="grid-template-columns:auto 1fr auto 1fr auto">
+          <label>Se il valore &egrave;</label><input type="text" value="${escapeHtml(cs.valore ?? '')}" data-idx="${idx}" data-fld="valore">
+          <label>&rarr; &euro;</label><input type="number" min="0" step="0.01" value="${cs.importo ?? 0}" data-idx="${idx}" data-fld="importo">
+          <button class="btn-danger btn-rm-caso" data-idx="${idx}">X</button>
+        </div>`;
+      });
+      html += '</div>';
+      html += '<button class="btn-mini btn-add" id="btnAddCaso">+ Caso</button>';
       html += '<div class="preview-compenso" id="previewCompenso"></div>';
     }
 
@@ -757,6 +802,27 @@ function apriEditorScaglioni(metricaId, operatoreId) {
       aggiornaPreview();
     });
 
+    const selCampoVar = document.getElementById('selCampoVar');
+    if (selCampoVar) selCampoVar.addEventListener('change', () => {
+      draft.campo = selCampoVar.value; aggiornaPreview();
+    });
+    document.querySelectorAll('#listaCasi input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const idx = Number(inp.dataset.idx);
+        const fld = inp.dataset.fld;
+        draft.casi[idx][fld] = fld === 'importo' ? (Number(inp.value) || 0) : inp.value;
+        aggiornaPreview();
+      });
+    });
+    document.querySelectorAll('.btn-rm-caso').forEach(b => b.addEventListener('click', () => {
+      draft.casi.splice(Number(b.dataset.idx), 1); refresh();
+    }));
+    const btnAddC = document.getElementById('btnAddCaso');
+    if (btnAddC) btnAddC.addEventListener('click', () => {
+      draft.casi.push({ valore: '', importo: 0 });
+      refresh();
+    });
+
     document.querySelectorAll('#listaScaglioni input').forEach(inp => {
       inp.addEventListener('input', () => {
         const idx = Number(inp.dataset.idx);
@@ -805,6 +871,13 @@ function apriEditorScaglioni(metricaId, operatoreId) {
   const aggiornaPreview = () => {
     const prev = document.getElementById('previewCompenso');
     if (!prev) return;
+    if (draft.tipo === 'per_pezzo_variabile') {
+      // Non ha senso una preview numerica: dipende dal mix. Mostro il riassunto casi.
+      if (!draft.casi.length) { prev.textContent = 'Aggiungi almeno un caso.'; return; }
+      const righe = draft.casi.map(c => `Se ${draft.campo || 'campo'} = "${c.valore || ''}" → ${fmtEur(c.importo || 0)} / pezzo`).join('\n');
+      prev.textContent = 'Anteprima:\n' + righe;
+      return;
+    }
     const esempi = [10, 20, 30, 40, 50].map(p => {
       const c = calcolaCompenso(p, draft);
       return `${p} pezzi → ${fmtEur(c.euro)}`;
@@ -833,6 +906,11 @@ function apriEditorScaglioni(metricaId, operatoreId) {
       nuova = { tipo: 'nessuno' };
     } else if (draft.tipo === 'per_pezzo') {
       nuova = { tipo: 'per_pezzo', per_pezzo: Number(draft.per_pezzo) || 0 };
+    } else if (draft.tipo === 'per_pezzo_variabile') {
+      const casiPuliti = draft.casi
+        .map(c => ({ valore: String(c.valore || '').trim(), importo: Number(c.importo || 0) }))
+        .filter(c => c.valore);
+      nuova = { tipo: 'per_pezzo_variabile', campo: draft.campo || 'modalita_pagamento', casi: casiPuliti };
     } else {
       // Normalizza scaglioni al formato nuovo (importo + tipo_calcolo, no piu' per_pezzo)
       const scaglioniPuliti = draft.scaglioni.map(s => {

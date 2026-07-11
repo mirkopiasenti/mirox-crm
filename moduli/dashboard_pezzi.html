@@ -374,7 +374,7 @@ function operatoreContratto(contratto, profiliMap) {
 // ============================================================
 // COMPENSO — DSL scaglioni + bonus (allineato ad admin-gare)
 // ============================================================
-function calcolaCompenso(attuale, regola) {
+function calcolaCompenso(attuale, regola, contratti) {
   if (!regola || typeof regola !== 'object') return { euro: 0, label: '' };
   const attualeNum = Math.max(0, Number(attuale) || 0);
   const decSoglia = Number(regola.decurtazione_soglia) || 0;
@@ -382,6 +382,17 @@ function calcolaCompenso(attuale, regola) {
   if (regola.tipo === 'nessuno') return { euro: 0, label: regola.label || '' };
   if (regola.tipo === 'per_pezzo') {
     return { euro: attualeNum * (Number(regola.per_pezzo) || 0), label: regola.label || '' };
+  }
+  if (regola.tipo === 'per_pezzo_variabile') {
+    if (!Array.isArray(contratti) || !regola.campo) return { euro: 0, label: '' };
+    const casi = Array.isArray(regola.casi) ? regola.casi : [];
+    let euro = 0;
+    contratti.forEach(c => {
+      const val = c[regola.campo];
+      const caso = casi.find(k => String(k.valore || '').trim().toLowerCase() === String(val || '').trim().toLowerCase());
+      euro += Number(caso?.importo || 0);
+    });
+    return { euro, label: regola.label || '' };
   }
   if (regola.tipo !== 'scaglioni') return { euro: 0, label: regola.label || '' };
   const scaglioni = Array.isArray(regola.scaglioni) ? regola.scaglioni : [];
@@ -587,18 +598,17 @@ DPState.resolveOperatore = function(id) {
 function getObiettivoMese(metricaId, operatoreId) {
   return DPState.obiettivi.find(o => o.metrica_id === metricaId && (o.operatore_id || null) === (operatoreId || null)) || null;
 }
+function contrattiMatchPerOperatore(metrica, operatoreId) {
+  return DPState.contrattiMese.filter(c => DPState.resolveOperatore(c.operatore_id) === operatoreId && matchRegola(c, metrica.regola));
+}
+function contrattiMatchTotali(metrica) {
+  return DPState.contrattiMese.filter(c => matchRegola(c, metrica.regola));
+}
 function contaMatchPerOperatore(metrica, operatoreId) {
-  let n = 0;
-  DPState.contrattiMese.forEach(c => {
-    if (DPState.resolveOperatore(c.operatore_id) !== operatoreId) return;
-    if (matchRegola(c, metrica.regola)) n++;
-  });
-  return n;
+  return contrattiMatchPerOperatore(metrica, operatoreId).length;
 }
 function contaMatchTotale(metrica) {
-  let n = 0;
-  DPState.contrattiMese.forEach(c => { if (matchRegola(c, metrica.regola)) n++; });
-  return n;
+  return contrattiMatchTotali(metrica).length;
 }
 
 // ============================================================
@@ -618,10 +628,11 @@ function renderGare() {
     let bodyHtml = '';
     metriche.forEach(m => {
       const squadra = m.tipo_conteggio === 'squadra';
-      const attuale = squadra ? contaMatchTotale(m) : contaMatchPerOperatore(m, op.id);
+      const contrattiMatched = squadra ? contrattiMatchTotali(m) : contrattiMatchPerOperatore(m, op.id);
+      const attuale = contrattiMatched.length;
       const o = squadra ? getObiettivoMese(m.id, null) : getObiettivoMese(m.id, op.id);
       const obiettivo = o?.obiettivo ?? 0;
-      const c = calcolaCompenso(attuale, o?.compenso_regola);
+      const c = calcolaCompenso(attuale, o?.compenso_regola, contrattiMatched);
       const nomeCol = escapeHtml(m.nome) + (squadra ? ' <span style="font-size:9.5px;background:#DBEAFE;color:#1E40AF;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700;letter-spacing:.04em">SQUADRA</span>' : '');
       if (c.label) {
         bodyHtml += `<tr>
