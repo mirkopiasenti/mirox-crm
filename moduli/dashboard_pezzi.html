@@ -700,15 +700,21 @@ function renderAvanzamento() {
     wrap.innerHTML = '<div class="empty-state"><div class="empty-icon"></div>Nessuna metrica configurata.</div>';
     return;
   }
+  // Le righe "Extra Gara P.IVA" sono state accorpate visivamente sotto le P.IVA:
+  // stessa tabella, stesse colonne. Ordinamento: prima le avanzamento_piva per
+  // ordine ASC, poi le avanzamento_extra_piva per ordine ASC.
+  const priorita = { avanzamento_piva: 1, avanzamento_extra_piva: 2 };
+  const metrichePiva = DPState.metricheGara
+    .filter(m => m.tabella === 'avanzamento_piva' || m.tabella === 'avanzamento_extra_piva')
+    .sort((a, b) => (priorita[a.tabella] - priorita[b.tabella]) || (a.ordine - b.ordine));
   const sezioni = [
-    { tabella: 'avanzamento_standard', titolo: 'Avanzamento' },
-    { tabella: 'avanzamento_piva', titolo: 'Avanzamento P.IVA' },
-    { tabella: 'avanzamento_extra_piva', titolo: 'Extra Gara P.IVA' }
+    { key: 'standard', titolo: 'Avanzamento', metriche: DPState.metricheGara.filter(m => m.tabella === 'avanzamento_standard') },
+    { key: 'piva',     titolo: 'Avanzamento P.IVA', metriche: metrichePiva }
   ];
   let html = '';
   let totaleContratti = 0;
   sezioni.forEach(sez => {
-    const metriche = DPState.metricheGara.filter(m => m.tabella === sez.tabella);
+    const metriche = sez.metriche;
     if (!metriche.length) return;
     html += `<div class="av-section"><h3>${escapeHtml(sez.titolo)}</h3>`;
     const opHeaders = operatori.map(op => `<th class="gr-pezzi">${escapeHtml(op.nome)}</th>`).join('');
