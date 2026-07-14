@@ -203,7 +203,7 @@ table.gara-tab tbody tr.tot td.compenso-tot {
   letter-spacing: .05em; color: var(--text-secondary);
   padding: 8px 4px 6px; border-bottom: 1px solid var(--border);
 }
-table.avanz { display: inline-table; border-collapse: collapse; font-size: 12px; margin-top: 6px; table-layout: fixed; }
+table.avanz { border-collapse: collapse; font-size: 12px; margin-top: 6px; table-layout: fixed; }
 table.avanz thead th {
   background: var(--bg); font-size: 10.5px; font-weight: 700; text-transform: uppercase;
   color: var(--text-secondary); letter-spacing: .04em;
@@ -717,7 +717,8 @@ function renderAvanzamento() {
     if (!metriche.length) return;
     html += `<div class="av-section"><h3>${escapeHtml(sez.titolo)}</h3>`;
     const opHeaders = operatori.map(op => `<th class="gr-pezzi" style="width:88px">${escapeHtml(op.nome)}</th>`).join('');
-    html += `<table class="avanz"><thead><tr>
+    const totalWidth = 220 + (88 * operatori.length) + 380; // metrica + ops + (80+100+100+100)
+    html += `<table class="avanz" style="width:${totalWidth}px;min-width:${totalWidth}px;max-width:${totalWidth}px"><thead><tr>
       <th style="width:220px">Categorie</th>
       ${opHeaders}
       <th style="width:80px">Punteggio</th>
