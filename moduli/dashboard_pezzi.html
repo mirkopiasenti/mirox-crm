@@ -204,8 +204,6 @@ table.gara-tab tbody tr.tot td.compenso-tot {
   padding: 8px 4px 6px; border-bottom: 1px solid var(--border);
 }
 table.avanz { display: inline-table; border-collapse: collapse; font-size: 12px; margin-top: 6px; table-layout: fixed; }
-table.avanz col.col-op { width: 88px; }
-table.avanz .col-metrica { width: 220px; }
 table.avanz thead th {
   background: var(--bg); font-size: 10.5px; font-weight: 700; text-transform: uppercase;
   color: var(--text-secondary); letter-spacing: .04em;
@@ -718,24 +716,14 @@ function renderAvanzamento() {
     const metriche = sez.metriche;
     if (!metriche.length) return;
     html += `<div class="av-section"><h3>${escapeHtml(sez.titolo)}</h3>`;
-    const opHeaders = operatori.map(op => `<th class="gr-pezzi">${escapeHtml(op.nome)}</th>`).join('');
-    const opColgroup = operatori.map(() => '<col class="col-op">').join('');
-    html += `<table class="avanz">
-      <colgroup>
-        <col class="col-metrica">
-        ${opColgroup}
-        <col style="width:80px">
-        <col style="width:100px">
-        <col style="width:100px">
-        <col style="width:100px">
-      </colgroup>
-      <thead><tr>
-      <th>Categorie</th>
+    const opHeaders = operatori.map(op => `<th class="gr-pezzi" style="width:88px">${escapeHtml(op.nome)}</th>`).join('');
+    html += `<table class="avanz"><thead><tr>
+      <th style="width:220px">Categorie</th>
       ${opHeaders}
-      <th>Punteggio</th>
-      <th>Obiettivo</th>
-      <th>Andamento</th>
-      <th>Eccedenza</th>
+      <th style="width:80px">Punteggio</th>
+      <th style="width:100px">Obiettivo</th>
+      <th style="width:100px">Andamento</th>
+      <th style="width:100px">Eccedenza</th>
     </tr></thead><tbody>`;
     metriche.forEach(m => {
       const conteggi = operatori.map(op => contaMatchPerOperatore(m, op.id));
