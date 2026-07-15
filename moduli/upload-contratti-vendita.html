@@ -6346,7 +6346,10 @@ Reload Forever
        <button type="button" class="mx-btn mx-btn-primary" id="cpOtpSend">Invia SMS</button>
        <button type="button" class="mx-btn mx-btn-primary" id="cpOtpVerify" style="display:none;">Verifica OTP</button>
      `;
-     const m = MiroxUI._build({ title: 'Consenso privacy - Firma con OTP', bodyHtml: html, footerHtml: footer, large: true, onClose: () => {
+     // closable:false disabilita chiusura via backdrop-click / ESC / X in alto.
+     // L'utente puo' chiudere solo col bottone "Annulla" esplicito nel footer:
+     // evita che il modale sparisca mentre si sta correggendo il numero cellulare.
+     const m = MiroxUI._build({ title: 'Consenso privacy - Firma con OTP', bodyHtml: html, footerHtml: footer, large: true, closable: false, onClose: () => {
        if (timerHandle) clearInterval(timerHandle);
        if (cooldownHandle) clearInterval(cooldownHandle);
        resolve(null);
@@ -6606,7 +6609,9 @@ Reload Forever
        <button type="button" class="mx-btn mx-btn-secondary" data-cp-cancel>Annulla</button>
        <button type="button" class="mx-btn mx-btn-primary" id="cpCartConfirm" disabled>Carica e conferma</button>
      `;
-     const m = MiroxUI._build({ title: 'Consenso privacy - Modulo cartaceo', bodyHtml: html, footerHtml: footer, large: true, onClose: () => resolve(null) });
+     // closable:false: solo il bottone "Annulla" chiude il modale (no backdrop/ESC/X),
+     // per evitare chiusure accidentali mentre si carica il PDF firmato.
+     const m = MiroxUI._build({ title: 'Consenso privacy - Modulo cartaceo', bodyHtml: html, footerHtml: footer, large: true, closable: false, onClose: () => resolve(null) });
 
      const marketingChk = m.body.querySelector('#cpCartMarketing');
      const dlBtn = m.body.querySelector('#cpCartDownload');
