@@ -793,6 +793,9 @@ function renderAvanzamento() {
     // filtro post-vendita sui contratti Business (Fisso/Energia/Allarmi) e usiamo
     // punteggio_extra_gara_totale come valore della colonna Punteggio.
     const usaFiltroExtraPiva = sez.key === 'piva';
+    // Nella sezione Standard alcune categorie usano una colonna punteggio dedicata
+    // invece del semplice conteggio pezzi (Assicurazioni -> punteggio_gara_totale).
+    const CAMPO_PUNTEGGIO_STANDARD = { 'Assicurazioni': 'punteggio_gara_totale' };
     metriche.forEach(m => {
       let contrattiPerOp = operatori.map(op => contrattiMatchPerOperatore(m, op.id));
       if (usaFiltroExtraPiva) {
@@ -801,12 +804,17 @@ function renderAvanzamento() {
       const conteggi = contrattiPerOp.map(list => contaConPesi(list, m));
       const attuale = conteggi.reduce((a,b)=>a+b, 0);
       totaleContratti += attuale;
-      // Punteggio: (a) Avanzamento P.IVA -> somma punteggio_extra_gara_totale sui
-      // contratti filtrati; (b) metrica con punteggio_campo -> somma quella colonna;
-      // (c) fallback -> conteggio pezzi.
+      // Punteggio:
+      // (a) Avanzamento P.IVA -> somma punteggio_extra_gara_totale sui contratti filtrati
+      // (b) Avanzamento Standard con categoria in CAMPO_PUNTEGGIO_STANDARD -> somma quella colonna
+      // (c) metrica con punteggio_campo -> somma quella colonna
+      // (d) fallback -> conteggio pezzi
+      const campoStandard = (sez.key === 'standard' && m.regola?.categoria) ? CAMPO_PUNTEGGIO_STANDARD[m.regola.categoria] : null;
       let punteggio;
       if (usaFiltroExtraPiva) {
         punteggio = contrattiPerOp.reduce((tot, list) => tot + sommaCampoPunteggio(list, 'punteggio_extra_gara_totale'), 0);
+      } else if (campoStandard) {
+        punteggio = contrattiPerOp.reduce((tot, list) => tot + sommaCampoPunteggio(list, campoStandard), 0);
       } else if (m.punteggio_campo) {
         punteggio = contrattiPerOp.reduce((tot, list) => tot + sommaCampoPunteggio(list, m.punteggio_campo), 0);
       } else {
