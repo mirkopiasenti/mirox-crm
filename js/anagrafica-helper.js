@@ -157,8 +157,7 @@
     if (!String(dati.nome_referente || '').trim()) return 'Nome referente obbligatorio';
     if (!String(dati.cellulare || '').trim()) return 'Cellulare obbligatorio';
     const emailTrim = String(dati.email || '').trim();
-    if (!emailTrim) return 'Email obbligatoria';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) return 'Email non valida';
+    if (emailTrim && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) return 'Email non valida';
     return null;
   }
 
