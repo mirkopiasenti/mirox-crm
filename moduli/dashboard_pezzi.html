@@ -574,22 +574,45 @@ async function caricaDatiMensili() {
 
   DPState.contrattiMese = (rContratti.data || []).filter(c => c.stato_inserimento !== 'reinserimento');
 
-  // Stati post-vendita per i filtri Avanzamento (P.IVA + Energia Standard).
+  // Stati post-vendita per i filtri Avanzamento (P.IVA + Energia/Fisso Standard).
   // Carichiamo per TUTTI i contratti Fisso/Energia/Allarmi del mese (senza filtro cluster)
-  // perche' l'Avanzamento Standard L&G filtra anche i cluster non-Business.
+  // perche' i filtri Standard coprono anche i cluster non-Business.
   const contrattiPostVenditaIds = DPState.contrattiMese
     .filter(c => ['Fisso','Energia','Allarmi'].includes(c.categoria_snapshot))
     .map(c => c.id);
   DPState.statoPostVendita = { fisso: new Map(), energia: new Map(), allarmi: new Map() };
+  DPState.tecnologiaFisso = new Map();
   if (contrattiPostVenditaIds.length) {
     const [rFisso, rLg, rAll] = await Promise.all([
-      sb.from('post_vendita_controllo_fissi').select('contratto_id, stato').in('contratto_id', contrattiPostVenditaIds),
+      sb.from('post_vendita_controllo_fissi').select('contratto_id, stato, tecnologia').in('contratto_id', contrattiPostVenditaIds),
       sb.from('post_vendita_controllo_lg').select('contratto_id, stato').in('contratto_id', contrattiPostVenditaIds),
       sb.from('post_vendita_controllo_allarmi').select('contratto_id, stato').in('contratto_id', contrattiPostVenditaIds)
     ]);
-    (rFisso.data || []).forEach(r => DPState.statoPostVendita.fisso.set(r.contratto_id, r.stato));
+    (rFisso.data || []).forEach(r => {
+      DPState.statoPostVendita.fisso.set(r.contratto_id, r.stato);
+      DPState.tecnologiaFisso.set(r.contratto_id, r.tecnologia);
+    });
     (rLg.data || []).forEach(r => DPState.statoPostVendita.energia.set(r.contratto_id, r.stato));
     (rAll.data || []).forEach(r => DPState.statoPostVendita.allarmi.set(r.contratto_id, r.stato));
+  }
+
+  // FTTC attivati nel mese (indipendentemente dal mese del contratto).
+  // Per la riga FISSI dell'Avanzamento Standard: i FTTC contano SOLO se stato=Attivo
+  // e SOLO nel mese di data_attivazione. Caricamento separato perche' data_contratto
+  // puo' essere di un mese diverso.
+  DPState.fissoFTTCAttivatiMese = [];
+  const rFttcPv = await sb.from('post_vendita_controllo_fissi')
+    .select('contratto_id')
+    .eq('tecnologia', 'FTTC')
+    .eq('stato', 'Attivo')
+    .gte('data_attivazione', `${DPState.anno}-${String(DPState.mese).padStart(2,'0')}-01`)
+    .lt('data_attivazione', `${annoPost}-${String(mesePost).padStart(2,'0')}-01`);
+  const fttcIds = (rFttcPv.data || []).map(r => r.contratto_id);
+  if (fttcIds.length) {
+    const rFttcContr = await sb.from('vendita_contratti')
+      .select('id, operatore_id, cluster_cliente, categoria_snapshot, data_contratto, stato_inserimento, punteggio_gara_totale')
+      .in('id', fttcIds);
+    DPState.fissoFTTCAttivatiMese = (rFttcContr.data || []).filter(c => c.stato_inserimento !== 'reinserimento');
   }
   DPState.metricheGara = rMetriche.data || [];
   DPState.obiettivi = rObiettivi.data || [];
@@ -603,11 +626,16 @@ async function caricaDatiMensili() {
 
   // Operatori attivi nel mese (per l'Avanzamento Mensile): union in_gara + chi ha contratti,
   // risolti al canonico se un contratto storico non e' ancora stato backfillato.
+  // Include anche gli operatori di FTTC attivati nel mese (contratto di altro mese).
   const opConContratti = new Set(
     DPState.contrattiMese
       .map(c => DPState.resolveOperatore(c.operatore_id))
       .filter(Boolean)
   );
+  DPState.fissoFTTCAttivatiMese.forEach(c => {
+    const op = DPState.resolveOperatore(c.operatore_id);
+    if (op) opConContratti.add(op);
+  });
   const opIds = new Set([...DPState.operatoriInGara.map(p => p.id), ...opConContratti]);
   DPState.operatoriAttiviMese = Array.from(opIds)
     .map(id => profiliMap.get(id))
@@ -795,8 +823,9 @@ function renderAvanzamento() {
     // punteggio_extra_gara_totale come valore della colonna Punteggio.
     const usaFiltroExtraPiva = sez.key === 'piva';
     // Nella sezione Standard alcune categorie usano una colonna punteggio dedicata
-    // invece del semplice conteggio pezzi (Assicurazioni -> punteggio_gara_totale).
-    const CAMPO_PUNTEGGIO_STANDARD = { 'Assicurazioni': 'punteggio_gara_totale' };
+    // invece del semplice conteggio pezzi (Assicurazioni -> punteggio_gara_totale,
+    // Fisso -> punteggio_gara_totale).
+    const CAMPO_PUNTEGGIO_STANDARD = { 'Assicurazioni': 'punteggio_gara_totale', 'Fisso': 'punteggio_gara_totale' };
     metriche.forEach(m => {
       let contrattiPerOp = operatori.map(op => contrattiMatchPerOperatore(m, op.id));
       if (usaFiltroExtraPiva) {
@@ -804,6 +833,22 @@ function renderAvanzamento() {
       } else if (sez.key === 'standard' && m.regola?.categoria === 'Energia') {
         // Avanzamento Standard - Luce & Gas: escludi contratti con post_vendita_controllo_lg.stato = 'Rifiutato'
         contrattiPerOp = contrattiPerOp.map(list => list.filter(c => DPState.statoPostVendita?.energia.get(c.id) !== 'Rifiutato'));
+      } else if (sez.key === 'standard' && m.regola?.categoria === 'Fisso') {
+        // Avanzamento Standard - Fissi: (a) escludi FTTC del mese e contratti con stato != 'Attivo'/'In Attivazione'
+        // (b) aggiungi FTTC attivati nel mese (indipendentemente da data_contratto) con stato='Attivo'
+        contrattiPerOp = contrattiPerOp.map((list, i) => {
+          const opId = operatori[i].id;
+          const nonFttc = list.filter(c => {
+            const stato = DPState.statoPostVendita?.fisso.get(c.id);
+            const tecno = DPState.tecnologiaFisso?.get(c.id);
+            if (tecno === 'FTTC') return false; // FTTC gestiti separatamente
+            return stato === 'Attivo' || stato === 'In Attivazione';
+          });
+          const fttcAttivati = (DPState.fissoFTTCAttivatiMese || []).filter(c =>
+            DPState.resolveOperatore(c.operatore_id) === opId
+          );
+          return [...nonFttc, ...fttcAttivati];
+        });
       }
       const conteggi = contrattiPerOp.map(list => contaConPesi(list, m));
       const attuale = conteggi.reduce((a,b)=>a+b, 0);
