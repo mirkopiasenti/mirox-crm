@@ -224,11 +224,13 @@ table.avanz tbody td.eccedenza.pos { background: #DCFCE7; color: var(--success);
 table.avanz tbody td.andamento.perc { font-weight: 700; }
 table.avanz tbody td.andamento.raggiunto { background: #DCFCE7; color: var(--success); }
 table.avanz tbody tr.subheader td {
-  background: var(--bg); font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  background: #fff; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
   color: var(--text-secondary); letter-spacing: .04em;
   padding: 5px 8px; text-align: center;
-  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  border-top: none; border-bottom: none;
 }
+table.avanz tbody td.empty-obanec { background: #fff; border-bottom: none; }
+table.avanz thead th.empty-obanec { background: #fff; border-bottom: none; }
 
 .empty-state { padding: 40px 20px; text-align: center; color: var(--text-secondary); }
 .empty-state .empty-icon { font-size: 36px; margin-bottom: 8px; opacity: 0.45; }
@@ -738,7 +740,7 @@ function renderAvanzamento() {
     // di tipo "avanzamento_extra_piva" (unica riga che le utilizza).
     const isPiva = sez.key === 'piva';
     const headerObAnEc = isPiva
-      ? `<th style="width:100px"></th><th style="width:100px"></th><th style="width:100px"></th>`
+      ? `<th class="empty-obanec" style="width:100px"></th><th class="empty-obanec" style="width:100px"></th><th class="empty-obanec" style="width:100px"></th>`
       : `<th style="width:100px">Obiettivo</th><th style="width:100px">Andamento</th><th style="width:100px">Eccedenza</th>`;
     html += `<table class="avanz" style="width:${totalWidth}px;min-width:${totalWidth}px;max-width:${totalWidth}px"><thead><tr>
       <th style="width:220px">Categorie</th>
@@ -786,7 +788,7 @@ function renderAvanzamento() {
         ${opCells}
         <td class="punteggio">${punteggio.toLocaleString('it-IT', {minimumFractionDigits:0, maximumFractionDigits:2})}</td>
         ${hideObAnEc
-          ? `<td></td><td></td><td></td>`
+          ? `<td class="empty-obanec"></td><td class="empty-obanec"></td><td class="empty-obanec"></td>`
           : `<td>${obiettivo || '-'}</td>
              <td class="andamento perc ${andCls}">${andamento === null ? '-' : andamento.toFixed(1) + '%'}</td>
              <td class="eccedenza ${eccCls}">${eccedenza || ''}</td>`}
