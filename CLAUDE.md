@@ -469,7 +469,20 @@ Variante `{ "tipo": "nessuno", "label": "DEC." }` = riga senza calcolo compenso,
 
 Tab **Gare Individuali**: una card `.gara-card` per ogni operatore con `in_gara=true`, contenente una tabella `Metrica | Attuale | Obiettivo | Compenso` e riga "Totale compensi". "Attuale" = conteggio contratti del mese in cui `operatore_id = ` operatore E `matchRegola(contratto, metrica.regola)`. "Compenso" = `calcolaCompenso(attuale, obiettivo.compenso_regola)`. Se `compenso_regola.tipo='nessuno'` mostra il label (es. "DEC.") in rosso, non contribuisce al totale. Filtro: i contratti con `stato_inserimento='reinserimento'` sono esclusi (coerente con la regola anti-doppio-conteggio).
 
-Tab **Avanzamento Mensile**: 3 sezioni (Standard / P.IVA / Extra Gara P.IVA). Colonne operatore dinamiche = union `profili.in_gara=true` + qualsiasi operatore con almeno un contratto nel mese. Righe: pezzi per operatore + Punteggio (`somma_pezzi × punti_per_pezzo`) + Obiettivo (obiettivo di categoria, `operatore_id=NULL`) + Andamento % (`attuale/obiettivo × 100`, verde ≥100%) + Eccedenza (`max(0, attuale − obiettivo)`, verde >0). Solo numeri, no drill-down (scelta UX dell'utente per non appesantire il render).
+Tab **Avanzamento Mensile**: 2 sezioni (Standard / Avanzamento P.IVA — che raggruppa le P.IVA di categoria + la riga aggregata Extra Gara P.IVA). Colonne operatore dinamiche = union `profili.in_gara=true` + qualsiasi operatore con almeno un contratto nel mese. Righe: pezzi per operatore + Punteggio + Obiettivo/Andamento/Eccedenza.
+
+- **Sezione Standard**: colonne Obiettivo/Andamento/Eccedenza in header + righe valorizzate. Punteggio = `somma_pezzi × punti_per_pezzo` (o `sommaCampoPunteggio` se `punteggio_campo` è impostato). Andamento % (`attuale/obiettivo × 100`, verde ≥100%) + Eccedenza (`max(0, attuale − obiettivo)`, verde >0).
+- **Sezione Avanzamento P.IVA** (dal 2026-07-15): logica speciale — le colonne Obiettivo/Andamento/Eccedenza sono vuote sulle righe P.IVA di categoria (MOBILI/FISSI/L&G/ASSICURAZIONI/W3 PROTETTI) e le intestazioni scendono in una sotto-intestazione grigia posizionata sopra la riga aggregata Extra Gara P.IVA (che rimane l'unica valorizzata su Ob/And/Ecc).
+  - **Colonna Punteggio** = somma di `vendita_contratti.punteggio_extra_gara_totale` sui contratti filtrati (non conteggio pezzi).
+  - **Filtro post-vendita per categoria** applicato SIA alle righe P.IVA singole SIA alla riga Extra Gara P.IVA (per garantire che la somma delle righe = riga aggregata):
+    - **Fisso** → incluso solo se `post_vendita_controllo_fissi.stato` IN (`In Attivazione`, `Attivo`)
+    - **Energia** → escluso solo se `post_vendita_controllo_lg.stato` = `Rifiutato` (NULL ammesso)
+    - **Allarmi** → incluso solo se `post_vendita_controllo_allarmi.stato` = `OK`
+    - Altre categorie (Mobile, Customer Base, Assicurazioni) → sempre incluse
+  - Celle per operatore mostrano il numero di **pezzi filtrati** (coerenti col filtro post-vendita).
+  - Implementazione: `DPState.statoPostVendita = {fisso, energia, allarmi}` (Map contratto_id → stato) caricato in `caricaDatiMensili`; helper `isContrattoValidoAvanzamentoPiva(c)`; branch `usaFiltroExtraPiva = sez.key === 'piva'` in `renderAvanzamento`.
+
+Solo numeri, no drill-down (scelta UX dell'utente per non appesantire il render).
 
 ### UI admin — `admin-gare.html`
 
