@@ -560,7 +560,7 @@ async function caricaDatiMensili() {
         dispositivo_associato, tipo_acquisto, fascia_prezzo, finanziaria, kolme,
         reload_exchange, data_contratto, stato_controllo, stato_inserimento,
         punteggio_gara_offerta, punteggio_gara_opzione, punteggio_gara_totale,
-        punteggio_extra_gara_offerta, punteggio_extra_gara_opzione,
+        punteggio_extra_gara_offerta, punteggio_extra_gara_opzione, punteggio_extra_gara_totale,
         punteggio_offerta, punteggio_opzione, punteggio_totale
       `).gte('data_contratto', start).lt('data_contratto', end),
     sb.from('gara_metriche').select('*').eq('attiva', true).order('tabella').order('ordine'),
@@ -573,6 +573,23 @@ async function caricaDatiMensili() {
   if (rProfili.error) throw rProfili.error;
 
   DPState.contrattiMese = (rContratti.data || []).filter(c => c.stato_inserimento !== 'reinserimento');
+
+  // Stati post-vendita necessari per il filtro Avanzamento P.IVA (Fisso/Energia/Allarmi).
+  // Carichiamo solo per i contratti Business del mese, che sono l'unico target del filtro.
+  const contrattiBusinessIds = DPState.contrattiMese
+    .filter(c => c.cluster_cliente === 'Business' && ['Fisso','Energia','Allarmi'].includes(c.categoria_snapshot))
+    .map(c => c.id);
+  DPState.statoPostVendita = { fisso: new Map(), energia: new Map(), allarmi: new Map() };
+  if (contrattiBusinessIds.length) {
+    const [rFisso, rLg, rAll] = await Promise.all([
+      sb.from('post_vendita_controllo_fissi').select('contratto_id, stato').in('contratto_id', contrattiBusinessIds),
+      sb.from('post_vendita_controllo_lg').select('contratto_id, stato').in('contratto_id', contrattiBusinessIds),
+      sb.from('post_vendita_controllo_allarmi').select('contratto_id, stato').in('contratto_id', contrattiBusinessIds)
+    ]);
+    (rFisso.data || []).forEach(r => DPState.statoPostVendita.fisso.set(r.contratto_id, r.stato));
+    (rLg.data || []).forEach(r => DPState.statoPostVendita.energia.set(r.contratto_id, r.stato));
+    (rAll.data || []).forEach(r => DPState.statoPostVendita.allarmi.set(r.contratto_id, r.stato));
+  }
   DPState.metricheGara = rMetriche.data || [];
   DPState.obiettivi = rObiettivi.data || [];
   const profiliMap = new Map();
@@ -648,6 +665,28 @@ function contaMatchPerOperatore(metrica, operatoreId) {
 }
 function contaMatchTotale(metrica) {
   return contaConPesi(contrattiMatchTotali(metrica), metrica);
+}
+
+// Filtro post-vendita per Avanzamento P.IVA / Extra Gara P.IVA:
+// Fisso   -> stato IN ('In Attivazione','Attivo')
+// Energia -> stato != 'Rifiutato' (NULL ammesso)
+// Allarmi -> stato = 'OK'
+// Altre categorie -> sempre valido
+function isContrattoValidoAvanzamentoPiva(c) {
+  const cat = c.categoria_snapshot;
+  if (cat === 'Fisso') {
+    const s = DPState.statoPostVendita?.fisso.get(c.id);
+    return s === 'In Attivazione' || s === 'Attivo';
+  }
+  if (cat === 'Energia') {
+    const s = DPState.statoPostVendita?.energia.get(c.id);
+    return s !== 'Rifiutato';
+  }
+  if (cat === 'Allarmi') {
+    const s = DPState.statoPostVendita?.allarmi.get(c.id);
+    return s === 'OK';
+  }
+  return true;
 }
 
 // ============================================================
@@ -750,15 +789,25 @@ function renderAvanzamento() {
       ${headerObAnEc}
     </tr></thead><tbody>`;
     let subheaderExtraInserted = false;
+    // Per le metriche Avanzamento P.IVA (individuali + Extra Gara) applichiamo il
+    // filtro post-vendita sui contratti Business (Fisso/Energia/Allarmi) e usiamo
+    // punteggio_extra_gara_totale come valore della colonna Punteggio.
+    const usaFiltroExtraPiva = sez.key === 'piva';
     metriche.forEach(m => {
-      const contrattiPerOp = operatori.map(op => contrattiMatchPerOperatore(m, op.id));
+      let contrattiPerOp = operatori.map(op => contrattiMatchPerOperatore(m, op.id));
+      if (usaFiltroExtraPiva) {
+        contrattiPerOp = contrattiPerOp.map(list => list.filter(isContrattoValidoAvanzamentoPiva));
+      }
       const conteggi = contrattiPerOp.map(list => contaConPesi(list, m));
       const attuale = conteggi.reduce((a,b)=>a+b, 0);
       totaleContratti += attuale;
-      // Punteggio: se la metrica ha punteggio_campo, somma quella colonna sui
-      // contratti matched (di tutti gli operatori mostrati); altrimenti = attuale.
+      // Punteggio: (a) Avanzamento P.IVA -> somma punteggio_extra_gara_totale sui
+      // contratti filtrati; (b) metrica con punteggio_campo -> somma quella colonna;
+      // (c) fallback -> conteggio pezzi.
       let punteggio;
-      if (m.punteggio_campo) {
+      if (usaFiltroExtraPiva) {
+        punteggio = contrattiPerOp.reduce((tot, list) => tot + sommaCampoPunteggio(list, 'punteggio_extra_gara_totale'), 0);
+      } else if (m.punteggio_campo) {
         punteggio = contrattiPerOp.reduce((tot, list) => tot + sommaCampoPunteggio(list, m.punteggio_campo), 0);
       } else {
         punteggio = attuale;
