@@ -772,6 +772,20 @@ exports.handler = async (event) => {
     const opzioniById = indexById(opzioniRes.data);
     const reloadById = indexById(reloadRes.data);
 
+    // Migration 049 — bonus configurabile per Assicurazioni Annuale.
+    // Letto UNA volta prima del loop dei contratti per evitare N query.
+    // Se la chiave non esiste o il valore non parsa, bonus = 0 (no-op).
+    let bonusAssicurazioneAnnuale = 0;
+    try {
+      const { data: setting } = await supabase
+        .from('impostazioni')
+        .select('valore')
+        .eq('chiave', 'bonus_assicurazione_annuale')
+        .maybeSingle();
+      const parsed = parseFloat(String(setting?.valore ?? '').replace(',', '.'));
+      if (Number.isFinite(parsed) && parsed >= 0) bonusAssicurazioneAnnuale = parsed;
+    } catch (_) { /* bonus resta 0 se qualcosa va storto */ }
+
     const createdContracts = [];
     const pdaWarnings = [];
 
@@ -905,9 +919,22 @@ exports.handler = async (event) => {
         offerta.punteggio_gara,
         `punteggio_gara offerta (contratti[${index}])`
       );
-      const punteggioGaraOpzione = opzione
+      let punteggioGaraOpzione = opzione
         ? parseRequiredScore(opzione.punteggio_gara, `punteggio_gara opzione (contratti[${index}])`)
         : 0;
+      // Migration 049 — Bonus Assicurazione Annuale.
+      // Se categoria=Assicurazioni AND ricorrenza=Annuale, sommo il bonus
+      // configurato in impostazioni['bonus_assicurazione_annuale'] al
+      // punteggio_gara_opzione. Il valore e' snapshot alla creazione
+      // (contratti storici non vengono retroattivamente aggiornati se
+      // l'admin modifica il bonus in futuro).
+      if (
+        bonusAssicurazioneAnnuale > 0
+        && normalizeCategoryName(categoria.nome) === normalizeCategoryName('Assicurazioni')
+        && item.ricorrenza_assicurazione === 'Annuale'
+      ) {
+        punteggioGaraOpzione = Number((punteggioGaraOpzione + bonusAssicurazioneAnnuale).toFixed(2));
+      }
       const punteggioExtraGaraOfferta = parseOptionalScore(offerta.punteggio_extra_gara, 0);
       const punteggioExtraGaraOpzione = opzione ? parseOptionalScore(opzione.punteggio_extra_gara, 0) : 0;
 
