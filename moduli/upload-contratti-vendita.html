@@ -4280,7 +4280,9 @@ Reload Forever
  // Pulisci il PDA pending + scelta firma + upload contratto firmato per il prossimo contratto
  runtimeState.pendingPda = null;
  runtimeState.pendingTipoFirma = null;
- if (refs.filePda) refs.filePda.value = '';
+ if (refs.filePda) clearInputFile(refs.filePda);
+ if (refs.pdaSelectedInfo) refs.pdaSelectedInfo.textContent = 'Nessun file selezionato';
+ if (refs.pdaOcrStatus) refs.pdaOcrStatus.style.display = 'none';
  if (refs.fileContrattoFirmato) clearInputFile(refs.fileContrattoFirmato);
 
  updateCartClienteSnapshot();
@@ -4302,6 +4304,7 @@ Reload Forever
  renderOpzioni();
  renderReload();
  renderDynamicSections();
+ renderCategoriaActions();
  goToStep(1);
  }
  } catch (error) {
@@ -5652,6 +5655,40 @@ Reload Forever
  const file = refs.filePda && refs.filePda.files ? refs.filePda.files[0] : null;
  if (!file) {
  showUserError('Carica il PDF del PDA prima di proseguire', 'Step 1 - PDA');
+ return;
+ }
+ // Multi-contratto: dal 2 contratto in poi l'anagrafica e' gia' nota,
+ // quindi salta l'OCR (che sarebbe inutile) e si comporta come "Continua senza AI":
+ // upload PDA in staging + vai direttamente allo step 3 (dati contratto).
+ if (runtimeState.anagraficaCompleted) {
+ try {
+ showLoadingOverlay('Upload PDA in corso', 'Caricamento del PDA in staging...');
+ const uploadInfo = await uploadPdaStaging(file);
+ runtimeState.pendingPda = uploadInfo;
+ hideLoadingOverlay();
+ goToStep(3);
+ queueDraftSave();
+ } catch (error) {
+ hideLoadingOverlay();
+ if (isTechnicalError(error)) {
+ showErrorOverlay(
+ 'Errore upload PDA',
+ error.message || 'Errore upload PDA',
+ error.technicalDetails || '',
+ {
+ level: 'error',
+ errorCode: error.serverErrorCode || 'pda_staging_upload_failed',
+ context: {
+ step: 'step_1_pda_upload_multi_contratto',
+ http_status: error.httpStatus || null,
+ request_url: error.requestUrl || null
+ }
+ }
+ );
+ } else {
+ showUserError(error.message || 'Errore upload PDA', 'Step 1 - PDA');
+ }
+ }
  return;
  }
  try {
