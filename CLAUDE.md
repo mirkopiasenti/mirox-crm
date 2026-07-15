@@ -368,7 +368,7 @@ Quando una pratica va in KO post-vendita (o `Rifiutata`/`Annullata`/`In lavorazi
 
 **Flusso wizard** (`upload-contratti-vendita.html`):
 1. All'apertura dello **step 3 (Dati contratto)** il wizard chiama `checkReinserimento(anagrafica_id, categoria_id, categoria_nome)` se la coppia (anagrafica, categoria) non è già stata verificata in sessione (`runtimeState.lastReinsCheckKey`)
-2. La funzione fa due query: prima recupera i contratti `vendita_contratti` del cliente per quella categoria negli ultimi **90 giorni** (`stato_inserimento='inserimento'`, esclude catene di reinserimenti), poi recupera dalla tabella post-vendita appropriata gli stati che fanno scattare il popup
+2. La funzione fa due query: prima recupera i contratti `vendita_contratti` del cliente per quella categoria nel **mese solare corrente** (timezone Europe/Rome, `data_contratto >= inizio_mese AND < inizio_mese_successivo`, `stato_inserimento='inserimento'`, esclude catene di reinserimenti), poi recupera dalla tabella post-vendita appropriata gli stati che fanno scattare il popup. Un contratto di giugno **NON** è candidato al reinserimento per un contratto inserito a luglio: sarà classificato come inserimento nuovo. Vecchia finestra 90gg sostituita dal mese solare
 3. Mapping categoria → tabella → stati trigger:
    - **Fisso** → `post_vendita_controllo_fissi.stato` IN (`KO`,`In Attivazione`)
    - **Energia** → `post_vendita_controllo_lg.stato` IN (`Rifiutato`,`Annullato`,`Nuovo`,`In lavorazione`,`In attivazione`) (tutto tranne `Attivato`/NULL)

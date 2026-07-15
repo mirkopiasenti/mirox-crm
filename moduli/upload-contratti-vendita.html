@@ -1445,7 +1445,47 @@ Reload Forever
    'Allarmi':       { table: 'post_vendita_controllo_allarmi',       stati: ['KO','In Attivazione'] },
    'Assicurazioni': { table: 'post_vendita_controllo_assicurazioni', stati: ['KO'] }
  };
- const REINSERIMENTO_WINDOW_DAYS = 90;
+ // Reinserimento: la finestra e' il MESE SOLARE CORRENTE (Europe/Rome).
+ // Se oggi e' 15 luglio, un contratto candidato al reinserimento deve avere
+ // data_contratto compresa fra il 1 luglio 00:00 e il 31 luglio 23:59:59.999
+ // (esclusivo sul 1 agosto 00:00). Un contratto di giugno NON e' un
+ // reinserimento perche' il mese e' cambiato: sara' contato come nuovo.
+ // Ritorna { startIso, endIso } in ISO string UTC per la query Supabase.
+ function computeReinserimentoWindow() {
+   // Prendo "adesso" nel timezone Europe/Rome usando Intl per essere robusto
+   // ai cambi di offset (ora legale/solare). Estraggo anno e mese, poi
+   // ricostruisco i due boundary in UTC come Date objects.
+   const nowRome = new Date().toLocaleString('en-GB', { timeZone: 'Europe/Rome' });
+   // Format en-GB Europe/Rome: "dd/MM/yyyy, HH:mm:ss"
+   const [datePart] = nowRome.split(', ');
+   const [, mm, yyyy] = datePart.split('/');
+   const year = parseInt(yyyy, 10);
+   const monthIdx = parseInt(mm, 10) - 1; // JS month is 0-indexed
+   // I boundary del mese in Europe/Rome. Uso Date.UTC solo per costruire
+   // istanti di riferimento; poi shift per compensare l'offset Rome.
+   // Approssimazione ok: al momento del confronto SQL, Supabase usa timestamptz,
+   // quindi la conversione avviene automaticamente. Costruiamo le date come
+   // "T00:00:00" locale Rome e le mandiamo in ISO UTC.
+   const startLocal = new Date(Date.UTC(year, monthIdx, 1, 0, 0, 0));
+   const endLocal = new Date(Date.UTC(year, monthIdx + 1, 1, 0, 0, 0));
+   // Compenso offset Rome: per gennaio +1h, per luglio +2h (ora legale).
+   // Uso il campo 'z' di toLocaleString per calcolare offset del mese corrente.
+   const romeOffsetHours = getRomeOffsetHours(new Date(Date.UTC(year, monthIdx, 15, 12, 0, 0)));
+   return {
+     startIso: new Date(startLocal.getTime() - romeOffsetHours * 3600 * 1000).toISOString(),
+     endIso: new Date(endLocal.getTime() - romeOffsetHours * 3600 * 1000).toISOString()
+   };
+ }
+ // Ritorna l'offset in ore di Europe/Rome rispetto a UTC (1 o 2 in base alla stagione).
+ function getRomeOffsetHours(referenceDate) {
+   const utcHour = referenceDate.getUTCHours();
+   const romeParts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', hour: '2-digit', hour12: false }).formatToParts(referenceDate);
+   const romeHour = parseInt(romeParts.find((p) => p.type === 'hour').value, 10);
+   let diff = romeHour - utcHour;
+   if (diff < -12) diff += 24;
+   if (diff > 12) diff -= 24;
+   return diff;
+ }
  const uiState = {
  view: 'wizard',
  // 1 = Categoria+PDA, 2 = Anagrafica, 3 = Dati Contratto, 4 = Firma, 5 = Documenti
@@ -2250,9 +2290,11 @@ Reload Forever
  // ====================================================================
  // Cerca i contratti precedenti del cliente nella stessa categoria che
  // potrebbero essere "rilavorabili" (KO / In Attivazione / In lavorazione
- // / Rifiutato / Annullato a seconda della categoria). Finestra: 90 giorni.
- // Esclude i contratti gia' classificati come reinserimento (per evitare
- // catene di reinserimenti dello stesso evento).
+ // / Rifiutato / Annullato a seconda della categoria). Finestra: MESE
+ // SOLARE CORRENTE (Europe/Rome). Un contratto di giugno NON e' un
+ // reinserimento per un contratto inserito a luglio: il mese e' cambiato,
+ // sara' contato come nuovo. Esclude i contratti gia' classificati come
+ // reinserimento (per evitare catene di reinserimenti dello stesso evento).
  async function checkReinserimento(anagraficaId, categoriaId, categoriaNome) {
  const dbgPrefix = '[REINS query]';
  console.log(dbgPrefix, 'start', { anagraficaId, categoriaId, categoriaNome });
@@ -2260,9 +2302,8 @@ Reload Forever
  const cfg = CATEGORIE_REINSERIMENTO_CONFIG[categoriaNome];
  if (!cfg) { console.log(dbgPrefix, 'skip: categoria senza post-vendita', categoriaNome); return []; }
 
- const cutoff = new Date();
- cutoff.setDate(cutoff.getDate() - REINSERIMENTO_WINDOW_DAYS);
- const cutoffIso = cutoff.toISOString();
+ const { startIso, endIso } = computeReinserimentoWindow();
+ console.log(dbgPrefix, 'finestra mese corrente Europe/Rome:', { startIso, endIso });
 
  try {
  const { data: contratti, error: e1 } = await db
@@ -2271,7 +2312,8 @@ Reload Forever
  .eq('anagrafica_id', anagraficaId)
  .eq('categoria_id', categoriaId)
  .eq('stato_inserimento', 'inserimento')
- .gte('data_contratto', cutoffIso)
+ .gte('data_contratto', startIso)
+ .lt('data_contratto', endIso)
  .order('data_contratto', { ascending: false });
  if (e1) { console.error(dbgPrefix, 'errore query contratti', e1); return []; }
  console.log(dbgPrefix, 'contratti trovati (pre-filtro post-vendita):', contratti?.length, contratti);
