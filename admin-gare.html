@@ -276,7 +276,7 @@
     <!-- Card 3: Avanzamento mensile -->
     <div class="card">
       <h2>Avanzamento Mensile - Obiettivi di categoria</h2>
-      <div class="card-sub">Obiettivi totali (non per operatore) per le tabelle Standard, P.IVA ed Extra Gara P.IVA. Puoi anche modificare il moltiplicatore "punti/pezzo" della metrica.</div>
+      <div class="card-sub">Obiettivi totali (non per operatore) per le tabelle Standard, P.IVA ed Extra Gara P.IVA. Il Punteggio nella Dashboard e' calcolato dai punteggi dei contratti, non da un moltiplicatore.</div>
       <div id="tabAvanzamento"><div class="empty">Caricamento...</div></div>
     </div>
 
@@ -589,13 +589,12 @@ function renderAvanzamento() {
     const metriche = State.metriche.filter(m => m.tabella === g.key && m.attiva);
     if (!metriche.length) return;
     html += `<h3 style="font-size:12px;font-weight:800;text-transform:uppercase;color:var(--text-secondary);letter-spacing:.05em;margin:16px 0 8px">${g.titolo}</h3>`;
-    html += '<table class="mx"><thead><tr><th>Metrica</th><th style="width:110px">Obiettivo mese</th><th style="width:130px">Punti/pezzo</th></tr></thead><tbody>';
+    html += '<table class="mx"><thead><tr><th>Metrica</th><th style="width:110px">Obiettivo mese</th></tr></thead><tbody>';
     metriche.forEach(m => {
       const o = getObiettivo(m.id, null);
       html += `<tr>
         <td><span class="metric-color" style="background:${escapeHtml(m.colore_hex)}"></span><b>${escapeHtml(m.nome)}</b></td>
         <td><input type="number" min="0" value="${o?.obiettivo ?? 0}" data-metrica="${m.id}" class="inp-obiettivo-cat"></td>
-        <td><input type="number" min="0" step="0.1" value="${m.punti_per_pezzo}" data-metrica="${m.id}" class="inp-punti"></td>
       </tr>`;
     });
     html += '</tbody></table>';
@@ -608,18 +607,6 @@ function renderAvanzamento() {
       try {
         await upsertObiettivo(metricaId, null, { obiettivo: valore });
         MiroxUI.toast('Obiettivo aggiornato', 'success');
-      } catch (e) { MiroxUI.alert('Errore: ' + e.message); }
-    });
-  });
-  wrap.querySelectorAll('.inp-punti').forEach(inp => {
-    inp.addEventListener('change', async () => {
-      const metricaId = Number(inp.dataset.metrica);
-      const valore = Math.max(0, Number(inp.value) || 0);
-      try {
-        const { error } = await sb.from('gara_metriche').update({ punti_per_pezzo: valore }).eq('id', metricaId);
-        if (error) throw error;
-        const m = State.metriche.find(x => x.id === metricaId); if (m) m.punti_per_pezzo = valore;
-        MiroxUI.toast('Punti/pezzo aggiornati', 'success');
       } catch (e) { MiroxUI.alert('Errore: ' + e.message); }
     });
   });

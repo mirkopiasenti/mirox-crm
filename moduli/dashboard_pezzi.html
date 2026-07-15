@@ -549,7 +549,10 @@ async function caricaDatiMensili() {
         categoria_snapshot, nome_offerta_snapshot, nome_opzione_snapshot, nome_reload_snapshot,
         tipo_attivazione, apri_chiudi, intestatario, switch_sim, modalita_pagamento,
         dispositivo_associato, tipo_acquisto, fascia_prezzo, finanziaria, kolme,
-        reload_exchange, data_contratto, stato_controllo, stato_inserimento
+        reload_exchange, data_contratto, stato_controllo, stato_inserimento,
+        punteggio_gara_offerta, punteggio_gara_opzione, punteggio_gara_totale,
+        punteggio_extra_gara_offerta, punteggio_extra_gara_opzione,
+        punteggio_offerta, punteggio_opzione, punteggio_totale
       `).gte('data_contratto', start).lt('data_contratto', end),
     sb.from('gara_metriche').select('*').eq('attiva', true).order('tabella').order('ordine'),
     sb.from('gara_obiettivi_mensili').select('*').eq('anno', DPState.anno).eq('mese', DPState.mese),
@@ -624,6 +627,12 @@ function contaConPesi(contratti, metrica) {
   let n = 0;
   contratti.forEach(c => { n += pesoContratto(c, metrica.regola); });
   return n;
+}
+// Somma una colonna punteggio (es. punteggio_gara_totale) su una lista di contratti
+function sommaCampoPunteggio(contratti, campo) {
+  let tot = 0;
+  contratti.forEach(c => { tot += Number(c[campo] || 0); });
+  return tot;
 }
 function contaMatchPerOperatore(metrica, operatoreId) {
   return contaConPesi(contrattiMatchPerOperatore(metrica, operatoreId), metrica);
@@ -727,10 +736,18 @@ function renderAvanzamento() {
       <th style="width:100px">Eccedenza</th>
     </tr></thead><tbody>`;
     metriche.forEach(m => {
-      const conteggi = operatori.map(op => contaMatchPerOperatore(m, op.id));
+      const contrattiPerOp = operatori.map(op => contrattiMatchPerOperatore(m, op.id));
+      const conteggi = contrattiPerOp.map(list => contaConPesi(list, m));
       const attuale = conteggi.reduce((a,b)=>a+b, 0);
       totaleContratti += attuale;
-      const punteggio = attuale * Number(m.punti_per_pezzo || 1);
+      // Punteggio: se la metrica ha punteggio_campo, somma quella colonna sui
+      // contratti matched (di tutti gli operatori mostrati); altrimenti = attuale.
+      let punteggio;
+      if (m.punteggio_campo) {
+        punteggio = contrattiPerOp.reduce((tot, list) => tot + sommaCampoPunteggio(list, m.punteggio_campo), 0);
+      } else {
+        punteggio = attuale;
+      }
       const o = getObiettivoMese(m.id, null);
       const obiettivo = o?.obiettivo ?? 0;
       const andamento = obiettivo > 0 ? (attuale / obiettivo) * 100 : null;
