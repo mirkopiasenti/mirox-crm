@@ -574,17 +574,18 @@ async function caricaDatiMensili() {
 
   DPState.contrattiMese = (rContratti.data || []).filter(c => c.stato_inserimento !== 'reinserimento');
 
-  // Stati post-vendita necessari per il filtro Avanzamento P.IVA (Fisso/Energia/Allarmi).
-  // Carichiamo solo per i contratti Business del mese, che sono l'unico target del filtro.
-  const contrattiBusinessIds = DPState.contrattiMese
-    .filter(c => c.cluster_cliente === 'Business' && ['Fisso','Energia','Allarmi'].includes(c.categoria_snapshot))
+  // Stati post-vendita per i filtri Avanzamento (P.IVA + Energia Standard).
+  // Carichiamo per TUTTI i contratti Fisso/Energia/Allarmi del mese (senza filtro cluster)
+  // perche' l'Avanzamento Standard L&G filtra anche i cluster non-Business.
+  const contrattiPostVenditaIds = DPState.contrattiMese
+    .filter(c => ['Fisso','Energia','Allarmi'].includes(c.categoria_snapshot))
     .map(c => c.id);
   DPState.statoPostVendita = { fisso: new Map(), energia: new Map(), allarmi: new Map() };
-  if (contrattiBusinessIds.length) {
+  if (contrattiPostVenditaIds.length) {
     const [rFisso, rLg, rAll] = await Promise.all([
-      sb.from('post_vendita_controllo_fissi').select('contratto_id, stato').in('contratto_id', contrattiBusinessIds),
-      sb.from('post_vendita_controllo_lg').select('contratto_id, stato').in('contratto_id', contrattiBusinessIds),
-      sb.from('post_vendita_controllo_allarmi').select('contratto_id, stato').in('contratto_id', contrattiBusinessIds)
+      sb.from('post_vendita_controllo_fissi').select('contratto_id, stato').in('contratto_id', contrattiPostVenditaIds),
+      sb.from('post_vendita_controllo_lg').select('contratto_id, stato').in('contratto_id', contrattiPostVenditaIds),
+      sb.from('post_vendita_controllo_allarmi').select('contratto_id, stato').in('contratto_id', contrattiPostVenditaIds)
     ]);
     (rFisso.data || []).forEach(r => DPState.statoPostVendita.fisso.set(r.contratto_id, r.stato));
     (rLg.data || []).forEach(r => DPState.statoPostVendita.energia.set(r.contratto_id, r.stato));
@@ -800,6 +801,9 @@ function renderAvanzamento() {
       let contrattiPerOp = operatori.map(op => contrattiMatchPerOperatore(m, op.id));
       if (usaFiltroExtraPiva) {
         contrattiPerOp = contrattiPerOp.map(list => list.filter(isContrattoValidoAvanzamentoPiva));
+      } else if (sez.key === 'standard' && m.regola?.categoria === 'Energia') {
+        // Avanzamento Standard - Luce & Gas: escludi contratti con post_vendita_controllo_lg.stato = 'Rifiutato'
+        contrattiPerOp = contrattiPerOp.map(list => list.filter(c => DPState.statoPostVendita?.energia.get(c.id) !== 'Rifiutato'));
       }
       const conteggi = contrattiPerOp.map(list => contaConPesi(list, m));
       const attuale = conteggi.reduce((a,b)=>a+b, 0);
