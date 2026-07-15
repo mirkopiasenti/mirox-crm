@@ -781,12 +781,19 @@
    el.textContent = msg || '';
  }
  function setAnagFieldsReadonly(readonly) {
+   // readonly=true (cliente trovato in DB): blocca SOLO i campi con valore.
+   // I campi vuoti restano editabili cosi' l'operatore puo' completare
+   // l'anagrafica quando in DB mancano dati obbligatori (es. nome_referente
+   // non censito su anagrafiche vecchie). L'upsert via RPC aggiorna solo
+   // i campi vuoti.
    ['anag_ragione_sociale','anag_nome_referente','anag_cellulare'].forEach(id => {
      const el = document.getElementById(id);
      if (!el) return;
-     el.readOnly = !!readonly;
-     el.style.background = readonly ? '#EEF3F8' : '';
-     el.style.cursor = readonly ? 'not-allowed' : '';
+     const hasValue = !!String(el.value || '').trim();
+     const lock = !!readonly && hasValue;
+     el.readOnly = lock;
+     el.style.background = lock ? '#EEF3F8' : '';
+     el.style.cursor = lock ? 'not-allowed' : '';
    });
  }
  function showAnagFields(show) {

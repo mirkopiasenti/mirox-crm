@@ -211,12 +211,20 @@
     }
 
     function setFieldsReadonly(readonly) {
+      // readonly=true (cliente trovato in DB): blocca SOLO i campi che hanno
+      // gia' un valore; i campi vuoti restano editabili cosi' l'operatore
+      // puo' completare l'anagrafica quando in DB mancano dati obbligatori
+      // (es. nome_referente non censito su anagrafiche vecchie). L'upsert
+      // via RPC cerca_o_crea_anagrafica aggiorna solo i campi vuoti.
+      // readonly=false (cliente nuovo): tutto editabile.
       ['ragione_sociale', 'nome_referente', 'cellulare', 'email'].forEach((s) => {
         const el = $(s);
         if (!el) return;
-        el.readOnly = !!readonly;
-        el.style.background = readonly ? '#EEF3F8' : '';
-        el.style.cursor = readonly ? 'not-allowed' : '';
+        const hasValue = !!String(el.value || '').trim();
+        const lock = !!readonly && hasValue;
+        el.readOnly = lock;
+        el.style.background = lock ? '#EEF3F8' : '';
+        el.style.cursor = lock ? 'not-allowed' : '';
       });
     }
 
