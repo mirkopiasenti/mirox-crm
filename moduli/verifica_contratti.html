@@ -504,6 +504,12 @@ function renderListaContratti(stateKey) {
     const offertaTxt = c.nome_offerta_snapshot || '-';
     const categoriaTxt = c.categoria_snapshot || '-';
     const cluster = ana.cluster || c.cluster_cliente || '-';
+    // Solo per contratti Fisso mostro sotto l'offerta un chip con la convergenza scelta,
+    // cosi' l'operatore la vede a colpo d'occhio senza dover aprire il popup dettagli.
+    const isFisso = String(categoriaTxt).toLowerCase().includes('fisso');
+    const convergenzaChip = isFisso && c.convergenza
+      ? `<div class="cell-meta" style="margin-top:2px;color:#0f766e;font-weight:600;">Convergenza: ${escapeHtml(c.convergenza)}</div>`
+      : '';
     return `
       <tr>
         <td><div class="cell-cliente">${escapeHtml(ana.ragione_sociale || '(senza nome)')}</div>
@@ -512,7 +518,7 @@ function renderListaContratti(stateKey) {
         <td>${escapeHtml(operatoreNome)}</td>
         <td><span class="stato-pill ${escapeHtml(String(cluster).toLowerCase())}">${escapeHtml(cluster)}</span></td>
         <td>${escapeHtml(categoriaTxt)}</td>
-        <td>${escapeHtml(offertaTxt)}</td>
+        <td>${escapeHtml(offertaTxt)}${convergenzaChip}</td>
         <td><span class="stato-pill ${escapeHtml(c.stato_controllo)}">${escapeHtml(c.stato_controllo || '-')}</span></td>
         <td style="text-align:right;white-space:nowrap;">
           <button type="button" class="btn-mini btn-primary" onclick="apriDettaglioContratto('${escapeHtml(c.id)}', '${stateKey}')">Dettagli</button>
@@ -630,7 +636,7 @@ function apriPopupDettaglio(c, opts) {
     (!c.offerta_id || o.offerta_id === c.offerta_id)
   );
   const reloadFiltered = reload;
-  const valoriConvergenzaFisso = ['Mobile', 'L&G', 'Allarme', 'Assicurazione', 'Sim Interna', 'NO Convergenza', 'Coupon'];
+  const valoriConvergenzaFisso = ['Mobile', 'L&G', 'Allarme', 'Assicurazione', 'Sim Interna', 'NO Convergenza', 'Coupon', 'Seconda Casa'];
   const opzioniConvergenzaFisso = valoriConvergenzaFisso.map(v =>
     `<option value="${escapeHtml(v)}" ${c.convergenza === v ? 'selected' : ''}>${escapeHtml(v)}</option>`
   ).join('');

@@ -218,12 +218,12 @@ function normalizeContractInput(contract, index) {
     })(),
     reload_exchange: parseBoolean(contract?.reload_exchange, false) === true,
     reload_forever: parseBoolean(contract?.reload_forever, false) === true,
-    // Convergenza (solo Fisso): uno dei 7 valori ammessi. null per altre categorie o se non fornita.
-    // Vedi migration 017_vendita_contratti_convergenza.sql + CHECK constraint a DB.
+    // Convergenza (solo Fisso): uno degli 8 valori ammessi. null per altre categorie o se non fornita.
+    // Vedi migration 017 (introduzione) + 048 (aggiunta "Seconda Casa") + CHECK constraint a DB.
     convergenza: (() => {
       const v = cleanString(contract?.convergenza);
       if (!v) return null;
-      const allowed = ['Mobile', 'L&G', 'Allarme', 'Assicurazione', 'Sim Interna', 'NO Convergenza', 'Coupon'];
+      const allowed = ['Mobile', 'L&G', 'Allarme', 'Assicurazione', 'Sim Interna', 'NO Convergenza', 'Coupon', 'Seconda Casa'];
       if (!allowed.includes(v)) {
         throw new Error(`Convergenza non valida per contratti[${index}]: deve essere uno fra ${allowed.join(', ')}`);
       }

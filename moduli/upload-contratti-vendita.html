@@ -5895,7 +5895,7 @@ Reload Forever
  // Ritorna { prezzo, convergenza } su conferma, null su annulla.
  function chiediPrezzoConvergenzaFisso(prevPrezzo = '', prevConv = '') {
  return new Promise((resolve) => {
- const valori = ['Mobile', 'L&G', 'Allarme', 'Assicurazione', 'Sim Interna', 'NO Convergenza', 'Coupon'];
+ const valori = ['Mobile', 'L&G', 'Allarme', 'Assicurazione', 'Sim Interna', 'NO Convergenza', 'Coupon', 'Seconda Casa'];
  const optionsHtml = ['<option value="">Seleziona...</option>'].concat(
  valori.map((v) => '<option value="' + escapeHtml(v) + '"' + (v === prevConv ? ' selected' : '') + '>' + escapeHtml(v) + '</option>')
  ).join('');
