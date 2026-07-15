@@ -69,8 +69,9 @@
                 <div id="clienteTrovato" class="card hidden">
                     <div class="card-header">
                         <h3 class="card-title">Dati cliente</h3>
-                        <div style="display:flex;gap:8px;align-items:center">
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                             <span class="badge badge-success">In anagrafica</span>
+                            <span id="privacyBadgeCC" class="badge" style="background:#eef2f7;color:#697386;">Privacy: verifica...</span>
                             <button class="btn btn-sm btn-secondary" onclick="abilitaModificaCliente()" id="btnModificaCliente">Modifica dati</button>
                         </div>
                     </div>
@@ -431,6 +432,56 @@
             document.getElementById('viewCellulare').textContent = cliente.cellulare || '-';
             document.getElementById('viewComune').textContent = cliente.comune || '-';
             document.getElementById('viewVia').textContent = (cliente.via || '') + ' ' + (cliente.civico || '');
+            // Aggiorna badge privacy in background (fire-and-forget)
+            if (cliente.id) loadPrivacyBadgeCC(cliente.id);
+        }
+
+        // Verifica stato consenso privacy per l'anagrafica e aggiorna il badge accanto
+        // al chip "In anagrafica". Nessun blocco: se la query fallisce mostra "n/d".
+        async function loadPrivacyBadgeCC(anagraficaId) {
+            const el = document.getElementById('privacyBadgeCC');
+            if (!el) return;
+            try {
+                const { data, error } = await db
+                    .from('vendita_consensi_privacy')
+                    .select('stato, valido_fino_al, revocato_at, confermato_at')
+                    .eq('anagrafica_id', anagraficaId)
+                    .eq('stato', 'confermato')
+                    .order('confermato_at', { ascending: false })
+                    .limit(1);
+                if (error) throw error;
+                const c = Array.isArray(data) ? data[0] : null;
+                const fmtDate = (iso) => {
+                    if (!iso) return '-';
+                    const d = new Date(iso);
+                    return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+                };
+                if (!c) {
+                    el.style.background = '#fef3c7';
+                    el.style.color = '#92400e';
+                    el.textContent = 'Privacy: non firmata';
+                    return;
+                }
+                const now = Date.now();
+                const validoFino = c.valido_fino_al ? new Date(c.valido_fino_al).getTime() : 0;
+                if (c.revocato_at) {
+                    el.style.background = '#fee2e2';
+                    el.style.color = '#991b1b';
+                    el.textContent = 'Privacy: revocata';
+                } else if (validoFino && validoFino < now) {
+                    el.style.background = '#fee2e2';
+                    el.style.color = '#991b1b';
+                    el.textContent = 'Privacy scaduta il ' + fmtDate(c.valido_fino_al);
+                } else {
+                    el.style.background = '#dcfce7';
+                    el.style.color = '#166534';
+                    el.textContent = 'Privacy OK - scade ' + fmtDate(c.valido_fino_al);
+                }
+            } catch (_) {
+                el.style.background = '#eef2f7';
+                el.style.color = '#697386';
+                el.textContent = 'Privacy: n/d';
+            }
         }
 
         function mostraNuovoCliente() {

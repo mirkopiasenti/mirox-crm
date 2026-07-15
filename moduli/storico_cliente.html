@@ -558,6 +558,8 @@ async function apriPaginaCliente(uuid) {
     currentCliente = cliente;
     document.getElementById('clientBreadcrumb').textContent = cliente.ragione_sociale || cliente.cf_piva || 'Cliente';
     renderClienteCard(cliente);
+    // Fire-and-forget: aggiorna il badge privacy senza bloccare il render della timeline.
+    loadPrivacyBadge(uuid);
 
     // 2. Carica timeline
     const { data: storico, error: errS } = await sb
@@ -595,7 +597,10 @@ function renderClienteCard(c) {
           <div class="client-name">${escapeHtml(c.ragione_sociale || '(senza nome)')}</div>
           <div style="font-size:12.5px;color:var(--text-secondary);margin-top:4px;">CF / P.IVA: <strong>${escapeHtml(c.cf_piva || '-')}</strong></div>
         </div>
-        <span class="client-cluster-pill" style="${clusterPillStyle(cluster)}">${escapeHtml(cluster)}</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+          <span class="client-cluster-pill" style="${clusterPillStyle(cluster)}">${escapeHtml(cluster)}</span>
+          <span id="privacyBadge" style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;background:#eef2f7;color:#697386;white-space:nowrap;">Privacy: verifica in corso...</span>
+        </div>
       </div>
       <div class="client-info-grid">
         <div class="info-item">
@@ -629,6 +634,55 @@ function renderClienteCard(c) {
       </div>
     </div>
   `;
+}
+
+// Legge da vendita_consensi_privacy il consenso piu' recente per l'anagrafica
+// e aggiorna il badge nella card cliente. Best-effort: non blocca il render.
+// Stato badge:
+//   verde  = consenso valido (stato='confermato', non revocato, non scaduto)
+//   rosso  = consenso scaduto o revocato
+//   grigio = nessun consenso mai firmato / errore query
+async function loadPrivacyBadge(anagraficaId) {
+  const el = document.getElementById('privacyBadge');
+  if (!el) return;
+  try {
+    const { data, error } = await sb
+      .from('vendita_consensi_privacy')
+      .select('stato, valido_fino_al, revocato_at, confermato_at')
+      .eq('anagrafica_id', anagraficaId)
+      .eq('stato', 'confermato')
+      .order('confermato_at', { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    const c = Array.isArray(data) ? data[0] : null;
+    if (!c) {
+      el.style.background = '#fef3c7';
+      el.style.color = '#92400e';
+      el.textContent = 'Privacy: non firmata';
+      return;
+    }
+    const now = Date.now();
+    const validoFino = c.valido_fino_al ? new Date(c.valido_fino_al).getTime() : 0;
+    const revocato = !!c.revocato_at;
+    const dataScad = c.valido_fino_al ? fmtDate(c.valido_fino_al) : '-';
+    if (revocato) {
+      el.style.background = '#fee2e2';
+      el.style.color = '#991b1b';
+      el.textContent = 'Privacy: revocata';
+    } else if (validoFino && validoFino < now) {
+      el.style.background = '#fee2e2';
+      el.style.color = '#991b1b';
+      el.textContent = 'Privacy scaduta il ' + dataScad;
+    } else {
+      el.style.background = '#dcfce7';
+      el.style.color = '#166534';
+      el.textContent = 'Privacy OK - scade ' + dataScad;
+    }
+  } catch (_) {
+    el.style.background = '#eef2f7';
+    el.style.color = '#697386';
+    el.textContent = 'Privacy: verifica non disponibile';
+  }
 }
 
 function renderTimeline(storico) {
