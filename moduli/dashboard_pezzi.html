@@ -223,6 +223,12 @@ table.avanz tbody td.eccedenza { font-weight: 700; }
 table.avanz tbody td.eccedenza.pos { background: #DCFCE7; color: var(--success); }
 table.avanz tbody td.andamento.perc { font-weight: 700; }
 table.avanz tbody td.andamento.raggiunto { background: #DCFCE7; color: var(--success); }
+table.avanz tbody tr.subheader td {
+  background: var(--bg); font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  color: var(--text-secondary); letter-spacing: .04em;
+  padding: 5px 8px; text-align: center;
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
 
 .empty-state { padding: 40px 20px; text-align: center; color: var(--text-secondary); }
 .empty-state .empty-icon { font-size: 36px; margin-bottom: 8px; opacity: 0.45; }
@@ -727,14 +733,20 @@ function renderAvanzamento() {
     html += `<div class="av-section"><h3>${escapeHtml(sez.titolo)}</h3>`;
     const opHeaders = operatori.map(op => `<th class="gr-pezzi" style="width:88px">${escapeHtml(op.nome)}</th>`).join('');
     const totalWidth = 220 + (88 * operatori.length) + 380; // metrica + ops + (80+100+100+100)
+    // Nella sezione P.IVA le intestazioni Obiettivo/Andamento/Eccedenza vengono
+    // spostate in una sotto-intestazione posizionata subito sopra la prima riga
+    // di tipo "avanzamento_extra_piva" (unica riga che le utilizza).
+    const isPiva = sez.key === 'piva';
+    const headerObAnEc = isPiva
+      ? `<th style="width:100px"></th><th style="width:100px"></th><th style="width:100px"></th>`
+      : `<th style="width:100px">Obiettivo</th><th style="width:100px">Andamento</th><th style="width:100px">Eccedenza</th>`;
     html += `<table class="avanz" style="width:${totalWidth}px;min-width:${totalWidth}px;max-width:${totalWidth}px"><thead><tr>
       <th style="width:220px">Categorie</th>
       ${opHeaders}
       <th style="width:80px">Punteggio</th>
-      <th style="width:100px">Obiettivo</th>
-      <th style="width:100px">Andamento</th>
-      <th style="width:100px">Eccedenza</th>
+      ${headerObAnEc}
     </tr></thead><tbody>`;
+    let subheaderExtraInserted = false;
     metriche.forEach(m => {
       const contrattiPerOp = operatori.map(op => contrattiMatchPerOperatore(m, op.id));
       const conteggi = contrattiPerOp.map(list => contaConPesi(list, m));
@@ -755,13 +767,29 @@ function renderAvanzamento() {
       const andCls = (andamento !== null && andamento >= 100) ? 'raggiunto' : '';
       const eccCls = eccedenza > 0 ? 'pos' : '';
       const opCells = conteggi.map(v => `<td>${v || ''}</td>`).join('');
+      const isExtraPivaRow = isPiva && m.tabella === 'avanzamento_extra_piva';
+      const hideObAnEc = isPiva && m.tabella === 'avanzamento_piva';
+      if (isExtraPivaRow && !subheaderExtraInserted) {
+        const emptyOps = operatori.map(() => '<td></td>').join('');
+        html += `<tr class="subheader">
+          <td></td>
+          ${emptyOps}
+          <td></td>
+          <td>Obiettivo</td>
+          <td>Andamento</td>
+          <td>Eccedenza</td>
+        </tr>`;
+        subheaderExtraInserted = true;
+      }
       html += `<tr>
         <td class="metrica" style="background:${escapeHtml(m.colore_hex)}">${escapeHtml(m.nome)}</td>
         ${opCells}
         <td class="punteggio">${punteggio.toLocaleString('it-IT', {minimumFractionDigits:0, maximumFractionDigits:2})}</td>
-        <td>${obiettivo || '-'}</td>
-        <td class="andamento perc ${andCls}">${andamento === null ? '-' : andamento.toFixed(1) + '%'}</td>
-        <td class="eccedenza ${eccCls}">${eccedenza || ''}</td>
+        ${hideObAnEc
+          ? `<td></td><td></td><td></td>`
+          : `<td>${obiettivo || '-'}</td>
+             <td class="andamento perc ${andCls}">${andamento === null ? '-' : andamento.toFixed(1) + '%'}</td>
+             <td class="eccedenza ${eccCls}">${eccedenza || ''}</td>`}
       </tr>`;
     });
     html += '</tbody></table></div>';
