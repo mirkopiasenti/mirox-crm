@@ -628,7 +628,7 @@ function renderMetricheAdvanced() {
     const metriche = State.metriche.filter(m => m.tabella === t.key);
     html += `<h3 style="font-size:12px;font-weight:800;text-transform:uppercase;color:var(--text-secondary);letter-spacing:.05em;margin:16px 0 8px">${t.titolo}</h3>`;
     const showTeamCols = t.key === 'gara_individuale';
-    html += '<table class="mx"><thead><tr><th style="width:220px">Nome</th><th style="width:70px">Attiva</th><th style="width:80px">Ordine</th>' + (showTeamCols ? '<th style="width:110px" title="Attuale: individuale (pezzi operatore) o di squadra (totale negozio)">Conteggio</th><th style="width:110px" title="Obiettivo e compenso: individuale per operatore o comune al negozio">Compenso</th>' : '') + '<th>Regola JSONB</th><th class="actions" style="width:100px"></th></tr></thead><tbody>';
+    html += '<table class="mx"><thead><tr><th style="width:220px">Nome</th><th style="width:70px">Attiva</th><th style="width:80px">Ordine</th>' + (showTeamCols ? '<th style="width:110px" title="Attuale: individuale (pezzi operatore) o di squadra (totale negozio)">Conteggio</th><th style="width:110px" title="Obiettivo e compenso: individuale per operatore o comune al negozio">Compenso</th>' : '') + '<th style="width:260px" title="Testo mostrato agli operatori come popup di aiuto quando cliccano sulla riga metrica">Descrizione</th><th>Regola JSONB</th><th class="actions" style="width:100px"></th></tr></thead><tbody>';
     metriche.forEach(m => {
       const teamCols = showTeamCols ? `
         <td><select data-id="${m.id}" data-field="tipo_conteggio" style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit">
@@ -644,6 +644,7 @@ function renderMetricheAdvanced() {
         <td><input type="checkbox" ${m.attiva?'checked':''} data-id="${m.id}" data-field="attiva"></td>
         <td><input type="number" value="${m.ordine}" data-id="${m.id}" data-field="ordine" style="width:60px"></td>
         ${teamCols}
+        <td><textarea data-id="${m.id}" data-field="descrizione" placeholder="Testo mostrato agli operatori (opzionale)" style="width:100%;font-size:12px;padding:5px;border:1px solid var(--border);border-radius:6px;min-height:40px;font-family:inherit">${escapeHtml(m.descrizione || '')}</textarea></td>
         <td><textarea data-id="${m.id}" data-field="regola" style="width:100%;font-family:monospace;font-size:11.5px;padding:5px;border:1px solid var(--border);border-radius:6px;min-height:40px">${escapeHtml(JSON.stringify(m.regola))}</textarea></td>
         <td class="actions"><button class="btn-mini btn-save-metrica" data-id="${m.id}">Salva</button></td>
       </tr>`;
@@ -663,9 +664,11 @@ function renderMetricheAdvanced() {
       catch (e) { MiroxUI.alert('JSON regola non valido: ' + e.message); return; }
       const conteggioSel = row.querySelector('[data-field="tipo_conteggio"]');
       const compensoSel = row.querySelector('[data-field="tipo_compenso"]');
+      const descrizioneEl = row.querySelector('[data-field="descrizione"]');
       const patch = { nome, attiva, ordine, regola };
       if (conteggioSel) patch.tipo_conteggio = conteggioSel.value;
       if (compensoSel) patch.tipo_compenso = compensoSel.value;
+      if (descrizioneEl) patch.descrizione = descrizioneEl.value.trim() || null;
       try {
         const { error } = await sb.from('gara_metriche').update(patch).eq('id', id);
         if (error) throw error;

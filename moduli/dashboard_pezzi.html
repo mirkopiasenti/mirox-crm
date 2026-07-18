@@ -195,6 +195,10 @@ table.gara-tab tbody tr.tot td.compenso-tot {
   background: #FFF9C4; color: var(--text);
 }
 .badge-dec { color: var(--danger); font-weight: 900; text-transform: uppercase; letter-spacing: .05em; font-size: 11px; }
+table.gara-tab tbody tr.clickable { cursor: pointer; }
+table.gara-tab tbody tr.clickable:hover td { background: #FFF7ED; }
+table.gara-tab tbody tr.clickable:hover td.metrica { filter: brightness(0.96); }
+.mx-info-dot { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 10px; font-weight: 800; font-style: normal; margin-left: 6px; vertical-align: middle; font-family: Georgia, serif; }
 
 /* Avanzamento Mensile */
 .av-section { margin-bottom: 20px; }
@@ -742,9 +746,12 @@ function renderGare() {
       const obiettivo = o?.obiettivo ?? 0;
       const c = calcolaCompenso(attuale, o?.compenso_regola, contrattiMatched);
       const badgeSquadra = (conteggioSquadra || compensoSquadra) ? ' <span title="' + (conteggioSquadra && compensoSquadra ? 'Conteggio e compenso di squadra' : (compensoSquadra ? 'Compenso di squadra (attuale personale)' : 'Conteggio di squadra (compenso personale)')) + '" style="font-size:9.5px;background:#DBEAFE;color:#1E40AF;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700;letter-spacing:.04em">SQUADRA</span>' : '';
-      const nomeCol = escapeHtml(m.nome) + badgeSquadra;
+      const hasDesc = !!(m.descrizione && String(m.descrizione).trim());
+      const iconaInfo = hasDesc ? ' <span class="mx-info-dot" title="Come funziona questa gara">i</span>' : '';
+      const nomeCol = escapeHtml(m.nome) + badgeSquadra + iconaInfo;
+      const rowAttr = hasDesc ? ` class="clickable" data-metrica-id="${m.id}"` : '';
       if (c.label) {
-        bodyHtml += `<tr>
+        bodyHtml += `<tr${rowAttr}>
           <td class="metrica" style="background:${escapeHtml(m.colore_hex)}">${nomeCol}</td>
           <td>${attuale}</td>
           <td>${obiettivo}</td>
@@ -752,7 +759,7 @@ function renderGare() {
         </tr>`;
       } else {
         totCompenso += c.euro;
-        bodyHtml += `<tr>
+        bodyHtml += `<tr${rowAttr}>
           <td class="metrica" style="background:${escapeHtml(m.colore_hex)}">${nomeCol}</td>
           <td>${attuale}</td>
           <td>${obiettivo}</td>
@@ -772,6 +779,16 @@ function renderGare() {
   });
   html += '</div>';
   wrap.innerHTML = html;
+  // Click su riga metrica → popup descrizione
+  wrap.querySelectorAll('tr.clickable[data-metrica-id]').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const id = Number(tr.dataset.metricaId);
+      const m = DPState.metricheGara.find(x => x.id === id);
+      if (!m || !m.descrizione) return;
+      const testoHtml = escapeHtml(m.descrizione).replace(/\n/g, '<br>');
+      MiroxUI.alert(testoHtml, { title: m.nome, html: true });
+    });
+  });
   document.getElementById('infoRiepilogo').textContent = MESI[DPState.mese-1] + ' ' + DPState.anno;
 }
 
