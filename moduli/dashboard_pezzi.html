@@ -308,6 +308,12 @@ const sb = db;
 const OPERATORI = ['MATTEO', 'MIRKO', 'FRANCESCA', 'CEREA'];
 const MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 
+// Codice Rivenditore (migration 050): il Day by Day e l'Avanzamento Mensile
+// conteggiano SOLO i contratti inseriti a Legnago (9001415852). La tab Gare
+// Individuali invece include anche Cerea (9000822241) — la persona vede la
+// produzione totale personale a prescindere dal punto vendita di inserimento.
+const CODICE_LEGNAGO = '9001415852';
+
 const DPState = {
   activeTab: 'day',
   dataSelezionata: null,        // Day by Day
@@ -469,7 +475,8 @@ async function caricaContrattiDelGiorno(dataIso) {
       categoria_snapshot, nome_offerta_snapshot, nome_opzione_snapshot, nome_reload_snapshot,
       tipo_attivazione, apri_chiudi, intestatario, switch_sim, modalita_pagamento,
       dispositivo_associato, tipo_acquisto, fascia_prezzo, finanziaria, kolme,
-      reload_exchange, data_contratto, stato_controllo, stato_inserimento
+      reload_exchange, data_contratto, stato_controllo, stato_inserimento,
+      codice_rivenditore
     `)
     .gte('data_contratto', start).lt('data_contratto', end);
   if (error) throw error;
@@ -534,7 +541,11 @@ async function caricaDay() {
   try {
     await caricaRigheDay();
     const contratti = await caricaContrattiDelGiorno(DPState.dataSelezionata);
-    DPState.contrattiDay = contratti.filter(c => c.stato_inserimento !== 'reinserimento');
+    // Day by Day = solo Legnago (migration 050). I contratti inseriti da Cerea
+    // non contribuiscono al conteggio delle righe della griglia giornaliera.
+    DPState.contrattiDay = contratti.filter(c =>
+      c.stato_inserimento !== 'reinserimento' && c.codice_rivenditore === CODICE_LEGNAGO
+    );
     const opIds = Array.from(new Set(contratti.map(c => c.operatore_id).filter(Boolean)));
     DPState.profiliMap = await caricaProfili(opIds);
     renderGrigliaDay();
@@ -563,6 +574,7 @@ async function caricaDatiMensili() {
         tipo_attivazione, apri_chiudi, intestatario, switch_sim, modalita_pagamento,
         dispositivo_associato, tipo_acquisto, fascia_prezzo, finanziaria, kolme,
         reload_exchange, data_contratto, stato_controllo, stato_inserimento,
+        codice_rivenditore,
         punteggio_gara_offerta, punteggio_gara_opzione, punteggio_gara_totale,
         punteggio_extra_gara_offerta, punteggio_extra_gara_opzione, punteggio_extra_gara_totale,
         punteggio_offerta, punteggio_opzione, punteggio_totale
@@ -614,9 +626,12 @@ async function caricaDatiMensili() {
   const fttcIds = (rFttcPv.data || []).map(r => r.contratto_id);
   if (fttcIds.length) {
     const rFttcContr = await sb.from('vendita_contratti')
-      .select('id, operatore_id, cluster_cliente, categoria_snapshot, data_contratto, stato_inserimento, punteggio_gara_totale')
+      .select('id, operatore_id, cluster_cliente, categoria_snapshot, data_contratto, stato_inserimento, punteggio_gara_totale, codice_rivenditore')
       .in('id', fttcIds);
-    DPState.fissoFTTCAttivatiMese = (rFttcContr.data || []).filter(c => c.stato_inserimento !== 'reinserimento');
+    // FTTC attivati nel mese usati solo nell'Avanzamento Mensile -> filtro Legnago (migration 050).
+    DPState.fissoFTTCAttivatiMese = (rFttcContr.data || []).filter(c =>
+      c.stato_inserimento !== 'reinserimento' && c.codice_rivenditore === CODICE_LEGNAGO
+    );
   }
   DPState.metricheGara = rMetriche.data || [];
   DPState.obiettivi = rObiettivi.data || [];
@@ -628,11 +643,12 @@ async function caricaDatiMensili() {
   const canonici = (rProfili.data || []).filter(p => !p.alias_di);
   DPState.operatoriInGara = canonici.filter(p => p.in_gara);
 
-  // Operatori attivi nel mese (per l'Avanzamento Mensile): union in_gara + chi ha contratti,
-  // risolti al canonico se un contratto storico non e' ancora stato backfillato.
-  // Include anche gli operatori di FTTC attivati nel mese (contratto di altro mese).
+  // Operatori attivi nel mese (per l'Avanzamento Mensile): union in_gara + chi ha contratti
+  // LEGNAGO (migration 050) nel mese, risolti al canonico se un contratto storico non e' ancora
+  // stato backfillato. Include anche gli operatori di FTTC attivati Legnago nel mese.
   const opConContratti = new Set(
     DPState.contrattiMese
+      .filter(c => c.codice_rivenditore === CODICE_LEGNAGO)
       .map(c => DPState.resolveOperatore(c.operatore_id))
       .filter(Boolean)
   );
@@ -669,6 +685,16 @@ function contrattiMatchPerOperatore(metrica, operatoreId) {
 }
 function contrattiMatchTotali(metrica) {
   return DPState.contrattiMese.filter(c => matchRegola(c, metrica.regola));
+}
+// Varianti "Legnago-only" per l'Avanzamento Mensile (migration 050). Le funzioni
+// senza suffisso restano usate dalla tab Gare Individuali, che conteggia entrambi
+// i punti vendita perche' l'operatore vede la propria produzione totale.
+function contrattiMatchPerOperatoreLegnago(metrica, operatoreId) {
+  return DPState.contrattiMese.filter(c =>
+    c.codice_rivenditore === CODICE_LEGNAGO
+    && DPState.resolveOperatore(c.operatore_id) === operatoreId
+    && matchRegola(c, metrica.regola)
+  );
 }
 // Peso del singolo contratto per una regola: base 1 + eventuali bonus_conteggio
 function pesoContratto(contratto, regola) {
@@ -844,7 +870,8 @@ function renderAvanzamento() {
     // Fisso -> punteggio_gara_totale).
     const CAMPO_PUNTEGGIO_STANDARD = { 'Assicurazioni': 'punteggio_gara_totale', 'Fisso': 'punteggio_gara_totale' };
     metriche.forEach(m => {
-      let contrattiPerOp = operatori.map(op => contrattiMatchPerOperatore(m, op.id));
+      // Avanzamento Mensile = solo contratti Legnago (migration 050).
+      let contrattiPerOp = operatori.map(op => contrattiMatchPerOperatoreLegnago(m, op.id));
       if (usaFiltroExtraPiva) {
         contrattiPerOp = contrattiPerOp.map(list => list.filter(isContrattoValidoAvanzamentoPiva));
       } else if (sez.key === 'standard' && m.regola?.categoria === 'Energia') {

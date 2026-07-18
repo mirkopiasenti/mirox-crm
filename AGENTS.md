@@ -1,6 +1,6 @@
-# CLAUDE.md — Guida per AI assistants
+# AGENTS.md — Guida per AI assistants
 
-Questo file viene letto automaticamente all'avvio di ogni sessione Claude. Contiene il contesto necessario per essere subito produttivi senza ri-esplorare il repo.
+Questo file viene letto automaticamente all'avvio di ogni sessione Codex. Contiene il contesto necessario per essere subito produttivi senza ri-esplorare il repo.
 
 ## Cos'è questo progetto
 
@@ -10,24 +10,24 @@ Questo file viene letto automaticamente all'avvio di ogni sessione Claude. Conti
 
 ## Manutenzione di questa guida (regola persistente)
 
-**Regola fondamentale**: ogni task che modifica codice, struttura o regole del progetto deve aggiornare i file di documentazione (`README.md`, `CLAUDE.md`, `database/README.md`) **nella stessa sessione**, prima di considerarsi concluso. Niente "lo aggiorno dopo" — il drift documentale si crea così e questa guida diventa inutile (è già successo con il vecchio `README_UNIFICATO.txt`).
+**Regola fondamentale**: ogni task che modifica codice, struttura o regole del progetto deve aggiornare i file di documentazione (`README.md`, `AGENTS.md`, `database/README.md`) **nella stessa sessione**, prima di considerarsi concluso. Niente "lo aggiorno dopo" — il drift documentale si crea così e questa guida diventa inutile (è già successo con il vecchio `README_UNIFICATO.txt`).
 
 ### Tabella trigger → cosa aggiornare
 
 | Cosa cambia nel progetto | Aggiorna |
 |---|---|
-| Stack, dipendenza npm, libreria JS condivisa | `README.md` (Stack + Struttura) + `CLAUDE.md` (Architettura) |
-| Struttura cartelle (nuova / spostata / rimossa) | `README.md` (Struttura) + `CLAUDE.md` (Architettura) |
+| Stack, dipendenza npm, libreria JS condivisa | `README.md` (Stack + Struttura) + `AGENTS.md` (Architettura) |
+| Struttura cartelle (nuova / spostata / rimossa) | `README.md` (Struttura) + `AGENTS.md` (Architettura) |
 | Env var Netlify (nuova / rimossa / rinominata) | `README.md` (Env vars) |
-| Pagina HTML aggiunta / rimossa / spostata | `README.md` (tabella moduli) + `CLAUDE.md` (Flusso vendita se impattato) |
-| Netlify function aggiunta / rimossa / rinominata | `README.md` (tabella Functions) + `CLAUDE.md` (Architettura layer 2) |
-| Tabella / colonna / vista / RPC / trigger / RLS / bucket Supabase | `CLAUDE.md` (Mappa Supabase) + valutare migration in `/database/` + `database/README.md` |
-| Nuova regola di business o validazione | `CLAUDE.md` (Regole di business) |
-| Nuova convenzione (path, naming, libreria d'uso obbligata) | `CLAUDE.md` (Convenzioni) |
-| Cron / schedule (nuovo / modificato / rimosso) | `README.md` (Schedulazioni) + `CLAUDE.md` (Architettura layer 2) |
-| Nuova "nota operativa consapevole" (limitazione nota, soluzione temporanea) | `CLAUDE.md` (Note operative consapevoli) |
-| Limitazione documentata risolta / password admin rimossa, ecc. | `CLAUDE.md` (rimuovere o aggiornare la nota corrispondente) |
-| Cambio modello permessi / ruoli / pagine pannello Admin | `CLAUDE.md` (sezione "Pannello Admin Mirox") + `README.md` (sezione "Pannello Admin Mirox") |
+| Pagina HTML aggiunta / rimossa / spostata | `README.md` (tabella moduli) + `AGENTS.md` (Flusso vendita se impattato) |
+| Netlify function aggiunta / rimossa / rinominata | `README.md` (tabella Functions) + `AGENTS.md` (Architettura layer 2) |
+| Tabella / colonna / vista / RPC / trigger / RLS / bucket Supabase | `AGENTS.md` (Mappa Supabase) + valutare migration in `/database/` + `database/README.md` |
+| Nuova regola di business o validazione | `AGENTS.md` (Regole di business) |
+| Nuova convenzione (path, naming, libreria d'uso obbligata) | `AGENTS.md` (Convenzioni) |
+| Cron / schedule (nuovo / modificato / rimosso) | `README.md` (Schedulazioni) + `AGENTS.md` (Architettura layer 2) |
+| Nuova "nota operativa consapevole" (limitazione nota, soluzione temporanea) | `AGENTS.md` (Note operative consapevoli) |
+| Limitazione documentata risolta / password admin rimossa, ecc. | `AGENTS.md` (rimuovere o aggiornare la nota corrispondente) |
+| Cambio modello permessi / ruoli / pagine pannello Admin | `AGENTS.md` (sezione "Pannello Admin Mirox") + `README.md` (sezione "Pannello Admin Mirox") |
 
 ### Self-check di fine task
 
@@ -39,25 +39,25 @@ Prima di dichiarare un task concluso:
 
 ---
 
-## Collaborazione Claude Code + Codex (dal 2026-07-02)
+## Collaborazione Codex + Codex (dal 2026-07-02)
 
 Sul progetto lavorano **due AI assistant** in parallelo, coordinati dallo stesso utente:
 
-- **Claude Code** (questo assistant) → **sviluppi grandi**: nuovi moduli, nuove Netlify functions, migration DB, refactor architetturali, integrazioni con nuove API, cambi al wizard/dashboard. Ha accesso autonomo al DB Supabase remoto via `.bin/supabase db query --linked ...`
+- **Codex** (questo assistant) → **sviluppi grandi**: nuovi moduli, nuove Netlify functions, migration DB, refactor architetturali, integrazioni con nuove API, cambi al wizard/dashboard. Ha accesso autonomo al DB Supabase remoto via `.bin/supabase db query --linked ...`
 - **Codex** → **sistemazione**: fix bug puntuali, piccoli miglioramenti UI, correzioni tipografiche, allineamenti tra doc e codice, refactor locali senza impatto architetturale
 
 Ognuno deve poter leggere lo stato del progetto e capire cosa ha fatto l'altro **senza chiedere all'utente**. Regole non negoziabili per garantirlo:
 
-1. **Fonti di verità condivise**: `README.md` (utente-facing) + `CLAUDE.md` (questo file) + `database/README.md` (schema). Ogni modifica va riflessa in questi 3 doc **nella stessa sessione** in cui si tocca il codice. Vale sia per Claude Code sia per Codex. La tabella "trigger → cosa aggiornare" sopra è l'oracolo condiviso.
+1. **Fonti di verità condivise**: `README.md` (utente-facing) + `AGENTS.md` (questo file) + `database/README.md` (schema). Ogni modifica va riflessa in questi 3 doc **nella stessa sessione** in cui si tocca il codice. Vale sia per Codex sia per Codex. La tabella "trigger → cosa aggiornare" sopra è l'oracolo condiviso.
 2. **Nessuna azione irreversibile senza conferma esplicita dell'utente**: no `git push --force`, no DROP tabelle/colonne, no `rm -rf` fuori dallo scratchpad, no revoca policy RLS, no cambio env var Netlify. Se una modifica DB rompe potenzialmente il CC prod (vedi lista tabelle condivise in "Roadmap & boundaries") → **bloccarsi e chiedere prima**.
 3. **Push su GitHub solo quando l'utente lo dice**: entrambi gli assistant possono `git add` + `git commit` in autonomia (i commit sono locali, reversibili), ma `git push origin main` va lanciato solo su richiesta esplicita ("push", "carica su github", "manda in produzione"). Netlify fa deploy automatico al push, quindi ogni push è un deploy production su `mirox-crm.it`.
-4. **Un commit = un cambio coerente**: ogni commit deve poter essere letto dall'altro assistant come "ok, qui hanno fatto X per Y". Messaggio in italiano, primo verbo all'imperativo (`fix(...)`, `feat(...)`, `docs(...)`, `refactor(...)`, `chore(...)`). Corpo opzionale con contesto se non ovvio. Sempre firma `Co-Authored-By` per capire chi ha scritto (Claude Code aggiunge la propria, Codex la propria).
+4. **Un commit = un cambio coerente**: ogni commit deve poter essere letto dall'altro assistant come "ok, qui hanno fatto X per Y". Messaggio in italiano, primo verbo all'imperativo (`fix(...)`, `feat(...)`, `docs(...)`, `refactor(...)`, `chore(...)`). Corpo opzionale con contesto se non ovvio. Sempre firma `Co-Authored-By` per capire chi ha scritto (Codex aggiunge la propria, Codex la propria).
 5. **Prima di iniziare, leggere gli ultimi commit**: `git log --oneline -20` mostra cosa ha fatto l'altro. Se un commit recente tocca la stessa area del task che stai per fare, allineati con lo stato attuale invece di sovrascriverlo.
 6. **Convenzioni tecniche identiche**: no emoji in HTML/JS visibili (vedi sezione dedicata), niente `alert()`/`confirm()` nativi (usare `MiroxUI.*`), niente `fetch()` diretto verso Netlify functions (usare `MiroxApi.fetch()`), niente `db.storage.from().upload()` dal client (solo via Netlify function). Vedi sezione "Convenzioni" per l'elenco completo.
 7. **Note operative consapevoli**: prima di "correggere" qualcosa che sembra sbagliato, controllare la sezione "Note operative consapevoli" — molte scelte apparentemente inconsistenti sono volute (es. cluster `Turista`, catalogo Reload dismesso, file SQL parziali).
-8. **In caso di conflitto**: se una convenzione, un pattern o un vincolo non è documentato qui e la tua modifica lo richiederebbe, **prima documentalo** in `CLAUDE.md` (sezione appropriata) e poi implementalo. Non lasciare tribal knowledge nel codice.
+8. **In caso di conflitto**: se una convenzione, un pattern o un vincolo non è documentato qui e la tua modifica lo richiederebbe, **prima documentalo** in `AGENTS.md` (sezione appropriata) e poi implementalo. Non lasciare tribal knowledge nel codice.
 
-L'utente può chiedere in qualsiasi momento "cosa ha fatto Codex nell'ultima sessione?" / "cosa ha fatto Claude Code?": la risposta si costruisce da `git log --author=...` + diff dei commit + eventuali sezioni nuove in `CLAUDE.md`.
+L'utente può chiedere in qualsiasi momento "cosa ha fatto Codex nell'ultima sessione?" / "cosa ha fatto Codex?": la risposta si costruisce da `git log --author=...` + diff dei commit + eventuali sezioni nuove in `AGENTS.md`.
 
 ---
 
@@ -104,7 +104,7 @@ Modifiche a schema / RLS / RPC / trigger su queste tabelle hanno rischio di **ro
 
 ### 1. Frontend (`/`, `/moduli/`, `/moduli/call-center/`, `/js/`, `/css/`)
 
-Pagine HTML statiche, no bundler. `/moduli/call-center/` contiene il modulo CC integrato (Fase 1, vedi sezione dedicata). Le pagine `admin*.html` alla root costituiscono il **Pannello Admin Mirox** (`admin.html` hub + `admin-utenti.html` + `admin-call-center-config.html` + `admin-vendita-config.html` + `admin-gare.html`), tutte gated da `profili.ruolo='admin'`. JS condiviso Mirox esposto su `window`:
+Pagine HTML statiche, no bundler. `/moduli/call-center/` contiene il modulo CC integrato (Fase 1, vedi sezione dedicata). Le pagine `admin*.html` alla root costituiscono il **Pannello Admin Mirox** (`admin.html` hub + `admin-utenti.html` + `admin-call-center-config.html` + `admin-vendita-config.html`), tutte gated da `profili.ruolo='admin'`. JS condiviso Mirox esposto su `window`:
 
 | File JS | Espone | Uso |
 |---|---|---|
@@ -117,24 +117,23 @@ Pagine HTML statiche, no bundler. `/moduli/call-center/` contiene il modulo CC i
 | `js/mirox-upload.js` | `window.MiroxUpload` | drag-drop binding su `.mx-drop-zone` e `.file-drop`; anteprima PDF prima di accettare file selezionati/trascinati (`previewPdfFile`, `previewPdfFiles`, `confirmFilesForInput`) |
 | `js/mirox-folder.js` | `window.MiroxFolder` | `build(oldName, newName, date)` per nomi cartella Storage |
 | `js/mirox-mailer.js` | `window.MiroxMailer` | `send({to, template, vars})` |
-| `js/mirox-error-reporter.js` | `window.MiroxErrorReporter` | `now()` timestamp Europe/Rome; `report({source, level, title, message, technical, context, silent})` invia mail di notifica al proprietario via `mirox-send-email` con throttling 60s per fingerprint; `install({source, ownerEmail})` aggancia handler globali `window.error` + `unhandledrejection`; `classify(input)` traduce l'errore in italiano semplice (usata dal blocco "Cosa e' successo" nella mail, esposta per test/riuso). Destinatario default `mirko.piasenti@gmail.com`. Vedi sezione "Sistema di error reporting via email" |
+| `js/mirox-error-reporter.js` | `window.MiroxErrorReporter` | `now()` timestamp Europe/Rome; `report({source, level, title, message, technical, context, silent})` invia mail di notifica al proprietario via `mirox-send-email` con throttling 60s per fingerprint; `install({source, ownerEmail})` aggancia handler globali `window.error` + `unhandledrejection`. Destinatario default `mirko.piasenti@gmail.com`. Vedi sezione "Sistema di error reporting via email" |
 | `js/vendita-storage-helper.js` | `uploadVenditaDocumento(...)` | wrapper upload PDF via Netlify function |
 
 ### 2. Server (`/netlify/functions/`)
 
-Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo, dal 2026-06-24 (Fase B hardening) **TUTTE le functions tranne `cron-rientro-sim` e `public-prenota`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `admin-vendita-config` ed `elimina-vendita-contratto` richiedono ulteriore check `ruolo='admin'`. Le 2 functions non-auth (`cron-rientro-sim` cron-only, `public-prenota` form pubblico) sono esplicitamente esposte. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. 16 functions + 4 lib condivise (`_lib/mailer.js`, `_lib/require-auth.js`, `_lib/smshosting.js`, `_lib/pdf-consenso.js`):
+Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo, dal 2026-06-24 (Fase B hardening) **TUTTE le functions tranne `cron-rientro-sim` e `public-prenota`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `admin-vendita-config` richiede ulteriore check `ruolo='admin'`. Le 2 functions non-auth (`cron-rientro-sim` cron-only, `public-prenota` form pubblico) sono esplicitamente esposte. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. 15 functions + 4 lib condivise (`_lib/mailer.js`, `_lib/require-auth.js`, `_lib/smshosting.js`, `_lib/pdf-consenso.js`):
 
 - `vendita-config.js` (GET) — catalogo per wizard
 - `admin-vendita-config.js` (GET/POST action-based) — CRUD admin offerte/opzioni/reload + replace regole documentali
-- `crea-vendita-pratica-carrello.js` (POST) — multi-contratto: anagrafica upsert → pratica → N contratti con validazioni categoria-specifiche, rollback completo su errore. **Promuove** i PDA caricati in staging (`temp/<sess>/`) alla cartella definitiva della pratica e crea i record `vendita_documenti` corrispondenti. Cellulare obbligatorio; email obbligatoria per `Consumer`/`Business` e facoltativa per `Turista`.
+- `crea-vendita-pratica-carrello.js` (POST) — multi-contratto: anagrafica upsert → pratica → N contratti con validazioni categoria-specifiche, rollback completo su errore. **Promuove** i PDA caricati in staging (`temp/<sess>/`) alla cartella definitiva della pratica e crea i record `vendita_documenti` corrispondenti. Cellulare + email obbligatori.
 - `upload-vendita-documento.js` (POST multipart busboy, max 20MB) — bucket `contratti-vendita`, rollback file se INSERT DB fallisce. Supporta modalità staging: se viene passato `temp_session_id` (UUID), salva in `temp/<sess>/` senza creare record DB.
-- `elimina-vendita-contratto.js` (POST) — **admin-only**. Usata da `moduli/verifica_contratti.html` per eliminare definitivamente una riga contratto. Richiede doppia conferma lato UI e `requireAuth(event, { adminOnly: true })` lato server. Cancella `vendita_contratti` (con cascade su `vendita_documenti` e tabelle post-vendita), rimuove gli allegati dal bucket `contratti-vendita`, elimina i log collegati e cancella `vendita_pratiche` solo se dopo la rimozione non restano altri contratti. Non cancella mai `anagrafica`. Se il contratto e' padre di un reinserimento (`reinserimento_di_contratto_id`) ritorna 409 e blocca l'eliminazione.
-- `ocr-pda.js` (POST multipart, max 20MB) — OCR del PDA via Claude API (`claude-haiku-4-5-20251001`). **Dati cliente**: cf_piva, ragione_sociale, nome_referente, cellulare, email, provincia, comune, via, civico. **Codice Rivenditore** (dal 2026-07-18, migration `050`): estrae `codice_rivenditore` dal "Codice POS" WindTre. Valori ammessi solo `'9001415852'` (Legnago) o `'9000822241'` (Cerea); qualsiasi altro codice trovato → `null`. Auto-precompila il dropdown del wizard step 3. **Dati dispositivo** (dal 2026-06-26, PDA WindTre Mobile/Customer Base): `dispositivo_presente` (bool), `tipo_acquisto` ('VAR' o 'Finanziamento'), `imei` (15 cifre), `prezzo_device` (stringa numerica es. "399.9"), `smartphone_reload` (bool nullable: true=SI[X], false=NO[X], null=sezione assente). Riconoscimento VAR vs Finanziamento via 3 segnali concordi nel PDA: titolo pagina ("Offerta con Finanziamento" vs "Offerta Vendita a Rate"), header sezione ("OFFERTA CON FINANZIAMENTO" vs "VENDITA A RATE"), riga Opzioni/servizi della SIM ("Vendita con Finanziamento" vs "Vendita a rate"). Validazione server-side: tipo_acquisto solo enum, imei regex 15 cifre, prezzo_device regex numerico (altrimenti `null` per evitare di sporcare il form). `finanziaria` e `kolme` NON sono estratti (non presenti nel PDA, compilazione manuale operatore). 200 con `data: {...}` se l'OCR estrae (campi `null` se parziale). In caso di errore "hard" l'errore Anthropic viene classificato in `error_code` strutturato: `ocr_credit_exhausted` (credit balance low → 503), `ocr_rate_limited` (429 → 503), `ocr_unavailable` (5xx/529 → 503), `ocr_auth_error` (401/403 → 503), `ocr_generic_error` (default → 500). Payload errore: `{success:false, error, error_code, http_status, provider_status, provider_message}`. Il client decide il popup in base a `error_code`. Richiede `ANTHROPIC_API_KEY`.
+- `ocr-pda.js` (POST multipart, max 20MB) — OCR del PDA via Codex API (`Codex-haiku-4-5-20251001`). **Dati cliente**: cf_piva, ragione_sociale, nome_referente, cellulare, email, provincia, comune, via, civico. **Codice Rivenditore** (dal 2026-07-18, migration `050`): `codice_rivenditore` estratto dal "Codice POS" WindTre, valori ammessi solo `'9001415852'` (Legnago) o `'9000822241'` (Cerea), altrimenti `null`. **Dati dispositivo** (dal 2026-06-26, PDA WindTre Mobile/Customer Base): `dispositivo_presente` (bool), `tipo_acquisto` ('VAR' o 'Finanziamento'), `imei` (15 cifre), `prezzo_device` (stringa numerica es. "399.9"), `smartphone_reload` (bool nullable: true=SI[X], false=NO[X], null=sezione assente). Riconoscimento VAR vs Finanziamento via 3 segnali concordi nel PDA: titolo pagina ("Offerta con Finanziamento" vs "Offerta Vendita a Rate"), header sezione ("OFFERTA CON FINANZIAMENTO" vs "VENDITA A RATE"), riga Opzioni/servizi della SIM ("Vendita con Finanziamento" vs "Vendita a rate"). Validazione server-side: tipo_acquisto solo enum, imei regex 15 cifre, prezzo_device regex numerico (altrimenti `null` per evitare di sporcare il form). `finanziaria` e `kolme` NON sono estratti (non presenti nel PDA, compilazione manuale operatore). 200 con `data: {...}` se l'OCR estrae (campi `null` se parziale). In caso di errore "hard" l'errore Anthropic viene classificato in `error_code` strutturato: `ocr_credit_exhausted` (credit balance low → 503), `ocr_rate_limited` (429 → 503), `ocr_unavailable` (5xx/529 → 503), `ocr_auth_error` (401/403 → 503), `ocr_generic_error` (default → 500). Payload errore: `{success:false, error, error_code, http_status, provider_status, provider_message}`. Il client decide il popup in base a `error_code`. Richiede `ANTHROPIC_API_KEY`.
 - `search-anagrafica.js` (GET) — lookup CF/PIVA
 - `mirox-send-email.js` (POST) — endpoint pubblico mailer
 - `cron-rientro-sim.js` (scheduled `0 7 * * *`) — notifica giornaliera switch SIM. **Non auth-gated** (chiamata dal cron Netlify, non da utente)
 - `public-prenota.js` (GET/POST) — **endpoint pubblico** chiamato dal form `prenota.html` (anon). GET `?action=slots&data=YYYY-MM-DD` ritorna gli slot via RPC `get_slot_disponibili` (SECURITY DEFINER). POST crea l'appuntamento con validazione lato server e re-check disponibilità slot. Rate-limiting in-memory (6 richieste / 10 min per IP). Usa `service_role` per bypassare le RLS che dopo migration 031 chiudono `appuntamenti`/`slot_bloccati`/`blocchi`/`orari_standard`/`impostazioni` a `authenticated`. **Non auth-gated** (intenzionalmente pubblico)
-- `garantisci-anagrafica.js` (POST) — upsert anagrafica (lookup CF/PIVA → update campi vuoti / cambiati o insert). Chiamato dal wizard upload-contratti PRIMA della raccolta consenso privacy: il consenso ha bisogno di `anagrafica_id` ma il backend del carrello finora la creava solo al submit. Idempotente con `crea-vendita-pratica-carrello` (entrambi fanno lo stesso lookup/update). Per cluster vendita `Turista`, salva/aggiorna `anagrafica.cluster='Consumer'` perché la tabella condivisa non deve contenere il cluster vendita turistico e non richiede email. Vedi sezione "Sistema consensi privacy GDPR".
+- `garantisci-anagrafica.js` (POST) — upsert anagrafica (lookup CF/PIVA → update campi vuoti / cambiati o insert). Chiamato dal wizard upload-contratti PRIMA della raccolta consenso privacy: il consenso ha bisogno di `anagrafica_id` ma il backend del carrello finora la creava solo al submit. Idempotente con `crea-vendita-pratica-carrello` (entrambi fanno lo stesso lookup/update). Vedi sezione "Sistema consensi privacy GDPR".
 - `check-consenso-privacy.js` (GET) — `?anagrafica_id=<uuid>`. Cerca il consenso `stato='confermato'`, non scaduto, non revocato. Usato dal wizard per dedupe 48 mesi: se valido, salta tutto il flusso OTP/cartaceo e procede direttamente al submit.
 - `richiedi-otp-privacy.js` (POST) — genera OTP 6 cifre, salva hash SHA256+salt random, invia SMS via Smshosting. Rate-limit 3 invii/ora per `anagrafica_id` + cooldown 60s tra invii. Invalida automaticamente i record `pending` precedenti dello stesso cliente. Richiede `SMSHOSTING_API_KEY`, `SMSHOSTING_API_SECRET`. Se `SMSHOSTING_SIMULATE=true` non invia davvero, logga e ritorna id fittizio (utile per dev/test).
 - `verifica-otp-privacy.js` (POST) — `{consenso_id, otp}`. Re-hash dell'OTP inserito e confronto. Max 3 tentativi (poi `stato='fallito'`). Se OK genera PDF informativa con metadata firma (cellulare, timestamp, IP, hash documento, ID SMS), upload su bucket `consensi-privacy`, segna `stato='confermato'` + `valido_fino_al = now()+48 mesi` + `informativa_hash`.
@@ -154,8 +153,8 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 ## Mappa Supabase per dominio
 
 ### Anagrafica & Auth (condiviso)
-- `profili` — utenti CRM, `ruolo` IN ('admin','operatore'), `pagine_accessibili` jsonb per ACL Call Center, `in_gara` bool (dal 2026-07-09, migration 038) per includere l'operatore nella tab "Gare Individuali" del Dashboard Pezzi, `alias_di` uuid (dal 2026-07-09, migration 040) self-FK opzionale per unificare due account della stessa persona: se valorizzato, il profilo e' un alias del profilo canonico indicato e ogni INSERT/UPDATE su tabelle con `operatore_id` viene redirezionato al canonico tramite trigger `trg_alias_operatore`. La RPC `applica_alias_backfill(uuid)` riassegna anche i record storici (chiamata dal bottone in `admin-utenti.html`)
-- `anagrafica` — cliente unificato, `cf_piva` UNIQUE, `cluster` operativo condiviso (`Consumer`/`Business`; i passaporti cluster vendita `Turista` vengono salvati qui come `Consumer`). Colonna `email` (text, NULL ammesso a livello DB; obbligatoria lato wizard solo per `Consumer`/`Business`). RPC `cerca_o_crea_anagrafica(p_..., p_email)` UPSERT
+- `profili` — utenti CRM, `ruolo` IN ('admin','operatore'), `pagine_accessibili` jsonb per ACL Call Center
+- `anagrafica` — cliente unificato, `cf_piva` UNIQUE, `cluster` IN ('Consumer','Business','Turista'). Colonna `email` (text, NULL ammesso a livello DB ma obbligatoria lato wizard vendita). RPC `cerca_o_crea_anagrafica(p_..., p_email)` UPSERT
 
 ### Call Center (condiviso, gestito dall'altro progetto)
 - `chiamate`, `appuntamenti`, `blacklist`, `orari_standard`, `blocchi`, `slot_bloccati`, `impostazioni`
@@ -169,7 +168,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `vendita_reload` — top-up. **Catalogo dismesso dal 2026-06-26** (vedi "Note operative consapevoli"). Tabella + colonna FK `vendita_contratti.reload_id` conservati per dati storici.
 - `vendita_offerte_opzioni`, `vendita_offerte_reload` — link N:M. `vendita_offerte_reload` dismesso col catalogo Reload (vedi sopra)
 - `vendita_pratiche` — `origine_pratica`, `stato_pratica`, `nome_cartella_storage`, `storage_base_path`
-- `vendita_contratti` — riga venduta con snapshot + punteggi server-side + `stato_controllo`. **Codice Rivenditore** (`codice_rivenditore`, migration `050`): text NOT NULL DEFAULT `'9001415852'` CHECK IN (`'9001415852'`,`'9000822241'`). Identifica il punto vendita di inserimento: `9001415852` = Legnago (negozio principale), `9000822241` = Cerea (piccolo, no gestionale locale). Filtra Dashboard Pezzi Day by Day + Avanzamento Mensile (solo Legnago); Gare Individuali conteggia entrambi. Indice `idx_vendita_contratti_codice_rivenditore`. Vedi sezione "Codice rivenditore".
+- `vendita_contratti` — riga venduta con snapshot + punteggi server-side + `stato_controllo`. **Codice Rivenditore** (`codice_rivenditore`, migration `050`): text NOT NULL DEFAULT `'9001415852'` CHECK IN (`'9001415852'`,`'9000822241'`). Identifica il punto vendita di inserimento: `9001415852` = Legnago (negozio principale), `9000822241` = Cerea. Filtra Dashboard Pezzi Day by Day + Avanzamento Mensile (solo Legnago); Gare Individuali conteggia entrambi. Indice `idx_vendita_contratti_codice_rivenditore`.
 - `vendita_documenti`, `vendita_documenti_regole`, `vendita_compensi_regole`, `vendita_log_modifiche`
 - `vendita_consensi_privacy` — consensi GDPR raccolti dal wizard upload-contratti (migration 034, dal 2026-06-26). Modalità `otp_sms` o `cartaceo`, stato workflow (`pending`/`confermato`/`scaduto`/`fallito`/`revocato`), OTP hash+salt+scadenza+tentativi, audit IP/UA, snapshot anagrafica jsonb al momento del consenso, `valido_fino_al = confermato_at + 48 mesi` (dedupe), `pdf_storage_path` nel bucket `consensi-privacy`. CHECK: `modalita='otp_sms' ⇒ cellulare_usato NOT NULL`; `stato='confermato' ⇒ valido_fino_al + pdf_storage_path NOT NULL`. Indici `(anagrafica_id, valido_fino_al DESC) WHERE stato='confermato' AND revocato_at IS NULL` per dedupe e `otp_scade_at WHERE stato='pending'` per cleanup. Vedi sezione "Sistema consensi privacy GDPR".
 - Moduli operativi: `vendita_apri_chiudi`, `vendita_switch_sim`, `vendita_ordini_smartphone`, `vendita_simulatore_protecta`
@@ -186,9 +185,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `segnalazioni` (+ `segnalazioni_backup`)
 - `ticket` — badge in dashboard quando `stato='Da gestire'`
 - `email_template` (con `{{placeholder}}`), `email_log` (`status` IN sent/error)
-- `dashboard_righe_giornaliera` — config righe dashboard custom (tab Day by Day del Dashboard Pezzi)
-- `gara_metriche` (dal 2026-07-09, migration 038 + 041) — catalogo righe delle 4 tabelle del modulo Gare (`tabella` IN `gara_individuale`/`avanzamento_standard`/`avanzamento_piva`/`avanzamento_extra_piva`). Ogni riga ha `regola` JSONB (stesso DSL di `dashboard_righe_giornaliera`) + `punti_per_pezzo` numeric (moltiplicatore della colonna "Punteggio" nell'Avanzamento) + `tipo_conteggio` (`individuale`/`squadra`, migration 041). Le metriche `squadra` calcolano l'ATTUALE sommando tutti gli operatori del mese; obiettivo comune con `operatore_id=NULL`, compenso uguale in ogni card operatore. Trigger `updated_at`. RLS SELECT authenticated, INSERT/UPDATE/DELETE riservati agli admin (migration 039)
-- `gara_obiettivi_mensili` (dal 2026-07-09, migration 038) — obiettivi mensili + regola compenso. Chiave `(anno, mese, metrica_id, operatore_id)` con `operatore_id` NULLABLE (NULL = obiettivo di categoria per l'Avanzamento Mensile; NOT NULL = obiettivo individuale per la Gara). `compenso_regola` jsonb DSL scaglioni + bonus (vedi "Modulo Gare & Avanzamento"). Trigger `updated_at`. RLS SELECT authenticated, INSERT/UPDATE/DELETE riservati agli admin (migration 039)
+- `dashboard_righe_giornaliera` — config righe dashboard custom
 
 ### Viste
 - `vw_elenco_chiamate_unificate`, `vw_rilavorazione_ricontatti_unificata` — UNION standard + outbound
@@ -245,11 +242,11 @@ Dal 2026-06-24 (migration `029`) i bucket dati clienti sono **PRIVATI**. Lettura
 
 **RLS storage**: SELECT/INSERT/DELETE ristretti a `authenticated` per i bucket privati; le scritture passano comunque per Netlify functions con service_role.
 
-**Segnalazioni hardened al pari degli altri moduli** (migration `036` + refactor `moduli/segnalazioni.html`, 2026-07-02): storicamente il modulo segnalazioni faceva le sue chiamate come `anon` — la pagina Mirox creava un proprio client Supabase con la anon key hardcoded (`sb = createClient(URL, ANON_KEY)`), senza `js/config.js` ne' `Auth.richiediAuth`. Per non romperlo la migration 032 aveva riaperto `anon` (SELECT/INSERT/UPDATE su tabella + SELECT/INSERT su bucket). Il konahub legacy usava lo stesso trick.
+**Eccezione `segnalazioni-files` + tabella `segnalazioni` per konahub legacy** (migration `032`, 2026-06-25): il konahub (CRM provvisorio su deploy separato) usa `moduli/segnalazioni.html` senza Supabase Auth — tutte le chiamate sono `anon`. La 029 (storage) + la 030 (tabella) avevano rotto il modulo. La 032 riapre solo il minimo per `anon` (additivo alle policy authenticated esistenti, Mirox NON è toccato):
+- Tabella `segnalazioni`: SELECT + INSERT + UPDATE (no DELETE)
+- Bucket `segnalazioni-files`: SELECT + INSERT (no DELETE)
 
-Al 2026-07-02 il konahub e' stato dismesso e `moduli/segnalazioni.html` e' stata **modernizzata**: include `js/config.js` + `js/auth.js`, chiama `Auth.richiediAuth()` al boot, aliasa `const sb = window.db` (client persistSession della sessione Mirox). Tutte le chiamate ora viaggiano col JWT `authenticated` e vengono coperte dalle policy `segnalazioni_authenticated_all` / `Read|Upload|Delete auth segnalazioni files`. La migration 036 revoca quindi le 5 policy `anon` residue.
-
-Da questo momento il modulo segnalazioni funziona **solo da Mirox loggato**. Se qualcuno prova a chiamare `segnalazioni` come `anon` (konahub tornante online, client esterni) riceve RLS violation.
+Bucket resta `public=false`. Da revocare quando il konahub verrà dismesso — vedi "Note operative consapevoli".
 
 ---
 
@@ -259,7 +256,7 @@ Da questo momento il modulo segnalazioni funziona **solo da Mirox loggato**. Se 
 2. `dashboard.html` → tab Vendita → card "Upload Contratti"
 3. `moduli/upload-contratti-vendita.html` → wizard **5 step** con carrello multi-contratto:
    1. **Categoria + PDA**: dropdown categoria; se categoria ∈ `Mobile`/`Customer Base`/`Fisso` (costante `CATEGORIE_PDA`) → upload del PDA in staging via `POST /upload-vendita-documento` con `temp_session_id` UUID. Due bottoni: "Analizza con AI" (chiama `/ocr-pda` per pre-compilare anagrafica) e "Continua senza AI" (skip OCR). Per Energia/Allarmi/Assicurazioni nessun PDA viene caricato.
-   2. **Anagrafica**: cf_piva (auto-detect cluster CF→Consumer, P.IVA→Business), cellulare, ragione sociale, email per Consumer/Business, ecc. Pre-compilata se l'OCR ha estratto dati. **Skippato automaticamente dal 2° contratto in poi** (anagrafica gia' nota nella pratica).
+   2. **Anagrafica**: cf_piva (auto-detect cluster CF→Consumer, P.IVA→Business), email, cellulare, ragione sociale, ecc. Pre-compilata se l'OCR ha estratto dati. **Skippato automaticamente dal 2° contratto in poi** (anagrafica gia' nota nella pratica).
    3. **Dati contratto**: offerta/opzione/reload + campi specifici per categoria (Fisso/Energia/Allarmi/dispositivo).
    4. **Firma** (solo per categorie PDA): scelta tra `elettronica` o `cartacea`. Skippato per Energia/Allarmi/Assicurazioni. Il valore finisce in `vendita_contratti.tipo_firma`.
    5. **Documenti cliente**: documento_identita + eventuali copia_bolletta/copia_sim_mnp. Se `tipo_firma='cartacea'` appare anche il campo upload **"Contratto firmato"** (PDF della scansione del PDA firmato a mano dal cliente). **Niente upload contratto PDF originale qui** — quello e' gia' in staging dallo step 1.
@@ -269,7 +266,7 @@ Da questo momento il modulo segnalazioni funziona **solo da Mirox loggato**. Se 
    3. Altrimenti popup di scelta modalità: **OTP via SMS** (Smshosting + 6 cifre + verifica server-side + PDF generato) oppure **modulo cartaceo** (download PDF precompilato + upload scansione firmata)
    4. Risultato: `consenso_id` valido, passato al backend nel campo `pratica.consenso_id`
 5. → `POST /netlify/functions/crea-vendita-pratica-carrello`:
-   - Upsert `anagrafica` (cerca per `cf_piva`, aggiorna solo campi vuoti). Cellulare obbligatorio; email obbligatoria solo per `Consumer`/`Business` (facoltativa per `Turista`).
+   - Upsert `anagrafica` (cerca per `cf_piva`, aggiorna solo campi vuoti). Email + cellulare obbligatori (400 se mancanti).
    - **Guard consenso privacy** (migration 034): query `vendita_consensi_privacy` per anagrafica_id con `stato='confermato' AND revocato_at IS NULL AND valido_fino_al > now()`. Se non esiste → errore 400 "Consenso privacy mancante o scaduto". Se il client ha passato `pratica.consenso_id` verifica anche che corrisponda al consenso attivo (anti-tampering).
    - INSERT `vendita_pratiche` con `stato_pratica='inviata'`
    - Back-link: se il consenso non aveva `pratica_id` (caso "appena raccolto"), aggiorna il record con la nuova pratica creata. Se aveva già `pratica_id` (caso riuso in dedupe 48 mesi) lascia il riferimento originale come audit.
@@ -281,7 +278,7 @@ Da questo momento il modulo segnalazioni funziona **solo da Mirox loggato**. Se 
    - Upload su bucket `contratti-vendita` in `<YYYY>/<MM>/<cartella_safe>/`
    - INSERT `vendita_documenti`
    - Rollback file su Storage se INSERT DB fallisce
-7. Verifica contratto in `moduli/verifica_contratti.html` → `confermaVerifica()` UPDATE `vendita_contratti SET stato_controllo='controllato'`. Le tab "Da Verificare" e "Verificati" hanno ricerca, filtro categoria e filtro `Giorno` su `vendita_contratti.data_contratto` (data Europe/Rome). Il popup di conferma per i contratti Fisso/Energia evidenzia il passaggio rispettivamente al modulo Controllo Fissi / Controllo L&G. Per categoria Fisso, nella sezione "Campi specifici categoria" sono visibili `prezzo_fisso` e `convergenza` (valori ammessi da migration 017), editabili nella tab "Da Verificare" e read-only nella tab "Verificati". Per categoria Energia, sono obbligatori in fase di verifica `numero_contratto_energia` E `ex_fornitore` (entrambi compilati nella sezione "Campi specifici categoria" del popup verifica). Il popup (solo tab "Da Verificare", editabile) contiene una sezione "Inserimento pratica" con **Data di upload** (`vendita_contratti.data_contratto`, input `datetime-local` in ora Europe/Rome) e **Operatore inserimento** (`vendita_contratti.operatore_id`, dropdown dei `profili` attivi) modificabili — salvati sia da "Salva modifica" sia da "Conferma verifica". Nella tab "Verificati" sono read-only. Dal 2026-07-02 il popup contiene anche "Elimina definitivamente": visibile a tutti, disabilitato per operatori, attivo solo per admin e collegato alla function `elimina-vendita-contratto`.
+7. Verifica contratto in `moduli/verifica_contratti.html` → `confermaVerifica()` UPDATE `vendita_contratti SET stato_controllo='controllato'`. Il popup di conferma per i contratti Fisso/Energia evidenzia il passaggio rispettivamente al modulo Controllo Fissi / Controllo L&G. Per categoria Energia, sono obbligatori in fase di verifica `numero_contratto_energia` E `ex_fornitore` (entrambi compilati nella sezione "Campi specifici categoria" del popup verifica). Il popup (solo tab "Da Verificare", editabile) contiene una sezione "Inserimento pratica" con **Data di upload** (`vendita_contratti.data_contratto`, input `datetime-local` in ora Europe/Rome) e **Operatore inserimento** (`vendita_contratti.operatore_id`, dropdown dei `profili` attivi) modificabili — salvati sia da "Salva modifica" sia da "Conferma verifica". Nella tab "Verificati" sono read-only.
 8. Post-vendita Fisso: il trigger `trg_vendita_contratti_to_controllo_fissi` crea automaticamente una riga in `post_vendita_controllo_fissi` con stato `Da completare`. L'operatore compila i 4 campi obbligatori (Cod. Cliente, Tecnologia, Cod. Contratto, Cod. POS) in `moduli/controllo_fissi.html` → click "Compilazione Completata" → stato `In Attivazione`. Poi via dropdown stato → `Attivo` (con data attivazione effettiva obbligatoria) oppure `KO` (azzera `attivazione_prevista`).
 9. Post-vendita Energia (L&G): il trigger `trg_vendita_contratti_to_controllo_lg` crea automaticamente una riga in `post_vendita_controllo_lg`. La pagina `moduli/controllo_lg.html` mostra tutti i dati incolonnati in tabella (nessun popup dettagli, nessuno step di completamento): Data Inserimento, Ragione Sociale, CF/PIVA, Numero Contratto, POD/PDR, Ex Fornitore, Contatto (cellulare), Operatore, Stato.
 10. Post-vendita Assicurazioni: il trigger `trg_vendita_contratti_to_controllo_assicurazioni` crea automaticamente una riga in `post_vendita_controllo_assicurazioni`. La pagina `moduli/controllo_assicurazioni.html` mostra in tabella: Data Inserimento, Ragione Sociale, CF/PIVA, Numero Contatto, Offerta scelta, Operatore, Metodo di pagamento (RID/Carta di Credito/Carta di Debito), Ricorrenza (Mensile/Annuale).
@@ -295,17 +292,17 @@ Da questo momento il modulo segnalazioni funziona **solo da Mirox loggato**. Se 
 - CF italiano (16 char, regex con caratteri omocodia) → `Consumer`
 - P.IVA (11 cifre + Luhn IT) → `Business`
 - Nessuno dei due → errore "verifica il dato" (no fallback)
-- `Turista` → forza `categoria=Mobile`, `offerta="Untied - Call Your Country"` e non richiede opzione nel wizard. Accettato da `garantisci-anagrafica.js` e `crea-vendita-pratica-carrello.js`: nei contratti/pratica resta `Turista`, mentre in `anagrafica.cluster` viene scritto `Consumer`.
+- `Turista` → forza `categoria=Mobile`, `offerta="Untied - Call Your Country"`. Accettato solo da `crea-vendita-pratica-carrello.js`.
 
 ### Campi anagrafici obbligatori
 Sia UI (`validateClienteData` in `upload-contratti-vendita.html`) sia backend (`crea-vendita-pratica-carrello.js`) **bloccano** la pratica se uno qualsiasi di questi campi e' vuoto o malformato:
 - `cf_piva`, `cluster`, `ragione_sociale` (sempre obbligatori)
 - `nome_referente`
 - `cellulare`
-- `email` (obbligatoria e verificata con regex per `Consumer`/`Business`; per `Turista` il wizard la nasconde e la invia `null`)
-- `provincia`, `comune`, `via`, `civico` (indirizzo completo obbligatorio per `Consumer`/`Business`; per `Turista` il wizard nasconde i campi e li invia `null`)
+- `email` (formato verificato con regex)
+- `provincia`, `comune`, `via`, `civico` (indirizzo completo obbligatorio)
 
-L'email viene normalizzata in lowercase quando presente.
+L'email viene normalizzata in lowercase. Nota: nel backend il flag `allowStrictContacts` controlla la severita' (oggi `false` per backwards compat con vecchi consumer della API).
 
 ### OCR sovrascrive sempre i dati anagrafici esistenti
 Quando l'utente carica un PDA + sceglie "Analizza con AI", i dati estratti dall'OCR **sovrascrivono sempre** i valori dei campi del form, anche se l'anagrafica esiste gia' a DB con valori precedenti. Razionale: il PDA appena firmato e' la fonte di verita' piu' recente, l'anagrafica e' "always fresh".
@@ -317,7 +314,7 @@ Quando l'utente carica un PDA + sceglie "Analizza con AI", i dati estratti dall'
 - Costante `CATEGORIE_PDA = ['Mobile', 'Customer Base', 'Fisso']`.
 - Per queste 3 categorie il PDA (contratto PDF) e' obbligatorio e viene caricato allo step 1 del wizard in staging (`temp/<temp_session_id>/pda_<rand>.pdf`); poi promosso a `<cartella_pratica>/contratto_<categoria>.pdf` al submit.
 - Per `Energia`, `Allarmi`, `Assicurazioni`: NESSUN PDA, NESSUN documento "contratto" (resta solo `documento_identita` + eventuali bolletta/SIM).
-- L'OCR del PDA e' opzionale: il bottone "Continua senza AI" salta la chiamata a Claude API ma carica comunque il file in staging.
+- L'OCR del PDA e' opzionale: il bottone "Continua senza AI" salta la chiamata a Codex API ma carica comunque il file in staging.
 
 ### Step Firma (solo categorie PDA)
 - Solo per Mobile / Customer Base / Fisso il wizard chiede tra step Contratto e step Documenti la modalita' di firma: `elettronica` o `cartacea`. Il valore finisce in `vendita_contratti.tipo_firma` (vincolato dal CHECK constraint).
@@ -331,7 +328,7 @@ Quando l'utente carica un PDA + sceglie "Analizza con AI", i dati estratti dall'
 - Trigger `vendita_calcola_punteggio_totale` ricalcola il totale su ogni INSERT/UPDATE
 
 ### Validazioni categoria-specifiche (in `crea-vendita-pratica-carrello.js → validateCategorySpecificRules`)
-- **Fisso**: `tipo_attivazione` IN ('Nuova Attivazione','Portabilita'); `apri_chiudi` Si/No; se Sì → `intestatario` IN ('Stesso intestatario','Intestatario diverso'). Al passaggio step 2 → step Firma il wizard apre un popup che richiede 2 campi obbligatori: `prezzo_fisso` (numerico >= 0) e `convergenza` IN ('Mobile','L&G','Allarme','Assicurazione','Sim Interna','NO Convergenza','Coupon','Seconda Casa'). La `convergenza` è enforced anche a livello DB con CHECK constraint (vedi migration 017 + 048 che aggiunge 'Seconda Casa').
+- **Fisso**: `tipo_attivazione` IN ('Nuova Attivazione','Portabilita'); `apri_chiudi` Si/No; se Sì → `intestatario` IN ('Stesso intestatario','Intestatario diverso'). Al passaggio step 2 → step Firma il wizard apre un popup che richiede 2 campi obbligatori: `prezzo_fisso` (numerico >= 0) e `convergenza` IN ('Mobile','L&G','Allarme','Assicurazione','Sim Interna','NO Convergenza','Coupon'). La `convergenza` è enforced anche a livello DB con CHECK constraint (vedi migration 017).
 - **Allarmi**: `modalita_pagamento` IN ('Finanziamento','Anticipo')
 - **Fisso FWA Indoor** (offerta nome contiene "fwa" + "indoor", case-insensitive): logica speciale dal 2026-06-27. `dispositivo_associato` è **forzato a Si e non modificabile** (il modem c'è sempre). `tipo_acquisto` è **forzato a 'VAR' e non modificabile** (modem sempre a rate, mai finanziamento). Mostra solo IMEI, Prezzo Device, Tipo Acquisto (locked VAR). **Nasconde** Kolme + Smartphone Reload + modalita + Finanziaria (non rilevanti per il modem FWA). OCR estrae `imei` da "Seriale/IMEI:" o "SERIALE MODEM" + `prezzo_device` da "prezzo pari a X,XX euro" o "cede l'importo di X,XX euro" (virgola → punto). `tipo_acquisto` e `smartphone_reload` restano null nell'OCR, il client/server forzano `tipo_acquisto='VAR'`. Backend `crea-vendita-pratica-carrello.js` forza server-side `tipo_acquisto='VAR'`, `finanziaria=null`, `kolme=null`, `smartphone_reload=null`, `smartphone_reload_modalita=null` per offerte FWA Indoor (safety net contro client legacy).
 - **Dispositivo** (solo se `vendita_offerte.abilita_dispositivo=true` E `dispositivo_associato=true`):
@@ -340,21 +337,8 @@ Quando l'utente carica un PDA + sceglie "Analizza con AI", i dati estratti dall'
   - `tipo_acquisto` IN ('VAR','Finanziamento'); se Finanziamento → `finanziaria` IN ('Findomestic','Compass'). Auto-compilato dall'OCR (riconoscimento via 3 segnali concordi titolo+sezione+riga SIM del PDA WindTre). `finanziaria` resta manuale (non presente nel PDA)
   - `kolme` boolean obbligatorio. Resta manuale (non presente nel PDA)
 - **Energia**: campo `pod_pdr` raccolto nel wizard. `numero_contratto_energia` e `ex_fornitore` (text libero) sono predisposti vuoti dal wizard e diventano **obbligatori in fase di verifica** (`moduli/verifica_contratti.html` → `confermaVerifica` valida entrambi prima del passaggio a `stato_controllo='controllato'`).
-- **Assicurazioni**: `modalita_pagamento_assicurazione` IN ('RID','Carta di Credito','Carta di Debito') e `ricorrenza_assicurazione` IN ('Mensile','Annuale'), entrambi obbligatori (CHECK DB su migration 021). Sono colonne separate dal `modalita_pagamento` di Allarmi. **Bonus Annuale** (migration `049`): se `ricorrenza_assicurazione='Annuale'`, il backend `crea-vendita-pratica-carrello.js` somma il valore di `impostazioni['bonus_assicurazione_annuale']` (default `0.5`) al `punteggio_gara_opzione` alla creazione del contratto. Valore snapshot alla creazione, i contratti storici NON vengono ricalcolati se l'admin cambia il bonus. Editabile da Admin → Configurazione Vendita (sezione "Bonus Assicurazione Annuale").
+- **Assicurazioni**: `modalita_pagamento_assicurazione` IN ('RID','Carta di Credito','Carta di Debito') e `ricorrenza_assicurazione` IN ('Mensile','Annuale'), entrambi obbligatori (CHECK DB su migration 021). Sono colonne separate dal `modalita_pagamento` di Allarmi.
 - **Mobile / Customer Base**: 2 checkbox `reload_exchange` + `reload_forever` (migration `035`). Entrambi boolean NOT NULL DEFAULT false. Allineati esteticamente sotto la dropdown Offerta nel wizard, visibili solo per Mobile/Customer Base. Catalogo `vendita_reload` non più gestito (vedi "Note operative consapevoli").
-
-### Codice rivenditore (dal 2026-07-18, migration `050`)
-Ogni contratto è etichettato col punto vendita di **inserimento**: `9001415852` = Legnago (negozio principale, dove gira Mirox), `9000822241` = Cerea (piccolo negozio, senza gestionale locale). Un contratto acquisito a Legnago può poi essere spostato amministrativamente su Cerea, ma resta contabilizzato al negozio di **inserimento**.
-
-- Campo obbligatorio nello step 3 del wizard `moduli/upload-contratti-vendita.html` (dropdown 2 valori, **default Legnago preselezionato**). Sempre visibile per tutte le categorie
-- Auto-compilato dall'**OCR PDA** (`ocr-pda.js`): l'OCR estrae il "Codice POS" WindTre e ritorna `codice_rivenditore` con uno dei 2 valori esatti (`null` se il codice trovato non è fra i due). Il client sovrascrive il default se estratto valido. Vale per PDA Mobile/Customer Base/Fisso — per le categorie senza PDA (Energia/Allarmi/Assicurazioni) l'operatore sceglie manualmente
-- Backend `crea-vendita-pratica-carrello.js` valida enum + default Legnago se assente, poi INSERT su `vendita_contratti.codice_rivenditore`
-- **Editabile in Verifica Contratti** (tab "Da Verificare", sezione "Inserimento pratica" accanto a Data upload + Operatore). Read-only nella tab "Verificati"
-- **Dashboard Pezzi** (`moduli/dashboard_pezzi.html`, costante `CODICE_LEGNAGO`):
-  - **Day by Day** → filtro `.codice_rivenditore === '9001415852'` sui contratti caricati (Cerea escluso)
-  - **Avanzamento Mensile** → helper `contrattiMatchPerOperatoreLegnago` + `fissoFTTCAttivatiMese` filtrato + `opConContratti` filtrato. Cerea escluso da conteggi, punteggi, operatori attivi
-  - **Gare Individuali** → nessun filtro (usa `contrattiMatchPerOperatore` / `contrattiMatchTotali` originali). Ogni operatore vede la produzione totale personale a prescindere dal punto vendita di inserimento
-- Backfill contratti storici pre-migration: implicito col DEFAULT SQL `'9001415852'` (tutti 1835 contratti Legnago).
 - **Smartphone Reload** (solo se `dispositivo_associato=true`, migration `035`): risposta alla riga "È stata richiesta l'attivazione contestuale dell'opzione SMARTPHONE RELOAD SI [X] NO [X]" del PDA WindTre. `smartphone_reload` boolean NULL (true=Si, false=No, NULL=non specificato). Auto-compilato dall'OCR. Se `smartphone_reload=true` allora `smartphone_reload_modalita` text NOT NULL CHECK IN ('Mantenere attivo','Disattivazione cliente') — **manuale operatore** (non estraibile dal PDA). CHECK DB di coerenza: modalita IS NULL ⇔ smartphone_reload IS NOT TRUE.
 
 ### Origine pratica (CHECK constraint su `vendita_pratiche`)
@@ -381,7 +365,7 @@ Quando una pratica va in KO post-vendita (o `Rifiutata`/`Annullata`/`In lavorazi
 
 **Flusso wizard** (`upload-contratti-vendita.html`):
 1. All'apertura dello **step 3 (Dati contratto)** il wizard chiama `checkReinserimento(anagrafica_id, categoria_id, categoria_nome)` se la coppia (anagrafica, categoria) non è già stata verificata in sessione (`runtimeState.lastReinsCheckKey`)
-2. La funzione fa due query: prima recupera i contratti `vendita_contratti` del cliente per quella categoria nel **mese solare corrente** (timezone Europe/Rome, `data_contratto >= inizio_mese AND < inizio_mese_successivo`, `stato_inserimento='inserimento'`, esclude catene di reinserimenti), poi recupera dalla tabella post-vendita appropriata gli stati che fanno scattare il popup. Un contratto di giugno **NON** è candidato al reinserimento per un contratto inserito a luglio: sarà classificato come inserimento nuovo. Vecchia finestra 90gg sostituita dal mese solare
+2. La funzione fa due query: prima recupera i contratti `vendita_contratti` del cliente per quella categoria negli ultimi **90 giorni** (`stato_inserimento='inserimento'`, esclude catene di reinserimenti), poi recupera dalla tabella post-vendita appropriata gli stati che fanno scattare il popup
 3. Mapping categoria → tabella → stati trigger:
    - **Fisso** → `post_vendita_controllo_fissi.stato` IN (`KO`,`In Attivazione`)
    - **Energia** → `post_vendita_controllo_lg.stato` IN (`Rifiutato`,`Annullato`,`Nuovo`,`In lavorazione`,`In attivazione`) (tutto tranne `Attivato`/NULL)
@@ -397,7 +381,7 @@ Quando una pratica va in KO post-vendita (o `Rifiutata`/`Annullata`/`In lavorazi
 - Se `'reinserimento'`: valida `reinserimento_di_contratto_id` come UUID, fa SELECT `vendita_contratti` per verificare che esista E appartenga alla **stessa anagrafica** E alla **stessa categoria** (errori 400 altrimenti)
 - Se `'inserimento'`: forza `reinserimento_di_contratto_id=null` (idempotente)
 
-**Dashboard**: i contratti con `stato_inserimento='reinserimento'` sono esclusi dal conteggio sia nel **Day by Day** (`caricaDay` → `DPState.contrattiDay` filtrato in `moduli/dashboard_pezzi.html`) sia nel **mensile** (`caricaDatiMensili` → `DPState.contrattiMese`). Metrica derivata "tasso di rilavorazione = reinserimenti / inserimenti totali" ancora da implementare come bonus.
+**Dashboard** (futura): WHERE `stato_inserimento <> 'reinserimento'` per il conteggio pezzi del mese. Metrica derivata "tasso di rilavorazione = reinserimenti / inserimenti totali" disponibile come bonus.
 
 ### Controllo Fissi (post-vendita)
 - Tabella: `post_vendita_controllo_fissi` (vedi Mappa Supabase → Post-Vendita).
@@ -434,104 +418,6 @@ Quando una pratica va in KO post-vendita (o `Rifiutata`/`Annullata`/`In lavorazi
 - Regole con `campo_condizione='admin_config'` sono gestibili da UI admin
 - Nome standard: `documento_identita.pdf`, `contratto_<categoria_slug>.pdf`, `contratto_firmato_<categoria_slug>.pdf` (solo per firma cartacea), `copia_sim_mnp.pdf`, `copia_bolletta.pdf`
 - Solo `application/pdf`, max 20 MB
-
----
-
-## Modulo Gare & Avanzamento (dal 2026-07-09, migration 038 + 039)
-
-Sostituisce la tab unica del vecchio `dashboard_pezzi.html` con **3 tab**: Day by Day (invariata), Gare Individuali, Avanzamento Mensile. La configurazione (metriche, obiettivi mensili, regole compenso, flag `in_gara` sugli operatori) sta sotto Admin → **Gare & Avanzamento** (`admin-gare.html`).
-
-Motivazione: prima gli obiettivi e i compensi vivevano in un Google Sheet aggiornato a mano; ogni cambio gara aziendale (mensile) richiedeva ri-copiare il foglio e ricomunicarlo ai venditori. Ora tutto e' in Mirox e l'utente admin aggiorna i numeri direttamente da UI, mese per mese.
-
-### Struttura DB
-
-| Tabella | Cosa contiene |
-|---|---|
-| `profili.in_gara` | Flag bool per selezionare quali operatori vedono la loro tabella nella tab "Gare Individuali" |
-| `gara_metriche` | Catalogo righe delle 4 tabelle (`tabella` IN `gara_individuale`/`avanzamento_standard`/`avanzamento_piva`/`avanzamento_extra_piva`). `regola` JSONB stesso engine di `dashboard_righe_giornaliera` (matching contratti). `punti_per_pezzo` numeric per la colonna Punteggio dell'Avanzamento. Trigger `updated_at`. Seed iniziale = 21 righe coerenti col Google Sheet legacy (Attivazioni Tied / Telefoni Finanziati GA / Telefoni CB / Fisso / L&G / P.IVA / Assicurazioni / Protecta per la gara + Mobili / Device Finanziati GA / Telefoni CB / Fissi / L&G / Assicurazioni / Allarmi per l'avanzamento standard + le stesse varianti P.IVA + Extra Gara P.IVA) |
-| `gara_obiettivi_mensili` | Un record per `(anno, mese, metrica_id, operatore_id)`. `operatore_id` NULLABLE: NULL = obiettivo di categoria (avanzamento mensile, calcolato dalla somma di tutti gli operatori), NOT NULL = obiettivo individuale (gara). `obiettivo` int + `compenso_regola` jsonb DSL. Unique index parziale su `(anno, mese, metrica, coalesce(operatore, ffff))` per garantire unicita' anche con NULL. Trigger `updated_at`. RLS SELECT authenticated, scrittura admin |
-
-### DSL compenso (JSONB)
-
-Un solo tipo `scaglioni_e_bonus` copre tutti i casi visti nel Sheet legacy (per pezzo, per pezzo oltre soglia, scaglioni multipli, bonus una tantum al raggiungimento di N pezzi):
-
-```json
-{
-  "tipo": "scaglioni",
-  "scaglioni": [
-    { "da": 0,  "a": 20,   "per_pezzo": 10 },
-    { "da": 20, "a": null, "per_pezzo": 15 }
-  ],
-  "bonus_soglie": [ { "soglia": 40, "bonus": 50 } ],
-  "label": ""
-}
-```
-
-Interpretazione: se `attuale = 25` → 20 × 10 + 5 × 15 = 275 €. Se `attuale = 45` → 20 × 10 + 25 × 15 = 575 € + bonus 50 € = 625 €.
-
-Variante `{ "tipo": "nessuno", "label": "DEC." }` = riga senza calcolo compenso, la cella mostra solo il label (es. la cella "DEC." dei mesi in decurtazione). `a: null` = infinito. Motivazioni della scelta:
-- **Sicuro**: nessuna eval di formula testuale, tutte le operazioni sono `min/max/*/+` con valori numerici tipizzati.
-- **Coerente**: la stessa funzione `calcolaCompenso(attuale, regola)` gira in `admin-gare.html` (preview) e in `moduli/dashboard_pezzi.html` (rendering finale). Se la logica cambia, un solo posto da toccare.
-- **Estendibile**: se in futuro serve un tipo nuovo, si aggiunge `{tipo: 'xyz', ...}` con branch dedicato nella funzione, senza rompere il vecchio.
-
-### UI operatori — `moduli/dashboard_pezzi.html`
-
-3 tab. Toolbar con:
-- **Day by Day**: input `date` (invariato)
-- **Gare Individuali** / **Avanzamento Mensile**: `<select>` Mese + `<select>` Anno (default = mese corrente)
-
-Tab **Gare Individuali**: una card `.gara-card` per ogni operatore con `in_gara=true`, contenente una tabella `Metrica | Attuale | Obiettivo | Compenso` e riga "Totale compensi". "Attuale" = conteggio contratti del mese in cui `operatore_id = ` operatore E `matchRegola(contratto, metrica.regola)`. "Compenso" = `calcolaCompenso(attuale, obiettivo.compenso_regola)`. Se `compenso_regola.tipo='nessuno'` mostra il label (es. "DEC.") in rosso, non contribuisce al totale. Filtro: i contratti con `stato_inserimento='reinserimento'` sono esclusi (coerente con la regola anti-doppio-conteggio).
-
-Tab **Avanzamento Mensile**: 2 sezioni (Standard / Avanzamento P.IVA — che raggruppa le P.IVA di categoria + la riga aggregata Extra Gara P.IVA). Colonne operatore dinamiche = union `profili.in_gara=true` + qualsiasi operatore con almeno un contratto nel mese. Righe: pezzi per operatore + Punteggio + Obiettivo/Andamento/Eccedenza.
-
-- **Sezione Standard**: colonne Obiettivo/Andamento/Eccedenza in header + righe valorizzate. Punteggio = `somma_pezzi × punti_per_pezzo` (o `sommaCampoPunteggio` se `punteggio_campo` è impostato). Andamento % (`attuale/obiettivo × 100`, verde ≥100%) + Eccedenza (`max(0, attuale − obiettivo)`, verde >0).
-  - **Eccezione ASSICURAZIONI** (dal 2026-07-15): la riga Assicurazioni della sezione Standard usa come Punteggio la **somma di `vendita_contratti.punteggio_gara_totale`** sui contratti Assicurazioni del mese (tutti i cluster), invece del conteggio pezzi. Le celle per operatore restano conteggio pezzi. Configurato via mappa hardcoded `CAMPO_PUNTEGGIO_STANDARD = { 'Assicurazioni': 'punteggio_gara_totale' }` in `renderAvanzamento` — estendibile aggiungendo entry per altre categorie Standard.
-  - **Eccezione LUCE & GAS** (dal 2026-07-15): la riga L&G della sezione Standard esclude i contratti Energia con `post_vendita_controllo_lg.stato` = `Rifiutato`. Tutti gli altri stati (incluso NULL / non ancora esitato) contano. Il conteggio pezzi resta il valore della colonna Punteggio (nessun cambio formula, solo filtro). Il caricamento degli stati post-vendita in `caricaDatiMensili` è stato allargato a **tutti i cluster** (non solo Business) proprio per servire anche questo filtro Standard oltre a quelli P.IVA.
-  - **Eccezione FISSI** (dal 2026-07-15): la riga FISSI della sezione Standard usa come Punteggio la **somma di `vendita_contratti.punteggio_gara_totale`** sui contratti Fisso validi. La validità è calcolata a due bucket:
-    1. **Non-FTTC del mese** (data_contratto nel mese): inclusi solo se `post_vendita_controllo_fissi.stato` ∈ (`In Attivazione`, `Attivo`). Esclusi KO, NULL/non-esitati.
-    2. **FTTC attivati nel mese** (`data_attivazione` nel mese, qualsiasi `data_contratto`): inclusi solo se `stato = Attivo`. Un FTTC firmato a giugno e attivato a luglio conta a luglio, non a giugno. Un FTTC ancora "In Attivazione" non conta finché non viene attivato.
-    - Caricamento: `DPState.fissoFTTCAttivatiMese` popolato con una query separata su `post_vendita_controllo_fissi WHERE tecnologia='FTTC' AND stato='Attivo' AND data_attivazione IN month`, poi join a `vendita_contratti`. `DPState.tecnologiaFisso = Map<contratto_id, tecnologia>` per il branch non-FTTC.
-    - `DPState.operatoriAttiviMese` include anche gli operatori dei FTTC attivati nel mese (che potrebbero non avere altri contratti firmati nel mese).
-    - La riga **FISSI P.IVA** dell'Avanzamento P.IVA **non applica** questa regola FTTC: resta sulla logica mese di firma + stato IN (`In Attivazione`,`Attivo`). Se in futuro si vuole allineare, applicare la stessa doppia-bucket anche lì.
-- **Sezione Avanzamento P.IVA** (dal 2026-07-15): logica speciale — le colonne Obiettivo/Andamento/Eccedenza sono vuote sulle righe P.IVA di categoria (MOBILI/FISSI/L&G/ASSICURAZIONI/W3 PROTETTI) e le intestazioni scendono in una sotto-intestazione grigia posizionata sopra la riga aggregata Extra Gara P.IVA (che rimane l'unica valorizzata su Ob/And/Ecc).
-  - **Colonna Punteggio** = somma di `vendita_contratti.punteggio_extra_gara_totale` sui contratti filtrati (non conteggio pezzi).
-  - **Filtro post-vendita per categoria** applicato SIA alle righe P.IVA singole SIA alla riga Extra Gara P.IVA (per garantire che la somma delle righe = riga aggregata):
-    - **Fisso** → incluso solo se `post_vendita_controllo_fissi.stato` IN (`In Attivazione`, `Attivo`)
-    - **Energia** → escluso solo se `post_vendita_controllo_lg.stato` = `Rifiutato` (NULL ammesso)
-    - **Allarmi** → incluso solo se `post_vendita_controllo_allarmi.stato` = `OK`
-    - Altre categorie (Mobile, Customer Base, Assicurazioni) → sempre incluse
-  - Celle per operatore mostrano il numero di **pezzi filtrati** (coerenti col filtro post-vendita).
-  - Implementazione: `DPState.statoPostVendita = {fisso, energia, allarmi}` (Map contratto_id → stato) caricato in `caricaDatiMensili`; helper `isContrattoValidoAvanzamentoPiva(c)`; branch `usaFiltroExtraPiva = sez.key === 'piva'` in `renderAvanzamento`.
-
-Solo numeri, no drill-down (scelta UX dell'utente per non appesantire il render).
-
-### UI admin — `admin-gare.html`
-
-Gated `ruolo='admin'` (vedi guard pattern in "Pannello Admin Mirox").
-
-- **Card "Operatori in gara"** — toggle checkbox `profili.in_gara` con save inline
-- **Card "Obiettivi Gara Individuali"** — dropdown operatore + tabella metriche `gara_individuale` con obiettivo (input number) + colonna "Compenso" con badge riassunto (X scaglioni / Y bonus, oppure "DEC.") + bottone "Modifica compenso" che apre modale editor
-- **Card "Avanzamento Mensile"** — 3 tabelle (Standard / P.IVA / Extra) con obiettivo (input number, `operatore_id=NULL`) + input punti/pezzo direttamente sulla riga metrica (edit di `gara_metriche.punti_per_pezzo`)
-- **Card "Configurazione avanzata metriche"** (collassata di default) — CRUD `nome/attiva/ordine/regola` JSONB delle metriche
-- **Bottone "Duplica dal mese precedente"** — copia tutti gli obiettivi e le regole compenso dal mese precedente. Skip di ogni obiettivo già presente nel mese corrente (idempotente). Confirm-modale prima di procedere
-
-### Editor scaglioni (modale)
-
-Aperto dal bottone "Modifica compenso" nella tab Gara Individuali. Interfaccia:
-- Radio: `Scaglioni + bonus` / `Nessun compenso`
-- Campo `Label` opzionale (es. "DEC.")
-- Elenco scaglioni: righe con `Da` / `A` (vuoto = infinito) / `€ / pezzo` + bottone rimozione + bottone `+ Scaglione`
-- Elenco bonus: righe con `Al raggiungimento di` / `Bonus €` + rimozione + `+ Bonus`
-- Anteprima live: mostra il compenso calcolato a 10 / 20 / 30 / 40 / 50 pezzi con la regola attuale
-
-Alla conferma: upsert su `gara_obiettivi_mensili.compenso_regola`. Nessuna funzione Netlify: il client scrive direttamente grazie alle policy admin di RLS (migration 039).
-
-### Che cosa NON e' incluso
-
-- **Grafici storici** (es. andamento mensile confrontato con mesi passati) — v1 mostra solo il mese corrente
-- **Export CSV/PDF** — se serve, si aggiunge lato client
-- **Notifica automatica agli operatori al raggiungimento del bonus** — nessun trigger email/toast
-- **Compenso lordo/netto o ritenute** — la colonna Compenso e' un numero puro, spetta al proprietario applicare eventuali conversioni
 
 ---
 
@@ -583,7 +469,7 @@ Form esterno per prenotazioni dal sito/social. **NON in dashboard** (non ha auth
 
 ### Rischi e limiti noti
 
-- **Permessi granulari Mirox solo per CC**: la modale "Permessi CC" in `admin-utenti.html` lista solo le 9 chiavi CC (le pagine Vendita/Post-Vendita sono accessibili a tutti gli utenti attivi, non c'è ancora granularità). Eccezioni per ruolo admin gestite puntualmente: pannello Admin e azione "Elimina definitivamente" in Verifica Contratti (`elimina-vendita-contratto`). Da estendere quando serve gating per modulo Vendita/Post-Vendita
+- **Permessi granulari Mirox solo per CC**: la modale "Permessi CC" in `admin-utenti.html` lista solo le 9 chiavi CC (le pagine Vendita/Post-Vendita sono accessibili a tutti gli utenti attivi, non c'è ancora granularità). Da estendere quando serve gating per modulo Vendita/Post-Vendita
 - **`vw_elenco_chiamate_unificate` / `vw_rilavorazione_ricontatti_unificata`**: usate dalle pagine CC, dipendono dalla colonna `chiamate.rilavorazione_stato` (esiste) e dalle viste già createSE — verificate online in Fase 1
 - **`get_slot_disponibili` RPC**: usata da `prenota.html`, `prenota-interno.html`, `appuntamenti.html` (per spostamento). Confermata esistente nel DB
 
@@ -601,7 +487,6 @@ Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile
 | `admin-utenti.html` | CRUD su `profili`: cambio ruolo admin↔operatore con conferma, abilita/disabilita, modale permessi granulari CC (9 chiavi). Un admin non può togliersi il ruolo né disabilitarsi |
 | `admin-call-center-config.html` | Configurazione CC (orari settimanali, blocchi/chiusure, parametri sistema). Spostata da `moduli/call-center/configurazione.html` (eliminata). NON dipende da `CcHeader` o dai JS del CC: usa solo `js/config.js` + `js/auth.js` + `js/mirox-ui.js` Mirox |
 | `admin-vendita-config.html` | Esistente: CRUD cataloghi vendita. Aggiunto check `ruolo='admin'` (prima era solo `richiediAuth`). Bottone "← Admin" rimpiazza "← Dashboard" |
-| `admin-gare.html` | Nuova dal 2026-07-09. Configurazione **Gare & Avanzamento**: flag `in_gara` sugli operatori, obiettivi mensili + regola compenso a scaglioni per la tab Gare Individuali, obiettivi di categoria + punti/pezzo per la tab Avanzamento Mensile. Editor visuale scaglioni + bonus con anteprima live. Bottone "Duplica dal mese precedente". Scrittura via RLS admin (migration 039), niente Netlify function |
 
 ### Guard pattern (riusato in tutte le pagine admin*)
 
@@ -634,34 +519,11 @@ Il bottone "Admin" dentro `moduli/upload-contratti-vendita.html` è stato **rimo
 
 Ogni errore tecnico nel CRM (rete, OCR, submit, JS non gestiti...) viene notificato via email al proprietario con timestamp preciso Europe/Rome. L'utente in popup vede sempre la pillola "Orario errore: GG/MM/AAAA HH:MM:SS" sotto al messaggio.
 
-### Aggiornamenti UI e comunicazioni (dal 2026-07-02)
-
-- `moduli/dashboard_pezzi.html`: layout più compatto. La colonna offerte e le colonne operatori (`MATTEO`, `MIRKO`, `FRANCESCA`, `CEREA`) hanno larghezze fisse compatte; il colore resta pieno sulla cella come nel foglio originale. La tabella e' fissata a 622px totali (270px offerte + 4 colonne da 88px) per evitare espansioni a tutta pagina.
-- `moduli/upload-contratti-vendita.html`: dopo submit pratica riuscito il wizard mostra il popup di successo e redirige automaticamente alla dashboard (`../dashboard.html`), cioè la Home del reparto Vendita. Per cluster `Turista`, il wizard nasconde email/provincia/comune/via/civico, li invia come `null`, non li richiede in validazione client e non richiede l'opzione contratto prima del carrello. Le functions vendita salvano il cliente in `anagrafica` come `Consumer`, mantenendo `Turista` su pratica/contratti.
-- `moduli/verifica_contratti.html`: nelle tab Da Verificare e Verificati e' disponibile il filtro `Giorno`, basato su `vendita_contratti.data_contratto` in fuso Europe/Rome.
-- `moduli/verifica_contratti.html`: per i contratti Fisso il popup dettaglio mostra anche la convergenza scelta, accanto al prezzo di vendita Fisso.
-- `js/mirox-upload.js`: anteprima PDF centralizzata prima di confermare file selezionati o trascinati. I moduli coperti sono Upload Contratti, Switch SIM, Apri/Chiudi, Verifica Contratti, Segnalazioni e Dispositivo Comodato.
-- Favicon standard Mirox (`assets/favicon.png`) presente anche su `admin-vendita-config.html`, `moduli/upload-contratti-vendita.html`, `moduli/segnalazioni.html`.
-- `netlify/functions/_lib/mailer.js`: per le email di comunicazione basate su template, tutte le variabili link CTA (`link_*`, `__cta_url__`) vengono normalizzate a `https://www.mirox-crm.it`. Le mail di errore inviate con HTML diretto da `MiroxErrorReporter` non sono coinvolte.
-
-### Mail leggibili con blocco "Cosa e' successo" (dal 2026-07-02)
-
-Le mail di errore avevano solo output tecnico (titolo/messaggio/stack/JSON): illeggibili per chi non e' sviluppatore. Ora ogni mail ha in cima un box rosso con 4 righe in italiano semplice, generate da un classificatore automatico in `js/mirox-error-reporter.js` (funzione `classify(input)`, esposta anche come `MiroxErrorReporter.classify(...)`):
-
-1. **In poche parole** — descrizione umana del problema
-2. **Dove/quando** — pagina + contesto operativo probabile (nome pagina espanso in linguaggio naturale via mappa `SOURCE_LABELS`)
-3. **Cosa fare adesso** — azione operativa immediata per il proprietario o l'operatore
-4. **Cosa dire a Claude** — frase copiabile per riportare l'errore a Claude/Codex
-
-Sotto al blocco restano `Messaggio originale`, `Metadata` (data/ora, livello, sorgente, utente, pagina, browser), `Dettagli tecnici` (stack) e `Contesto` (JSON) per il debug tecnico. Nessun altro cambiamento API: `report/install/now` restano identici, la struttura dell'email cambia solo nel layout HTML.
-
-Il classificatore riconosce in ordine di priorita': (a) `error_code` strutturato — oggi `ocr_credit_exhausted`, `ocr_rate_limited`, `ocr_unavailable`, `ocr_auth_error`, `ocr_generic_error`; (b) status HTTP letti da `context.http_status` o estratti dal testo — 401/403 (sessione), 404 (risorsa mancante), 413 (file troppo grande), 429 (rate limit), 5xx (server error); (c) keyword — network/fetch, timeout, RLS/PostgREST, consenso privacy, Smshosting/OTP, TypeError JS, promise reject, quota storage; (d) fallback generico che invita a girarmi la mail intera. Quando si aggiungono nuovi `error_code` strutturati nelle Netlify functions, estendere il primo blocco `if` in `classify()` per avere spiegazioni mirate.
-
 ### Componenti
 
 - **Client**: `js/mirox-error-reporter.js` → `window.MiroxErrorReporter` (vedi tabella JS condivisi). Throttling 60s per fingerprint per evitare flood in loop. Destinatario default `mirko.piasenti@gmail.com` (override con `install({ownerEmail})`).
-- **Trasporto**: la mail viene inviata via `MiroxApi.fetch('/.netlify/functions/mirox-send-email')` con HTML inline (no template DB). Subject `[MIROX][LEVEL] <titolo> — <timestamp>`. Body: (1) blocco "Cosa e' successo" con spiegazione non tecnica (In poche parole / Dove-quando / Cosa fare adesso / Cosa dire a Claude), (2) messaggio originale, (3) tabella metadata (livello, sorgente, utente, pagina, browser), (4) dettagli tecnici + contesto JSON. Loggata su `email_log` con `related_table='error_report'`.
-- **Backend OCR** (`netlify/functions/ocr-pda.js`): l'errore Anthropic viene classificato in `error_code` strutturato e ritornato in payload `{success:false, error, error_code, http_status, provider_status, provider_message}` con HTTP 503/500 a seconda. Codici: `ocr_credit_exhausted` (credit balance low), `ocr_rate_limited` (429), `ocr_unavailable` (5xx/529), `ocr_auth_error` (401/403), `ocr_generic_error`. Il client `fetchJsonOrTechnicalError` propaga `error_code` su `err.serverErrorCode` e `err.httpStatus`, che a loro volta finiscono nel `context` del report e vengono usati da `classify()` per la spiegazione mirata nella mail.
+- **Trasporto**: la mail viene inviata via `MiroxApi.fetch('/.netlify/functions/mirox-send-email')` con HTML inline (no template DB). Subject `[MIROX][LEVEL] <titolo> — <timestamp>`. Body con tabella metadata (livello, sorgente, utente, pagina, browser) + dettagli tecnici + contesto JSON. Loggata su `email_log` con `related_table='error_report'`.
+- **Backend OCR** (`netlify/functions/ocr-pda.js`): l'errore Anthropic viene classificato in `error_code` strutturato e ritornato in payload `{success:false, error, error_code, http_status, provider_status, provider_message}` con HTTP 503/500 a seconda. Codici: `ocr_credit_exhausted` (credit balance low), `ocr_rate_limited` (429), `ocr_unavailable` (5xx/529), `ocr_auth_error` (401/403), `ocr_generic_error`. Il client `fetchJsonOrTechnicalError` propaga `error_code` su `err.serverErrorCode` e `err.httpStatus`.
 
 ### Livelli mail
 
@@ -682,12 +544,13 @@ Il classificatore riconosce in ordine di priorita': (a) `error_code` strutturato
 **Integrazione globale (31 pagine, ogni pagina ha `install({source:'<nome>'})` al boot per catturare errori JS non gestiti):**
 
 - **Root** (5): `dashboard`, `admin`, `admin-utenti`, `admin-vendita-config`, `admin-call-center-config`
-- **Vendita/Post-Vendita** (16): `upload-contratti-vendita` (integrazione completa con `reportInfo` sui 5 catch tecnici principali + branching OCR credito esaurito), `apri_chiudi`, `switch_sim`, `ordini_smartphone`, `simulatore_protecta`, `dashboard_pezzi`, `storico_cliente`, `dispositivi_comodato`, `gestione_rimborsi`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `ticket`, `segnalazioni` (integrata il 2026-07-02 col refactor auth guard)
+- **Vendita/Post-Vendita** (15): `upload-contratti-vendita` (integrazione completa con `reportInfo` sui 5 catch tecnici principali + branching OCR credito esaurito), `apri_chiudi`, `switch_sim`, `ordini_smartphone`, `simulatore_protecta`, `dashboard_pezzi`, `storico_cliente`, `dispositivi_comodato`, `gestione_rimborsi`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `ticket`
 - **Call Center** (11): `appuntamenti`, `appuntamenti-oggi`, `blacklist`, `call-center-lead-outbound`, `elenco-chiamate`, `esiti-appuntamenti`, `prenota-interno`, `prenota-interno-outbound`, `registra-chiamata`, `registra-chiamata-outbound`, `rilavorazione`
 
 **Pagine escluse (volutamente)**:
 
 - `index.html` — schermata di login, prima dell'autenticazione (nessun JWT da iniettare)
+- `moduli/segnalazioni.html` — esclusa per scelta operativa (da integrare in seconda battuta)
 - `moduli/call-center/prenota.html` — form pubblico anon (nessuna auth, `mirox-send-email` ritornerebbe 401)
 
 **Tipo di integrazione applicato sulle 30 pagine batch** (dal 2026-06-25):
@@ -786,15 +649,23 @@ A regime stimato (300 contratti/mese → ~100 OTP/mese dopo dedupe 48 mesi): ~�
 ## Note operative consapevoli (non "correggere" senza chiedere)
 
 - **Edge Functions Supabase**: non in uso, non aggiungerne senza discutere prima
-- **Cluster `Turista`**: è un cluster di vendita, non un cluster anagrafico condiviso. `garantisci-anagrafica.js` e `crea-vendita-pratica-carrello.js` lo accettano dal wizard, mantengono `Turista` su pratica/contratti, salvano `anagrafica.cluster='Consumer'` e non richiedono email.
+- **Cluster `Turista`**: accettato solo da `crea-vendita-pratica-carrello.js`. È voluto.
 - **File SQL in `/database/`**: parziali, NON riflettono lo stato attuale del DB (vedi `database/README.md`)
 - **Modulo `simulatore_protecta.html`**: ~960 KB, molto pesante perché contiene asset embedded. Modificare con cautela.
-- **Permessi granulari Vendita/Post-Vendita**: non esistono ancora. Solo CC ha permessi fine-grained via `pagine_accessibili`. Le pagine Vendita/Post-Vendita sono accessibili a tutti gli utenti attivi, indipendentemente dal ruolo (admin/operatore). Eccezioni admin-only note: pannello Admin e cancellazione definitiva in Verifica Contratti (`elimina-vendita-contratto`).
+- **Permessi granulari Vendita/Post-Vendita**: non esistono ancora. Solo CC ha permessi fine-grained via `pagine_accessibili`. Le pagine Vendita/Post-Vendita sono accessibili a tutti gli utenti attivi, indipendentemente dal ruolo (admin/operatore). Solo il pannello Admin è gated dal `ruolo`.
 - **`vendita_contratti.fascia_prezzo`**: dal 2026-06-26 contiene il **prezzo puntuale del device** (es. `"399.90"`), non più una fascia-range (`"250-599"`). La dashboard pezzi (migration `014`, regole seed in `dashboard_righe_giornaliera`) **non binara mai** per `fascia_prezzo` né `fascia_prezzo_in`, quindi il cambio è transparent per il conteggio mensile attuale. Se in futuro servisse raggruppare per fasce: aggiungere una colonna derivata o una regola DSL che faccia il binning lato dashboard. **Non re-introdurre la dropdown** in `upload-contratti-vendita.html` o `verifica_contratti.html` senza prima discutere.
 - **Catalogo `vendita_reload` dismesso** (migration `035`, 2026-06-26): la dropdown Reload nel wizard upload-contratti, la sezione "Reload (catalogo)" in `admin-vendita-config.html` e il multiselect "Reload disponibili" nelle offerte sono **disabilitati** (UI nascosta o no-op via shim JS). La tabella DB `vendita_reload`, il link `vendita_offerte_reload` e la colonna `vendita_contratti.reload_id` sono **conservati** per dati storici — niente DROP. Le Netlify functions `vendita-config.js` e `admin-vendita-config.js` continuano a leggere/scrivere ma il wizard non invia più `reload_id` né nuovi link. Se serve riabilitare in futuro: ripristinare HTML/JS nei 3 punti citati e gli shim no-op in `upload-contratti-vendita.html`. **Non eliminare** la tabella DB senza prima migrare i contratti storici.
 - **`vendita_contratti.smartphone_reload` + `smartphone_reload_modalita`** (migration `035`, 2026-06-26): non confondere con il vecchio catalogo Reload. Sono campi del singolo contratto, ricavati dalla riga "SMARTPHONE RELOAD SI/NO" del PDA. Il CHECK DB `vc_smartphone_reload_coerenza_chk` impone `modalita NOT NULL ⇔ smartphone_reload IS TRUE`: se vuoi cambiare smartphone_reload da true a false, **prima** azzera la modalita.
 - **Import storico konahub completato** (2026-06-29): importati 1665 contratti + 1366 pratiche + 81 anagrafiche + dati post-vendita (217 fissi, 271 L&G, 10 allarmi, 8 assicurazioni) + switch (57) + apri/chiudi (36) + comodato (7) + ordini (27) + protecta (26) + ticket (136). Tutti i contratti con `stato_controllo='controllato'`, `stato_inserimento='inserimento'`, `origine_pratica='spontaneo'`. **35 contratti hanno `operatore_id=NULL`** (33 Cerea + 2 vuoti) — appena crei profilo `Cerea` lancia: `UPDATE vendita_contratti SET operatore_id='<uuid_cerea>' WHERE operatore_id IS NULL AND data_contratto >= '2026-01-01';`. **81 anagrafiche nuove sono passaporti** (cluster='Consumer' a DB ma cf_piva contiene un codice passaporto, NON un CF italiano). Script di import in `database/imports/konahub/` (`.gitignored` per CSV/zip/docs). Backup pre-import in `database/backups/pre_cleanup_2026-06-29/`.
-- **Cleanup konahub segnalazioni fatto** (migration `036` + refactor `moduli/segnalazioni.html`, 2026-07-02): konahub dismesso, pagina segnalazioni modernizzata (auth guard + `window.db` di `js/config.js`), 5 policy `anon` revocate. Da adesso il modulo funziona solo da Mirox loggato — vedi sezione "Storage buckets" per il dettaglio.
+- **TODO cleanup konahub** (migration `032`, 2026-06-25): quando il konahub (CRM provvisorio, deploy separato) verrà dismesso e tutte le segnalazioni passeranno per Mirox, **revocare le 5 policy anon** ripristinando lo stato hardened post-029/030. Cleanup SQL:
+  ```sql
+  DROP POLICY "segnalazioni_anon_select"        ON segnalazioni;
+  DROP POLICY "segnalazioni_anon_insert"        ON segnalazioni;
+  DROP POLICY "segnalazioni_anon_update"        ON segnalazioni;
+  DROP POLICY "Read anon segnalazioni files"    ON storage.objects;
+  DROP POLICY "Upload anon segnalazioni files"  ON storage.objects;
+  ```
+  Le policy authenticated restano in piedi → nessuna azione lato Mirox.
 
 ---
 
@@ -804,9 +675,6 @@ A regime stimato (300 contratti/mese → ~100 OTP/mese dopo dedupe 48 mesi): ~�
 |---|---|
 | Aggiungere una nuova **regola di business** | Modificare in 3 punti: CHECK constraint DB + UI wizard + Netlify function di validazione |
 | **Verificare un consenso** o gestire una revoca | Query/UPDATE manuale su `vendita_consensi_privacy`. Non c'è ancora UI admin. Per revoca: `UPDATE ... SET revocato_at=now(), revocato_motivo='...', revocato_da=<uuid_admin>` |
-| **Aggiornare gare/obiettivi/compensi** all'inizio del mese | Dashboard → Admin → **Gare & Avanzamento** (`admin-gare.html`). Seleziona mese/anno, clicca "Duplica dal mese precedente" per partire dagli obiettivi del mese scorso, poi correggi i numeri cambiati dall'azienda + modifica le regole compenso con l'editor scaglioni visuale. La tab Dashboard Pezzi → Gare Individuali si aggiorna sola. |
-| Aggiungere una nuova **metrica gara** (nuova riga nella tabella) | Admin Gare → sezione "Configurazione avanzata metriche" (collassata) → nuova riga con nome + tabella (`gara_individuale` / `avanzamento_standard` / `avanzamento_piva` / `avanzamento_extra_piva`) + `regola` JSONB (stesso engine di `dashboard_righe_giornaliera`). L'INSERT via UI oggi manca — aggiungerla o farlo direttamente da SQL editor Supabase. |
-| **Includere/escludere un operatore dalla Gara Individuale** | Admin Gare → prima card "Operatori in gara" → toggle checkbox `in_gara` per profilo. Effetto immediato sulla tab Gare Individuali della Dashboard Pezzi. |
 | Cambiare **testo informativa** | Modificare `_lib/pdf-consenso.js` (`INFORMATIVA_VERSIONE` + corpo). I record nuovi avranno la nuova versione, quelli vecchi mantengono il `informativa_versione` del momento. Far revisionare da legale. |
 | Cambiare **scadenza 48 mesi** | Modificare costante `VALIDITA_MESI` in `verifica-otp-privacy.js` E `upload-consenso-cartaceo.js`. Stessa logica `addMonthsClamped(now, N)` |
 | Aggiungere un **tipo documento** | Aggiornare `vendita_documenti_regole`, UI admin in `admin-vendita-config.html`, e nome standardizzato in `upload-vendita-documento.js` (`suggestedFileName`) |

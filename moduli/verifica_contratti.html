@@ -410,6 +410,7 @@ async function caricaContratti(statoControllo) {
         dispositivo_associato, imei, fascia_prezzo, tipo_acquisto, finanziaria, kolme,
         smartphone_reload, smartphone_reload_modalita,
         pod_pdr, numero_contratto_energia, ex_fornitore, prezzo_fisso, convergenza, reload_exchange, reload_forever,
+        codice_rivenditore,
         punteggio_offerta, punteggio_opzione, punteggio_extra, punteggio_totale,
         stato_controllo, controllato_da, controllato_at, note_controllo,
         data_contratto, created_at, updated_at,
@@ -667,6 +668,12 @@ function apriPopupDettaglio(c, opts) {
           <select id="vc_operatore_id" ${disabled}>
             <option value="">—</option>
             ${selectOpt(profili || [], c.operatore_id, 'id', 'nome')}
+          </select>
+        </div>
+        <div class="det-field"><label>Codice Rivenditore</label>
+          <select id="vc_codice_rivenditore" ${disabled}>
+            <option value="9001415852" ${(c.codice_rivenditore || '9001415852') === '9001415852' ? 'selected' : ''}>Legnago (9001415852)</option>
+            <option value="9000822241" ${c.codice_rivenditore === '9000822241' ? 'selected' : ''}>Cerea (9000822241)</option>
           </select>
         </div>
       </div>
@@ -1212,7 +1219,11 @@ function leggiPayloadDalPopup() {
     })() : null,
     convergenza: isFisso ? (v('vc_convergenza') || null) : null,
     reload_exchange: showRX ? ck('vc_reload_exchange') : false,
-    reload_forever: showRX ? ck('vc_reload_forever') : false
+    reload_forever: showRX ? ck('vc_reload_forever') : false,
+    // Codice Rivenditore (migration 050): fallback su Legnago se assente/invalido
+    codice_rivenditore: (['9001415852','9000822241'].includes(v('vc_codice_rivenditore'))
+      ? v('vc_codice_rivenditore')
+      : '9001415852')
   };
   return { ana, contratto, isEnergia };
 }

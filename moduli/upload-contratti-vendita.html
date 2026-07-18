@@ -1265,6 +1265,16 @@ Reload Forever
 </select>
 </div>
 <!-- Reload Exchange + Reload Forever sono ora sotto la dropdown Offerta (vedi fieldReloadFlags) -->
+<!-- Codice Rivenditore (migration 050): punto vendita di inserimento del contratto.
+     Sempre visibile per tutte le categorie. Default Legnago. Se il PDA viene analizzato
+     con AI, l'OCR precompila il valore dal "Codice POS" WindTre. -->
+<div class="field">
+<label for="codice_rivenditore">Codice Rivenditore *</label>
+<select id="codice_rivenditore">
+<option value="9001415852">Legnago (9001415852)</option>
+<option value="9000822241">Cerea (9000822241)</option>
+</select>
+</div>
 <!-- Numero contratto Energia: predisposto in DB ma NON visibile/obbligatorio in UI -->
 <input id="numero_contratto_energia" type="hidden" value="">
 </div>
@@ -1436,6 +1446,9 @@ Reload Forever
  // Per Energia, Allarmi, Assicurazioni nessun PDA e nessun PDF contratto.
  const CATEGORIE_PDA = ['Mobile', 'Customer Base', 'Fisso'];
  const TIPI_FIRMA = ['elettronica', 'cartacea'];
+ // Codice Rivenditore (migration 050): punto vendita di inserimento del contratto.
+ const CODICI_RIVENDITORE = ['9001415852', '9000822241'];
+ const CODICE_RIVENDITORE_DEFAULT = '9001415852'; // Legnago
  // Reinserimento (migration 033): per ogni categoria con post-vendita, indica la tabella
  // di lookup e quali stati post-vendita considerare "non finalizzati" (cioe' candidati
  // a essere padri di un eventuale reinserimento). Categorie non in mappa = no check.
@@ -1627,6 +1640,8 @@ Reload Forever
  fieldModalitaPagamentoAssicurazione: document.getElementById('fieldModalitaPagamentoAssicurazione'),
  ricorrenzaAssicurazione: document.getElementById('ricorrenza_assicurazione'),
  fieldRicorrenzaAssicurazione: document.getElementById('fieldRicorrenzaAssicurazione'),
+ // Codice Rivenditore (migration 050): 9001415852 = Legnago (default), 9000822241 = Cerea
+ codiceRivenditore: document.getElementById('codice_rivenditore'),
  reloadExchange: document.getElementById('reload_exchange'),
  reloadForever: document.getElementById('reload_forever'),
  fieldReloadFlags: document.getElementById('fieldReloadFlags'),
@@ -3175,6 +3190,8 @@ Reload Forever
  // Campi Assicurazioni
  if (refs.modalitaPagamentoAssicurazione) refs.modalitaPagamentoAssicurazione.value = '';
  if (refs.ricorrenzaAssicurazione) refs.ricorrenzaAssicurazione.value = '';
+ // Codice Rivenditore: reset a Legnago (default) per il prossimo contratto del carrello
+ if (refs.codiceRivenditore) refs.codiceRivenditore.value = CODICE_RIVENDITORE_DEFAULT;
  // I dati OCR del contratto precedente non valgono per il nuovo
  if (typeof runtimeState !== 'undefined') {
  runtimeState.lastOcrData = null;
@@ -3693,6 +3710,10 @@ Reload Forever
  reload_forever: (isCategory(categoriaNome, 'Mobile') || isCategory(categoriaNome, 'Customer Base'))
    ? !!(refs.reloadForever && refs.reloadForever.checked)
    : false,
+ // Codice Rivenditore (migration 050): sempre presente, default Legnago
+ codice_rivenditore: (refs.codiceRivenditore && CODICI_RIVENDITORE.includes(refs.codiceRivenditore.value))
+   ? refs.codiceRivenditore.value
+   : CODICE_RIVENDITORE_DEFAULT,
  // Campi Assicurazioni (vedi migration 021): null per altre categorie
  modalita_pagamento_assicurazione: isCategory(categoriaNome, 'Assicurazioni')
    ? (refs.modalitaPagamentoAssicurazione?.value || null)
@@ -4387,6 +4408,12 @@ Reload Forever
  // Reload Exchange + Reload Forever (migration 035)
  if (refs.reloadExchange) refs.reloadExchange.checked = item.reload_exchange === true;
  if (refs.reloadForever) refs.reloadForever.checked = item.reload_forever === true;
+ // Codice Rivenditore (migration 050): fallback su Legnago se assente/invalido
+ if (refs.codiceRivenditore) {
+   refs.codiceRivenditore.value = CODICI_RIVENDITORE.includes(item.codice_rivenditore)
+     ? item.codice_rivenditore
+     : CODICE_RIVENDITORE_DEFAULT;
+ }
  // Campi Assicurazioni (visibili solo se categoria = Assicurazioni)
  if (refs.modalitaPagamentoAssicurazione) refs.modalitaPagamentoAssicurazione.value = item.modalita_pagamento_assicurazione || '';
  if (refs.ricorrenzaAssicurazione) refs.ricorrenzaAssicurazione.value = item.ricorrenza_assicurazione || '';
@@ -5061,7 +5088,9 @@ Reload Forever
  reload_exchange: !!(refs.reloadExchange && refs.reloadExchange.checked),
  reload_forever: !!(refs.reloadForever && refs.reloadForever.checked),
  modalita_pagamento_assicurazione: refs.modalitaPagamentoAssicurazione ? (refs.modalitaPagamentoAssicurazione.value || '') : '',
- ricorrenza_assicurazione: refs.ricorrenzaAssicurazione ? (refs.ricorrenzaAssicurazione.value || '') : ''
+ ricorrenza_assicurazione: refs.ricorrenzaAssicurazione ? (refs.ricorrenzaAssicurazione.value || '') : '',
+ // Codice Rivenditore (migration 050): sempre valorizzato, default Legnago
+ codice_rivenditore: refs.codiceRivenditore ? (refs.codiceRivenditore.value || CODICE_RIVENDITORE_DEFAULT) : CODICE_RIVENDITORE_DEFAULT
  };
  }
 
@@ -5196,6 +5225,12 @@ Reload Forever
  if (refs.reloadForever) refs.reloadForever.checked = !!contractForm.reload_forever;
  if (refs.modalitaPagamentoAssicurazione) refs.modalitaPagamentoAssicurazione.value = contractForm.modalita_pagamento_assicurazione || '';
  if (refs.ricorrenzaAssicurazione) refs.ricorrenzaAssicurazione.value = contractForm.ricorrenza_assicurazione || '';
+ // Codice Rivenditore (migration 050): default Legnago se assente/invalido
+ if (refs.codiceRivenditore) {
+   refs.codiceRivenditore.value = CODICI_RIVENDITORE.includes(contractForm.codice_rivenditore)
+     ? contractForm.codice_rivenditore
+     : CODICE_RIVENDITORE_DEFAULT;
+ }
  renderDynamicSections();
  }
 
@@ -5468,6 +5503,15 @@ Reload Forever
  el.value = key === 'cf_piva' ? normalizeCfPiva(v) : (key === 'email' ? String(v).toLowerCase() : String(v));
  appliedAny = true;
  });
+
+ // Codice Rivenditore (migration 050): il PDA WindTre riporta il "Codice POS"
+ // del punto vendita nell'header/piede della prima pagina. L'OCR lo estrae come
+ // codice_rivenditore. Sovrascrive sempre il default Legnago se estratto valido.
+ if (refs.codiceRivenditore && ocrData.codice_rivenditore
+     && CODICI_RIVENDITORE.includes(ocrData.codice_rivenditore)) {
+   refs.codiceRivenditore.value = ocrData.codice_rivenditore;
+   appliedAny = true;
+ }
 
  // Auto-detect cluster sulla base del CF/PIVA estratto dall'OCR.
  const cfPivaVal = refs.cfPiva.value;

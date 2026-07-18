@@ -13,7 +13,10 @@
  *       // Dispositivo (Mobile/Customer Base con device associato)
  *       dispositivo_presente, tipo_acquisto, imei, prezzo_device,
  *       // Migration 035: opzione SMARTPHONE RELOAD (true=SI[X], false=NO[X], null=non specificato)
- *       smartphone_reload
+ *       smartphone_reload,
+ *       // Migration 050: Codice POS/rivenditore WindTre. Valori ammessi: '9001415852' (Legnago),
+ *       // '9000822241' (Cerea). null se non trovato o non fra i due valori attesi.
+ *       codice_rivenditore
  *   } }
  * In caso di errore "hard" (file mancante, API down): 4xx / 5xx con { success: false, error }.
  *
@@ -125,29 +128,38 @@ prezzo_device: SOLO numero come stringa, usa punto decimale (es. "287.52","399.9
 tipo_acquisto: per Mobile/Customer Base segui i 3 segnali sopra. Per Fisso (FWA Indoor) -> null (il PDA Fisso non parla di VAR/Finanziamento).
 smartphone_reload: solo per Mobile/Customer Base. Nella sezione OPZIONE AGGIUNTIVA c'e' "È stata richiesta l'attivazione contestuale dell'opzione SMARTPHONE RELOAD SI [ ] NO [ ]". Se la X (o "X") e' sulla casella SI -> true. Se la X e' sulla casella NO -> false. Se entrambe vuote o sezione assente (Fisso) -> null.
 
+=== PUNTO VENDITA ===
+codice_rivenditore: codice numerico del punto vendita che ha emesso il PDA WindTre. Cerca in:
+  - Header/piede della prima pagina: "Codice POS:", "COD. POS", "Codice Rivenditore:", "Cod. Rivenditore" o simile
+  - Riquadro del rivenditore autorizzato in fondo al PDA
+  Valori ammessi (solo questi due): "9001415852" oppure "9000822241". Se il codice trovato NON e' uno di questi due valori esatti -> null. Se non trovato -> null.
+
 === OUTPUT ===
-DEVI sempre includere TUTTI e 14 i campi nel JSON, anche quelli null. NON omettere mai un campo. NON usare "..." come placeholder.
+DEVI sempre includere TUTTI e 15 i campi nel JSON, anche quelli null. NON omettere mai un campo. NON usare "..." come placeholder.
 
-Esempio privato Mobile con device finanziato e smartphone reload SI:
-{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3331234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":true,"tipo_acquisto":"Finanziamento","imei":"356178252707751","prezzo_device":"399.9","smartphone_reload":true}
+Esempio privato Mobile con device finanziato e smartphone reload SI, punto vendita Legnago:
+{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3331234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":true,"tipo_acquisto":"Finanziamento","imei":"356178252707751","prezzo_device":"399.9","smartphone_reload":true,"codice_rivenditore":"9001415852"}
 
-Esempio azienda Mobile con device VAR e smartphone reload NO:
-{"cf_piva":"04971220233","ragione_sociale":"Lucchiari Auto Srl","nome_referente":"Maicol","cellulare":"3520696271","email":"info@lucchiari.it","provincia":"VR","comune":"Sanguinetto","via":"Via Masaglie","civico":"96","dispositivo_presente":true,"tipo_acquisto":"VAR","imei":"355297179899755","prezzo_device":"1509.9","smartphone_reload":false}
+Esempio azienda Mobile con device VAR e smartphone reload NO, punto vendita Cerea:
+{"cf_piva":"04971220233","ragione_sociale":"Lucchiari Auto Srl","nome_referente":"Maicol","cellulare":"3520696271","email":"info@lucchiari.it","provincia":"VR","comune":"Sanguinetto","via":"Via Masaglie","civico":"96","dispositivo_presente":true,"tipo_acquisto":"VAR","imei":"355297179899755","prezzo_device":"1509.9","smartphone_reload":false,"codice_rivenditore":"9000822241"}
 
 Esempio SIM solo (senza device):
-{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3331234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":false,"tipo_acquisto":null,"imei":null,"prezzo_device":null,"smartphone_reload":null}
+{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3331234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":false,"tipo_acquisto":null,"imei":null,"prezzo_device":null,"smartphone_reload":null,"codice_rivenditore":"9001415852"}
 
 Esempio Fisso FWA Indoor con modem (tipo_acquisto e smartphone_reload null perche' non applicabili al Fisso):
-{"cf_piva":"CMRGZN48P07A837N","ragione_sociale":"Graziano Camera","nome_referente":"Graziano","cellulare":"3453923639","email":"camera.gra@gmail.com","provincia":"VR","comune":"Bevilacqua","via":"Piazza Marega","civico":"1050","dispositivo_presente":true,"tipo_acquisto":null,"imei":"352941750260290","prezzo_device":"287.52","smartphone_reload":null}`;
+{"cf_piva":"CMRGZN48P07A837N","ragione_sociale":"Graziano Camera","nome_referente":"Graziano","cellulare":"3453923639","email":"camera.gra@gmail.com","provincia":"VR","comune":"Bevilacqua","via":"Piazza Marega","civico":"1050","dispositivo_presente":true,"tipo_acquisto":null,"imei":"352941750260290","prezzo_device":"287.52","smartphone_reload":null,"codice_rivenditore":"9001415852"}`;
 
 const EXPECTED_KEYS = [
   'cf_piva', 'ragione_sociale', 'nome_referente', 'cellulare', 'email',
   'provincia', 'comune', 'via', 'civico',
   'dispositivo_presente', 'tipo_acquisto', 'imei', 'prezzo_device',
   // Smartphone Reload (migration 035): true se SI[X], false se NO[X], null altrimenti
-  'smartphone_reload'
+  'smartphone_reload',
+  // Codice Rivenditore (migration 050): '9001415852' (Legnago) o '9000822241' (Cerea), null altrimenti
+  'codice_rivenditore'
 ];
 const BOOLEAN_KEYS = new Set(['dispositivo_presente', 'smartphone_reload']);
+const CODICI_RIVENDITORE_ALLOWED = new Set(['9001415852', '9000822241']);
 
 function emptyResult() {
   const out = {};
@@ -189,6 +201,11 @@ function normalizeResult(raw) {
   if (out.dispositivo_presente !== false &&
       !out.tipo_acquisto && !out.imei && !out.prezzo_device) {
     out.dispositivo_presente = false;
+  }
+  // Codice Rivenditore (migration 050): normalizza a solo cifre e accetta solo i 2 valori canonici
+  if (out.codice_rivenditore) {
+    const normalized = String(out.codice_rivenditore).replace(/\D/g, '');
+    out.codice_rivenditore = CODICI_RIVENDITORE_ALLOWED.has(normalized) ? normalized : null;
   }
   return out;
 }

@@ -218,6 +218,17 @@ function normalizeContractInput(contract, index) {
     })(),
     reload_exchange: parseBoolean(contract?.reload_exchange, false) === true,
     reload_forever: parseBoolean(contract?.reload_forever, false) === true,
+    // Codice Rivenditore (migration 050): punto vendita di inserimento.
+    // Default '9001415852' (Legnago) se assente. CHECK enum a DB.
+    codice_rivenditore: (() => {
+      const raw = cleanString(contract?.codice_rivenditore);
+      if (!raw) return '9001415852';
+      const allowed = ['9001415852', '9000822241'];
+      if (!allowed.includes(raw)) {
+        throw new Error(`Codice rivenditore non valido per contratti[${index}]: ammessi ${allowed.join(', ')}`);
+      }
+      return raw;
+    })(),
     // Convergenza (solo Fisso): uno degli 8 valori ammessi. null per altre categorie o se non fornita.
     // Vedi migration 017 (introduzione) + 048 (aggiunta "Seconda Casa") + CHECK constraint a DB.
     convergenza: (() => {
@@ -994,6 +1005,9 @@ exports.handler = async (event) => {
         prezzo_fisso: item.prezzo_fisso,
         reload_exchange: item.reload_exchange,
         reload_forever: item.reload_forever,
+
+        // Codice Rivenditore (vedi migration 050): sempre valorizzato, default Legnago.
+        codice_rivenditore: item.codice_rivenditore,
 
         // Tipo firma (vedi migration 016): solo per categorie PDA. null altrimenti.
         tipo_firma: item.tipo_firma,
