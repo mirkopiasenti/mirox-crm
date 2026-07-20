@@ -1198,6 +1198,10 @@
  if (stato === 'Perso') { statoBg = '#fee2e2'; statoColor = '#991b1b'; statoBorder = '#ef4444'; statoIcon = ''; }
 
  const folderLink = row[6] || '';
+ // Legacy: preventivo_pdf_url poteva contenere un URL public completo;
+ // dalla migration 029 il bucket protecta-files e' privato e salviamo solo il path.
+ const folderPath = folderLink.replace(/^https?:\/\/[^/]+\/storage\/v1\/object\/public\/[^/]+\//, '');
+ const folderClick = folderPath ? folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'") : '';
 
  html += `
 <div style="background:#fff;border-radius:12px;margin-bottom:12px;box-shadow:0 2px 10px rgba(0,0,0,0.07);overflow:hidden;">
@@ -1216,9 +1220,9 @@
 <button onclick="aggiornaStato(${originalIndex + 2}, 'Vinto', this)"style="flex:1;background:#f0fdf4;color:#065f46;border:none;padding:12px;font-size:14px;font-weight:700;cursor:pointer;border-right:1px solid #eee;"> Vinto</button>
 <button onclick="aggiornaStato(${originalIndex + 2}, 'Perso', this)"style="flex:1;background:#fef2f2;color:#991b1b;border:none;padding:12px;font-size:14px;font-weight:700;cursor:pointer;"> Perso</button>
 </div> ` : ''}
- ${folderLink ? `
+ ${folderPath ? `
 <div style="border-top:1px solid #eee;padding:10px 16px;">
-<a href="${folderLink}"target="_blank"style="color:#003366;text-decoration:none;font-size:12px;font-weight:600;"> Apri cartella preventivo →</a>
+<a href="#"onclick="MiroxStorage.openAttachment('${PROTECTA_BUCKET}','${folderClick}');return false;"style="color:#003366;text-decoration:none;font-size:12px;font-weight:600;"> Apri preventivo PDF →</a>
 </div> ` : ''}
 </div>`;
  });
