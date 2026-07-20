@@ -225,8 +225,9 @@ table.avanz tbody td.metrica {
 table.avanz tbody td.punteggio { font-weight: 700; background: #FEFCE8; }
 table.avanz tbody td.eccedenza { font-weight: 700; }
 table.avanz tbody td.eccedenza.pos { background: #DCFCE7; color: var(--success); }
-table.avanz tbody td.andamento.perc { font-weight: 700; }
-table.avanz tbody td.andamento.raggiunto { background: #DCFCE7; color: var(--success); }
+table.avanz tbody td.andamento { font-weight: 800; }
+table.avanz tbody td.andamento.in-linea { color: var(--success); }
+table.avanz tbody td.andamento.in-ritardo { color: var(--text); }
 table.avanz tbody tr.subheader td {
   background: var(--bg) !important; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
   color: var(--text-secondary); letter-spacing: .04em;
@@ -345,6 +346,80 @@ function fmtDataLabel(iso) {
   return d.getDate() + ' ' + mesi[d.getMonth()];
 }
 function fmtEur(n) { if (n === null || n === undefined || isNaN(n)) return '-'; return '€ ' + Number(n).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+
+// ============================================================
+// CALENDARIO — giorni lavorativi mese e giorni passati (per Andamento)
+// ============================================================
+// Pasqua (algoritmo di Gauss) → data domenica di Pasqua nell'anno
+function pasquaData(anno) {
+  const a = anno % 19;
+  const b = Math.floor(anno / 100);
+  const c = anno % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mese = Math.floor((h + l - 7 * m + 114) / 31);
+  const giorno = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(anno, mese - 1, giorno);
+}
+// Set di date festive (formato Date.toDateString) per un anno
+function festivitaItaliane(anno) {
+  const feste = [
+    [0, 1],   // 1 gennaio
+    [0, 6],   // 6 gennaio
+    [3, 25],  // 25 aprile
+    [4, 1],   // 1 maggio
+    [5, 2],   // 2 giugno
+    [7, 15],  // 15 agosto
+    [10, 1],  // 1 novembre
+    [11, 8],  // 8 dicembre
+    [11, 25], // 25 dicembre
+    [11, 26]  // 26 dicembre
+  ];
+  const set = new Set(feste.map(([m, g]) => new Date(anno, m, g).toDateString()));
+  // Pasquetta = giorno dopo Pasqua
+  const pasqua = pasquaData(anno);
+  const pasquetta = new Date(pasqua.getFullYear(), pasqua.getMonth(), pasqua.getDate() + 1);
+  set.add(pasquetta.toDateString());
+  return set;
+}
+// Un giorno e' lavorativo se non e' domenica e non e' una festa nazionale
+function isGiornoLavorativo(d, feste) {
+  if (d.getDay() === 0) return false; // domenica
+  return !feste.has(d.toDateString());
+}
+// Conta i giorni lavorativi (lun-sab, escluse feste) di un intero mese
+function giorniLavorativiMese(anno, mese1based) {
+  const feste = festivitaItaliane(anno);
+  const ultimoGiorno = new Date(anno, mese1based, 0).getDate();
+  let n = 0;
+  for (let g = 1; g <= ultimoGiorno; g++) {
+    if (isGiornoLavorativo(new Date(anno, mese1based - 1, g), feste)) n++;
+  }
+  return n;
+}
+// Conta i giorni lavorativi gia' trascorsi nel mese, includendo OGGI.
+// Se il mese/anno e' futuro rispetto a oggi -> 0.
+// Se il mese/anno e' passato -> tutto il mese.
+function giorniLavorativiPassati(anno, mese1based) {
+  const oggi = new Date();
+  const primaGiornoMese = new Date(anno, mese1based - 1, 1);
+  const primaGiornoDopoMese = new Date(anno, mese1based, 1);
+  if (oggi < primaGiornoMese) return 0;
+  if (oggi >= primaGiornoDopoMese) return giorniLavorativiMese(anno, mese1based);
+  const feste = festivitaItaliane(anno);
+  let n = 0;
+  for (let g = 1; g <= oggi.getDate(); g++) {
+    if (isGiornoLavorativo(new Date(anno, mese1based - 1, g), feste)) n++;
+  }
+  return n;
+}
 
 // ============================================================
 // MATCHING ENGINE (comune Day + Mensile)
@@ -921,9 +996,20 @@ function renderAvanzamento() {
       }
       const o = getObiettivoMese(m.id, null);
       const obiettivo = o?.obiettivo ?? 0;
-      const andamento = obiettivo > 0 ? (attuale / obiettivo) * 100 : null;
+      // Andamento: confronto punteggio corrente vs target proporzionale ai giorni lavorativi passati.
+      // giorno_target = obiettivo / giorni_lav_mese; target_atteso = giorno_target * giorni_lav_passati.
+      // punteggio >= target_atteso -> IN LINEA (verde), altrimenti IN RITARDO (nero).
+      let andCls = '', andTxt = '-';
+      if (obiettivo > 0) {
+        const giorniTot = giorniLavorativiMese(DPState.anno, DPState.mese);
+        const giorniPassati = giorniLavorativiPassati(DPState.anno, DPState.mese);
+        if (giorniTot > 0) {
+          const targetAtteso = (obiettivo / giorniTot) * giorniPassati;
+          if (punteggio >= targetAtteso) { andCls = 'in-linea'; andTxt = 'IN LINEA'; }
+          else { andCls = 'in-ritardo'; andTxt = 'IN RITARDO'; }
+        }
+      }
       const eccedenza = Math.max(0, attuale - obiettivo);
-      const andCls = (andamento !== null && andamento >= 100) ? 'raggiunto' : '';
       const eccCls = eccedenza > 0 ? 'pos' : '';
       const opCells = conteggi.map(v => `<td>${v || ''}</td>`).join('');
       const isExtraPivaRow = isPiva && m.tabella === 'avanzamento_extra_piva';
@@ -947,7 +1033,7 @@ function renderAvanzamento() {
         ${hideObAnEc
           ? `<td class="empty-obanec"></td><td class="empty-obanec"></td><td class="empty-obanec"></td>`
           : `<td>${obiettivo || '-'}</td>
-             <td class="andamento perc ${andCls}">${andamento === null ? '-' : andamento.toFixed(1) + '%'}</td>
+             <td class="andamento ${andCls}">${andTxt}</td>
              <td class="eccedenza ${eccCls}">${eccedenza || ''}</td>`}
       </tr>`;
     });
