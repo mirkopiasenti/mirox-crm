@@ -397,9 +397,10 @@
 <button onclick="chiudiTrattative()" style="background:#003366;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">← Torna</button>
 </div>
 <div id="filtroTrattative" style="display:flex;gap:0;background:#fff;border-radius:10px;overflow:hidden;border:2px solid #E3E8EE;margin-bottom:14px;">
-<button onclick="filtroStato(' In corso')" id="filtro_incorso" class="filtro-btn filtro-attivo" style="flex:1;padding:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;"> In Corso</button>
-<button onclick="filtroStato(' Vinto')" id="filtro_vinto" class="filtro-btn" style="flex:1;padding:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;border-left:1px solid #E3E8EE;"> Vinto</button>
-<button onclick="filtroStato(' Perso')" id="filtro_perso" class="filtro-btn" style="flex:1;padding:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;border-left:1px solid #E3E8EE;"> Perso</button>
+<button onclick="filtroStato('In corso')" id="filtro_incorso" class="filtro-btn filtro-attivo" style="flex:1;padding:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;">In Corso</button>
+<button onclick="filtroStato('Vinto')" id="filtro_vinto" class="filtro-btn" style="flex:1;padding:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;border-left:1px solid #E3E8EE;">Vinto</button>
+<button onclick="filtroStato('Perso')" id="filtro_perso" class="filtro-btn" style="flex:1;padding:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;border-left:1px solid #E3E8EE;">Perso</button>
+<button onclick="filtroStato('Tutti')" id="filtro_tutti" class="filtro-btn" style="flex:1;padding:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;border-left:1px solid #E3E8EE;">Tutti</button>
 </div>
 <div id="trattativeLoading" style="text-align:center;padding:40px;">
 <div style="width:36px;height:36px;border:3px solid #E3E8EE;border-top:3px solid #FF6600;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px;"></div>
@@ -1410,16 +1411,20 @@ ${noteLock}
 
  function aggiornaFiltroUI() {
    document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('filtro-attivo'));
-   const id = filtroCorrente === 'In corso' ? 'filtro_incorso' : filtroCorrente === 'Vinto' ? 'filtro_vinto' : 'filtro_perso';
+   const mapId = { 'In corso': 'filtro_incorso', 'Vinto': 'filtro_vinto', 'Perso': 'filtro_perso', 'Tutti': 'filtro_tutti' };
+   const id = mapId[filtroCorrente] || 'filtro_incorso';
    document.getElementById(id).classList.add('filtro-attivo');
  }
 
  function renderTrattative() {
-   const filtered = trattativeGroups.filter(g => (g.stato || 'In corso') === filtroCorrente);
+   // 'Tutti' non filtra: mostra tutte le trattative nell'ordine originale (data_preventivo desc).
+   const filtered = filtroCorrente === 'Tutti'
+     ? trattativeGroups.slice()
+     : trattativeGroups.filter(g => (g.stato || 'In corso') === filtroCorrente);
 
    if (filtered.length === 0) {
-     const labels = { 'In corso': 'in corso', 'Vinto': 'vinte', 'Perso': 'perse' };
-     document.getElementById('trattativeContent').innerHTML = `<div style="text-align:center;padding:40px;color:#888;">Nessuna trattativa ${labels[filtroCorrente]}</div>`;
+     const labels = { 'In corso': 'in corso', 'Vinto': 'vinte', 'Perso': 'perse', 'Tutti': 'presenti' };
+     document.getElementById('trattativeContent').innerHTML = `<div style="text-align:center;padding:40px;color:#888;">Nessuna trattativa ${labels[filtroCorrente] || ''}</div>`;
      return;
    }
 
