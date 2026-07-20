@@ -224,7 +224,7 @@ table.avanz tbody td.metrica {
 }
 table.avanz tbody td.punteggio { font-weight: 700; background: #FEFCE8; }
 table.avanz tbody td.eccedenza { font-weight: 800 !important; }
-table.avanz tbody td.eccedenza.pos { color: var(--success) !important; }
+table.avanz tbody td.eccedenza.pos { color: #2563EB !important; }
 table.avanz tbody td.eccedenza.neg { color: var(--danger) !important; }
 table.avanz tbody td.andamento { font-weight: 800 !important; }
 table.avanz tbody td.andamento.in-linea { color: #2563EB !important; }
@@ -1012,13 +1012,19 @@ function renderAvanzamento() {
           const targetAtteso = (obiettivo / giorniTot) * giorniPassati;
           const diff = punteggio - targetAtteso;
           // Priorita': RAGGIUNTO (verde) > IN LINEA (azzurro) > IN RITARDO (rosso)
-          if (punteggio >= obiettivo) { andCls = 'raggiunto'; andTxt = 'RAGGIUNTO'; }
+          const raggiunto = punteggio >= obiettivo;
+          if (raggiunto) { andCls = 'raggiunto'; andTxt = 'RAGGIUNTO'; }
           else if (diff >= 0) { andCls = 'in-linea'; andTxt = 'IN LINEA'; }
           else { andCls = 'in-ritardo'; andTxt = 'IN RITARDO'; }
-          const eccAssoluto = Math.ceil(Math.abs(diff));
-          if (eccAssoluto === 0) { eccTxt = '0'; }
-          else if (diff > 0) { eccCls = 'pos'; eccTxt = '+' + eccAssoluto; }
-          else { eccCls = 'neg'; eccTxt = '-' + eccAssoluto; }
+          // Eccedenza: nascosta se RAGGIUNTO; altrimenti +N azzurro (IN LINEA) o -N rosso (IN RITARDO)
+          if (raggiunto) {
+            eccTxt = '';
+          } else {
+            const eccAssoluto = Math.ceil(Math.abs(diff));
+            if (eccAssoluto === 0) { eccTxt = '0'; }
+            else if (diff > 0) { eccCls = 'pos'; eccTxt = '+' + eccAssoluto; }
+            else { eccCls = 'neg'; eccTxt = '-' + eccAssoluto; }
+          }
         }
       }
       const opCells = conteggi.map(v => `<td>${v || ''}</td>`).join('');
