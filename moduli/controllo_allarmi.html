@@ -65,7 +65,9 @@ body {
   position: sticky; top: 0;
 }
 .contracts-table tbody td { padding: 12px; border-bottom: 1px solid var(--border-light); font-size: 13.5px; color: var(--text); vertical-align: middle; }
+.contracts-table tbody tr.row-ok td { background: var(--danger-bg); }
 .contracts-table tbody tr:hover { background: var(--bg); }
+.contracts-table tbody tr.row-ok:hover td { background: #fecaca; }
 .contracts-table tbody tr:last-child td { border-bottom: none; }
 .contracts-table .cell-cliente { font-weight: 700; }
 .contracts-table .cell-mono { font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; }
@@ -252,7 +254,8 @@ function render() {
     const modPag = c.modalita_pagamento || '';
     const stato = r.stato || 'In Attivazione';
     const options = STATI_ALR.map(s => `<option value="${escapeHtml(s)}" ${s === stato ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
-    return `<tr>
+    const rowCls = stato === 'OK' ? ' class="row-ok"' : '';
+    return `<tr${rowCls}>
       <td>${fmtDate(dataInserimento(r))}</td>
       <td class="cell-cliente">${escapeHtml(ana.ragione_sociale || '-')}</td>
       <td class="cell-mono">${escapeHtml(ana.cf_piva || '-')}</td>

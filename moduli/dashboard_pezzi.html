@@ -877,6 +877,12 @@ function renderAvanzamento() {
       } else if (sez.key === 'standard' && m.regola?.categoria === 'Energia') {
         // Avanzamento Standard - Luce & Gas: escludi contratti con post_vendita_controllo_lg.stato = 'Rifiutato'
         contrattiPerOp = contrattiPerOp.map(list => list.filter(c => DPState.statoPostVendita?.energia.get(c.id) !== 'Rifiutato'));
+      } else if (sez.key === 'standard' && m.regola?.categoria === 'Allarmi') {
+        // Avanzamento Standard - W3 PROTETTI: conta solo con stato IN Attivazione o OK
+        contrattiPerOp = contrattiPerOp.map(list => list.filter(c => {
+          const s = DPState.statoPostVendita?.allarmi.get(c.id);
+          return s === 'In Attivazione' || s === 'OK';
+        }));
       } else if (sez.key === 'standard' && m.regola?.categoria === 'Fisso') {
         // Avanzamento Standard - Fissi: (a) escludi FTTC del mese e contratti con stato != 'Attivo'/'In Attivazione'
         // (b) aggiungi FTTC attivati nel mese (indipendentemente da data_contratto) con stato='Attivo'
