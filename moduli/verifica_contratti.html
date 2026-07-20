@@ -578,8 +578,8 @@ async function apriDettaglioContratto(id, stateKey) {
     // reload), e il flag è "attivo" (maschile), non "attiva" come le altre.
     const [catRes, offRes, opzRes, offOpzRes, relRes, filesRes, profRes] = await Promise.all([
       sb.from('vendita_categorie').select('id, nome').eq('attiva', true).order('ordine'),
-      sb.from('vendita_offerte').select('id, categoria_id, nome_offerta, cluster_cliente').eq('attiva', true),
-      sb.from('vendita_opzioni').select('id, categoria_id, offerta_id, nome_opzione, cluster_cliente').eq('attiva', true),
+      sb.from('vendita_offerte').select('id, categoria_id, nome_offerta, cluster_cliente, punteggio_gara, punteggio_extra_gara').eq('attiva', true),
+      sb.from('vendita_opzioni').select('id, categoria_id, offerta_id, nome_opzione, cluster_cliente, punteggio_gara, punteggio_extra_gara').eq('attiva', true),
       // Pivot offerta↔opzione: unica fonte affidabile per capire quali opzioni sono
       // disponibili per una data offerta (le colonne dirette su vendita_opzioni sono
       // legacy e non vengono popolate dall'Admin).
@@ -1202,13 +1202,47 @@ function leggiPayloadDalPopup() {
     if (!isNaN(d)) dataContrattoIso = d.toISOString();
   }
 
+  // Ricalcolo punteggi da catalogo — solo se offerta o opzione sono state
+  // effettivamente CAMBIATE nel popup. Se l'utente non le tocca, mantengo lo
+  // snapshot originale (i contratti storici non devono essere alterati se
+  // l'admin cambia il catalogo dopo la creazione). Il trigger DB
+  // vendita_calcola_punteggio_totale ricalcolera' automaticamente i totali.
+  const cataloghi = window.__currentVerificaCataloghi || {};
+  const newOffertaId = v('vc_offerta_id') || null;
+  const newOpzioneId = v('vc_opzione_id') || null;
+  const offertaCambiata = (newOffertaId || null) !== (c.offerta_id || null);
+  const opzioneCambiata = (newOpzioneId || null) !== (c.opzione_id || null);
+  const numOr = (val, fallback) => {
+    if (val === null || val === undefined || val === '') return fallback;
+    const n = Number(val);
+    return Number.isFinite(n) ? n : fallback;
+  };
+  const offSel = newOffertaId ? (cataloghi.offerte || []).find(o => o.id === newOffertaId) : null;
+  const opzSel = newOpzioneId ? (cataloghi.opzioni || []).find(o => o.id === newOpzioneId) : null;
+  const punteggioGaraOfferta = offertaCambiata
+    ? (offSel ? numOr(offSel.punteggio_gara, 0) : 0)
+    : numOr(c.punteggio_gara_offerta, 0);
+  const punteggioExtraGaraOfferta = offertaCambiata
+    ? (offSel ? numOr(offSel.punteggio_extra_gara, 0) : 0)
+    : numOr(c.punteggio_extra_gara_offerta, 0);
+  const punteggioGaraOpzione = opzioneCambiata
+    ? (opzSel ? numOr(opzSel.punteggio_gara, 0) : 0)
+    : numOr(c.punteggio_gara_opzione, 0);
+  const punteggioExtraGaraOpzione = opzioneCambiata
+    ? (opzSel ? numOr(opzSel.punteggio_extra_gara, 0) : 0)
+    : numOr(c.punteggio_extra_gara_opzione, 0);
+
   const contratto = {
     data_contratto: dataContrattoIso,
     operatore_id: v('vc_operatore_id') || null,
     categoria_id: v('vc_categoria_id') || null,
-    offerta_id: v('vc_offerta_id') || null,
-    opzione_id: v('vc_opzione_id') || null,
+    offerta_id: newOffertaId,
+    opzione_id: newOpzioneId,
     reload_id: v('vc_reload_id') || null,
+    punteggio_gara_offerta: punteggioGaraOfferta,
+    punteggio_extra_gara_offerta: punteggioExtraGaraOfferta,
+    punteggio_gara_opzione: punteggioGaraOpzione,
+    punteggio_extra_gara_opzione: punteggioExtraGaraOpzione,
     tipo_attivazione: v('vc_tipo_attivazione') || null,
     apri_chiudi: v('vc_apri_chiudi') || null,
     intestatario: v('vc_intestatario') || null,
