@@ -396,6 +396,7 @@
 <h2 style="margin:0;color:#003366;font-size:20px;">Trattative</h2>
 <button onclick="chiudiTrattative()" style="background:#003366;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;">← Torna</button>
 </div>
+<input id="searchTrattative" type="search" placeholder="Cerca cliente o telefono..." oninput="onSearchTrattative(this.value)" style="width:100%;padding:10px 12px;margin-bottom:10px;border:2px solid #E3E8EE;border-radius:10px;font-size:14px;box-sizing:border-box;font-family:inherit;">
 <div id="filtroTrattative" style="display:flex;gap:0;background:#fff;border-radius:10px;overflow:hidden;border:2px solid #E3E8EE;margin-bottom:14px;">
 <button onclick="filtroStato('In corso')" id="filtro_incorso" class="filtro-btn filtro-attivo" style="flex:1;padding:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;">In Corso</button>
 <button onclick="filtroStato('Vinto')" id="filtro_vinto" class="filtro-btn" style="flex:1;padding:10px;border:none;font-size:13px;font-weight:700;cursor:pointer;border-left:1px solid #E3E8EE;">Vinto</button>
@@ -1347,6 +1348,7 @@ ${noteLock}
  // Ogni card = 1 trattativa; dentro l'accordion mostra N preventivi (righe DB) con il proprio PDF.
  let trattativeGroups = [];
  let filtroCorrente = 'In corso';
+ let searchTermTrattative = '';
 
  // Estrae il path storage dal valore preventivo_pdf_url (gestisce anche i vecchi URL public).
  function protectaPdfPath(raw) {
@@ -1360,6 +1362,9 @@ ${noteLock}
    document.getElementById('trattativeContent').innerHTML = '';
    document.body.style.overflow = 'hidden';
    filtroCorrente = 'In corso';
+   searchTermTrattative = '';
+   const searchInput = document.getElementById('searchTrattative');
+   if (searchInput) searchInput.value = '';
    aggiornaFiltroUI();
 
    try {
@@ -1409,6 +1414,11 @@ ${noteLock}
    renderTrattative();
  }
 
+ function onSearchTrattative(v) {
+   searchTermTrattative = (v || '').trim().toLowerCase();
+   renderTrattative();
+ }
+
  function aggiornaFiltroUI() {
    document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('filtro-attivo'));
    const mapId = { 'In corso': 'filtro_incorso', 'Vinto': 'filtro_vinto', 'Perso': 'filtro_perso', 'Tutti': 'filtro_tutti' };
@@ -1416,15 +1426,46 @@ ${noteLock}
    document.getElementById(id).classList.add('filtro-attivo');
  }
 
+ function aggiornaBadgeConteggi() {
+   // Popola i conteggi nelle 4 tab: "In Corso (N)", "Vinto (N)", ...
+   // I conteggi non applicano il searchTerm (danno la vista d'insieme).
+   const counts = { 'In corso': 0, 'Vinto': 0, 'Perso': 0, 'Tutti': trattativeGroups.length };
+   trattativeGroups.forEach(g => {
+     const s = g.stato || 'In corso';
+     if (counts[s] !== undefined) counts[s] += 1;
+   });
+   const btn = (id, label, n) => {
+     const el = document.getElementById(id);
+     if (el) el.textContent = `${label} (${n})`;
+   };
+   btn('filtro_incorso', 'In Corso', counts['In corso']);
+   btn('filtro_vinto',   'Vinto',    counts['Vinto']);
+   btn('filtro_perso',   'Perso',    counts['Perso']);
+   btn('filtro_tutti',   'Tutti',    counts['Tutti']);
+ }
+
  function renderTrattative() {
-   // 'Tutti' non filtra: mostra tutte le trattative nell'ordine originale (data_preventivo desc).
-   const filtered = filtroCorrente === 'Tutti'
+   aggiornaBadgeConteggi();
+
+   // Applica filtro stato (bypass se 'Tutti').
+   let filtered = filtroCorrente === 'Tutti'
      ? trattativeGroups.slice()
      : trattativeGroups.filter(g => (g.stato || 'In corso') === filtroCorrente);
 
+   // Applica ricerca (cliente OR telefono, case-insensitive, substring match).
+   if (searchTermTrattative) {
+     filtered = filtered.filter(g =>
+       (g.cliente || '').toLowerCase().includes(searchTermTrattative) ||
+       (g.telefono || '').toLowerCase().includes(searchTermTrattative)
+     );
+   }
+
    if (filtered.length === 0) {
      const labels = { 'In corso': 'in corso', 'Vinto': 'vinte', 'Perso': 'perse', 'Tutti': 'presenti' };
-     document.getElementById('trattativeContent').innerHTML = `<div style="text-align:center;padding:40px;color:#888;">Nessuna trattativa ${labels[filtroCorrente] || ''}</div>`;
+     const msg = searchTermTrattative
+       ? `Nessuna trattativa corrisponde alla ricerca "${searchTermTrattative}"`
+       : `Nessuna trattativa ${labels[filtroCorrente] || ''}`;
+     document.getElementById('trattativeContent').innerHTML = `<div style="text-align:center;padding:40px;color:#888;">${msg}</div>`;
      return;
    }
 
