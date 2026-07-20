@@ -353,6 +353,9 @@
 <button onclick="apriTrattative()" style="position:absolute;top:16px;right:16px;background:#FF6600;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.3px;">Trattative</button>
 <h1>Simulatore Casa e Negozio Protetti</h1>
 <p>Configura il tuo sistema di sicurezza</p>
+</div> <div id="sessionBanner" style="display:none;padding:12px 14px;border-radius:10px;margin:0 0 14px;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+<div id="sessionBannerLabel" style="flex:1;min-width:200px;"></div>
+<button onclick="openSessionModal(true)" style="background:rgba(255,255,255,0.85);color:#111827;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;">Cambia modalita'</button>
 </div> <div class="section">
 <h3>Kit Base</h3>
 <select id="kitSelect" onchange="onKitChange(); updateFinanziamento(); aggiornaIva(); calcolaLive()">
@@ -403,6 +406,38 @@
 <div style="color:#888;">Caricamento trattative...</div>
 </div>
 <div id="trattativeContent"></div>
+</div>
+</div> <!-- ENTRY MODAL: scelta modalita' sessione -->
+<div id="sessionModeOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.65);z-index:9997;justify-content:center;align-items:center;padding:16px;">
+<div style="background:#fff;border-radius:16px;padding:24px;max-width:520px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,0.4);">
+<div style="text-align:center;margin-bottom:18px;">
+<h2 style="margin:0 0 6px;color:#003366;font-size:22px;">Modalita' simulatore</h2>
+<div style="color:#6b7280;font-size:13px;">Come vuoi lavorare?</div>
+</div>
+<button onclick="chooseSessionMode('nuova')" style="display:block;width:100%;background:#FF6600;color:#fff;border:none;border-radius:10px;padding:16px;margin-bottom:10px;text-align:left;cursor:pointer;font-family:inherit;">
+<div style="font-size:15px;font-weight:700;">Nuova trattativa</div>
+<div style="font-size:12px;opacity:0.9;margin-top:3px;">Nuovo cliente. Al termine potrai scaricare il PDF preventivo.</div>
+</button>
+<button onclick="openExistingTrattativeModal()" style="display:block;width:100%;background:#003366;color:#fff;border:none;border-radius:10px;padding:16px;margin-bottom:10px;text-align:left;cursor:pointer;font-family:inherit;">
+<div style="font-size:15px;font-weight:700;">Aggiungi a trattativa esistente</div>
+<div style="font-size:12px;opacity:0.9;margin-top:3px;">Aggiungi un preventivo a un cliente gia' aperto (In Corso).</div>
+</button>
+<button onclick="chooseSessionMode('simulazione')" style="display:block;width:100%;background:#6b7280;color:#fff;border:none;border-radius:10px;padding:16px;text-align:left;cursor:pointer;font-family:inherit;">
+<div style="font-size:15px;font-weight:700;">Simula senza preventivo</div>
+<div style="font-size:12px;opacity:0.9;margin-top:3px;">Solo simulazione rapida. Nessun PDF, nessun salvataggio.</div>
+</button>
+</div>
+</div> <!-- MODAL: seleziona trattativa esistente -->
+<div id="existingTrattativeOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.65);z-index:9997;justify-content:center;align-items:center;padding:16px;overflow-y:auto;">
+<div style="background:#fff;border-radius:16px;padding:20px;max-width:560px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,0.4);">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+<h2 style="margin:0;color:#003366;font-size:18px;">Seleziona una trattativa</h2>
+<button onclick="closeExistingTrattativeModal()" style="background:transparent;border:none;color:#6b7280;font-size:22px;cursor:pointer;line-height:1;">&times;</button>
+</div>
+<div style="font-size:12px;color:#6b7280;margin-bottom:12px;">Il nuovo preventivo verra' aggiunto alla trattativa scelta.</div>
+<div id="existingTrattativeLoading" style="text-align:center;padding:30px;color:#888;font-size:13px;">Caricamento...</div>
+<div id="existingTrattativeContent"></div>
+<button onclick="backToModeChoice()" style="margin-top:14px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">Torna alla scelta modalita'</button>
 </div>
 </div>
 <style> @keyframes spin { to { transform: rotate(360deg); } }
@@ -617,6 +652,10 @@
  updateFinanziamento();
  aggiornaIva();
  calcolaLive();
+ // Al primo ingresso pagina chiediamo la modalita' di sessione (Nuova/Esistente/Simulazione).
+ // Il simulatore resta usabile sotto, ma il modal blocca l'attenzione e disabilita
+ // implicitamente la generazione PDF finche' non si sceglie.
+ if (!sessionState.mode) openSessionModal(true);
  }
 
  function trovaRataCorretta(totale, mesi) {
@@ -784,14 +823,30 @@
 </div>`;
  }
 
- html += `
+ // Sezione cliente + bottone PDF differiscono per modalita' sessione.
+ if (sessionState.mode === 'simulazione') {
+   // Simulazione rapida: nessun form cliente, nessun salvataggio, nessun PDF.
+   html += `
+<div style="margin-top:14px;padding:12px;background:#F3F4F6;border:1px dashed #9CA3AF;border-radius:10px;color:#374151;font-size:13px;text-align:center;">Modalita' simulazione: nessun preventivo verra' salvato.</div>`;
+ } else {
+   const isEsistente = sessionState.mode === 'esistente';
+   const nomeVal = isEsistente ? String(sessionState.cliente).replace(/"/g, '&quot;') : '';
+   const telVal  = isEsistente ? String(sessionState.telefono).replace(/"/g, '&quot;') : '';
+   const disabledAttr = isEsistente ? 'readonly' : '';
+   const bgLock = isEsistente ? 'background:#EEF3F8;cursor:not-allowed;' : '';
+   const noteLock = isEsistente
+     ? `<div style="font-size:11px;color:#0F3D75;margin-bottom:8px;">Cliente ereditato dalla trattativa. Non modificabile.</div>`
+     : '';
+   html += `
 <div style="margin-top:16px;padding:14px;background:#f0f4f8;border-radius:10px;border:1px solid #d1d9e6;">
 <div style="font-size:13px;font-weight:600;color:#1a3a5c;margin-bottom:10px;">Dati per il preventivo (obbligatori)</div>
-<input type="text"id="clienteNome"placeholder="Nome e Cognome"style="width:100%;padding:10px;margin-bottom:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;box-sizing:border-box;">
-<input type="tel"id="clienteTel"placeholder="Numero cellulare"style="width:100%;padding:10px;margin-bottom:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;box-sizing:border-box;">
+${noteLock}
+<input type="text"id="clienteNome"placeholder="Nome e Cognome"value="${nomeVal}"${disabledAttr}style="width:100%;padding:10px;margin-bottom:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;box-sizing:border-box;${bgLock}">
+<input type="tel"id="clienteTel"placeholder="Numero cellulare"value="${telVal}"${disabledAttr}style="width:100%;padding:10px;margin-bottom:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;box-sizing:border-box;${bgLock}">
 <input type="text"id="operatoreSelect"readonly value="${(window.__profilo?.nome || window.__profilo?.email || '')}"style="width:100%;padding:10px;margin-bottom:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;box-sizing:border-box;background:#EEF3F8;cursor:not-allowed;">
 </div>`;
- html += `<button class="print-btn"onclick="generaStampa()"> Scarica PDF Preventivo</button>`;
+   html += `<button class="print-btn"onclick="generaStampa()"> Scarica PDF Preventivo</button>`;
+ }
  document.getElementById('risultati').innerHTML = html;
  document.getElementById('risultati').style.display = 'block';
  document.getElementById('risultati').scrollIntoView({behavior: 'smooth'});
@@ -800,6 +855,150 @@
  // Migrato su Supabase: tabella vendita_simulatore_protecta + storage bucket protecta-files
  const sb = db;
  const PROTECTA_BUCKET = 'protecta-files';
+
+ // ========== SESSIONE (modalita' simulatore) ==========
+ // sessionMode: 'nuova' | 'esistente' | 'simulazione'
+ //   - 'nuova'       -> genera nuovo trattativa_id, form cliente vuoto, PDF abilitato
+ //   - 'esistente'   -> riusa trattativa_id di un cliente aperto, form cliente pre-filled+lock
+ //   - 'simulazione' -> nessun trattativa_id, nessun form cliente, nessun PDF
+ // Impostata all'ingresso pagina tramite sessionModeOverlay.
+ const sessionState = {
+   mode: null,
+   trattativaId: null,
+   cliente: '',
+   telefono: '',
+   trattativaLabel: '' // "Mario Rossi (3921347282)" per il banner
+ };
+
+ function openSessionModal(force) {
+   // force=true dal bottone "Cambia modalita'"; se sessione gia' attiva
+   // vale come reset (l'utente puo' annullare chiudendo il modal in scelta esistente).
+   document.getElementById('sessionModeOverlay').style.display = 'flex';
+   document.getElementById('existingTrattativeOverlay').style.display = 'none';
+ }
+
+ function chooseSessionMode(mode) {
+   if (mode === 'nuova') {
+     sessionState.mode = 'nuova';
+     sessionState.trattativaId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : null;
+     sessionState.cliente = '';
+     sessionState.telefono = '';
+     sessionState.trattativaLabel = '';
+   } else if (mode === 'simulazione') {
+     sessionState.mode = 'simulazione';
+     sessionState.trattativaId = null;
+     sessionState.cliente = '';
+     sessionState.telefono = '';
+     sessionState.trattativaLabel = '';
+   }
+   document.getElementById('sessionModeOverlay').style.display = 'none';
+   applySessionBanner();
+   // Nascondi risultati precedenti (evita di lasciare form cliente vecchio)
+   const risultati = document.getElementById('risultati');
+   if (risultati) { risultati.style.display = 'none'; risultati.innerHTML = ''; }
+ }
+
+ async function openExistingTrattativeModal() {
+   document.getElementById('sessionModeOverlay').style.display = 'none';
+   document.getElementById('existingTrattativeOverlay').style.display = 'flex';
+   document.getElementById('existingTrattativeLoading').style.display = 'block';
+   document.getElementById('existingTrattativeContent').innerHTML = '';
+   try {
+     const { data, error } = await sb
+       .from('vendita_simulatore_protecta')
+       .select('trattativa_id, cliente, numero_cellulare, operatore_nome, data_preventivo, kit, stato')
+       .eq('stato', 'In corso')
+       .order('data_preventivo', { ascending: false });
+     if (error) throw error;
+     // Raggruppa per trattativa_id: card = cliente + telefono + operatore + N preventivi
+     const groups = new Map();
+     (data || []).forEach(r => {
+       const key = r.trattativa_id;
+       if (!key) return;
+       if (!groups.has(key)) {
+         groups.set(key, {
+           trattativa_id: key,
+           cliente: r.cliente || '',
+           telefono: r.numero_cellulare || '',
+           operatore: r.operatore_nome || '',
+           ultimo: r.data_preventivo,
+           count: 0
+         });
+       }
+       groups.get(key).count += 1;
+     });
+     const arr = Array.from(groups.values());
+     document.getElementById('existingTrattativeLoading').style.display = 'none';
+     if (arr.length === 0) {
+       document.getElementById('existingTrattativeContent').innerHTML =
+         '<div style="text-align:center;padding:24px;color:#888;font-size:13px;">Nessuna trattativa in corso.<br>Torna indietro e apri una nuova trattativa.</div>';
+       return;
+     }
+     document.getElementById('existingTrattativeContent').innerHTML = arr.map(g => {
+       const cliSafe = String(g.cliente).replace(/'/g, "\\'");
+       const telSafe = String(g.telefono).replace(/'/g, "\\'");
+       const idSafe  = String(g.trattativa_id).replace(/'/g, "\\'");
+       const dataFmt = g.ultimo ? new Date(g.ultimo).toLocaleDateString('it-IT') : '';
+       return `<button onclick="pickExistingTrattativa('${idSafe}','${cliSafe}','${telSafe}')" style="display:block;width:100%;background:#fff;border:2px solid #E3E8EE;border-radius:10px;padding:12px 14px;margin-bottom:8px;text-align:left;cursor:pointer;font-family:inherit;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#FF6600'" onmouseout="this.style.borderColor='#E3E8EE'">
+<div style="font-weight:700;font-size:14px;color:#1a1a2e;">${g.cliente || '(senza nome)'}</div>
+<div style="font-size:12px;color:#555;margin-top:3px;">${g.telefono || '-'} &nbsp;·&nbsp; ${g.operatore || '-'}</div>
+<div style="font-size:11px;color:#888;margin-top:3px;">${g.count} preventiv${g.count === 1 ? 'o' : 'i'} &nbsp;·&nbsp; ultimo ${dataFmt}</div>
+</button>`;
+     }).join('');
+   } catch (e) {
+     console.error('Errore caricamento trattative esistenti:', e);
+     document.getElementById('existingTrattativeLoading').style.display = 'none';
+     document.getElementById('existingTrattativeContent').innerHTML =
+       '<div style="text-align:center;padding:20px;color:#dc2626;font-size:13px;">Errore nel caricamento</div>';
+   }
+ }
+
+ function closeExistingTrattativeModal() {
+   // Chiusura senza selezione: se non c'e' ancora una sessione attiva torna al selettore modalita'
+   document.getElementById('existingTrattativeOverlay').style.display = 'none';
+   if (!sessionState.mode) openSessionModal(true);
+ }
+
+ function backToModeChoice() {
+   document.getElementById('existingTrattativeOverlay').style.display = 'none';
+   openSessionModal(true);
+ }
+
+ function pickExistingTrattativa(trattativaId, cliente, telefono) {
+   sessionState.mode = 'esistente';
+   sessionState.trattativaId = trattativaId;
+   sessionState.cliente = cliente || '';
+   sessionState.telefono = telefono || '';
+   sessionState.trattativaLabel = `${cliente || '(senza nome)'}${telefono ? ' (' + telefono + ')' : ''}`;
+   document.getElementById('existingTrattativeOverlay').style.display = 'none';
+   applySessionBanner();
+   const risultati = document.getElementById('risultati');
+   if (risultati) { risultati.style.display = 'none'; risultati.innerHTML = ''; }
+ }
+
+ function applySessionBanner() {
+   const banner = document.getElementById('sessionBanner');
+   const label = document.getElementById('sessionBannerLabel');
+   if (!banner || !label) return;
+   if (!sessionState.mode) { banner.style.display = 'none'; return; }
+   banner.style.display = 'flex';
+   if (sessionState.mode === 'nuova') {
+     banner.style.background = '#FFF4EC';
+     banner.style.border = '1px solid #FFD1B0';
+     banner.style.color = '#7A3600';
+     label.innerHTML = '<strong>Nuova trattativa</strong> &nbsp;·&nbsp; compila i dati cliente al momento del PDF.';
+   } else if (sessionState.mode === 'esistente') {
+     banner.style.background = '#E7F0FA';
+     banner.style.border = '1px solid #B7CFEA';
+     banner.style.color = '#0F3D75';
+     label.innerHTML = `<strong>Aggiunta preventivo a:</strong> ${sessionState.trattativaLabel}`;
+   } else if (sessionState.mode === 'simulazione') {
+     banner.style.background = '#F3F4F6';
+     banner.style.border = '1px solid #D1D5DB';
+     banner.style.color = '#374151';
+     label.innerHTML = '<strong>Simulazione rapida</strong> &nbsp;·&nbsp; nessun PDF, nessun salvataggio.';
+   }
+ }
 
  async function inviaAGoogleSheet(dati) {
  try {
@@ -818,7 +1017,7 @@
  pdfUrl = path;
  }
  }
- const { error } = await sb.from('vendita_simulatore_protecta').insert({
+ const insertPayload = {
  cliente: dati.nome,
  numero_cellulare: dati.telefono,
  operatore_id: profilo?.id || null,
@@ -827,7 +1026,11 @@
  stato: 'In corso',
  preventivo_pdf_url: pdfUrl,
  preventivo_payload: { data: dati.data, filename: dati.pdfFilename }
- });
+ };
+ // Aggancia esplicitamente il preventivo alla trattativa scelta a inizio sessione.
+ // Se null (fallback vecchio browser senza crypto.randomUUID) il DB genera un nuovo uuid via DEFAULT.
+ if (sessionState.trattativaId) insertPayload.trattativa_id = sessionState.trattativaId;
+ const { error } = await sb.from('vendita_simulatore_protecta').insert(insertPayload);
  if (error) throw error;
  return true;
  } catch(e) {
@@ -1127,135 +1330,169 @@
  }
 
  // ========== TRATTATIVE ==========
- let trattativeData = [];
+ // trattativeGroups: [{trattativa_id, cliente, telefono, operatore, stato, preventivi:[{id, data, kit, pdfPath}]}]
+ // Ogni card = 1 trattativa; dentro l'accordion mostra N preventivi (righe DB) con il proprio PDF.
+ let trattativeGroups = [];
  let filtroCorrente = 'In corso';
 
- async function apriTrattative() {
- document.getElementById('trattativeOverlay').style.display = 'block';
- document.getElementById('trattativeLoading').style.display = 'block';
- document.getElementById('trattativeContent').innerHTML = '';
- document.body.style.overflow = 'hidden';
- filtroCorrente = 'In corso';
- aggiornaFiltroUI();
-
- try {
- const { data, error } = await sb
- .from('vendita_simulatore_protecta')
- .select('*')
- .order('data_preventivo', { ascending: false });
- if (error) throw error;
- // Convertiamo in formato row legacy: [data, nome, telefono, operatore, kit, stato, folderUrl]
- trattativeData = (data || []).map(r => ([
- r.data_preventivo ? new Date(r.data_preventivo).toLocaleString('it-IT') : '',
- r.cliente || '',
- r.numero_cellulare || '',
- r.operatore_nome || '',
- r.kit || '',
- r.stato || 'In corso',
- r.preventivo_pdf_url || '',
- r.id // id in coda per update
- ]));
- renderTrattative();
- } catch(e) {
- console.error(e);
- document.getElementById('trattativeContent').innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">Errore nel caricamento</div>';
+ // Estrae il path storage dal valore preventivo_pdf_url (gestisce anche i vecchi URL public).
+ function protectaPdfPath(raw) {
+   if (!raw) return '';
+   return String(raw).replace(/^https?:\/\/[^/]+\/storage\/v1\/object\/public\/[^/]+\//, '');
  }
- document.getElementById('trattativeLoading').style.display = 'none';
+
+ async function apriTrattative() {
+   document.getElementById('trattativeOverlay').style.display = 'block';
+   document.getElementById('trattativeLoading').style.display = 'block';
+   document.getElementById('trattativeContent').innerHTML = '';
+   document.body.style.overflow = 'hidden';
+   filtroCorrente = 'In corso';
+   aggiornaFiltroUI();
+
+   try {
+     const { data, error } = await sb
+       .from('vendita_simulatore_protecta')
+       .select('id, trattativa_id, data_preventivo, operatore_nome, cliente, numero_cellulare, kit, stato, preventivo_pdf_url')
+       .order('data_preventivo', { ascending: false });
+     if (error) throw error;
+
+     // Raggruppa per trattativa_id (i record legacy senza trattativa_id -> chiave = id per non collassarli).
+     const groups = new Map();
+     (data || []).forEach(r => {
+       const key = r.trattativa_id || ('legacy_' + r.id);
+       let g = groups.get(key);
+       if (!g) {
+         g = {
+           trattativa_id: r.trattativa_id || null,
+           cliente: r.cliente || '',
+           telefono: r.numero_cellulare || '',
+           operatore: r.operatore_nome || '',
+           stato: r.stato || 'In corso', // stato del preventivo piu' recente = stato trattativa
+           ultimo: r.data_preventivo,
+           preventivi: []
+         };
+         groups.set(key, g);
+       }
+       g.preventivi.push({
+         id: r.id,
+         data: r.data_preventivo,
+         kit: r.kit || '',
+         stato: r.stato || 'In corso',
+         pdfPath: protectaPdfPath(r.preventivo_pdf_url)
+       });
+     });
+     trattativeGroups = Array.from(groups.values());
+     renderTrattative();
+   } catch(e) {
+     console.error(e);
+     document.getElementById('trattativeContent').innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">Errore nel caricamento</div>';
+   }
+   document.getElementById('trattativeLoading').style.display = 'none';
  }
 
  function filtroStato(stato) {
- filtroCorrente = stato;
- aggiornaFiltroUI();
- renderTrattative();
+   filtroCorrente = stato;
+   aggiornaFiltroUI();
+   renderTrattative();
  }
 
  function aggiornaFiltroUI() {
- document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('filtro-attivo'));
- const id = filtroCorrente === 'In corso' ? 'filtro_incorso' : filtroCorrente === 'Vinto' ? 'filtro_vinto' : 'filtro_perso';
- document.getElementById(id).classList.add('filtro-attivo');
+   document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('filtro-attivo'));
+   const id = filtroCorrente === 'In corso' ? 'filtro_incorso' : filtroCorrente === 'Vinto' ? 'filtro_vinto' : 'filtro_perso';
+   document.getElementById(id).classList.add('filtro-attivo');
  }
 
  function renderTrattative() {
- const filtered = trattativeData.filter((row, i) => {
- const stato = row[5] || 'In corso';
- return stato === filtroCorrente;
- });
+   const filtered = trattativeGroups.filter(g => (g.stato || 'In corso') === filtroCorrente);
 
- if (filtered.length === 0) {
- const labels = { 'In corso': 'in corso', 'Vinto': 'vinte', 'Perso': 'perse' };
- document.getElementById('trattativeContent').innerHTML = `<div style="text-align:center;padding:40px;color:#888;">Nessuna trattativa ${labels[filtroCorrente]}</div>`;
- return;
- }
+   if (filtered.length === 0) {
+     const labels = { 'In corso': 'in corso', 'Vinto': 'vinte', 'Perso': 'perse' };
+     document.getElementById('trattativeContent').innerHTML = `<div style="text-align:center;padding:40px;color:#888;">Nessuna trattativa ${labels[filtroCorrente]}</div>`;
+     return;
+   }
 
- let html = `<div style="font-size:12px;color:#888;margin-bottom:8px;padding-left:4px;">${filtered.length} trattativ${filtered.length === 1 ? 'a' : 'e'}</div>`;
+   let html = `<div style="font-size:12px;color:#888;margin-bottom:8px;padding-left:4px;">${filtered.length} trattativ${filtered.length === 1 ? 'a' : 'e'}</div>`;
 
- filtered.forEach((row) => {
- const stato = row[5] || 'In corso';
- const originalIndex = trattativeData.indexOf(row);
+   filtered.forEach((g) => {
+     const stato = g.stato || 'In corso';
+     let statoBg = '#fef9c3', statoColor = '#92400e', statoBorder = '#facc15';
+     if (stato === 'Vinto') { statoBg = '#d1fae5'; statoColor = '#065f46'; statoBorder = '#10b981'; }
+     if (stato === 'Perso') { statoBg = '#fee2e2'; statoColor = '#991b1b'; statoBorder = '#ef4444'; }
 
- let statoBg = '#fef9c3'; let statoColor = '#92400e'; let statoBorder = '#facc15'; let statoIcon = '';
- if (stato === 'Vinto') { statoBg = '#d1fae5'; statoColor = '#065f46'; statoBorder = '#10b981'; statoIcon = ''; }
- if (stato === 'Perso') { statoBg = '#fee2e2'; statoColor = '#991b1b'; statoBorder = '#ef4444'; statoIcon = ''; }
+     const ultimoFmt = g.ultimo ? new Date(g.ultimo).toLocaleString('it-IT') : '';
+     const nPrev = g.preventivi.length;
+     const trattIdSafe = g.trattativa_id ? String(g.trattativa_id).replace(/'/g, "\\'") : '';
+     // Se legacy (nessun trattativa_id) usiamo l'id del singolo preventivo come chiave update.
+     const legacyId = !g.trattativa_id && g.preventivi[0] ? g.preventivi[0].id : null;
 
- const folderLink = row[6] || '';
- // Legacy: preventivo_pdf_url poteva contenere un URL public completo;
- // dalla migration 029 il bucket protecta-files e' privato e salviamo solo il path.
- const folderPath = folderLink.replace(/^https?:\/\/[^/]+\/storage\/v1\/object\/public\/[^/]+\//, '');
- const folderClick = folderPath ? folderPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'") : '';
+     const preventiviHtml = g.preventivi.map(p => {
+       const dataFmt = p.data ? new Date(p.data).toLocaleString('it-IT') : '';
+       const pathSafe = p.pdfPath ? p.pdfPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'") : '';
+       const pdfBtn = p.pdfPath
+         ? `<a href="#"onclick="MiroxStorage.openAttachment('${PROTECTA_BUCKET}','${pathSafe}');return false;"style="color:#003366;text-decoration:none;font-size:12px;font-weight:600;">Apri PDF →</a>`
+         : '<span style="color:#9CA3AF;font-size:12px;">(nessun PDF)</span>';
+       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-top:1px dashed #eee;font-size:12px;">
+<div style="flex:1;min-width:0;">
+<div style="font-weight:600;color:#1a1a2e;">${p.kit || '-'}</div>
+<div style="color:#888;font-size:11px;margin-top:2px;">${dataFmt}</div>
+</div>
+<div style="margin-left:8px;">${pdfBtn}</div>
+</div>`;
+     }).join('');
 
- html += `
+     const azioniHtml = stato === 'In corso' ? `
+<div style="display:flex;gap:0;border-top:1px solid #eee;">
+<button onclick="aggiornaStatoTrattativa('${trattIdSafe}',${legacyId ? legacyId : 'null'},'Vinto',this)"style="flex:1;background:#f0fdf4;color:#065f46;border:none;padding:12px;font-size:14px;font-weight:700;cursor:pointer;border-right:1px solid #eee;">Vinto</button>
+<button onclick="aggiornaStatoTrattativa('${trattIdSafe}',${legacyId ? legacyId : 'null'},'Perso',this)"style="flex:1;background:#fef2f2;color:#991b1b;border:none;padding:12px;font-size:14px;font-weight:700;cursor:pointer;">Perso</button>
+</div>` : '';
+
+     html += `
 <div style="background:#fff;border-radius:12px;margin-bottom:12px;box-shadow:0 2px 10px rgba(0,0,0,0.07);overflow:hidden;">
 <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-left:5px solid ${statoBorder};">
-<div style="flex:1;">
-<div style="font-weight:700;font-size:16px;color:#1a1a2e;">${row[1] || '-'}</div>
-<div style="font-size:13px;color:#555;margin-top:4px;"> ${row[2] || '-'} &nbsp;·&nbsp; ${row[3] || '-'}</div>
-<div style="font-size:12px;color:#888;margin-top:4px;"> ${row[0] || '-'} &nbsp;·&nbsp; ${row[4] || '-'}</div>
+<div style="flex:1;min-width:0;">
+<div style="font-weight:700;font-size:16px;color:#1a1a2e;">${g.cliente || '-'}</div>
+<div style="font-size:13px;color:#555;margin-top:4px;">${g.telefono || '-'} &nbsp;·&nbsp; ${g.operatore || '-'}</div>
+<div style="font-size:12px;color:#888;margin-top:4px;">${nPrev} preventiv${nPrev === 1 ? 'o' : 'i'} &nbsp;·&nbsp; ultimo ${ultimoFmt}</div>
 </div>
-<div style="background:${statoBg};color:${statoColor};border:2px solid ${statoBorder};padding:8px 14px;border-radius:10px;text-align:center;min-width:100px;">
-<div style="font-size:20px;">${statoIcon}</div>
-<div style="font-size:13px;font-weight:700;margin-top:2px;">${stato}</div>
+<div style="background:${statoBg};color:${statoColor};border:2px solid ${statoBorder};padding:8px 14px;border-radius:10px;text-align:center;min-width:80px;">
+<div style="font-size:13px;font-weight:700;">${stato}</div>
 </div>
-</div> ${stato === 'In corso' ? `
-<div style="display:flex;gap:0;border-top:1px solid #eee;">
-<button onclick="aggiornaStato(${originalIndex + 2}, 'Vinto', this)"style="flex:1;background:#f0fdf4;color:#065f46;border:none;padding:12px;font-size:14px;font-weight:700;cursor:pointer;border-right:1px solid #eee;"> Vinto</button>
-<button onclick="aggiornaStato(${originalIndex + 2}, 'Perso', this)"style="flex:1;background:#fef2f2;color:#991b1b;border:none;padding:12px;font-size:14px;font-weight:700;cursor:pointer;"> Perso</button>
-</div> ` : ''}
- ${folderPath ? `
-<div style="border-top:1px solid #eee;padding:10px 16px;">
-<a href="#"onclick="MiroxStorage.openAttachment('${PROTECTA_BUCKET}','${folderClick}');return false;"style="color:#003366;text-decoration:none;font-size:12px;font-weight:600;"> Apri preventivo PDF →</a>
-</div> ` : ''}
+</div>
+<div style="background:#FBFCFD;">${preventiviHtml}</div>
+${azioniHtml}
 </div>`;
- });
+   });
 
- document.getElementById('trattativeContent').innerHTML = html;
+   document.getElementById('trattativeContent').innerHTML = html;
  }
 
  function chiudiTrattative() {
- document.getElementById('trattativeOverlay').style.display = 'none';
- document.body.style.overflow = '';
+   document.getElementById('trattativeOverlay').style.display = 'none';
+   document.body.style.overflow = '';
  }
 
- async function aggiornaStato(riga, nuovoStato, btn) {
- btn.disabled = true;
- btn.textContent = '...';
-
- try {
- // `riga`arriva come (originalIndex + 2) per legacy: convertiamo all'id reale.
- const originalIndex = riga - 2;
- const row = trattativeData[originalIndex];
- const recordId = row ? row[7] : null;
- if (!recordId) throw new Error('Record non trovato');
- const { error } = await sb
- .from('vendita_simulatore_protecta')
- .update({ stato: nuovoStato })
- .eq('id', recordId);
- if (error) throw error;
- apriTrattative();
- } catch(e) {
- window.MiroxUI && window.MiroxUI.alert('Errore aggiornamento: ' + e.message, {type:'error', title:'Errore'});
- btn.disabled = false;
- btn.textContent = nuovoStato;
- }
+ async function aggiornaStatoTrattativa(trattativaId, legacyId, nuovoStato, btn) {
+   btn.disabled = true;
+   btn.textContent = '...';
+   try {
+     let query = sb.from('vendita_simulatore_protecta').update({ stato: nuovoStato });
+     if (trattativaId) {
+       // Applica lo stato a tutti i preventivi della trattativa (Vinto/Perso e' a livello trattativa).
+       query = query.eq('trattativa_id', trattativaId);
+     } else if (legacyId) {
+       // Fallback record legacy senza trattativa_id: aggiorna la singola riga.
+       query = query.eq('id', legacyId);
+     } else {
+       throw new Error('Riferimento trattativa mancante');
+     }
+     const { error } = await query;
+     if (error) throw error;
+     apriTrattative();
+   } catch(e) {
+     window.MiroxUI && window.MiroxUI.alert('Errore aggiornamento: ' + e.message, {type:'error', title:'Errore'});
+     btn.disabled = false;
+     btn.textContent = nuovoStato;
+   }
  }
 
  init();

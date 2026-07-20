@@ -172,7 +172,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `vendita_contratti` — riga venduta con snapshot + punteggi server-side + `stato_controllo`. **Codice Rivenditore** (`codice_rivenditore`, migration `050`): text NOT NULL DEFAULT `'9001415852'` CHECK IN (`'9001415852'`,`'9000822241'`). Identifica il punto vendita di inserimento: `9001415852` = Legnago (negozio principale), `9000822241` = Cerea (piccolo, no gestionale locale). Filtra Dashboard Pezzi Day by Day + Avanzamento Mensile (solo Legnago); Gare Individuali conteggia entrambi. Indice `idx_vendita_contratti_codice_rivenditore`. Vedi sezione "Codice rivenditore".
 - `vendita_documenti`, `vendita_documenti_regole`, `vendita_compensi_regole`, `vendita_log_modifiche`
 - `vendita_consensi_privacy` — consensi GDPR raccolti dal wizard upload-contratti (migration 034, dal 2026-06-26). Modalità `otp_sms` o `cartaceo`, stato workflow (`pending`/`confermato`/`scaduto`/`fallito`/`revocato`), OTP hash+salt+scadenza+tentativi, audit IP/UA, snapshot anagrafica jsonb al momento del consenso, `valido_fino_al = confermato_at + 48 mesi` (dedupe), `pdf_storage_path` nel bucket `consensi-privacy`. CHECK: `modalita='otp_sms' ⇒ cellulare_usato NOT NULL`; `stato='confermato' ⇒ valido_fino_al + pdf_storage_path NOT NULL`. Indici `(anagrafica_id, valido_fino_al DESC) WHERE stato='confermato' AND revocato_at IS NULL` per dedupe e `otp_scade_at WHERE stato='pending'` per cleanup. Vedi sezione "Sistema consensi privacy GDPR".
-- Moduli operativi: `vendita_apri_chiudi`, `vendita_switch_sim`, `vendita_ordini_smartphone`, `vendita_simulatore_protecta`
+- Moduli operativi: `vendita_apri_chiudi`, `vendita_switch_sim`, `vendita_ordini_smartphone`, `vendita_simulatore_protecta`. **`vendita_simulatore_protecta.trattativa_id`** uuid NOT NULL DEFAULT `gen_random_uuid()` (migration `051`, dal 2026-07-20): raggruppa piu' preventivi generati per lo stesso cliente. Ogni INSERT senza id esplicito crea una trattativa nuova (comportamento legacy). Il wizard `moduli/simulatore_protecta.html` chiede la modalita' di sessione all'ingresso: `Nuova trattativa` (nuovo uuid), `Aggiungi a trattativa esistente` (riusa uuid di una trattativa `In corso`), `Simula senza preventivo` (nessun uuid, nessun salvataggio). Backfill: ogni record legacy ha ricevuto un uuid distinto (33 record → 33 trattative). Indice `idx_vsp_trattativa_id`. Vedi sezione "Modalita' Simulatore Protecta".
 
 ### Post-Vendita
 - `post_vendita_dispositivi_comodato` — codice generato da RPC `genera_codice_comodato()`
@@ -434,6 +434,20 @@ Quando una pratica va in KO post-vendita (o `Rifiutata`/`Annullata`/`In lavorazi
 - Regole con `campo_condizione='admin_config'` sono gestibili da UI admin
 - Nome standard: `documento_identita.pdf`, `contratto_<categoria_slug>.pdf`, `contratto_firmato_<categoria_slug>.pdf` (solo per firma cartacea), `copia_sim_mnp.pdf`, `copia_bolletta.pdf`
 - Solo `application/pdf`, max 20 MB
+
+### Modalita' Simulatore Protecta (dal 2026-07-20, migration `051`)
+
+Il modulo `moduli/simulatore_protecta.html` chiede all'ingresso pagina la modalita' di sessione tramite un modal 3-scelte (`#sessionModeOverlay`). La scelta guida il flusso di generazione preventivo e il valore di `vendita_simulatore_protecta.trattativa_id`:
+
+- **Nuova trattativa**: genera un nuovo `trattativa_id` lato client (`crypto.randomUUID()`), form cliente vuoto, PDF abilitato. E' l'equivalente del comportamento pre-2026-07-20.
+- **Aggiungi a trattativa esistente**: apre un secondo modal (`#existingTrattativeOverlay`) con la lista delle trattative `stato='In corso'` raggruppate per `trattativa_id` (cliente, telefono, operatore, N preventivi, data ultimo). Click su una → `trattativa_id` = quella scelta, cliente/telefono pre-filled e read-only nella result card. Piu' preventivi collegati alla stessa trattativa restano visibili come UNA card nella modale Trattative.
+- **Simula senza preventivo**: `trattativa_id=null`, la result card mostra i numeri ma nasconde il form cliente e il bottone "Scarica PDF Preventivo". Nessuna INSERT su `vendita_simulatore_protecta`, nessun file su Storage.
+
+**Banner di sessione** (`#sessionBanner` in cima al simulatore): mostra la modalita' corrente + bottone "Cambia modalita'" che riapre il modal iniziale. Al cambio di modalita' la result card corrente viene svuotata (evita di lasciare form cliente vecchi).
+
+**Modale Trattative** (`apriTrattative`): raggruppa `vendita_simulatore_protecta` per `trattativa_id` (fallback `legacy_<id>` per righe pre-migration senza raggruppamento). Ogni card = una trattativa; l'accordion interno lista i N preventivi con kit, data e link "Apri PDF" (via `MiroxStorage.openAttachment('protecta-files', path)`). I bottoni **Vinto/Perso sono a livello trattativa**: `aggiornaStatoTrattativa` fa `UPDATE ... WHERE trattativa_id=<id>` propagando lo stato a tutti i preventivi collegati. Per i record legacy (nessun trattativa_id, non aggregabili) l'update ricade su `WHERE id=<legacy_id>` singolo.
+
+**Backfill**: la migration 051 ha assegnato `gen_random_uuid()` distinto ai 33 record pre-esistenti — ognuno resta la propria trattativa (nessun raggruppamento retroattivo, sarebbe stato rischioso senza intervento umano).
 
 ---
 
