@@ -227,8 +227,9 @@ table.avanz tbody td.eccedenza { font-weight: 800 !important; }
 table.avanz tbody td.eccedenza.pos { color: var(--success) !important; }
 table.avanz tbody td.eccedenza.neg { color: var(--danger) !important; }
 table.avanz tbody td.andamento { font-weight: 800 !important; }
-table.avanz tbody td.andamento.in-linea { color: var(--success) !important; }
+table.avanz tbody td.andamento.in-linea { color: var(--info) !important; }
 table.avanz tbody td.andamento.in-ritardo { color: var(--danger) !important; }
+table.avanz tbody td.andamento.raggiunto { color: var(--success) !important; }
 table.avanz tbody tr.subheader td {
   background: var(--bg) !important; font-size: 10.5px; font-weight: 700; text-transform: uppercase;
   color: var(--text-secondary); letter-spacing: .04em;
@@ -1010,7 +1011,9 @@ function renderAvanzamento() {
         if (giorniTot > 0) {
           const targetAtteso = (obiettivo / giorniTot) * giorniPassati;
           const diff = punteggio - targetAtteso;
-          if (diff >= 0) { andCls = 'in-linea'; andTxt = 'IN LINEA'; }
+          // Priorita': RAGGIUNTO (verde) > IN LINEA (azzurro) > IN RITARDO (rosso)
+          if (punteggio >= obiettivo) { andCls = 'raggiunto'; andTxt = 'RAGGIUNTO'; }
+          else if (diff >= 0) { andCls = 'in-linea'; andTxt = 'IN LINEA'; }
           else { andCls = 'in-ritardo'; andTxt = 'IN RITARDO'; }
           const eccAssoluto = Math.ceil(Math.abs(diff));
           if (eccAssoluto === 0) { eccTxt = '0'; }
