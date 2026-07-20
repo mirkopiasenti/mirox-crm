@@ -437,11 +437,12 @@ Quando una pratica va in KO post-vendita (o `Rifiutata`/`Annullata`/`In lavorazi
 
 ### Modalita' Simulatore Protecta (dal 2026-07-20, migration `051`)
 
-Il modulo `moduli/simulatore_protecta.html` chiede all'ingresso pagina la modalita' di sessione tramite un modal 3-scelte (`#sessionModeOverlay`). La scelta guida il flusso di generazione preventivo e il valore di `vendita_simulatore_protecta.trattativa_id`:
+Il modulo `moduli/simulatore_protecta.html` chiede all'ingresso pagina la modalita' di sessione tramite un modal 4-scelte (`#sessionModeOverlay`). La scelta guida il flusso di generazione preventivo e il valore di `vendita_simulatore_protecta.trattativa_id`:
 
 - **Nuova trattativa**: genera un nuovo `trattativa_id` lato client (`crypto.randomUUID()`), form cliente vuoto, PDF abilitato. E' l'equivalente del comportamento pre-2026-07-20.
 - **Aggiungi a trattativa esistente**: apre un secondo modal (`#existingTrattativeOverlay`) con la lista delle trattative `stato='In corso'` raggruppate per `trattativa_id` (cliente, telefono, operatore, N preventivi, data ultimo). Click su una → `trattativa_id` = quella scelta, cliente/telefono pre-filled e read-only nella result card. Piu' preventivi collegati alla stessa trattativa restano visibili come UNA card nella modale Trattative.
 - **Simula senza preventivo**: `trattativa_id=null`, la result card mostra i numeri ma nasconde il form cliente e il bottone "Scarica PDF Preventivo". Nessuna INSERT su `vendita_simulatore_protecta`, nessun file su Storage.
+- **Solo consulta trattative** (bottone secondario): non setta `sessionState.mode`, apre direttamente la modale Trattative. Alla chiusura (`chiudiTrattative`) l'entry modal si riapre automaticamente per far scegliere all'utente cosa fare dopo (in questo modo il simulatore non resta usabile senza modalita' impostata).
 
 **Banner di sessione** (`#sessionBanner` in cima al simulatore): mostra la modalita' corrente + bottone "Cambia modalita'" che riapre il modal iniziale. Al cambio di modalita' la result card corrente viene svuotata (evita di lasciare form cliente vecchi).
 

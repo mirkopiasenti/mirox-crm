@@ -422,9 +422,13 @@
 <div style="font-size:15px;font-weight:700;">Aggiungi a trattativa esistente</div>
 <div style="font-size:12px;opacity:0.9;margin-top:3px;">Aggiungi un preventivo a un cliente gia' aperto (In Corso).</div>
 </button>
-<button onclick="chooseSessionMode('simulazione')" style="display:block;width:100%;background:#6b7280;color:#fff;border:none;border-radius:10px;padding:16px;text-align:left;cursor:pointer;font-family:inherit;">
+<button onclick="chooseSessionMode('simulazione')" style="display:block;width:100%;background:#6b7280;color:#fff;border:none;border-radius:10px;padding:16px;margin-bottom:10px;text-align:left;cursor:pointer;font-family:inherit;">
 <div style="font-size:15px;font-weight:700;">Simula senza preventivo</div>
 <div style="font-size:12px;opacity:0.9;margin-top:3px;">Solo simulazione rapida. Nessun PDF, nessun salvataggio.</div>
+</button>
+<button onclick="openTrattativeFromEntry()" style="display:block;width:100%;background:#fff;color:#003366;border:2px solid #003366;border-radius:10px;padding:14px;text-align:left;cursor:pointer;font-family:inherit;">
+<div style="font-size:15px;font-weight:700;">Solo consulta trattative</div>
+<div style="font-size:12px;opacity:0.9;margin-top:3px;">Apri la lista senza avviare una simulazione.</div>
 </button>
 </div>
 </div> <!-- MODAL: seleziona trattativa esistente -->
@@ -875,6 +879,14 @@ ${noteLock}
    // vale come reset (l'utente puo' annullare chiudendo il modal in scelta esistente).
    document.getElementById('sessionModeOverlay').style.display = 'flex';
    document.getElementById('existingTrattativeOverlay').style.display = 'none';
+ }
+
+ function openTrattativeFromEntry() {
+   // 4a opzione dell'entry modal: solo consulta trattative, non avvia una simulazione.
+   // Non setta sessionState.mode: alla chiusura della modale Trattative
+   // (chiudiTrattative) l'entry modal si riapre da solo.
+   document.getElementById('sessionModeOverlay').style.display = 'none';
+   apriTrattative();
  }
 
  function chooseSessionMode(mode) {
@@ -1469,6 +1481,9 @@ ${azioniHtml}
  function chiudiTrattative() {
    document.getElementById('trattativeOverlay').style.display = 'none';
    document.body.style.overflow = '';
+   // Se l'utente e' arrivato qui dalla 4a opzione "Solo consulta trattative"
+   // (nessuna sessione avviata) riapriamo l'entry modal per farlo scegliere.
+   if (!sessionState.mode) openSessionModal(true);
  }
 
  async function aggiornaStatoTrattativa(trattativaId, legacyId, nuovoStato, btn) {
