@@ -223,8 +223,9 @@ table.avanz tbody td.metrica {
   text-align: left; font-weight: 700; color: var(--text);
 }
 table.avanz tbody td.punteggio { font-weight: 700; background: #FEFCE8; }
-table.avanz tbody td.eccedenza { font-weight: 700; }
-table.avanz tbody td.eccedenza.pos { background: #DCFCE7; color: var(--success); }
+table.avanz tbody td.eccedenza { font-weight: 800 !important; }
+table.avanz tbody td.eccedenza.pos { color: var(--success) !important; }
+table.avanz tbody td.eccedenza.neg { color: var(--danger) !important; }
 table.avanz tbody td.andamento { font-weight: 800 !important; }
 table.avanz tbody td.andamento.in-linea { color: var(--success) !important; }
 table.avanz tbody td.andamento.in-ritardo { color: var(--danger) !important; }
@@ -998,19 +999,25 @@ function renderAvanzamento() {
       const obiettivo = o?.obiettivo ?? 0;
       // Andamento: confronto punteggio corrente vs target proporzionale ai giorni lavorativi passati.
       // giorno_target = obiettivo / giorni_lav_mese; target_atteso = giorno_target * giorni_lav_passati.
-      // punteggio >= target_atteso -> IN LINEA (verde), altrimenti IN RITARDO (nero).
+      // punteggio >= target_atteso -> IN LINEA (verde), altrimenti IN RITARDO (rosso).
+      // Eccedenza: (punteggio - target_atteso) arrotondato per eccedenza (verso l'esterno):
+      //   +1.2 -> +2, -1.2 -> -2. Coerente col principio "sprona": mostra sempre il peggio/meglio.
       let andCls = '', andTxt = '-';
+      let eccCls = '', eccTxt = '';
       if (obiettivo > 0) {
         const giorniTot = giorniLavorativiMese(DPState.anno, DPState.mese);
         const giorniPassati = giorniLavorativiPassati(DPState.anno, DPState.mese);
         if (giorniTot > 0) {
           const targetAtteso = (obiettivo / giorniTot) * giorniPassati;
-          if (punteggio >= targetAtteso) { andCls = 'in-linea'; andTxt = 'IN LINEA'; }
+          const diff = punteggio - targetAtteso;
+          if (diff >= 0) { andCls = 'in-linea'; andTxt = 'IN LINEA'; }
           else { andCls = 'in-ritardo'; andTxt = 'IN RITARDO'; }
+          const eccAssoluto = Math.ceil(Math.abs(diff));
+          if (eccAssoluto === 0) { eccTxt = '0'; }
+          else if (diff > 0) { eccCls = 'pos'; eccTxt = '+' + eccAssoluto; }
+          else { eccCls = 'neg'; eccTxt = '-' + eccAssoluto; }
         }
       }
-      const eccedenza = Math.max(0, attuale - obiettivo);
-      const eccCls = eccedenza > 0 ? 'pos' : '';
       const opCells = conteggi.map(v => `<td>${v || ''}</td>`).join('');
       const isExtraPivaRow = isPiva && m.tabella === 'avanzamento_extra_piva';
       const hideObAnEc = isPiva && m.tabella === 'avanzamento_piva';
@@ -1034,7 +1041,7 @@ function renderAvanzamento() {
           ? `<td class="empty-obanec"></td><td class="empty-obanec"></td><td class="empty-obanec"></td>`
           : `<td>${obiettivo || '-'}</td>
              <td class="andamento ${andCls}">${andTxt}</td>
-             <td class="eccedenza ${eccCls}">${eccedenza || ''}</td>`}
+             <td class="eccedenza ${eccCls}">${eccTxt}</td>`}
       </tr>`;
     });
     html += '</tbody></table></div>';
