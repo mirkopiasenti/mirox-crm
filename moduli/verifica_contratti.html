@@ -576,10 +576,14 @@ async function apriDettaglioContratto(id, stateKey) {
     // Carica liste utili per le tendine (categorie, offerte, opzioni, reload).
     // NB: vendita_reload non ha colonna offerta_id (è una lista globale di
     // reload), e il flag è "attivo" (maschile), non "attiva" come le altre.
-    const [catRes, offRes, opzRes, relRes, filesRes, profRes] = await Promise.all([
+    const [catRes, offRes, opzRes, offOpzRes, relRes, filesRes, profRes] = await Promise.all([
       sb.from('vendita_categorie').select('id, nome').eq('attiva', true).order('ordine'),
       sb.from('vendita_offerte').select('id, categoria_id, nome_offerta, cluster_cliente').eq('attiva', true),
       sb.from('vendita_opzioni').select('id, categoria_id, offerta_id, nome_opzione, cluster_cliente').eq('attiva', true),
+      // Pivot offerta↔opzione: unica fonte affidabile per capire quali opzioni sono
+      // disponibili per una data offerta (le colonne dirette su vendita_opzioni sono
+      // legacy e non vengono popolate dall'Admin).
+      sb.from('vendita_offerte_opzioni').select('offerta_id, opzione_id'),
       sb.from('vendita_reload').select('id, nome').eq('attivo', true).order('ordine', { ascending: true }),
       // Filtriamo per contratto_id specifico, NON per anagrafica_id (un cliente
       // può avere N contratti, ognuno con i propri PDF).
@@ -590,11 +594,13 @@ async function apriDettaglioContratto(id, stateKey) {
     if (catRes.error) throw catRes.error;
     if (offRes.error) throw offRes.error;
     if (opzRes.error) throw opzRes.error;
+    if (offOpzRes.error) throw offOpzRes.error;
     if (relRes.error) throw relRes.error;
     // (filesRes errore non fatale)
     const categorie = catRes.data || [];
     const offerte = offRes.data || [];
     const opzioni = opzRes.data || [];
+    const offerteOpzioni = offOpzRes.data || [];
     const reload = relRes.data || [];
     const allegati = (filesRes && !filesRes.error) ? (filesRes.data || []) : [];
     let profili = (profRes && !profRes.error) ? (profRes.data || []) : [];
@@ -605,7 +611,7 @@ async function apriDettaglioContratto(id, stateKey) {
       profili = [{ id: fromState.operatore_id, nome }, ...profili];
     }
     loader.hide();
-    apriPopupDettaglio(fromState, { categorie, offerte, opzioni, reload, allegati, profili, isReadOnly, stateKey });
+    apriPopupDettaglio(fromState, { categorie, offerte, opzioni, offerteOpzioni, reload, allegati, profili, isReadOnly, stateKey });
   } catch (e) {
     loader.error('Errore caricamento');
     console.error('Errore dettaglio:', e);
@@ -614,7 +620,7 @@ async function apriDettaglioContratto(id, stateKey) {
 }
 
 function apriPopupDettaglio(c, opts) {
-  const { categorie, offerte, opzioni, reload, allegati, profili, isReadOnly, stateKey } = opts;
+  const { categorie, offerte, opzioni, offerteOpzioni, reload, allegati, profili, isReadOnly, stateKey } = opts;
   const ana = c.anagrafica || {};
   const isEnergia = (c.categoria_snapshot || '').toLowerCase().includes('energia');
   const isFisso = (c.categoria_snapshot || '').toLowerCase().includes('fisso');
@@ -632,10 +638,16 @@ function apriPopupDettaglio(c, opts) {
   // Filtra offerte/opzioni per i select già contestualizzati.
   // I reload sono globali (non hanno offerta_id) → mostriamo tutti i record attivi.
   const offerteFiltered = offerte.filter(o => !c.categoria_id || o.categoria_id === c.categoria_id);
-  const opzioniFiltered = opzioni.filter(o =>
-    (!c.categoria_id || o.categoria_id === c.categoria_id) &&
-    (!c.offerta_id || o.offerta_id === c.offerta_id)
-  );
+  // Le opzioni disponibili per l'offerta selezionata vengono lette dal pivot
+  // vendita_offerte_opzioni (stesso pattern del wizard Upload Contratti). Le
+  // colonne dirette vendita_opzioni.categoria_id / offerta_id sono legacy e non
+  // vengono popolate dall'Admin, quindi non sono affidabili come filtro.
+  const opzioniAllowedIds = c.offerta_id
+    ? new Set((offerteOpzioni || []).filter(l => l.offerta_id === c.offerta_id).map(l => l.opzione_id))
+    : null;
+  const opzioniFiltered = opzioniAllowedIds
+    ? opzioni.filter(o => opzioniAllowedIds.has(o.id))
+    : [];
   const reloadFiltered = reload;
   const valoriConvergenzaFisso = ['Mobile', 'L&G', 'Allarme', 'Assicurazione', 'Sim Interna', 'NO Convergenza', 'Coupon', 'Seconda Casa'];
   const opzioniConvergenzaFisso = valoriConvergenzaFisso.map(v =>
@@ -882,7 +894,7 @@ function apriPopupDettaglio(c, opts) {
   window.__currentVerificaContratto = c;
   window.__currentVerificaContratto._allegati = allegati;
   // Cache cataloghi per re-popolamento select su change categoria/offerta
-  window.__currentVerificaCataloghi = { categorie, offerte, opzioni, reload };
+  window.__currentVerificaCataloghi = { categorie, offerte, opzioni, offerteOpzioni, reload };
   // Bottone chiudi via attributo
   m.foot.querySelectorAll('[data-mx-close-popup]').forEach(b => b.addEventListener('click', () => m.close()));
 
@@ -1037,17 +1049,20 @@ function repopulateOfferte() {
   ).join('');
 }
 
-// Ripopola la tendina Opzioni in base a categoria + offerta selezionate
+// Ripopola la tendina Opzioni in base all'offerta selezionata, usando il pivot
+// vendita_offerte_opzioni (stesso pattern del wizard Upload Contratti).
 function repopulateOpzioni() {
   const cats = window.__currentVerificaCataloghi;
   if (!cats) return;
-  const catId = document.getElementById('vc_categoria_id').value;
   const offId = document.getElementById('vc_offerta_id').value;
   const sel = document.getElementById('vc_opzione_id');
   const cur = sel.value;
-  const filtered = cats.opzioni.filter(o =>
-    (!catId || o.categoria_id === catId) && (!offId || o.offerta_id === offId)
-  );
+  const allowedIds = offId
+    ? new Set((cats.offerteOpzioni || []).filter(l => l.offerta_id === offId).map(l => l.opzione_id))
+    : null;
+  const filtered = allowedIds
+    ? cats.opzioni.filter(o => allowedIds.has(o.id))
+    : [];
   sel.innerHTML = '<option value="">—</option>' + filtered.map(o =>
     `<option value="${o.id}" ${o.id === cur ? 'selected' : ''}>${(o.nome_opzione || '').replace(/[<>&]/g, '')}</option>`
   ).join('');
