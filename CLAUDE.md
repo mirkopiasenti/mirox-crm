@@ -447,7 +447,7 @@ Il modulo `moduli/simulatore_protecta.html` chiede all'ingresso pagina la modali
 
 **Modale Trattative** (`apriTrattative`): raggruppa `vendita_simulatore_protecta` per `trattativa_id` (fallback `legacy_<id>` per righe pre-migration senza raggruppamento). Ogni card = una trattativa; l'accordion interno lista i N preventivi con kit, data e link "Apri PDF" (via `MiroxStorage.openAttachment('protecta-files', path)`). I bottoni **Vinto/Perso sono a livello trattativa**: `aggiornaStatoTrattativa` fa `UPDATE ... WHERE trattativa_id=<id>` propagando lo stato a tutti i preventivi collegati. Per i record legacy (nessun trattativa_id, non aggregabili) l'update ricade su `WHERE id=<legacy_id>` singolo.
 
-**Backfill**: la migration 051 ha assegnato `gen_random_uuid()` distinto ai 33 record pre-esistenti — ognuno resta la propria trattativa (nessun raggruppamento retroattivo, sarebbe stato rischioso senza intervento umano).
+**Backfill**: la migration 051 ha assegnato `gen_random_uuid()` distinto ai 33 record pre-esistenti. La migration `052` (stesso giorno) ha poi **unificato retroattivamente** i preventivi con lo stesso `numero_cellulare` sotto un unico `trattativa_id` (il canonical e' il piu' vecchio cronologicamente); inoltre se un gruppo contiene almeno un preventivo `Vinto`, tutti i preventivi del gruppo vengono forzati a `Vinto` (regola commerciale: una trattativa e' vinta se il cliente ha comprato uno dei kit proposti, gli altri sono alternative scartate). Risultato: 33 righe → 21 trattative. Se in futuro un cellulare viene riutilizzato da un cliente diverso (raro), l'operatore deve creare esplicitamente "Nuova trattativa" dal wizard invece di aggangiarsi a quella esistente.
 
 ---
 
