@@ -3236,7 +3236,22 @@ ${showActions
  const year = date.getFullYear();
  return`${day}/${month}/${year}`;
  };
- 
+
+ // Per input type="date": ritorna YYYY-MM-DD
+ const formatDateISO = (dateValue) => {
+ if (!dateValue) return '';
+ if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}/.test(dateValue)) return dateValue.slice(0, 10);
+ if (typeof dateValue === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(dateValue)) {
+ const [d, m, y] = dateValue.split('/');
+ return `${y}-${m}-${d}`;
+ }
+ const d = new Date(dateValue);
+ if (isNaN(d.getTime())) return '';
+ const day = String(d.getDate()).padStart(2, '0');
+ const mon = String(d.getMonth() + 1).padStart(2, '0');
+ return `${d.getFullYear()}-${mon}-${day}`;
+ };
+
  // ========================================
  // ARRAY DI MAPPING: GOOGLE SHEET → MODAL
  // ========================================
@@ -3253,9 +3268,9 @@ ${showActions
  ['Offerta Rientro (R)', record.offertaRientro, 'dettaglio_offertaRientro', (v) => v || ''],
  ['ICCID SIM (J)', record.iccidSim, 'dettaglio_iccidSim', (v) => v || ''],
  ['Numero Provvisorio (K)', record.numeroProvvisorio, 'dettaglio_numeroProvvisorio', (v) => v || ''],
- ['Giorno Attivazione (L)', record.giornoAttivazione, 'dettaglio_giornoAttivazione', formatDateOnly],
- ['Giorno Portabilità (M)', record.giornoPortabilita, 'dettaglio_giornoPortabilita', formatDateOnly],
- ['Giorno Rientro (P)', record.giornoRientro, 'dettaglio_giornoRientro', formatDateOnly],
+ ['Giorno Attivazione (L)', record.giornoAttivazione, 'dettaglio_giornoAttivazione', formatDateISO],
+ ['Giorno Portabilità (M)', record.giornoPortabilita, 'dettaglio_giornoPortabilita', formatDateISO],
+ ['Giorno Rientro (P)', record.giornoRientro, 'dettaglio_giornoRientro', formatDateISO],
  ['SIM Definitiva (Q)', record.simDefinitiva, 'dettaglio_simDefinitiva', (v) => v || ''],
  ['Modalità Pagamento (S)', record.modalitaPagamento, 'dettaglio_modalitaPagamento', (v) => v || 'POS'],
  ['Costo Switch (T)', record.costoSwitch, 'dettaglio_costoSwitch', (v) => v ? v.toString().replace(/€\s?/, '') : ''],
