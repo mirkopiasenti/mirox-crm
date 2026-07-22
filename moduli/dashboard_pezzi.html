@@ -804,10 +804,10 @@ function contaMatchTotale(metrica) {
 }
 
 // Filtro post-vendita per Avanzamento P.IVA / Extra Gara P.IVA:
-// Fisso                 -> stato IN ('In Attivazione','Attivo') (unico che richiede uno stato attivo)
-// Energia               -> stato != 'Rifiutato' (NULL ammesso, conta subito, esclude solo respinti)
-// Allarmi               -> stato != 'KO' (NULL ammesso, conta subito, esclude solo respinti)
-// Mobile/CB/Assicurazioni -> sempre valido (contano al momento dell'inserimento)
+// Fisso   -> stato IN ('In Attivazione','Attivo')
+// Energia -> stato != 'Rifiutato' (NULL ammesso)
+// Allarmi -> stato = 'OK'
+// Altre categorie -> sempre valido
 function isContrattoValidoAvanzamentoPiva(c) {
   const cat = c.categoria_snapshot;
   if (cat === 'Fisso') {
@@ -820,7 +820,7 @@ function isContrattoValidoAvanzamentoPiva(c) {
   }
   if (cat === 'Allarmi') {
     const s = DPState.statoPostVendita?.allarmi.get(c.id);
-    return s !== 'KO';
+    return s === 'OK';
   }
   return true;
 }
