@@ -497,12 +497,19 @@ function calcolaCompenso(attuale, regola, contratti) {
   const scaglioni = Array.isArray(regola.scaglioni) ? regola.scaglioni : [];
   const bonus = Array.isArray(regola.bonus_soglie) ? regola.bonus_soglie : [];
   let totale = 0;
+  let flatMaxImporto = 0;
+  let flatMaxDa = -1;
   scaglioni.forEach(s => {
     const modo = s.tipo_calcolo || 'per_pezzo';
     const importo = Number(s.importo ?? s.per_pezzo ?? 0);
     const da = Number(s.da || 0);
     if (modo === 'flat') {
       if (attuale >= da) totale += importo;
+    } else if (modo === 'flat_max') {
+      if (attuale >= da && da > flatMaxDa) {
+        flatMaxDa = da;
+        flatMaxImporto = importo;
+      }
     } else {
       const a = (s.a === null || s.a === undefined || s.a === '') ? Infinity : Number(s.a);
       if (attuale > da) {
@@ -511,6 +518,7 @@ function calcolaCompenso(attuale, regola, contratti) {
       }
     }
   });
+  totale += flatMaxImporto;
   bonus.forEach(b => { if (attuale >= Number(b.soglia || 0)) totale += Number(b.bonus || 0); });
   return { euro: totale, label: regola.label || '' };
 }
