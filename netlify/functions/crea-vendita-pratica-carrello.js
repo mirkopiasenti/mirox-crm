@@ -113,12 +113,17 @@ function buildStorageNames({ ragioneSociale, praticaId, now = new Date() }) {
 }
 
 function parseRequiredScore(value, label) {
-  const parsed = Number(value);
-
-  if (!Number.isFinite(parsed)) {
-    throw new Error(`Configurazione non valida: ${label} non numerico`);
+  // Guardia difensiva: null/undefined/'' non sono punteggi validi. Number(null)
+  // e Number('') restituiscono 0 (finite) e finirebbero silenziosamente a DB —
+  // fenomeno visto in 14 contratti del 22-23/07/2026 salvati con snapshot 0
+  // nonostante il catalogo avesse valori > 0. Blocchiamo esplicitamente qui.
+  if (value === null || value === undefined || value === '') {
+    throw new Error(`Configurazione non valida: ${label} mancante nel catalogo (null/vuoto). Ricarica la pagina e riprova.`);
   }
-
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Configurazione non valida: ${label} non numerico (${JSON.stringify(value)})`);
+  }
   return parsed;
 }
 
@@ -782,6 +787,47 @@ exports.handler = async (event) => {
     const offerteById = indexById(offerteRes.data);
     const opzioniById = indexById(opzioniRes.data);
     const reloadById = indexById(reloadRes.data);
+
+    // Sanity check punteggi (guardia difensiva post-incidente 22-23/07/2026):
+    // il 22-23/07/2026 sono stati creati 14 contratti con snapshot punteggi = 0
+    // pur essendo agganciati a offerte del catalogo con valori > 0. La root cause
+    // esatta e' ignota (ipotesi: SDK cache stale, race, replica lag). Qui rifetch
+    // gli STESSI record via seconda query indipendente e confronto: se divergono
+    // blocco la creazione con messaggio comprensibile invece di salvare in DB
+    // uno snapshot silenziosamente sbagliato che poi falsifica gare e classifiche.
+    if (offertaIds.length > 0) {
+      const { data: freshOfferte, error: freshOfferteErr } = await supabase
+        .from('vendita_offerte')
+        .select('id, punteggio_gara, punteggio_extra_gara')
+        .in('id', offertaIds);
+      if (freshOfferteErr) {
+        throw new Error(readableError(freshOfferteErr, 'Sanity check punteggi offerte fallito'));
+      }
+      const freshById = indexById(freshOfferte || []);
+      for (const off of offerteRes.data) {
+        const fresh = freshById.get(off.id);
+        if (!fresh) {
+          console.error('Sanity punteggi: offerta scomparsa fra prima e seconda query', { id: off.id });
+          throw new Error(`Sanity check fallito: offerta ${off.nome_offerta || off.id} non piu' presente al re-check. Ricarica la pagina e riprova.`);
+        }
+        const pgFirst = String(off.punteggio_gara ?? '');
+        const pgFresh = String(fresh.punteggio_gara ?? '');
+        const pexFirst = String(off.punteggio_extra_gara ?? '');
+        const pexFresh = String(fresh.punteggio_extra_gara ?? '');
+        if (pgFirst !== pgFresh || pexFirst !== pexFresh) {
+          console.error('Sanity punteggi: divergenza catalogo', {
+            offerta_id: off.id, nome: off.nome_offerta,
+            prima: { punteggio_gara: pgFirst, punteggio_extra_gara: pexFirst },
+            fresh: { punteggio_gara: pgFresh, punteggio_extra_gara: pexFresh }
+          });
+          throw new Error(`Sanity check fallito: catalogo punteggi incoerente per offerta "${off.nome_offerta}". Ricarica la pagina e riprova.`);
+        }
+        if (off.punteggio_gara === null || off.punteggio_gara === undefined || off.punteggio_gara === '') {
+          console.error('Sanity punteggi: punteggio_gara null nel catalogo caricato', { offerta_id: off.id, nome: off.nome_offerta });
+          throw new Error(`Configurazione anomala: l'offerta "${off.nome_offerta}" non ha punteggio_gara nel catalogo. Contatta l'assistenza.`);
+        }
+      }
+    }
 
     // Migration 049 — bonus configurabile per Assicurazioni Annuale.
     // Letto UNA volta prima del loop dei contratti per evitare N query.
