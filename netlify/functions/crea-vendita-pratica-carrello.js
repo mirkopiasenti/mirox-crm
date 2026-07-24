@@ -479,7 +479,14 @@ function numeric(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+// Marker versione fix: aumenta ogni volta che cambi la diagnostica per capire
+// dai Netlify logs se la versione attiva contiene il fix atteso.
+const CARRELLO_FIX_VERSION = '2026-07-24-diag-v1';
+
 exports.handler = async (event) => {
+  // Debug trace id: correlare log della stessa richiesta nei Netlify Functions logs.
+  const debugTraceId = `${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`;
+  console.log('[CARRELLO][BOOT]', { debugTraceId, fixVersion: CARRELLO_FIX_VERSION, method: event.httpMethod });
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers: CORS_HEADERS, body: '' };
   }
@@ -788,6 +795,22 @@ exports.handler = async (event) => {
     const opzioniById = indexById(opzioniRes.data);
     const reloadById = indexById(reloadRes.data);
 
+    // DIAG: dump del catalogo offerte caricato con la PRIMA query. Solo campi tecnici.
+    console.log('[CARRELLO][DIAG][CATALOGO_1]', {
+      debugTraceId,
+      offerte: (offerteRes.data || []).map(o => ({
+        id: o.id, nome: o.nome_offerta, cluster: o.cluster_cliente,
+        punteggio_gara: o.punteggio_gara,
+        punteggio_extra_gara: o.punteggio_extra_gara,
+        tipi: { pg: typeof o.punteggio_gara, pex: typeof o.punteggio_extra_gara }
+      })),
+      opzioni: (opzioniRes.data || []).map(o => ({
+        id: o.id, nome: o.nome_opzione,
+        punteggio_gara: o.punteggio_gara,
+        punteggio_extra_gara: o.punteggio_extra_gara
+      }))
+    });
+
     // Sanity check punteggi (guardia difensiva post-incidente 22-23/07/2026):
     // il 22-23/07/2026 sono stati creati 14 contratti con snapshot punteggi = 0
     // pur essendo agganciati a offerte del catalogo con valori > 0. La root cause
@@ -803,6 +826,15 @@ exports.handler = async (event) => {
       if (freshOfferteErr) {
         throw new Error(readableError(freshOfferteErr, 'Sanity check punteggi offerte fallito'));
       }
+      // DIAG: dump del catalogo offerte caricato con la SECONDA query (fresh).
+      console.log('[CARRELLO][DIAG][CATALOGO_2_FRESH]', {
+        debugTraceId,
+        offerte: (freshOfferte || []).map(o => ({
+          id: o.id, punteggio_gara: o.punteggio_gara,
+          punteggio_extra_gara: o.punteggio_extra_gara,
+          tipi: { pg: typeof o.punteggio_gara, pex: typeof o.punteggio_extra_gara }
+        }))
+      });
       const freshById = indexById(freshOfferte || []);
       for (const off of offerteRes.data) {
         const fresh = freshById.get(off.id);
@@ -1074,11 +1106,43 @@ exports.handler = async (event) => {
         stato_controllo: 'da_controllare'
       };
 
+      // DIAG pre-INSERT: dump valori punteggi calcolati + valori raw catalogo.
+      console.log('[CARRELLO][DIAG][PRE_INSERT]', {
+        debugTraceId, index,
+        offerta_id: item.offerta_id, offerta_nome: offerta.nome_offerta,
+        opzione_id: item.opzione_id, opzione_nome: opzione ? opzione.nome_opzione : null,
+        raw_catalogo: {
+          offerta_pg: offerta.punteggio_gara, offerta_pex: offerta.punteggio_extra_gara,
+          opzione_pg: opzione ? opzione.punteggio_gara : null,
+          opzione_pex: opzione ? opzione.punteggio_extra_gara : null
+        },
+        parsed: {
+          pg_offerta: punteggioGaraOfferta, pex_offerta: punteggioExtraGaraOfferta,
+          pg_opzione: punteggioGaraOpzione, pex_opzione: punteggioExtraGaraOpzione
+        }
+      });
+
       const { data: insertedContract, error: contractInsertError } = await supabase
         .from('vendita_contratti')
         .insert(contrattoPayload)
         .select('*')
         .single();
+
+      // DIAG post-INSERT: cosa ha effettivamente scritto il DB (per catturare
+      // eventuali trigger che riscrivono i valori — es. trg_calcola_punteggio_totale).
+      if (insertedContract) {
+        console.log('[CARRELLO][DIAG][POST_INSERT]', {
+          debugTraceId, index, contratto_id: insertedContract.id,
+          scritti: {
+            pg_offerta: insertedContract.punteggio_gara_offerta,
+            pex_offerta: insertedContract.punteggio_extra_gara_offerta,
+            pg_opzione: insertedContract.punteggio_gara_opzione,
+            pex_opzione: insertedContract.punteggio_extra_gara_opzione,
+            pg_totale: insertedContract.punteggio_gara_totale,
+            pex_totale: insertedContract.punteggio_extra_gara_totale
+          }
+        });
+      }
 
       if (contractInsertError) {
         throw new Error(readableError(contractInsertError, `Errore creazione contratto indice ${index}`));
