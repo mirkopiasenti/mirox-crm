@@ -29,6 +29,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `assets/` | Logo, favicon |
 | `netlify/functions/` | Endpoint server-side (vedi sotto) |
 | `netlify/functions/_lib/` | Helper condivisi (`mailer.js`) |
+| `tests/` | Test automatici Node (`node:test`): regressioni vendita + controllo sintassi e link locali |
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |
 | `netlify.toml` | Config Netlify + cron `cron-rientro-sim` |
 | `package.json` | Dipendenze Node delle functions |
@@ -36,14 +37,14 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 
 ### Netlify Functions
 
-Tutte le functions (eccetto `cron-rientro-sim`) richiedono `Authorization: Bearer <jwt>` valido — il client usa `MiroxApi.fetch()` che lo inietta automaticamente dalla sessione Supabase.
+Tutte le functions, eccetto `cron-rientro-sim` e l'endpoint anon intenzionale `public-prenota`, richiedono `Authorization: Bearer <jwt>` valido — il client usa `MiroxApi.fetch()` che lo inietta automaticamente dalla sessione Supabase.
 
 | Function | Metodo | Auth | Scopo |
 |---|---|---|---|
 | `vendita-config` | GET | authenticated | Carica catalogo per il wizard contratti |
 | `admin-vendita-config` | GET / POST | **admin** | CRUD admin del catalogo |
-| `crea-vendita-pratica-carrello` | POST | authenticated | Crea pratica + N contratti con validazioni; promuove i PDA da staging. Per cluster `Turista` salva `cluster_cliente='Turista'` sui contratti, usa `Consumer` su `anagrafica` e non richiede email |
-| `upload-vendita-documento` | POST multipart | authenticated | Upload PDF su bucket `contratti-vendita` (anche staging `temp/<sess>/`) |
+| `crea-vendita-pratica-carrello` | POST | authenticated | Crea pratica + N contratti in stato provvisorio `bozza`, promuove i PDA e supporta le action idempotenti `finalize` / `rollback_upload_failure`. L'operatore viene sempre ricavato dal JWT. Per cluster `Turista` salva `cluster_cliente='Turista'` sui contratti, usa `Consumer` su `anagrafica` e non richiede email |
+| `upload-vendita-documento` | POST multipart | authenticated | Upload di PDF reali su `contratti-vendita` (anche staging `temp/<sess>/`). Verifica proprietà operatore/admin e coerenza pratica/anagrafica/contratto, deriva il path dalla pratica e attribuisce l'upload all'utente autenticato |
 | `elimina-vendita-contratto` | POST | **admin** | Eliminazione definitiva da Verifica Contratti: cancella il contratto, i record collegati, gli allegati Storage e la pratica se resta vuota |
 | `ocr-pda` | POST multipart | authenticated | OCR del PDA (Pratica di Adesione PDF) via Claude API — pre-compila l'anagrafica. In caso di errore Anthropic ritorna `error_code` strutturato (`ocr_credit_exhausted`, `ocr_rate_limited`, `ocr_unavailable`, `ocr_auth_error`, `ocr_generic_error`) per popup mirato lato client |
 | `search-anagrafica` | GET | authenticated | Ricerca cliente per CF/PIVA |
@@ -57,10 +58,18 @@ Tutte le functions (eccetto `cron-rientro-sim`) richiedono `Authorization: Beare
 | `genera-pdf-consenso-cartaceo` | GET | authenticated | Stream PDF precompilato (riquadro firma vuoto) per il flusso cartaceo |
 | `upload-consenso-cartaceo` | POST multipart | authenticated | Upload scansione del modulo firmato a mano (max 20 MB, application/pdf), crea record `stato='confermato'` modalità `'cartaceo'` |
 
+### Regole di integrità vendita
+
+- **Punto vendita**: `9001415852` = Legnago, `9000822241` = Cerea. Il valore selezionato/OCR viene propagato dal carrello al backend. Day by Day e Avanzamento Mensile contano solo Legnago; Gare Individuali conta entrambi i negozi.
+- **Reinserimenti**: un contratto può essere marcato come reinserimento solo rispetto a un contratto dello stesso cliente, stessa categoria, **stesso mese solare Europe/Rome** e stato post-vendita idoneo. La regola è verificata sia nel wizard sia server-side.
+- **Invio documenti**: la pratica nasce `bozza`; diventa `inviata` soltanto dopo tutti gli upload. Se un documento fallisce, il rollback compensativo elimina pratica incompleta, contratti e file già caricati per evitare duplicati al tentativo successivo.
+- **Identità**: `operatore_id` e `uploaded_by` derivano sempre dal JWT autenticato. Le conferme sensibili (rimborso manuale e stato KO Apri/Chiudi) richiedono la password dell'account corrente verificata da Supabase; non esistono password operative nel sorgente.
+
 ## Setup locale
 
 ```bash
 npm install
+npm test          # suite di regressione + sintassi JS/HTML + link locali
 npx netlify dev   # serve frontend + functions su http://localhost:8888
 ```
 
@@ -91,17 +100,18 @@ git push origin main
 
 **Non caricare più file tramite l'interfaccia web GitHub** (`Add files via upload`): si creerebbe drift fra locale e remoto, esattamente il problema che abbiamo risolto in fase di setup. Se proprio serve modificare qualcosa al volo dalla web UI, sincronizza poi qui con `git pull` prima di riprendere a lavorare in locale.
 
-### Collaborazione Claude Code + Codex
+### Collaborazione AI
 
-Dal 2026-07-02 sul progetto lavorano due AI assistant: **Claude Code** per gli sviluppi grandi (nuovi moduli, function, migration, refactor) e **Codex** per le sistemazioni puntuali. Entrambi seguono le stesse regole:
+Dal 2026-07-25 **Codex è l'assistente principale per tutto lo sviluppo**: analisi, fix, nuovi moduli, functions, migration, refactor e documentazione. Claude Code resta parte della cronologia del repository e può essere usato dall'utente in modo occasionale; l'OCR dei PDA continua invece a usare la **Claude API** fino alla futura migrazione a OpenAI.
 
-- Aggiornare README + `CLAUDE.md` + `database/README.md` nella stessa sessione della modifica (no doc drift)
-- No emoji in HTML/JS visibili, no `alert/confirm` nativi (usare `MiroxUI.*`), no `fetch` diretto (usare `MiroxApi.fetch`) — vedi convenzioni in `CLAUDE.md`
+- Aggiornare README + `AGENTS.md` + `CLAUDE.md` + `database/README.md` nella stessa sessione della modifica (no doc drift)
+- No emoji in HTML/JS visibili, no `alert/confirm` nativi (usare `MiroxUI.*`), no `fetch` diretto (usare `MiroxApi.fetch`) — vedi convenzioni in `AGENTS.md`
+- Prima di chiudere una modifica eseguire almeno `npm test`
 - Commit locali in autonomia, `git push` **solo su richiesta esplicita** dell'utente (ogni push è deploy production su `mirox-crm.it`)
 - Nessuna azione irreversibile (DROP, `push --force`, revoca policy RLS, cambio env var) senza conferma
 - Prima di iniziare un task, leggere `git log --oneline -20` per allinearsi con l'ultima sessione dell'altro assistant
 
-Dettagli e regole complete nella sezione "Collaborazione Claude Code + Codex" di [`CLAUDE.md`](CLAUDE.md).
+Dettagli e regole complete in [`AGENTS.md`](AGENTS.md); [`CLAUDE.md`](CLAUDE.md) resta sincronizzato per compatibilità con eventuali sessioni Claude Code.
 
 ## Env vars Netlify
 

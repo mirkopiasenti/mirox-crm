@@ -12,7 +12,6 @@ async function uploadVenditaDocumento(params = {}) {
     tipo_documento,
     storage_base_path,
     file_name,
-    uploaded_by,
     nome_cartella_storage,
     categoria_snapshot,
     categoria,
@@ -38,7 +37,6 @@ async function uploadVenditaDocumento(params = {}) {
   if (categoria) formData.append('categoria', categoria);
   if (nome_categoria) formData.append('nome_categoria', nome_categoria);
   if (file_name) formData.append('file_name', file_name);
-  if (uploaded_by) formData.append('uploaded_by', uploaded_by);
 
   // FormData: NON settare Content-Type manualmente (il browser inserisce il boundary)
   const fetcher = (typeof window !== 'undefined' && window.MiroxApi && window.MiroxApi.fetch)

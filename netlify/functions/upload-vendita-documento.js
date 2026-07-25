@@ -4,6 +4,14 @@ const { requireAuth } = require('./_lib/require-auth');
 
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 const STORAGE_BUCKET = 'contratti-vendita';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DOCUMENT_TYPES = new Set([
+  'documento_identita',
+  'contratto',
+  'contratto_firmato',
+  'copia_sim_mnp',
+  'copia_bolletta'
+]);
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -233,6 +241,29 @@ function normalizeOptional(value) {
   return trimmed ? trimmed : null;
 }
 
+function normalizeUuidOrNull(value) {
+  const normalized = normalizeOptional(value);
+  return normalized && UUID_REGEX.test(normalized) ? normalized.toLowerCase() : null;
+}
+
+function authenticatedUploaderId(auth) {
+  return normalizeUuidOrNull(auth?.profilo?.alias_di)
+    || normalizeUuidOrNull(auth?.profilo?.id)
+    || normalizeUuidOrNull(auth?.user?.id);
+}
+
+function canManagePractice(auth, praticaRow) {
+  if (auth?.profilo?.ruolo === 'admin') return true;
+  const uploaderId = authenticatedUploaderId(auth);
+  return Boolean(uploaderId && praticaRow?.operatore_id === uploaderId);
+}
+
+function hasPdfSignature(buffer) {
+  return Buffer.isBuffer(buffer)
+    && buffer.length >= 5
+    && buffer.subarray(0, 1024).includes(Buffer.from('%PDF-', 'ascii'));
+}
+
 function readableErrorMessage(error, fallback = 'Errore durante il caricamento documento') {
   if (!error) return fallback;
 
@@ -277,13 +308,19 @@ exports.handler = async (event) => {
     const contrattoId = normalizeOptional(fields.contratto_id);
     const anagraficaId = normalizeOptional(fields.anagrafica_id);
     const tipoDocumento = normalizeOptional(fields.tipo_documento);
-    const storageBasePath = normalizeOptional(fields.storage_base_path);
-    const nomeCartellaStorage = normalizeOptional(fields.nome_cartella_storage);
-    const uploadedBy = normalizeOptional(fields.uploaded_by);
+    const uploadedBy = authenticatedUploaderId(auth);
 
-    if (file.mimeType !== 'application/pdf') {
-      return response(400, { success: false, error: 'Tipo file non valido: è consentito solo application/pdf' });
+    if (file.mimeType !== 'application/pdf' || !hasPdfSignature(file.buffer)) {
+      return response(400, { success: false, error: 'File non valido: è consentito solo un PDF reale' });
     }
+
+    if (!uploadedBy) {
+      return response(500, { success: false, error: 'Profilo autenticato privo di un identificativo valido' });
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    });
 
     // Modalita' staging: PDA caricata PRIMA della creazione della pratica.
     // Salva il file in temp/<temp_session_id>/ senza creare record in vendita_documenti.
@@ -297,10 +334,6 @@ exports.handler = async (event) => {
         || suggestedFileName(tipoDocumento || 'contratto', fields);
       const finalFileName = sanitizeFileName(requestedFileName, sanitizeSegment(tipoDocumento || 'documento', 'documento'));
       const storagePath = `temp/${tempSessionId}/${finalFileName}`;
-
-      const supabase = createClient(supabaseUrl, serviceRoleKey, {
-        auth: { autoRefreshToken: false, persistSession: false }
-      });
 
       const { error: uploadError } = await supabase
         .storage
@@ -336,22 +369,80 @@ exports.handler = async (event) => {
       return response(400, { success: false, error: 'Campo obbligatorio mancante: tipo_documento' });
     }
 
+    if (!DOCUMENT_TYPES.has(tipoDocumento)) {
+      return response(400, { success: false, error: 'tipo_documento non valido' });
+    }
+
+    if (!normalizeUuidOrNull(praticaId) || !normalizeUuidOrNull(anagraficaId)) {
+      return response(400, { success: false, error: 'pratica_id o anagrafica_id non valido' });
+    }
+
+    if (contrattoId && !normalizeUuidOrNull(contrattoId)) {
+      return response(400, { success: false, error: 'contratto_id non valido' });
+    }
+
+    if (tipoDocumento !== 'documento_identita' && !contrattoId) {
+      return response(400, { success: false, error: 'contratto_id obbligatorio per questo tipo di documento' });
+    }
+
+    const { data: praticaRow, error: praticaError } = await supabase
+      .from('vendita_pratiche')
+      .select('id, anagrafica_id, operatore_id, storage_base_path, nome_cartella_storage, stato_pratica')
+      .eq('id', praticaId)
+      .maybeSingle();
+
+    if (praticaError) {
+      return response(500, { success: false, error: readableErrorMessage(praticaError, 'Errore verifica pratica') });
+    }
+    if (!praticaRow) {
+      return response(404, { success: false, error: 'Pratica non trovata' });
+    }
+    if (praticaRow.anagrafica_id !== anagraficaId) {
+      return response(400, { success: false, error: 'anagrafica_id non coerente con la pratica' });
+    }
+    if (!canManagePractice(auth, praticaRow)) {
+      return response(403, { success: false, error: 'Non puoi caricare documenti su una pratica creata da un altro operatore' });
+    }
+    if (!['bozza', 'inviata'].includes(praticaRow.stato_pratica)) {
+      return response(409, { success: false, error: 'La pratica non accetta nuovi documenti nello stato corrente' });
+    }
+
+    let contrattoRow = null;
+    if (contrattoId) {
+      const { data, error } = await supabase
+        .from('vendita_contratti')
+        .select('id, pratica_id, anagrafica_id, categoria_snapshot')
+        .eq('id', contrattoId)
+        .maybeSingle();
+
+      if (error) {
+        return response(500, { success: false, error: readableErrorMessage(error, 'Errore verifica contratto') });
+      }
+      if (!data || data.pratica_id !== praticaId || data.anagrafica_id !== anagraficaId) {
+        return response(400, { success: false, error: 'contratto_id non coerente con pratica e anagrafica' });
+      }
+      contrattoRow = data;
+    }
+
     const requestedFileName = normalizeOptional(fields.file_name)
-      || suggestedFileName(tipoDocumento, fields);
+      || suggestedFileName(tipoDocumento, {
+        ...fields,
+        categoria_snapshot: contrattoRow?.categoria_snapshot || fields.categoria_snapshot
+      });
 
     const finalFileName = sanitizeFileName(requestedFileName, sanitizeSegment(tipoDocumento, 'documento'));
 
     const basePath = normalizeBasePath({
       praticaId,
-      storageBasePath,
-      nomeCartellaStorage
+      storageBasePath: praticaRow.storage_base_path,
+      nomeCartellaStorage: praticaRow.nome_cartella_storage
     });
+
+    if (!basePath) {
+      return response(500, { success: false, error: 'Percorso Storage della pratica non configurato' });
+    }
 
     const storagePath = `${basePath}${finalFileName}`;
-
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
 
     const { error: uploadError } = await supabase
       .storage
@@ -407,4 +498,11 @@ exports.handler = async (event) => {
       error: readableErrorMessage(error)
     });
   }
+};
+
+exports._test = {
+  authenticatedUploaderId,
+  canManagePractice,
+  hasPdfSignature,
+  normalizeUuidOrNull
 };

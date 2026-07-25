@@ -11,6 +11,25 @@ const CLUSTER_AMMESSI = new Set(['Consumer', 'Business', 'Turista']);
 const TURISTA_CATEGORIA_FISSA = 'Mobile';
 const TURISTA_OFFERTA_FISSA = 'Untied - Call Your Country';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PDA_TEMP_PATH_REGEX = /^temp\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z0-9_-]+\.pdf$/i;
+const REINSERIMENTO_POST_VENDITA = {
+  fisso: {
+    table: 'post_vendita_controllo_fissi',
+    stati: new Set(['KO', 'In Attivazione'])
+  },
+  energia: {
+    table: 'post_vendita_controllo_lg',
+    stati: new Set(['Rifiutato', 'Annullato', 'Nuovo', 'In lavorazione', 'In attivazione'])
+  },
+  allarmi: {
+    table: 'post_vendita_controllo_allarmi',
+    stati: new Set(['KO', 'In Attivazione'])
+  },
+  assicurazioni: {
+    table: 'post_vendita_controllo_assicurazioni',
+    stati: new Set(['KO'])
+  }
+};
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -78,6 +97,32 @@ function normalizeUuidOrNull(value) {
   const raw = cleanString(value);
   if (!raw) return null;
   return UUID_REGEX.test(raw) ? raw.toLowerCase() : null;
+}
+
+function getRomeYearMonth(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Rome',
+    year: 'numeric',
+    month: '2-digit'
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  return year && month ? `${year}-${month}` : null;
+}
+
+function isSameRomeCalendarMonth(first, second = new Date()) {
+  const firstYearMonth = getRomeYearMonth(first);
+  return Boolean(firstYearMonth && firstYearMonth === getRomeYearMonth(second));
+}
+
+function authenticatedOperatorId(auth) {
+  return normalizeUuidOrNull(auth?.profilo?.alias_di)
+    || normalizeUuidOrNull(auth?.profilo?.id)
+    || normalizeUuidOrNull(auth?.user?.id);
 }
 
 function sanitizeSegment(value, fallback = 'valore') {
@@ -223,6 +268,10 @@ function normalizeContractInput(contract, index) {
     })(),
     reload_exchange: parseBoolean(contract?.reload_exchange, false) === true,
     reload_forever: parseBoolean(contract?.reload_forever, false) === true,
+    // Reinserimento (migration 033): questi campi devono sopravvivere alla
+    // normalizzazione, altrimenti il backend ricade sempre su "inserimento".
+    stato_inserimento: cleanString(contract?.stato_inserimento) || 'inserimento',
+    reinserimento_di_contratto_id: cleanString(contract?.reinserimento_di_contratto_id) || null,
     // Codice Rivenditore (migration 050): punto vendita di inserimento.
     // Default '9001415852' (Legnago) se assente. CHECK enum a DB.
     codice_rivenditore: (() => {
@@ -247,7 +296,14 @@ function normalizeContractInput(contract, index) {
     })(),
     // PDA caricata in modalita' staging (temp/<session_id>/<file>). null se non applicabile
     // o se contratto e' in categoria senza PDA (Energia/Allarmi/Assicurazioni).
-    pda_temp_path: cleanString(contract?.pda_temp_path) || null,
+    pda_temp_path: (() => {
+      const raw = cleanString(contract?.pda_temp_path);
+      if (!raw) return null;
+      if (!PDA_TEMP_PATH_REGEX.test(raw)) {
+        throw new Error(`contratti[${index}].pda_temp_path non valido`);
+      }
+      return raw;
+    })(),
     // Tipo firma: 'elettronica' o 'cartacea' (solo per categorie PDA). null altrimenti.
     tipo_firma: cleanString(contract?.tipo_firma) || null,
     // Campi specifici Assicurazioni (vedi migration 017)
@@ -265,7 +321,8 @@ function isCategoriaPda(categoryName) {
 /**
  * Promuove un PDA caricato in temp/<session>/<file> alla cartella definitiva
  * della pratica creata, e crea il record vendita_documenti corrispondente.
- * Best-effort: ritorna { ok: true } o { ok: false, error } senza throwing.
+ * Se l'INSERT del record documento fallisce, rimuove il file appena spostato
+ * per non lasciare oggetti orfani nello Storage.
  */
 async function promoteTempPda({ supabase, tempPath, basePath, categoriaName, praticaId, contrattoId, anagraficaId, uploadedBy }) {
   try {
@@ -299,6 +356,7 @@ async function promoteTempPda({ supabase, tempPath, basePath, categoriaName, pra
       });
 
     if (insertError) {
+      await supabase.storage.from('contratti-vendita').remove([newPath]);
       return { ok: false, error: `Insert record vendita_documenti fallito per PDA ${newPath}: ${insertError.message}` };
     }
 
@@ -306,6 +364,84 @@ async function promoteTempPda({ supabase, tempPath, basePath, categoriaName, pra
   } catch (err) {
     return { ok: false, error: err?.message || 'Errore promozione PDA' };
   }
+}
+
+async function rollbackPractice({ supabase, praticaId }) {
+  const { data: documentiData, error: documentiError } = await supabase
+    .from('vendita_documenti')
+    .select('storage_bucket, storage_path')
+    .eq('pratica_id', praticaId);
+  const documenti = documentiError ? [] : (documentiData || []);
+  const storageWarnings = documentiError
+    ? [readableError(documentiError, 'Impossibile elencare i documenti da rimuovere')]
+    : [];
+
+  const { data: deletedPractice, error: deleteError } = await supabase
+    .from('vendita_pratiche')
+    .delete()
+    .eq('id', praticaId)
+    .eq('stato_pratica', 'bozza')
+    .select('id')
+    .maybeSingle();
+
+  if (deleteError) {
+    throw new Error(readableError(deleteError, 'Errore eliminazione pratica durante il rollback'));
+  }
+  if (!deletedPractice) {
+    throw new Error('Rollback non eseguito: la pratica non è più in stato bozza');
+  }
+
+  const pathsByBucket = new Map();
+  documenti.forEach((documento) => {
+    const bucket = cleanString(documento.storage_bucket);
+    const path = cleanString(documento.storage_path);
+    if (!bucket || !path) return;
+    if (!pathsByBucket.has(bucket)) pathsByBucket.set(bucket, []);
+    pathsByBucket.get(bucket).push(path);
+  });
+
+  for (const [bucket, paths] of pathsByBucket.entries()) {
+    const { error } = await supabase.storage.from(bucket).remove(paths);
+    if (error) storageWarnings.push(`${bucket}: ${error.message}`);
+  }
+
+  return {
+    rolled_back: true,
+    documenti_rimossi: documenti.length,
+    storage_warnings: storageWarnings
+  };
+}
+
+function canManagePractice(auth, praticaRow) {
+  if (auth?.profilo?.ruolo === 'admin') return true;
+  const authOperatorId = authenticatedOperatorId(auth);
+  return Boolean(authOperatorId && praticaRow?.operatore_id === authOperatorId);
+}
+
+async function loadManageablePractice({ supabase, auth, praticaId }) {
+  if (!praticaId) {
+    return { ok: false, status: 400, error: 'pratica_id non valido' };
+  }
+
+  const { data: praticaRow, error } = await supabase
+    .from('vendita_pratiche')
+    .select('id, anagrafica_id, operatore_id, stato_pratica, created_at')
+    .eq('id', praticaId)
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, status: 500, error: readableError(error, 'Errore lettura pratica') };
+  }
+
+  if (!praticaRow) {
+    return { ok: false, status: 404, error: 'Pratica non trovata' };
+  }
+
+  if (!canManagePractice(auth, praticaRow)) {
+    return { ok: false, status: 403, error: 'Non puoi modificare una pratica creata da un altro operatore' };
+  }
+
+  return { ok: true, praticaRow };
 }
 
 function normalizeCategoryName(value) {
@@ -481,7 +617,7 @@ function numeric(value, fallback = 0) {
 
 // Marker versione fix: aumenta ogni volta che cambi la diagnostica per capire
 // dai Netlify logs se la versione attiva contiene il fix atteso.
-const CARRELLO_FIX_VERSION = '2026-07-24-diag-v1';
+const CARRELLO_FIX_VERSION = '2026-07-25-integrity-v1';
 
 exports.handler = async (event) => {
   // Debug trace id: correlare log della stessa richiesta nei Netlify Functions logs.
@@ -526,6 +662,135 @@ exports.handler = async (event) => {
       success: false,
       error: 'JSON non valido nel body della richiesta'
     });
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+
+  const action = cleanString(payload.action) || 'create';
+
+  if (action === 'finalize') {
+    const praticaId = normalizeUuidOrNull(payload.pratica_id);
+    const manageable = await loadManageablePractice({ supabase, auth, praticaId });
+    if (!manageable.ok) {
+      return response(manageable.status, { success: false, error: manageable.error });
+    }
+
+    const { praticaRow } = manageable;
+    if (praticaRow.stato_pratica === 'inviata') {
+      return response(200, {
+        success: true,
+        finalized: true,
+        already_finalized: true,
+        pratica_id: praticaRow.id
+      });
+    }
+
+    if (praticaRow.stato_pratica !== 'bozza') {
+      return response(409, {
+        success: false,
+        error: `La pratica non puo' essere finalizzata dallo stato ${praticaRow.stato_pratica}`
+      });
+    }
+
+    const { data: finalizedPractice, error: finalizeError } = await supabase
+      .from('vendita_pratiche')
+      .update({ stato_pratica: 'inviata' })
+      .eq('id', praticaRow.id)
+      .eq('stato_pratica', 'bozza')
+      .select('id')
+      .maybeSingle();
+
+    if (finalizeError) {
+      return response(500, {
+        success: false,
+        error: readableError(finalizeError, 'Errore finalizzazione pratica')
+      });
+    }
+    if (!finalizedPractice) {
+      return response(409, {
+        success: false,
+        error: 'La pratica ha cambiato stato durante la finalizzazione'
+      });
+    }
+
+    let cleanupCcEventi = null;
+    let cleanupCcWarning = null;
+    try {
+      const { data: cleanupResult, error: cleanupError } = await supabase.rpc(
+        'vendita_chiudi_eventi_cc_per_pratica',
+        { p_anagrafica_id: praticaRow.anagrafica_id, p_pratica_id: praticaRow.id }
+      );
+      if (cleanupError) {
+        cleanupCcWarning = cleanupError.message;
+      } else {
+        cleanupCcEventi = cleanupResult;
+      }
+    } catch (cleanupEx) {
+      cleanupCcWarning = cleanupEx?.message || String(cleanupEx);
+    }
+
+    return response(200, {
+      success: true,
+      finalized: true,
+      already_finalized: false,
+      pratica_id: praticaRow.id,
+      cleanup_cc_eventi: cleanupCcEventi,
+      cleanup_cc_warning: cleanupCcWarning
+    });
+  }
+
+  if (action === 'rollback_upload_failure') {
+    const praticaId = normalizeUuidOrNull(payload.pratica_id);
+    const manageable = await loadManageablePractice({ supabase, auth, praticaId });
+
+    if (!manageable.ok) {
+      if (manageable.status === 404) {
+        return response(200, {
+          success: true,
+          rolled_back: false,
+          already_missing: true,
+          pratica_id: praticaId
+        });
+      }
+      return response(manageable.status, { success: false, error: manageable.error });
+    }
+
+    const { praticaRow } = manageable;
+    if (praticaRow.stato_pratica === 'inviata') {
+      return response(200, {
+        success: true,
+        rolled_back: false,
+        already_finalized: true,
+        pratica_id: praticaRow.id
+      });
+    }
+
+    if (praticaRow.stato_pratica !== 'bozza') {
+      return response(409, {
+        success: false,
+        error: `La pratica non puo' essere annullata dallo stato ${praticaRow.stato_pratica}`
+      });
+    }
+
+    try {
+      const rollbackResult = await rollbackPractice({ supabase, praticaId: praticaRow.id });
+      return response(200, {
+        success: true,
+        pratica_id: praticaRow.id,
+        ...rollbackResult
+      });
+    } catch (rollbackError) {
+      return response(500, {
+        success: false,
+        error: readableError(rollbackError, 'Rollback pratica incompleta fallito')
+      });
+    }
+  }
+
+  if (action !== 'create') {
+    return response(400, { success: false, error: 'Azione non valida' });
   }
 
   const cliente = payload.cliente || {};
@@ -587,7 +852,20 @@ exports.handler = async (event) => {
   const originePratica = cleanString(pratica.origine_pratica) || 'spontaneo';
   const appuntamentoId = normalizeUuidOrNull(pratica.appuntamento_id);
   const chiamataId = normalizeUuidOrNull(pratica.chiamata_id);
-  const operatoreId = normalizeUuidOrNull(pratica.operatore_id);
+  const operatoreId = authenticatedOperatorId(auth);
+  const requestedOperatoreId = normalizeUuidOrNull(pratica.operatore_id);
+
+  if (!operatoreId) {
+    return response(500, { success: false, error: 'Profilo autenticato privo di un identificativo operatore valido' });
+  }
+
+  if (requestedOperatoreId && requestedOperatoreId !== operatoreId) {
+    console.warn('[CARRELLO][SECURITY] operatore_id client ignorato', {
+      debugTraceId,
+      requestedOperatoreId,
+      authenticatedOperatoreId: operatoreId
+    });
+  }
 
   if (!ORIGINI_PRATICA_AMMESSE.has(originePratica)) {
     return response(400, {
@@ -595,10 +873,6 @@ exports.handler = async (event) => {
       error: 'origine_pratica non valida. Valori ammessi: appuntamento_callcenter, contatto_callcenter_entro_10_giorni, spontaneo'
     });
   }
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false }
-  });
 
   let createdPraticaId = null;
 
@@ -721,7 +995,9 @@ exports.handler = async (event) => {
         chiamata_id: chiamataId,
         operatore_id: operatoreId,
         origine_pratica: originePratica,
-        stato_pratica: 'inviata',
+        // La pratica resta bozza finche' il client non ha completato tutti
+        // gli upload. L'action "finalize" la rende visibile come inviata.
+        stato_pratica: 'bozza',
         note: cleanString(pratica.note) || 'Pratica creata da carrello upload contratti vendita'
       })
       .select('*')
@@ -876,7 +1152,6 @@ exports.handler = async (event) => {
     } catch (_) { /* bonus resta 0 se qualcosa va storto */ }
 
     const createdContracts = [];
-    const pdaWarnings = [];
 
     for (let index = 0; index < normalizedContracts.length; index += 1) {
       const item = normalizedContracts[index];
@@ -969,7 +1244,7 @@ exports.handler = async (event) => {
         }
         const { data: parentContract, error: parentErr } = await supabase
           .from('vendita_contratti')
-          .select('id, anagrafica_id, categoria_id')
+          .select('id, anagrafica_id, categoria_id, data_contratto')
           .eq('id', reinsId)
           .maybeSingle();
         if (parentErr) {
@@ -983,6 +1258,27 @@ exports.handler = async (event) => {
         }
         if (parentContract.categoria_id !== item.categoria_id) {
           throw new Error(`contratti[${index}].reinserimento_di_contratto_id e' di una categoria diversa`);
+        }
+        if (!isSameRomeCalendarMonth(parentContract.data_contratto)) {
+          throw new Error(`contratti[${index}].reinserimento_di_contratto_id non appartiene al mese solare corrente`);
+        }
+
+        const reinserimentoConfig = REINSERIMENTO_POST_VENDITA[normalizeCategoryName(categoria.nome)];
+        if (!reinserimentoConfig) {
+          throw new Error(`La categoria ${categoria.nome} non ammette reinserimenti`);
+        }
+
+        const { data: postVenditaRow, error: postVenditaError } = await supabase
+          .from(reinserimentoConfig.table)
+          .select('stato')
+          .eq('contratto_id', reinsId)
+          .maybeSingle();
+
+        if (postVenditaError) {
+          throw new Error(`Errore verifica stato post-vendita del reinserimento: ${postVenditaError.message}`);
+        }
+        if (!postVenditaRow || !reinserimentoConfig.stati.has(postVenditaRow.stato)) {
+          throw new Error(`Il contratto indicato non ha uno stato post-vendita valido per il reinserimento`);
         }
         item.reinserimento_di_contratto_id = reinsId;
       } else {
@@ -1166,7 +1462,8 @@ exports.handler = async (event) => {
       });
 
       // Promozione PDA temp -> cartella pratica (se applicabile).
-      // Best-effort: warning ma non fa fallire la pratica gia' creata.
+      // Un errore fa fallire l'intera creazione: il catch esegue il rollback
+      // di pratica, contratti, record documenti e file gia' promossi.
       if (item.pda_temp_path) {
         const result = await promoteTempPda({
           supabase,
@@ -1179,29 +1476,9 @@ exports.handler = async (event) => {
           uploadedBy: operatoreId
         });
         if (!result.ok) {
-          pdaWarnings.push({ contratto_index: index, pda_temp_path: item.pda_temp_path, error: result.error });
+          throw new Error(`Promozione PDA fallita per contratti[${index}]: ${result.error}`);
         }
       }
-    }
-
-    // Fase 4.1-fix: auto-chiusura eventi CC (appuntamenti futuri non gestiti
-    // + chiamate in rilavorazione) per questo cliente. Eseguita SOLO ora,
-    // dopo che la pratica + i contratti sono andati a buon fine. Cosi' un
-    // eventuale rollback (catch sotto) non lascia eventi CC orfani.
-    // Best-effort: warning ma non fa fallire la pratica gia' creata.
-    let cleanupCcEventi = null;
-    try {
-      const { data: cleanupResult, error: cleanupError } = await supabase.rpc(
-        'vendita_chiudi_eventi_cc_per_pratica',
-        { p_anagrafica_id: anagraficaId, p_pratica_id: praticaRow.id }
-      );
-      if (cleanupError) {
-        console.warn('Auto-chiusura eventi CC fallita (non bloccante):', cleanupError.message);
-      } else {
-        cleanupCcEventi = cleanupResult;
-      }
-    } catch (cleanupEx) {
-      console.warn('Auto-chiusura eventi CC eccezione (non bloccante):', cleanupEx?.message || cleanupEx);
     }
 
     return response(200, {
@@ -1212,20 +1489,34 @@ exports.handler = async (event) => {
       storage_base_path: storageBasePath,
       nome_cartella_storage: nomeCartellaStorage,
       contratti: createdContracts,
-      pda_warnings: pdaWarnings,
-      cleanup_cc_eventi: cleanupCcEventi
+      requires_finalization: true
     });
   } catch (error) {
     if (createdPraticaId) {
-      await supabase.from('vendita_pratiche').delete().eq('id', createdPraticaId);
+      try {
+        await rollbackPractice({ supabase, praticaId: createdPraticaId });
+      } catch (rollbackError) {
+        console.error('[CARRELLO][ROLLBACK] rollback interno fallito', {
+          debugTraceId,
+          praticaId: createdPraticaId,
+          error: readableError(rollbackError)
+        });
+      }
     }
 
     const message = readableError(error);
-    const statusCode = /obbligatorio|non valido|coerente|ammesso|trovata|trovato|inserire/i.test(message) ? 400 : 500;
+    const statusCode = /obbligatorio|non valido|coerente|ammesso|trovata|trovato|inserire|mese solare|stato post-vendita|non ammette/i.test(message) ? 400 : 500;
 
     return response(statusCode, {
       success: false,
       error: message
     });
   }
+};
+
+exports._test = {
+  authenticatedOperatorId,
+  getRomeYearMonth,
+  isSameRomeCalendarMonth,
+  normalizeContractInput
 };

@@ -1,5 +1,5 @@
 /**
- * Endpoint pubblico — chiamato dai client HTML (via window.MiroxMailer.send)
+ * Endpoint autenticato — chiamato dai client HTML (via window.MiroxMailer.send)
  *
  * POST /.netlify/functions/mirox-send-email
  * Body JSON:

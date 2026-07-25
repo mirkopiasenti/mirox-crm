@@ -35,6 +35,48 @@ const Auth = {
     return profilo;
   },
 
+  async riautentica(options = {}) {
+    const { data: { session } } = await db.auth.getSession();
+    const email = session?.user?.email;
+
+    if (!session || !email) {
+      if (window.MiroxUI) {
+        await window.MiroxUI.alert('Sessione non disponibile. Accedi nuovamente.', {
+          type: 'error',
+          title: 'Autenticazione richiesta'
+        });
+      }
+      return false;
+    }
+
+    if (!window.MiroxUI) {
+      throw new Error('MiroxUI non disponibile per la riautenticazione');
+    }
+
+    const password = await window.MiroxUI.prompt({
+      title: options.title || 'Conferma identità',
+      label: options.label || `Inserisci la password del tuo account Mirox (${email})`,
+      type: 'password',
+      placeholder: 'Password account',
+      okText: options.okText || 'Verifica'
+    });
+
+    if (password === null) return false;
+
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
+    const sameUser = data?.user?.id === session.user.id;
+
+    if (error || !sameUser) {
+      await window.MiroxUI.alert('Password account non valida. Operazione annullata.', {
+        type: 'error',
+        title: 'Accesso negato'
+      });
+      return false;
+    }
+
+    return true;
+  },
+
   async logout() {
     this._profilo = null;
     await db.auth.signOut();

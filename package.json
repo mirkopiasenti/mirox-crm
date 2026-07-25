@@ -3,6 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "description": "Serverless functions per Mirox CRM (mirox-crm.it)",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "npm test"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.0",
     "@supabase/supabase-js": "^2.49.8",

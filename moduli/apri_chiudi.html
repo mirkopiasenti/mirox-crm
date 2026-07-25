@@ -542,29 +542,6 @@
  justify-content: flex-end;
  }
 
- .password-group {
- margin-bottom: 1.5rem;
- padding: 1rem;
- background-color: #FFF3E0;
- border-radius: 4px;
- border-left: 4px solid var(--windtre-orange);
- }
-
- .password-group label {
- display: block;
- margin-bottom: 0.5rem;
- font-weight: 600;
- color: var(--windtre-gray);
- }
-
- .password-group input {
- width: 100%;
- padding: 0.75rem;
- border: 2px solid #ddd;
- border-radius: 4px;
- font-size: 1rem;
- }
-
  .link-drive {
  color: var(--windtre-orange);
  text-decoration: none;
@@ -1153,7 +1130,6 @@
 </script> <script> // ===== CONFIGURAZIONE - migrato su Supabase =====
  const sb = db;
  const APRI_CHIUDI_BUCKET = 'apri-chiudi-files';
- const PASSWORD_CORRETTA = '2013';
 
  // Auto-fill operatore dal profilo loggato
  (async () => {
@@ -2147,35 +2123,19 @@
  }
 
  // ===== GESTIONE MODAL KO =====
- function apriModalKO(rowIndex) {
+ async function apriModalKO(rowIndex) {
+ const identityConfirmed = await Auth.riautentica({
+   title: 'Conferma impostazione KO',
+   label: 'Inserisci la password del tuo account Mirox per continuare'
+ });
+ if (!identityConfirmed) return;
  praticaSelezionata = rowIndex;
  document.getElementById('modal-ko').classList.add('active');
- // Reset campi
- document.getElementById('password-ko').value = '';
- document.getElementById('conferma-ko').style.display = 'none';
- document.getElementById('btn-verifica-password-ko').style.display = 'inline-block';
- document.getElementById('btn-conferma-ko').style.display = 'none';
- document.getElementById('error-password-ko').classList.remove('show');
  }
 
  function chiudiModalKO() {
  document.getElementById('modal-ko').classList.remove('active');
  praticaSelezionata = null;
- }
-
- function verificaPasswordKO() {
- const password = document.getElementById('password-ko').value;
- const errorEl = document.getElementById('error-password-ko');
-
- if (password === PASSWORD_CORRETTA) {
- errorEl.classList.remove('show');
- document.getElementById('conferma-ko').style.display = 'block';
- document.getElementById('btn-verifica-password-ko').style.display = 'none';
- document.getElementById('btn-conferma-ko').style.display = 'inline-block';
- } else {
- errorEl.textContent = 'Password errata';
- errorEl.classList.add('show');
- }
  }
 
  async function confermaKO() {

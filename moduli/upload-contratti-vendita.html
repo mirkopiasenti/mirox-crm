@@ -1481,12 +1481,14 @@ Reload Forever
    // "T00:00:00" locale Rome e le mandiamo in ISO UTC.
    const startLocal = new Date(Date.UTC(year, monthIdx, 1, 0, 0, 0));
    const endLocal = new Date(Date.UTC(year, monthIdx + 1, 1, 0, 0, 0));
-   // Compenso offset Rome: per gennaio +1h, per luglio +2h (ora legale).
-   // Uso il campo 'z' di toLocaleString per calcolare offset del mese corrente.
-   const romeOffsetHours = getRomeOffsetHours(new Date(Date.UTC(year, monthIdx, 15, 12, 0, 0)));
+   // Calcola separatamente l'offset dei due estremi. Marzo e ottobre possono
+   // cambiare ora legale all'interno dello stesso mese: riutilizzare un solo
+   // offset anticiperebbe o posticiperebbe il confine finale di un'ora.
+   const startRomeOffsetHours = getRomeOffsetHours(new Date(Date.UTC(year, monthIdx, 1, 12, 0, 0)));
+   const endRomeOffsetHours = getRomeOffsetHours(new Date(Date.UTC(year, monthIdx + 1, 1, 12, 0, 0)));
    return {
-     startIso: new Date(startLocal.getTime() - romeOffsetHours * 3600 * 1000).toISOString(),
-     endIso: new Date(endLocal.getTime() - romeOffsetHours * 3600 * 1000).toISOString()
+     startIso: new Date(startLocal.getTime() - startRomeOffsetHours * 3600 * 1000).toISOString(),
+     endIso: new Date(endLocal.getTime() - endRomeOffsetHours * 3600 * 1000).toISOString()
    };
  }
  // Ritorna l'offset in ore di Europe/Rome rispetto a UTC (1 o 2 in base alla stagione).
@@ -4126,15 +4128,19 @@ Reload Forever
  // Listener change sul dropdown: se l'operatore cambia un valore auto-rilevato
  // verso qualcos'altro, chiediamo conferma esplicita (evita scollegamenti accidentali).
  if (refs.originePratica) {
- refs.originePratica.addEventListener('change', (e) => {
+ refs.originePratica.addEventListener('change', async (e) => {
  const auto = runtimeState.origineAutoRilevata;
  if (!auto) return; // niente da confermare se non c'era un auto-rilevato attivo
  const nuovoValore = e.target.value;
  if (nuovoValore === auto.origine_pratica) return; // utente l'ha riportato al valore auto
- const ok = window.confirm(
- 'Stai cambiando l\'origine pratica da quella rilevata automaticamente:\n\n' +
- auto.descrizione + '\n\n' +
- 'La pratica non risultera\' piu\' collegata a questo evento. Continuare?'
+ const ok = await window.MiroxUI.confirm(
+ 'Stai cambiando l\'origine pratica da quella rilevata automaticamente. ' +
+ auto.descrizione + ' La pratica non risultera\' piu\' collegata a questo evento.',
+ {
+ title: 'Conferma cambio origine',
+ okText: 'Continua',
+ cancelText: 'Mantieni origine'
+ }
  );
  if (!ok) {
  // Rollback al valore auto-rilevato
@@ -4468,11 +4474,14 @@ Reload Forever
  goToStep(1);
  };
 
- window.removeCartContract = function (tempId) {
+ window.removeCartContract = async function (tempId) {
  const index = state.cart.contratti.findIndex((item) => item.temp_id === tempId);
  if (index< 0) return;
 
- const confirmed = window.confirm('Eliminare questo contratto dal carrello?');
+ const confirmed = await window.MiroxUI.confirm(
+ 'Eliminare questo contratto dal carrello?',
+ { title: 'Rimuovi contratto', okText: 'Elimina', cancelText: 'Annulla', danger: true }
+ );
  if (!confirmed) return;
 
  state.cart.contratti.splice(index, 1);
@@ -4494,8 +4503,11 @@ Reload Forever
  setMessage('Contratto rimosso dal carrello', 'info');
  };
 
- function clearCart() {
- const confirmed = window.confirm('Svuotare completamente il carrello?');
+ async function clearCart() {
+ const confirmed = await window.MiroxUI.confirm(
+ 'Svuotare completamente il carrello?',
+ { title: 'Svuota carrello', okText: 'Svuota', cancelText: 'Annulla', danger: true }
+ );
  if (!confirmed) return;
 
  state.cart.contratti = [];
@@ -4585,9 +4597,13 @@ Reload Forever
  numero_contratto_energia: item.numero_contratto_energia || null,
  prezzo_fisso: (item.prezzo_fisso !== null && item.prezzo_fisso !== undefined) ? item.prezzo_fisso : null,
  convergenza: item.convergenza || null,
- reload_exchange: item.reload_exchange === true,
- reload_forever: item.reload_forever === true,
- // PDA in staging: il backend promuovera' temp/<sess>/<file> a <cartella_pratica>/contratto_<categoria>.pdf
+	 reload_exchange: item.reload_exchange === true,
+	 reload_forever: item.reload_forever === true,
+	 // Codice Rivenditore: non deve andare perso fra carrello e backend.
+	 codice_rivenditore: CODICI_RIVENDITORE.includes(item.codice_rivenditore)
+	   ? item.codice_rivenditore
+	   : CODICE_RIVENDITORE_DEFAULT,
+	 // PDA in staging: il backend promuovera' temp/<sess>/<file> a <cartella_pratica>/contratto_<categoria>.pdf
  pda_temp_path: item.pda_temp_path || null,
  // Tipo firma (per categorie PDA): 'elettronica' | 'cartacea' | null
  tipo_firma: item.tipo_firma || null,
@@ -4640,9 +4656,11 @@ Reload Forever
  const uploadDebug = [];
  // payload va dichiarato fuori dal try in modo che il catch sotto possa
  // accedervi (riferimenti a payload?.cliente?.* nel reportInfo dell'overlay).
- // In JS le const dichiarate dentro try { } sono block-scoped al try.
- let payload = null;
- showLoadingOverlay('Caricamento in corso', 'Creazione pratica e contratti...');
+	 // In JS le const dichiarate dentro try { } sono block-scoped al try.
+	 let payload = null;
+	 let createResult = null;
+	 let practiceFinalized = false;
+	 showLoadingOverlay('Caricamento in corso', 'Creazione pratica e contratti...');
 
  try {
  payload = buildInvioPayload();
@@ -4663,7 +4681,7 @@ Reload Forever
 
  showLoadingOverlay('Caricamento in corso', 'Creazione pratica e contratti...');
 
- const createResult = await fetchJsonOrTechnicalError(
+	 createResult = await fetchJsonOrTechnicalError(
  '/.netlify/functions/crea-vendita-pratica-carrello',
  {
  method: 'POST',
@@ -4855,10 +4873,26 @@ Reload Forever
  file_name: bollettaFileName,
  result
  });
- }
- }
+	 }
+	 }
 
- setResult({
+	 updateLoadingOverlay('Caricamento in corso', 'Finalizzazione pratica...');
+	 const finalizeResult = await fetchJsonOrTechnicalError(
+	   '/.netlify/functions/crea-vendita-pratica-carrello',
+	   {
+	     method: 'POST',
+	     headers: { 'Content-Type': 'application/json' },
+	     body: JSON.stringify({
+	       action: 'finalize',
+	       pratica_id: createResult.pratica_id
+	     })
+	   },
+	   'Errore finalizzazione pratica'
+	 );
+	 practiceFinalized = true;
+	 createResult.finalization = finalizeResult;
+
+	 setResult({
  success: true,
  createResult,
  uploadResults,
@@ -4883,9 +4917,69 @@ Reload Forever
  setOverlayActions({
  primary: { label: 'Vai alla Home Vendita', onClick: () => goToSalesHome() }
  });
- window.setTimeout(goToSalesHome, 1800);
- } catch (error) {
- const technical = isTechnicalError(error);
+	 window.setTimeout(goToSalesHome, 1800);
+	 } catch (error) {
+	 let rollbackResult = null;
+	 let rollbackError = null;
+	 if (createResult?.pratica_id && !practiceFinalized) {
+	   updateLoadingOverlay('Ripristino in corso', 'Annullamento della pratica incompleta...');
+	   try {
+	     rollbackResult = await fetchJsonOrTechnicalError(
+	       '/.netlify/functions/crea-vendita-pratica-carrello',
+	       {
+	         method: 'POST',
+	         headers: { 'Content-Type': 'application/json' },
+	         body: JSON.stringify({
+	           action: 'rollback_upload_failure',
+	           pratica_id: createResult.pratica_id
+	         })
+	       },
+	       'Errore rollback pratica incompleta'
+	     );
+	   } catch (rollbackEx) {
+	     rollbackError = rollbackEx;
+	   }
+	 }
+
+	 // Se la risposta di finalize si e' persa ma il server aveva gia'
+	 // finalizzato, l'action di rollback lo rileva e non cancella la pratica.
+	 if (rollbackResult?.already_finalized) {
+	   practiceFinalized = true;
+	   setResult({
+	     success: true,
+	     recoveredAfterFinalize: true,
+	     createResult,
+	     uploadResults,
+	     uploadDebug
+	   });
+	   setMessage('Pratica inviata con successo', 'ok');
+	   clearDraftFromSession();
+	   resetFullPracticeForm();
+	   markTechnicalConnected('Connesso');
+	   showSuccessOverlay(
+	     'Pratica inviata con successo',
+	     'La pratica era già stata finalizzata correttamente dal server.',
+	     [
+	       { label: 'Cliente', value: payload?.cliente?.ragione_sociale || '-' },
+	       { label: 'Contratti inviati', value: String(payload?.contratti?.length || 0) },
+	       { label: 'ID pratica', value: createResult.pratica_id }
+	     ]
+	   );
+	   setOverlayActions({
+	     primary: { label: 'Vai alla Home Vendita', onClick: () => goToSalesHome() }
+	   });
+	   window.setTimeout(goToSalesHome, 1800);
+	   return;
+	 }
+
+	 if (rollbackResult?.rolled_back) {
+	   error.message = `La pratica incompleta e i documenti caricati sono stati annullati. Puoi riprovare senza creare duplicati. Dettaglio: ${error.message}`;
+	 } else if (createResult?.pratica_id && !practiceFinalized) {
+	   const rollbackDetail = rollbackError?.message || 'esito rollback non confermato';
+	   error.message = `${error.message}. Attenzione: non e' stato possibile confermare l'annullamento automatico della pratica ${createResult.pratica_id} (${rollbackDetail}).`;
+	 }
+
+	 const technical = isTechnicalError(error);
  setMessage(error.message, 'err');
  if (technical) {
  markTechnicalError('Errore');
@@ -4905,7 +4999,7 @@ Reload Forever
  showErrorOverlay(
  'Errore durante l\'invio',
  error.message,
- technical ? JSON.stringify({ uploadResults, uploadDebug }, null, 2) : '',
+	 technical ? JSON.stringify({ uploadResults, uploadDebug, rollbackResult, rollbackError: rollbackError?.message || null }, null, 2) : '',
  {
  level: 'error',
  errorCode: error.serverErrorCode || (technical ? 'submit_pratica_failed' : 'submit_validation_failed'),
@@ -4915,8 +5009,10 @@ Reload Forever
  cf_piva: cfPivaSub,
  contratti_in_carrello: contrattiCount,
  http_status: error.httpStatus || null,
- request_url: error.requestUrl || null,
- technical: technical
+	 request_url: error.requestUrl || null,
+	 technical: technical,
+	 pratica_id: createResult?.pratica_id || null,
+	 rollback_confermato: rollbackResult?.rolled_back === true
  }
  }
  );
