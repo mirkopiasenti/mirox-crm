@@ -1203,10 +1203,18 @@ function leggiPayloadDalPopup() {
   }
 
   // Ricalcolo punteggi da catalogo — solo se offerta o opzione sono state
-  // effettivamente CAMBIATE nel popup. Se l'utente non le tocca, mantengo lo
-  // snapshot originale (i contratti storici non devono essere alterati se
-  // l'admin cambia il catalogo dopo la creazione). Il trigger DB
-  // vendita_calcola_punteggio_totale ricalcolera' automaticamente i totali.
+  // effettivamente CAMBIATE nel popup. Se l'utente non le tocca, non passiamo
+  // i 4 campi nel patch UPDATE cosi' il DB mantiene i valori attuali (che
+  // potrebbero essere stati aggiornati fuori sessione, es. fix massivo SQL).
+  //
+  // Root cause bug 25/07/2026: la SELECT di caricaContratti() NON include
+  // punteggio_gara_offerta / punteggio_extra_gara_offerta / _opzione, quindi
+  // c.punteggio_gara_offerta e' undefined, numOr(undefined, 0) = 0, e il patch
+  // sovrascriveva a 0 gli snapshot corretti a ogni "Conferma verifica" fatta
+  // senza cambiare offerta. Impatto: 25+ contratti "controllati" con snapshot
+  // azzerati anche se il catalogo aveva valori > 0. Fix: omettere del tutto i
+  // campi non modificati dal patch. Il trigger DB vendita_calcola_punteggio_totale
+  // ricalcola i totali dai valori NEW (che sono i valori DB attuali se non passati).
   const cataloghi = window.__currentVerificaCataloghi || {};
   const newOffertaId = v('vc_offerta_id') || null;
   const newOpzioneId = v('vc_opzione_id') || null;
@@ -1219,18 +1227,6 @@ function leggiPayloadDalPopup() {
   };
   const offSel = newOffertaId ? (cataloghi.offerte || []).find(o => o.id === newOffertaId) : null;
   const opzSel = newOpzioneId ? (cataloghi.opzioni || []).find(o => o.id === newOpzioneId) : null;
-  const punteggioGaraOfferta = offertaCambiata
-    ? (offSel ? numOr(offSel.punteggio_gara, 0) : 0)
-    : numOr(c.punteggio_gara_offerta, 0);
-  const punteggioExtraGaraOfferta = offertaCambiata
-    ? (offSel ? numOr(offSel.punteggio_extra_gara, 0) : 0)
-    : numOr(c.punteggio_extra_gara_offerta, 0);
-  const punteggioGaraOpzione = opzioneCambiata
-    ? (opzSel ? numOr(opzSel.punteggio_gara, 0) : 0)
-    : numOr(c.punteggio_gara_opzione, 0);
-  const punteggioExtraGaraOpzione = opzioneCambiata
-    ? (opzSel ? numOr(opzSel.punteggio_extra_gara, 0) : 0)
-    : numOr(c.punteggio_extra_gara_opzione, 0);
 
   const contratto = {
     data_contratto: dataContrattoIso,
@@ -1239,10 +1235,6 @@ function leggiPayloadDalPopup() {
     offerta_id: newOffertaId,
     opzione_id: newOpzioneId,
     reload_id: v('vc_reload_id') || null,
-    punteggio_gara_offerta: punteggioGaraOfferta,
-    punteggio_extra_gara_offerta: punteggioExtraGaraOfferta,
-    punteggio_gara_opzione: punteggioGaraOpzione,
-    punteggio_extra_gara_opzione: punteggioExtraGaraOpzione,
     tipo_attivazione: v('vc_tipo_attivazione') || null,
     apri_chiudi: v('vc_apri_chiudi') || null,
     intestatario: v('vc_intestatario') || null,
@@ -1274,6 +1266,17 @@ function leggiPayloadDalPopup() {
       ? v('vc_codice_rivenditore')
       : '9001415852')
   };
+  // Punteggi: aggiunti al patch SOLO se offerta/opzione sono state cambiate.
+  // Se non cambiate, non passiamo i 4 campi cosi' il DB mantiene i valori
+  // attuali (evita bug 25/07/2026 in cui si sovrascriveva a 0 lo snapshot).
+  if (offertaCambiata) {
+    contratto.punteggio_gara_offerta = offSel ? numOr(offSel.punteggio_gara, 0) : 0;
+    contratto.punteggio_extra_gara_offerta = offSel ? numOr(offSel.punteggio_extra_gara, 0) : 0;
+  }
+  if (opzioneCambiata) {
+    contratto.punteggio_gara_opzione = opzSel ? numOr(opzSel.punteggio_gara, 0) : 0;
+    contratto.punteggio_extra_gara_opzione = opzSel ? numOr(opzSel.punteggio_extra_gara, 0) : 0;
+  }
   return { ana, contratto, isEnergia };
 }
 
