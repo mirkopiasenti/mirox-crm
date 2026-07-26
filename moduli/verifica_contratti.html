@@ -208,6 +208,7 @@ body {
 <script src="../js/mirox-storage.js"></script>
 <script src="../js/mirox-folder.js"></script>
 <script src="../js/mirox-upload.js"></script>
+<script src="../js/vendita-storage-helper.js"></script>
 <script>(async () => { window.__profilo = await Auth.richiediAuth(); })();</script>
 
 <!-- Header uniforme Mirox -->
@@ -1096,6 +1097,19 @@ function renderAllegatiPopup(c, allegati, isReadOnly) {
 // ============================================================
 // UPLOAD / REMOVE ALLEGATI nel popup
 // ============================================================
+async function gestisciVenditaContratto(payload) {
+  const response = await window.MiroxApi.fetch('/.netlify/functions/gestisci-vendita-contratto', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || result.success === false) {
+    throw new Error(result.error || `Operazione non riuscita (${response.status})`);
+  }
+  return result;
+}
+
 async function caricaNuovoAllegato(contrattoId, anagraficaId, praticaId) {
   const fileInp = document.getElementById('vc_new_doc_file');
   const tipoSel = document.getElementById('vc_new_doc_tipo');
@@ -1110,23 +1124,15 @@ async function caricaNuovoAllegato(contrattoId, anagraficaId, praticaId) {
   const loader = window.MiroxUI.loading.show('Upload in corso', 'Sto caricando il file...');
   try {
     const baseName = file.name.replace(/\.[a-z0-9]+$/i, '');
-    const path = `pratica_${praticaId}/${tipo}_${Date.now()}_${baseName}.pdf`;
-    const { error: upErr } = await sb.storage.from(CONTRATTI_BUCKET).upload(path, file, { upsert: true, contentType: 'application/pdf' });
-    if (upErr) throw upErr;
-    // Insert in vendita_documenti
-    const rec = {
+    const uploadResult = await window.uploadVenditaDocumento({
+      file,
       pratica_id: praticaId,
       contratto_id: contrattoId,
       anagrafica_id: anagraficaId,
       tipo_documento: tipo,
-      storage_bucket: CONTRATTI_BUCKET,
-      storage_path: path,
-      file_name: baseName + '.pdf',
-      mime_type: 'application/pdf',
-      file_size: file.size
-    };
-    const { data: insRow, error: insErr } = await sb.from('vendita_documenti').insert(rec).select().single();
-    if (insErr) throw insErr;
+      file_name: `${tipo}_${Date.now()}_${baseName}.pdf`
+    });
+    const insRow = uploadResult.documento;
     // Aggiorna lista allegati in popup
     const c = window.__currentVerificaContratto;
     if (c) {
@@ -1148,9 +1154,10 @@ async function rimuoviAllegato(docId, storagePath, bucket) {
   if (!ok) return;
   const loader = window.MiroxUI.loading.show('Rimozione in corso');
   try {
-    await sb.storage.from(bucket).remove([storagePath]).catch(() => null); // se file già non c'è, ignora
-    const { error } = await sb.from('vendita_documenti').delete().eq('id', docId);
-    if (error) throw error;
+    await gestisciVenditaContratto({
+      action: 'delete_document',
+      documento_id: docId
+    });
     const c = window.__currentVerificaContratto;
     if (c) {
       c._allegati = c._allegati.filter(a => a.id !== docId);
@@ -1324,26 +1331,23 @@ async function confermaVerifica(id) {
   if (!ok) return;
   const loader = window.MiroxUI.loading.show('Verifica in corso', 'Sto salvando le modifiche e aggiornando lo stato...');
   try {
-    const profilo = window.__profilo || (Auth ? await Auth.getSessione() : null);
     const c = window.__currentVerificaContratto;
-    // Update anagrafica
-    if (c && c.anagrafica_id) {
-      const { error: anaErr } = await sb.from('anagrafica').update(ana).eq('id', c.anagrafica_id);
-      if (anaErr) console.warn('Update anagrafica fallito:', anaErr.message);
-    }
-    // Update contratto + stato_controllo + controllato_da/at
+    // Il backend valida i campi ammessi, deriva gli snapshot catalogo e usa
+    // l'identità JWT per controllato_da.
     const patch = {
       ...contratto,
       categoria_snapshot: document.querySelector('#vc_categoria_id option:checked')?.textContent || c.categoria_snapshot,
       nome_offerta_snapshot: document.querySelector('#vc_offerta_id option:checked')?.textContent || c.nome_offerta_snapshot,
       nome_opzione_snapshot: document.querySelector('#vc_opzione_id option:checked')?.textContent || c.nome_opzione_snapshot,
-      nome_reload_snapshot: document.querySelector('#vc_reload_id option:checked')?.textContent || c.nome_reload_snapshot,
-      stato_controllo: 'controllato',
-      controllato_da: profilo?.id || null,
-      controllato_at: new Date().toISOString()
+      nome_reload_snapshot: document.querySelector('#vc_reload_id option:checked')?.textContent || c.nome_reload_snapshot
     };
-    const { error } = await sb.from('vendita_contratti').update(patch).eq('id', id);
-    if (error) throw error;
+    await gestisciVenditaContratto({
+      action: 'update',
+      mode: 'verify',
+      contratto_id: id,
+      contratto: patch,
+      anagrafica: ana
+    });
     loader.success('Contratto verificato!');
     setTimeout(async () => {
       // Chiudi popup e ricarica entrambe le liste
@@ -1377,12 +1381,7 @@ async function salvaModifiche(id) {
   const loader = window.MiroxUI.loading.show('Salvataggio in corso', 'Aggiorno i dati senza cambiare lo stato di verifica...');
   try {
     const c = window.__currentVerificaContratto;
-    // Update anagrafica
-    if (c && c.anagrafica_id) {
-      const { error: anaErr } = await sb.from('anagrafica').update(ana).eq('id', c.anagrafica_id);
-      if (anaErr) console.warn('Update anagrafica fallito:', anaErr.message);
-    }
-    // Update contratto SENZA toccare stato_controllo / controllato_da / controllato_at
+    // Update server-side SENZA toccare stato_controllo / controllato_da / controllato_at
     const patch = {
       ...contratto,
       categoria_snapshot: document.querySelector('#vc_categoria_id option:checked')?.textContent || c.categoria_snapshot,
@@ -1390,8 +1389,13 @@ async function salvaModifiche(id) {
       nome_opzione_snapshot: document.querySelector('#vc_opzione_id option:checked')?.textContent || c.nome_opzione_snapshot,
       nome_reload_snapshot: document.querySelector('#vc_reload_id option:checked')?.textContent || c.nome_reload_snapshot
     };
-    const { error } = await sb.from('vendita_contratti').update(patch).eq('id', id);
-    if (error) throw error;
+    await gestisciVenditaContratto({
+      action: 'update',
+      mode: 'save',
+      contratto_id: id,
+      contratto: patch,
+      anagrafica: ana
+    });
     loader.success('Modifiche salvate');
     setTimeout(async () => {
       if (window.__currentVerificaModal) window.__currentVerificaModal.close();
@@ -1417,13 +1421,11 @@ async function rimettiInVerifica(id) {
   if (!ok) return;
   const loader = window.MiroxUI.loading.show('Aggiornamento in corso');
   try {
-    const patch = {
-      stato_controllo: 'da_controllare',
-      controllato_da: null,
-      controllato_at: null
-    };
-    const { error } = await sb.from('vendita_contratti').update(patch).eq('id', id);
-    if (error) throw error;
+    await gestisciVenditaContratto({
+      action: 'update',
+      mode: 'reopen',
+      contratto_id: id
+    });
     loader.success('Contratto rimesso in verifica');
     setTimeout(async () => {
       if (window.__currentVerificaModal) window.__currentVerificaModal.close();

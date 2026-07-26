@@ -13,6 +13,7 @@
 <script src="../js/config.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/mirox-api.js"></script>
+<script src="../js/mirox-storage-upload.js"></script>
 <script src="../js/mirox-mailer.js"></script>
 <script src="../js/mirox-ui.js"></script>
 <script src="../js/mirox-storage.js"></script>
@@ -309,7 +310,7 @@ function setCnt(id,v){const el=document.getElementById(id);el.textContent=v;el.c
 
 function _forcePdfName(name){if(!name)return'file.pdf';const base=name.replace(/\.[a-z0-9]+$/i,'');return base+'.pdf';}
 function _isPdf(file){if(!file)return false;const t=(file.type||'').toLowerCase();const n=(file.name||'').toLowerCase();return t==='application/pdf'||n.endsWith('.pdf');}
-async function uploadFiles(segId,files){for(const f of files){if(!_isPdf(f)){console.warn('Skip non-PDF:',f.name);continue;}const safeName=_forcePdfName(f.name);await sb.storage.from(BUCKET).upload(`segnalazione_${segId}/${safeName}`,f,{upsert:true,contentType:'application/pdf'});}}
+async function uploadFiles(segId,files){for(const f of files){if(!_isPdf(f)){console.warn('Skip non-PDF:',f.name);continue;}const safeName=_forcePdfName(f.name);await window.MiroxStorageUpload.upload({file:f,bucket:BUCKET,path:`segnalazione_${segId}/${safeName}`});}}
 async function listFiles(segId){const{data}=await sb.storage.from(BUCKET).list(`segnalazione_${segId}`);return(data||[]).filter(f=>f.name&&f.name!=='.emptyFolderPlaceholder'&&!f.name.startsWith('.')&&f.metadata);}
 // Bucket privato: genera handler onclick per signed URL on-demand
 function fileClick(segId,name){const p=`segnalazione_${segId}/${String(name).replace(/'/g,"\\'")}`;return `MiroxStorage.openAttachment('${BUCKET}','${p}');return false;`;}

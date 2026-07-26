@@ -476,6 +476,7 @@
 <script src="../js/anagrafica-helper.js"></script>
 <script src="../js/mirox-ui.js"></script>
 <script src="../js/mirox-api.js"></script>
+<script src="../js/mirox-storage-upload.js"></script>
 <script src="../js/mirox-error-reporter.js"></script>
 <script>if (window.MiroxErrorReporter) window.MiroxErrorReporter.install({ source: 'gestione-rimborsi' });</script>
 <script src="../js/mirox-storage.js"></script>
@@ -675,10 +676,13 @@
  const idShort = String(rimborsoId || '').replace(/-/g, '').slice(0, 8) || 'xxxxxxxx';
  const folder = ragSafe ? `${ragSafe}_${idShort}` : `rimborso_${rimborsoId}`;
  const path = `${folder}/${Date.now()}_${baseName}.pdf`;
- const { error } = await sb.storage.from(RIMBORSI_BUCKET).upload(path, blob, { upsert: true, contentType: 'application/pdf' });
- if (error) throw error;
+ const result = await window.MiroxStorageUpload.upload({
+ file: blob,
+ bucket: RIMBORSI_BUCKET,
+ path
+ });
  // Bucket privato: salviamo il path, signed URL on-demand
- return path;
+ return result.storage_path;
  } catch (e) { console.error('Upload PDF errore:', e); return null; }
  }
 

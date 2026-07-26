@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
+const crypto = require('node:crypto');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -37,6 +38,22 @@ const uploadModule = loadCommonJs('netlify/functions/upload-vendita-documento.js
   busboy() { return {}; },
   '@supabase/supabase-js': { createClient() { return {}; } },
   './_lib/require-auth': { requireAuth: async () => ({ ok: false }) }
+});
+
+const moduleUpload = loadCommonJs('netlify/functions/upload-documento-modulo.js', {
+  busboy() { return {}; },
+  'node:crypto': crypto,
+  './_lib/require-auth': {
+    requireAuth: async () => ({ ok: false }),
+    getAdminClient() { return null; }
+  }
+});
+
+const contractManager = loadCommonJs('netlify/functions/gestisci-vendita-contratto.js', {
+  './_lib/require-auth': {
+    requireAuth: async () => ({ ok: false }),
+    getAdminClient() { return null; }
+  }
 });
 
 test('normalizzazione contratto conserva Cerea e reinserimento', () => {
@@ -115,11 +132,71 @@ test('identità operatore usa il profilo autenticato e risolve gli alias', () =>
     }),
     true
   );
+  assert.equal(
+    uploadModule._test.canUploadIntoPractice(auth, {
+      stato_pratica: 'inviata',
+      operatore_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+    }),
+    true
+  );
 });
 
 test('upload accetta soltanto buffer con firma PDF', () => {
   assert.equal(uploadModule._test.hasPdfSignature(Buffer.from('%PDF-1.7\n')), true);
   assert.equal(uploadModule._test.hasPdfSignature(Buffer.from('not-a-pdf')), false);
+  assert.equal(moduleUpload._test.hasPdfSignature(Buffer.from('%PDF-1.7\n')), true);
+  assert.equal(moduleUpload._test.hasPdfSignature(Buffer.from('<html></html>')), false);
+});
+
+test('upload moduli limita bucket e percorsi operativi', () => {
+  assert.equal(
+    moduleUpload._test.normalizeRequestedPath(
+      'segnalazioni-files',
+      'segnalazione_42/Documento Cliente.pdf'
+    ),
+    'segnalazione_42/Documento_Cliente.pdf'
+  );
+  assert.equal(
+    moduleUpload._test.normalizeRequestedPath(
+      'protecta-files',
+      'preventivi/Preventivo #42.pdf'
+    ),
+    'preventivi/Preventivo_42.pdf'
+  );
+  assert.throws(
+    () => moduleUpload._test.normalizeRequestedPath(
+      'segnalazioni-files',
+      'modelli/disdetta/modulo.pdf'
+    ),
+    /Percorso segnalazione non consentito/
+  );
+  assert.throws(
+    () => moduleUpload._test.normalizeRequestedPath(
+      'rimborsi-files',
+      '../documento.pdf'
+    ),
+    /Percorso Storage non valido/
+  );
+});
+
+test('gestione contratto scarta campi client riservati', () => {
+  const picked = contractManager._test.pickAllowed({
+    imei: '123456789012345',
+    stato_controllo: 'controllato',
+    controllato_da: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    punteggio_gara_offerta: 999
+  }, new Set(['imei']));
+
+  assert.equal(JSON.stringify(picked), JSON.stringify({ imei: '123456789012345' }));
+  assert.equal(
+    contractManager._test.canonicalProfileId({
+      profilo: {
+        id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        alias_di: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+      }
+    }),
+    'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  );
 });
 
 test('wizard propaga codice rivenditore e usa finalize/rollback compensativo', () => {
@@ -157,4 +234,26 @@ test('nessuna password operativa fissa resta nei moduli corretti', () => {
   assert.doesNotMatch(source, /['"](?:1234|2013)['"]/);
   assert.doesNotMatch(source, /password-ko|btn-verifica-password-ko|error-password-ko/);
   assert.match(source, /Auth\.riautentica/);
+});
+
+test('nessun modulo scrive direttamente nei bucket dati o nelle tabelle vendita protette', () => {
+  const moduleFiles = [
+    'moduli/gestione_rimborsi.html',
+    'moduli/apri_chiudi.html',
+    'moduli/switch_sim.html',
+    'moduli/verifica_contratti.html',
+    'moduli/segnalazioni.html',
+    'moduli/simulatore_protecta.html',
+    'moduli/dispositivi_comodato.html'
+  ];
+  const source = moduleFiles
+    .map((file) => fs.readFileSync(path.join(ROOT, file), 'utf8'))
+    .join('\n');
+
+  assert.doesNotMatch(source, /\.storage\.from\([^)]*\)\.upload\(/);
+  assert.doesNotMatch(source, /\.storage\.from\([^)]*\)\.remove\(/);
+  assert.doesNotMatch(source, /from\(['"]vendita_documenti['"]\)\.(?:insert|delete)\(/);
+  assert.doesNotMatch(source, /from\(['"]vendita_contratti['"]\)\.update\(/);
+  assert.match(source, /mirox-storage-upload\.js/);
+  assert.match(source, /gestisci-vendita-contratto/);
 });

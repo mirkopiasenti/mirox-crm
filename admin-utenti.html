@@ -324,7 +324,7 @@ async function cambiaAlias(profiloId, nuovoAliasDi) {
     );
     if (okBackfill) {
       MiroxUI.loading.show('Riassegnazione record storici…');
-      const { data, error: rpcErr } = await db.rpc('applica_alias_backfill', { p_alias_id: profiloId });
+      const { data, error: rpcErr } = await db.rpc('applica_alias_backfill_v2', { p_alias_id: profiloId });
       MiroxUI.loading.hide();
       if (rpcErr) {
         MiroxUI.alert('Errore backfill: ' + rpcErr.message);

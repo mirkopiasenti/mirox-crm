@@ -1,6 +1,6 @@
 # /database/ — Migrazioni SQL storiche
 
-I 54 file `.sql` in questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via `.bin/supabase db query --linked --file ...`) durante lo sviluppo.
+I 56 file `.sql` in questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via `.bin/supabase db query --linked --file ...`) durante lo sviluppo.
 
 ## ⚠️ NON sono lo stato attuale del DB
 
@@ -57,6 +57,8 @@ Lo schema reale di Supabase contiene anche modifiche fatte:
 | `039_gare_rls_admin_write.sql` | Policy scrittura admin per `gara_metriche` e `gara_obiettivi_mensili` (INSERT/UPDATE/DELETE gated da subquery `profili.ruolo='admin'`). Grant su sequenze `_id_seq` per l'INSERT lato admin. |
 | `041_gare_metriche_squadra_e_protecta.sql` | Aggiunge `gara_metriche.tipo_conteggio` text NOT NULL DEFAULT 'individuale' CHECK IN ('individuale','squadra'). Le metriche `squadra` calcolano l'ATTUALE sommando tutti gli operatori del mese e l'obiettivo/compenso e' salvato con `operatore_id=NULL` (comune, uguale per ogni operatore in gara). Refactor seed: `PROTECTA` diventa 2 righe (`PROTECTA - Finanziato` con `modalita_pagamento=Finanziamento` su Allarmi + `PROTECTA - Anticipo` con `modalita_pagamento=Anticipo` su Allarmi) cosi' i compensi differenziati (es. €50/pz vs €30/pz) si configurano come metriche indipendenti senza inventare DSL condizionali. `PARTITA IVA` passa a `tipo_conteggio='squadra'`. |
 | `040_profili_alias.sql` | Aggiunge `profili.alias_di uuid` (self-FK) per unificare due account della stessa persona in un unico operatore ai fini dei report. Trigger generico `trg_alias_operatore` agganciato a 9 tabelle (`vendita_contratti`, `vendita_pratiche`, `vendita_apri_chiudi`, `vendita_switch_sim`, `vendita_ordini_smartphone`, `vendita_simulatore_protecta`, `vendita_consensi_privacy`, `post_vendita_gestione_rimborsi`, `ticket`) che redireziona `operatore_id` al canonico su ogni INSERT/UPDATE. Funzione `risolvi_operatore_canonico(uuid)` (max 3 hop). RPC `applica_alias_backfill(uuid)` riassegna tutti i record storici di un alias al canonico e ritorna un jsonb con il conteggio per tabella (chiamata dall'UI in `admin-utenti.html`). |
+| `053_hardening_scritture_e_bonifica_storico.sql` | Revoca EXECUTE anon dalle RPC SECURITY DEFINER sensibili senza modificarne i body; aggiunge `applica_alias_backfill_v2(uuid)` SECURITY DEFINER con controllo admin; completa `vendita_pratiche.operatore_id` e `vendita_documenti.uploaded_by` storici; corregge a Cerea i 35 contratti del profilo Cerea; elimina 16 record documento duplicati e aggiunge UNIQUE `(storage_bucket, storage_path)`. È applicabile prima del deploy senza interrompere il frontend corrente. |
+| `054_post_deploy_chiudi_scritture_browser.sql` | Migration post-deploy: disabilita l'invocazione client di `applica_alias_backfill` v1 e rimuove le policy di scrittura browser su `vendita_contratti`, `vendita_documenti` e sui sette bucket dati ora serviti dalle Netlify Functions. Applicare solo dopo il deploy di `upload-documento-modulo`, `gestisci-vendita-contratto` e dei relativi refactor frontend. |
 
 ## Linee guida
 
@@ -65,8 +67,9 @@ Lo schema reale di Supabase contiene anche modifiche fatte:
 - Le **RLS policies**, **RPC** e **trigger** possono evolvere senza file associato qui: per uno snapshot affidabile esportare via dashboard Supabase o via query di introspezione
 - Quando si aggiunge un nuovo file `.sql` in questa cartella, **aggiornare contestualmente la tabella "Elenco file"** sopra (regola di manutenzione documentale — vedi sezione "Manutenzione di questa guida" in `../CLAUDE.md`)
 
-## Aggiornamenti senza migrazione
+## Registro aggiornamenti
 
+- **2026-07-26**: migrations `053` + `054` e refactor frontend/backend. La `053` contiene bonifica storico, indice anti-duplicati, hardening RPC e alias v2; la `054` è deliberatamente post-deploy e chiude le RLS di scrittura browser. Upload PDF dei moduli operativi via `upload-documento-modulo`/`MiroxStorageUpload`; Verifica Contratti via `gestisci-vendita-contratto`.
 - **2026-07-25**: hardening applicativo senza modifica schema. Il wizard propaga correttamente `codice_rivenditore` e i campi reinserimento; il backend valida il reinserimento nello stesso mese solare e stato post-vendita, deriva operatore/upload dal JWT e usa il ciclo pratica `bozza` → upload → `finalize` con rollback compensativo su errore. `upload-vendita-documento` verifica PDF e relazioni tra UUID. Nessuna migration Supabase richiesta.
 - **2026-07-02**: modifiche solo frontend/mailer, nessun cambio schema Supabase. Aggiornati layout `dashboard_pezzi` con larghezza tabella fissata a 622px (270px offerte + 4 colonne operatori da 88px), redirect post-invio e validazione cluster `Turista` di `upload-contratti-vendita` (indirizzo nascosto/non richiesto, opzione contratto non richiesta), favicon mancanti e link CTA delle email di comunicazione verso `https://www.mirox-crm.it`.
 - **2026-07-02**: aggiunta cancellazione definitiva da Verifica Contratti senza nuova migration. La function admin-only `elimina-vendita-contratto` usa le FK/cascade gia' presenti (`vendita_documenti` e tabelle post-vendita su `vendita_contratti`) e rimuove gli allegati Storage; se la pratica resta senza contratti elimina anche `vendita_pratiche`. L'anagrafica non viene cancellata.

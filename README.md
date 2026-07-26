@@ -24,7 +24,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `admin-gare.html` | Configurazione **Gare & Avanzamento** — metriche, obiettivi mensili per operatore, editor compenso a scaglioni + bonus, duplica dal mese precedente, flag operatori "in gara". Solo admin |
 | `moduli/` | 16 pagine funzionali Vendita / Post-Vendita (`apri_chiudi`, `switch_sim`, `ordini_smartphone`, `dispositivi_comodato`, `gestione_rimborsi`, `segnalazioni`, `simulatore_protecta`, `storico_cliente`, `ticket`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `dashboard_pezzi` (3 tab: Day by Day + Gare Individuali + Avanzamento Mensile), `upload-contratti-vendita`) |
 | `moduli/call-center/` | **Modulo Call Center integrato (Fase 1)** — 11 pagine (`registra-chiamata`, `elenco-chiamate`, `rilavorazione`, `appuntamenti`, `appuntamenti-oggi`, `prenota-interno`, `esiti-appuntamenti`, `blacklist`, `call-center-lead-outbound`, `prenota-interno-outbound`, `registra-chiamata-outbound`) + `prenota.html` (form pubblico). La pagina `configurazione` è stata spostata sotto Admin Mirox (`admin-call-center-config.html`). Vedi sezione "Modulo Call Center" sotto e [CLAUDE.md](CLAUDE.md) per i dettagli di coordinamento col CC prod |
-| `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-storage`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `mirox-error-reporter`, `anagrafica-helper`, `vendita-storage-helper` |
+| `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-storage`, `mirox-storage-upload`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `mirox-error-reporter`, `anagrafica-helper`, `vendita-storage-helper` |
 | `css/` | `style.css`, `mirox-modules.css` |
 | `assets/` | Logo, favicon |
 | `netlify/functions/` | Endpoint server-side (vedi sotto) |
@@ -44,7 +44,9 @@ Tutte le functions, eccetto `cron-rientro-sim` e l'endpoint anon intenzionale `p
 | `vendita-config` | GET | authenticated | Carica catalogo per il wizard contratti |
 | `admin-vendita-config` | GET / POST | **admin** | CRUD admin del catalogo |
 | `crea-vendita-pratica-carrello` | POST | authenticated | Crea pratica + N contratti in stato provvisorio `bozza`, promuove i PDA e supporta le action idempotenti `finalize` / `rollback_upload_failure`. L'operatore viene sempre ricavato dal JWT. Per cluster `Turista` salva `cluster_cliente='Turista'` sui contratti, usa `Consumer` su `anagrafica` e non richiede email |
-| `upload-vendita-documento` | POST multipart | authenticated | Upload di PDF reali su `contratti-vendita` (anche staging `temp/<sess>/`). Verifica proprietà operatore/admin e coerenza pratica/anagrafica/contratto, deriva il path dalla pratica e attribuisce l'upload all'utente autenticato |
+| `upload-vendita-documento` | POST multipart | authenticated | Upload di PDF reali su `contratti-vendita` (anche staging `temp/<sess>/`). Verifica proprietà operatore/admin sulle bozze; sulle pratiche inviate consente la gestione da Verifica Contratti. Valida coerenza pratica/anagrafica/contratto, deriva il path dalla pratica e attribuisce l'upload all'utente autenticato |
+| `upload-documento-modulo` | POST multipart | authenticated | Upload server-side per i bucket operativi Apri/Chiudi, Switch SIM, Comodato, Rimborsi, Protecta e Segnalazioni. Accetta solo PDF reali max 20 MB e valida bucket/path tramite allowlist |
+| `gestisci-vendita-contratto` | POST | authenticated | Aggiornamento/verifica/riapertura dei contratti e rimozione allegati. Accetta soltanto campi consentiti, deriva snapshot e punteggi dal catalogo e usa l'identità JWT per `controllato_da` |
 | `elimina-vendita-contratto` | POST | **admin** | Eliminazione definitiva da Verifica Contratti: cancella il contratto, i record collegati, gli allegati Storage e la pratica se resta vuota |
 | `ocr-pda` | POST multipart | authenticated | OCR del PDA (Pratica di Adesione PDF) via Claude API — pre-compila l'anagrafica. In caso di errore Anthropic ritorna `error_code` strutturato (`ocr_credit_exhausted`, `ocr_rate_limited`, `ocr_unavailable`, `ocr_auth_error`, `ocr_generic_error`) per popup mirato lato client |
 | `search-anagrafica` | GET | authenticated | Ricerca cliente per CF/PIVA |
@@ -64,6 +66,7 @@ Tutte le functions, eccetto `cron-rientro-sim` e l'endpoint anon intenzionale `p
 - **Reinserimenti**: un contratto può essere marcato come reinserimento solo rispetto a un contratto dello stesso cliente, stessa categoria, **stesso mese solare Europe/Rome** e stato post-vendita idoneo. La regola è verificata sia nel wizard sia server-side.
 - **Invio documenti**: la pratica nasce `bozza`; diventa `inviata` soltanto dopo tutti gli upload. Se un documento fallisce, il rollback compensativo elimina pratica incompleta, contratti e file già caricati per evitare duplicati al tentativo successivo.
 - **Identità**: `operatore_id` e `uploaded_by` derivano sempre dal JWT autenticato. Le conferme sensibili (rimborso manuale e stato KO Apri/Chiudi) richiedono la password dell'account corrente verificata da Supabase; non esistono password operative nel sorgente.
+- **Scritture protette**: il browser non ha policy INSERT/UPDATE/DELETE sui bucket dati, né INSERT/DELETE su `vendita_documenti` o UPDATE su `vendita_contratti`. Upload, rimozioni e verifica passano dalle Netlify Functions autenticate.
 
 ## Setup locale
 

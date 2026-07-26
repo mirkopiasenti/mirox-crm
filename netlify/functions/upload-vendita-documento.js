@@ -10,7 +10,8 @@ const DOCUMENT_TYPES = new Set([
   'contratto',
   'contratto_firmato',
   'copia_sim_mnp',
-  'copia_bolletta'
+  'copia_bolletta',
+  'altro'
 ]);
 
 const CORS_HEADERS = {
@@ -258,6 +259,12 @@ function canManagePractice(auth, praticaRow) {
   return Boolean(uploaderId && praticaRow?.operatore_id === uploaderId);
 }
 
+function canUploadIntoPractice(auth, praticaRow) {
+  // Le pratiche inviate sono gestite dal modulo Verifica Contratti, accessibile
+  // agli operatori attivi. Le bozze restano invece vincolate al proprietario.
+  return praticaRow?.stato_pratica === 'inviata' || canManagePractice(auth, praticaRow);
+}
+
 function hasPdfSignature(buffer) {
   return Buffer.isBuffer(buffer)
     && buffer.length >= 5
@@ -400,7 +407,7 @@ exports.handler = async (event) => {
     if (praticaRow.anagrafica_id !== anagraficaId) {
       return response(400, { success: false, error: 'anagrafica_id non coerente con la pratica' });
     }
-    if (!canManagePractice(auth, praticaRow)) {
+    if (!canUploadIntoPractice(auth, praticaRow)) {
       return response(403, { success: false, error: 'Non puoi caricare documenti su una pratica creata da un altro operatore' });
     }
     if (!['bozza', 'inviata'].includes(praticaRow.stato_pratica)) {
@@ -503,6 +510,7 @@ exports.handler = async (event) => {
 exports._test = {
   authenticatedUploaderId,
   canManagePractice,
+  canUploadIntoPractice,
   hasPdfSignature,
   normalizeUuidOrNull
 };

@@ -470,6 +470,7 @@
 <script src="../js/anagrafica-helper.js"></script>
 <script src="../js/mirox-ui.js"></script>
 <script src="../js/mirox-api.js"></script>
+<script src="../js/mirox-storage-upload.js"></script>
 <script src="../js/mirox-error-reporter.js"></script>
 <script>if (window.MiroxErrorReporter) window.MiroxErrorReporter.install({ source: 'dispositivi-comodato' });</script>
 <script src="../js/mirox-storage.js"></script>
@@ -733,10 +734,13 @@
  const idShort = String(deviceId || '').replace(/-/g, '').slice(0, 8) || 'xxxxxxxx';
  const folder = ragSafe ? `${ragSafe}_${idShort}` : `dispositivo_${deviceId}`;
  const path = `${folder}/${Date.now()}_${baseName}.pdf`;
- const { error } = await sb.storage.from(COMODATO_BUCKET).upload(path, blob, { upsert: true, contentType: 'application/pdf' });
- if (error) throw error;
+ const result = await window.MiroxStorageUpload.upload({
+ file: blob,
+ bucket: COMODATO_BUCKET,
+ path
+ });
  // Salviamo il path (bucket privato): il signed URL si genera on-demand via MiroxStorage
- return path;
+ return result.storage_path;
  } catch (e) { console.error('Upload PDF errore:', e); return null; }
  }
  

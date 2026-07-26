@@ -1496,6 +1496,7 @@
 <script src="../js/anagrafica-helper.js"></script>
 <script src="../js/mirox-ui.js"></script>
 <script src="../js/mirox-api.js"></script>
+<script src="../js/mirox-storage-upload.js"></script>
 <script src="../js/mirox-error-reporter.js"></script>
 <script>if (window.MiroxErrorReporter) window.MiroxErrorReporter.install({ source: 'switch-sim' });</script>
 <script src="../js/mirox-storage.js"></script>
@@ -2113,10 +2114,13 @@ Mostra anche ricariche in OK
  const rawName = filename || 'file';
  const baseName = rawName.replace(/\.[a-z0-9]+$/i, '');
  const path = `${safeFolder}/${label}_${Date.now()}_${baseName}.pdf`;
- const { error } = await sb.storage.from(SWITCH_SIM_BUCKET).upload(path, blob, { upsert: true, contentType: 'application/pdf' });
- if (error) throw error;
+ const result = await window.MiroxStorageUpload.upload({
+ file: blob,
+ bucket: SWITCH_SIM_BUCKET,
+ path
+ });
  // Bucket privato: salviamo il path, signed URL on-demand
- return path;
+ return result.storage_path;
  } catch (e) { console.error('Upload switch-sim errore (' + label + '):', e); return null; }
  }
 

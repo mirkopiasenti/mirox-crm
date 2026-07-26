@@ -39,10 +39,10 @@ async function uploadVenditaDocumento(params = {}) {
   if (file_name) formData.append('file_name', file_name);
 
   // FormData: NON settare Content-Type manualmente (il browser inserisce il boundary)
-  const fetcher = (typeof window !== 'undefined' && window.MiroxApi && window.MiroxApi.fetch)
-    ? window.MiroxApi.fetch
-    : fetch;
-  const response = await fetcher('/.netlify/functions/upload-vendita-documento', {
+  if (typeof window === 'undefined' || !window.MiroxApi || typeof window.MiroxApi.fetch !== 'function') {
+    throw new Error('MiroxApi non disponibile');
+  }
+  const response = await window.MiroxApi.fetch('/.netlify/functions/upload-vendita-documento', {
     method: 'POST',
     body: formData
   });
