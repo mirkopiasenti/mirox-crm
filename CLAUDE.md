@@ -121,7 +121,7 @@ Pagine HTML statiche, no bundler. `/moduli/call-center/` contiene il modulo CC i
 
 ### 2. Server (`/netlify/functions/`, Node >=22)
 
-Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i due cron Netlify e `public-prenota`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `admin-vendita-config` ed `elimina-vendita-contratto` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. 19 functions + 4 lib condivise (`_lib/mailer.js`, `_lib/require-auth.js`, `_lib/smshosting.js`, `_lib/pdf-consenso.js`):
+Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i due cron Netlify e `public-prenota`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `admin-vendita-config` ed `elimina-vendita-contratto` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. 19 functions + 5 lib condivise (`_lib/mailer.js`, `_lib/require-auth.js`, `_lib/smshosting.js`, `_lib/privacy-config.js`, `_lib/pdf-consenso.js`):
 
 - `vendita-config.js` (GET) — catalogo per wizard
 - `admin-vendita-config.js` (GET/POST action-based) — CRUD admin offerte/opzioni/reload + replace regole documentali
@@ -137,7 +137,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `cron-pulizia-operativa.js` (scheduled `30 2 * * *`) — scade OTP pending, elimina contatori rate-limit scaduti e recupera fino a 100 pratiche `bozza` oltre 24 ore eliminando prima i PDF noti e poi il record DB. **Non auth-gated** (cron Netlify).
 - `public-prenota.js` (GET/POST) — **endpoint pubblico** chiamato dal form `prenota.html` (anon). GET ritorna gli slot via `get_slot_disponibili`; POST usa la nuova RPC `public_prenota_appuntamento_v1` (migration `055`), che prende un advisory lock e ricontrolla lo slot nella stessa transazione dell'INSERT. Rate limit persistente su Postgres tramite fingerprint SHA256 dell'IP: 60 GET e 6 POST ogni 10 minuti; fail-closed se il limiter non risponde. **Non auth-gated** (intenzionalmente pubblico).
 - `garantisci-anagrafica.js` (POST) — upsert anagrafica (lookup CF/PIVA → update campi vuoti / cambiati o insert). Chiamato dal wizard upload-contratti PRIMA della raccolta consenso privacy: il consenso ha bisogno di `anagrafica_id` ma il backend del carrello finora la creava solo al submit. Idempotente con `crea-vendita-pratica-carrello` (entrambi fanno lo stesso lookup/update). Per cluster vendita `Turista`, salva/aggiorna `anagrafica.cluster='Consumer'` perché la tabella condivisa non deve contenere il cluster vendita turistico e non richiede email. Vedi sezione "Sistema consensi privacy GDPR".
-- `check-consenso-privacy.js` (GET) — `?anagrafica_id=<uuid>`. Cerca il consenso `stato='confermato'`, non scaduto, non revocato. Usato dal wizard per dedupe 24 mesi: se valido, salta tutto il flusso OTP/cartaceo e procede direttamente al submit.
+- `check-consenso-privacy.js` (GET) — `?anagrafica_id=<uuid>`. Cerca una dichiarazione `stato='confermato'`, non scaduta, non revocata e con `informativa_versione` uguale alla versione corrente. Il filtro di versione impedisce di ampliare retroattivamente consensi precedenti a nuovi canali/finalità.
 - `richiedi-otp-privacy.js` (POST) — genera OTP 6 cifre, salva hash SHA256+salt random, invia SMS via Smshosting. Rate-limit 3 invii/ora per `anagrafica_id` + cooldown 60s tra invii. Invalida automaticamente i record `pending` precedenti dello stesso cliente. Richiede `SMSHOSTING_API_KEY`, `SMSHOSTING_API_SECRET`. Se `SMSHOSTING_SIMULATE=true` non invia davvero, logga e ritorna id fittizio (utile per dev/test).
 - `verifica-otp-privacy.js` (POST) — `{consenso_id, otp}`. Re-hash dell'OTP inserito e confronto. Max 3 tentativi (poi `stato='fallito'`). Se OK genera il PDF informativa/dichiarazione con dati probatori (cellulare, timestamp, IP, hash documento, ID SMS), upload su bucket `consensi-privacy`, segna `stato='confermato'` + `valido_fino_al = now()+24 mesi` + `informativa_hash`.
 - `genera-pdf-consenso-cartaceo.js` (GET) — `?anagrafica_id=<uuid>&consenso_marketing=true|false`. Stream binario del PDF informativa **precompilato in modalità cartacea** (riquadro firma vuoto da firmare a mano), per il download dal browser via blob.
@@ -145,7 +145,8 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `_lib/mailer.js` — helper SMTP Gmail + template DB + log
 - `_lib/require-auth.js` — helper auth: valida JWT Supabase nell'header `Authorization: Bearer <token>`, ritorna `{ok, user, profilo}` o `{ok:false, status, error}`. Supporta opt `adminOnly: true` per richiedere `ruolo='admin'`. Usare in TUTTE le nuove functions
 - `_lib/smshosting.js` — wrapper REST API Smshosting per invio SMS transactional. Espone `sendOtpSms({to, otp})`, `normalizeMobileNumber(raw)`, `generateOtp(6)`. Auth HTTP Basic. Endpoint `https://api.smshosting.it/rest/api/sms/send`. Timeout 12s. Modalità simulazione tramite env `SMSHOSTING_SIMULATE=true`. Vedi `docs/SMSHOSTING_SETUP.md` per il setup account.
-- `_lib/pdf-consenso.js` — generatore PDF informativa privacy GDPR via `pdfkit`. La versione `v2_2026_07_26` produce 3 pagine e separa presa visione, basi contrattuali/legali e consenso marketing opzionale a 24 mesi; documenta OCR AI, destinatari/trasferimenti, conservazione, diritti e revoca per canale. Per OTP richiama l'art. 25(1) eIDAS senza presentare il flusso come firma qualificata o automaticamente equivalente all'autografa. Esporta `{buffer, hash}`.
+- `_lib/privacy-config.js` — fonte unica della versione informativa corrente (`v3_2026_07_26`), usata sia in scrittura sia nel controllo di riuso.
+- `_lib/pdf-consenso.js` — generatore PDF informativa privacy GDPR via `pdfkit`. La versione `v3_2026_07_26` produce 3 pagine e riguarda soltanto acquisizione, archiviazione e uso nel CRM Kona Tech. Separa ricontatti di servizio sulla pratica specifica dal consenso promozionale opzionale a 24 mesi tramite telefono, WhatsApp ed email; delimita i trattamenti di WindTre/altro fornitore, documenta OCR AI, destinatari/trasferimenti, conservazione, diritti e revoca per canale. Per OTP richiama l'art. 25(1) eIDAS senza presentare il flusso come firma qualificata o automaticamente equivalente all'autografa. Esporta `{buffer, hash}`.
 
 ### 3. Database (Supabase Postgres)
 
@@ -173,7 +174,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `vendita_pratiche` — `origine_pratica`, `stato_pratica`, `nome_cartella_storage`, `storage_base_path`
 - `vendita_contratti` — riga venduta con snapshot + punteggi server-side + `stato_controllo`. **Codice Rivenditore** (`codice_rivenditore`, migration `050`): text NOT NULL DEFAULT `'9001415852'` CHECK IN (`'9001415852'`,`'9000822241'`). Identifica il punto vendita di inserimento: `9001415852` = Legnago (negozio principale), `9000822241` = Cerea. Il wizard deve propagare sempre il valore dal draft a `buildInvioPayload`; se lo omette il backend applica il default Legnago e falsifica il punto vendita. Filtra Dashboard Pezzi Day by Day + Avanzamento Mensile (solo Legnago); Gare Individuali conteggia entrambi. Indice `idx_vendita_contratti_codice_rivenditore`. Vedi sezione "Codice rivenditore".
 - `vendita_documenti`, `vendita_documenti_regole`, `vendita_compensi_regole`, `vendita_log_modifiche`. Migration `053`: UNIQUE `(storage_bucket, storage_path)`; migration post-deploy `054`: INSERT/DELETE documenti soltanto via backend.
-- `vendita_consensi_privacy` — registra presa visione dell'informativa e consenso marketing opzionale (migration 034; durata originaria 48 mesi ridotta e clamped a 24 mesi dalla migration 055). Modalità `otp_sms` o `cartaceo`, stato workflow (`pending`/`confermato`/`scaduto`/`fallito`/`revocato`), OTP hash+salt+scadenza+tentativi, audit IP/UA, snapshot anagrafica jsonb, `valido_fino_al`, `pdf_storage_path` privato. I trattamenti necessari a contratto/legge non sono basati sul consenso marketing.
+- `vendita_consensi_privacy` — registra presa visione dell'informativa CRM e consenso promozionale opzionale (migration 034; durata originaria 48 mesi ridotta e clamped a 24 mesi dalla migration 055). Modalità `otp_sms` o `cartaceo`, stato workflow (`pending`/`confermato`/`scaduto`/`fallito`/`revocato`), OTP hash+salt+scadenza+tentativi, audit IP/UA, snapshot anagrafica jsonb, `valido_fino_al`, `pdf_storage_path` privato. I ricontatti di servizio sulla pratica specifica non dipendono dal consenso marketing.
 - Moduli operativi: `vendita_apri_chiudi`, `vendita_switch_sim`, `vendita_ordini_smartphone`, `vendita_simulatore_protecta`. **`vendita_simulatore_protecta.trattativa_id`** uuid NOT NULL DEFAULT `gen_random_uuid()` (migration `051`, dal 2026-07-20): raggruppa piu' preventivi generati per lo stesso cliente. Ogni INSERT senza id esplicito crea una trattativa nuova (comportamento legacy). Il wizard `moduli/simulatore_protecta.html` chiede la modalita' di sessione all'ingresso: `Nuova trattativa` (nuovo uuid), `Aggiungi a trattativa esistente` (riusa uuid di una trattativa `In corso`), `Simula senza preventivo` (nessun uuid, nessun salvataggio). Backfill: ogni record legacy ha ricevuto un uuid distinto (33 record → 33 trattative). Indice `idx_vsp_trattativa_id`. Vedi sezione "Modalita' Simulatore Protecta".
 
 ### Post-Vendita
@@ -271,12 +272,12 @@ Da questo momento il modulo segnalazioni funziona **solo da Mirox loggato**. Se 
    5. **Documenti cliente**: documento_identita + eventuali copia_bolletta/copia_sim_mnp. Se `tipo_firma='cartacea'` appare anche il campo upload **"Contratto firmato"** (PDF della scansione del PDA firmato a mano dal cliente). **Niente upload contratto PDF originale qui** — quello e' gia' in staging dallo step 1.
 4. Submit "Invia pratica" → **prima del fetch al backend**, il wizard esegue il pre-step **consenso privacy GDPR** (vedi sezione "Sistema consensi privacy GDPR"):
    1. `POST garantisci-anagrafica` con i dati cliente → `anagrafica_id`
-   2. `GET check-consenso-privacy?anagrafica_id=...` → se valido (dedupe 24 mesi), riusa `consenso_id` e procede senza modale
+   2. `GET check-consenso-privacy?anagrafica_id=...` → se valido, entro 24 mesi e della versione informativa corrente, riusa `consenso_id` e procede senza modale
    3. Altrimenti popup di scelta modalità: **OTP via SMS** (Smshosting + 6 cifre + verifica server-side + PDF generato) oppure **modulo cartaceo** (download PDF precompilato + upload scansione firmata)
    4. Risultato: `consenso_id` valido, passato al backend nel campo `pratica.consenso_id`
 5. → `POST /netlify/functions/crea-vendita-pratica-carrello`:
    - Upsert `anagrafica` (cerca per `cf_piva`, aggiorna solo campi vuoti). Cellulare obbligatorio; email obbligatoria solo per `Consumer`/`Business` (facoltativa per `Turista`).
-   - **Guard consenso privacy** (migration 034): query `vendita_consensi_privacy` per anagrafica_id con `stato='confermato' AND revocato_at IS NULL AND valido_fino_al > now()`. Se non esiste → errore 400 "Consenso privacy mancante o scaduto". Se il client ha passato `pratica.consenso_id` verifica anche che corrisponda al consenso attivo (anti-tampering).
+   - **Guard informativa privacy** (migration 034): query `vendita_consensi_privacy` per anagrafica_id con `stato='confermato'`, `informativa_versione` corrente, `revocato_at IS NULL` e `valido_fino_al > now()`. Se non esiste → errore 400. Se il client ha passato `pratica.consenso_id` verifica anche che corrisponda al record attivo (anti-tampering).
    - INSERT `vendita_pratiche` con `stato_pratica='bozza'`; `operatore_id` deriva dal profilo autenticato e il valore client viene ignorato
    - Back-link: se il consenso non aveva `pratica_id` (caso "appena raccolto"), aggiorna il record con la nuova pratica creata. Se aveva già `pratica_id` (caso riuso in dedupe 24 mesi) lascia il riferimento originale come audit.
    - Calcolo `nome_cartella_storage` = `Contratto_<RAGSOC>_<DD_MM_YYYY>_<id6>`
@@ -374,10 +375,10 @@ Ogni contratto è etichettato col punto vendita di **inserimento**: `9001415852`
 `appuntamento_callcenter`, `contatto_callcenter_entro_10_giorni`, `spontaneo`
 
 ### Consenso privacy GDPR (dal 2026-06-26, migration 034)
-- Ogni pratica creata da Upload Contratti richiede un consenso privacy valido in `vendita_consensi_privacy` per l'`anagrafica_id`. Il backend `crea-vendita-pratica-carrello.js` rifiuta con 400 "Consenso privacy mancante o scaduto" se non c'è un record `stato='confermato'` non scaduto e non revocato.
+- Ogni pratica creata da Upload Contratti richiede una dichiarazione privacy valida in `vendita_consensi_privacy` per l'`anagrafica_id`. Il backend `crea-vendita-pratica-carrello.js` richiede `stato='confermato'`, versione informativa corrente, scadenza futura e nessuna revoca.
 - Il wizard `upload-contratti-vendita.html` intercetta il submit `btnInviaPratica` e, prima di POST al carrello, fa il pre-step:
   1. `garantisci-anagrafica` → ottiene `anagrafica_id` (upsert)
-  2. `check-consenso-privacy?anagrafica_id=...` → **dedupe 24 mesi**: se valido, salta tutto e propaga `consenso_id` al carrello con un toast "Consenso privacy attivo fino al GG/MM/AAAA"
+  2. `check-consenso-privacy?anagrafica_id=...` → **dedupe 24 mesi + versione corrente**: se valido, salta tutto e propaga `consenso_id` al carrello
   3. Altrimenti modale 2 scelte (`OTP via SMS` consigliato, `cartaceo` fallback)
 - Validità massima: 24 mesi dalla conferma, calcolata nelle due functions con `addMonthsClamped`. La migration `055` accorcia anche i record storici che superano tale termine.
 - Backend valida `consenso_id` opzionalmente passato dal client come **anti-tampering**: deve corrispondere al consenso attivo per quell'anagrafica.
@@ -730,7 +731,7 @@ NON sono stati ancora aggiunti `reportInfo` ai singoli `catch` esistenti: i glob
 
 ## Sistema consensi privacy GDPR (dal 2026-06-26)
 
-Mirox archivia documenti e dati personali dei clienti. Prima della pratica il wizard registra la presa visione dell'informativa ex artt. 13-14 GDPR e, separatamente, l'eventuale consenso facoltativo al marketing. I trattamenti necessari all'esecuzione del contratto, agli obblighi legali, alla gestione delle richieste e alla sicurezza hanno basi giuridiche proprie e non vengono presentati come “consenso obbligatorio”.
+Mirox archivia nel CRM di proprietà/gestione Kona Tech dati e documenti consegnati per la specifica pratica. Prima dell'invio il wizard registra la presa visione dell'informativa ex artt. 13-14 GDPR e, separatamente, l'eventuale consenso facoltativo ai ricontatti promozionali. I contatti di servizio sulla pratica specifica possono avvenire tramite chiamata, WhatsApp o email e non dipendono dal flag marketing. Il modulo non disciplina il contratto WindTre/altro fornitore né sostituisce la relativa informativa.
 
 ### Componenti
 
@@ -739,19 +740,20 @@ Mirox archivia documenti e dati personali dei clienti. Prima della pratica il wi
 | DB | `vendita_consensi_privacy` | Tabella consensi (migration 034) |
 | Storage | `consensi-privacy` (privato) | PDF informativa/dichiarazione OTP o scansione cartacea |
 | Functions | `garantisci-anagrafica` | Upsert anagrafica prima del consenso |
-| Functions | `check-consenso-privacy` | Dedupe 24 mesi |
+| Functions | `check-consenso-privacy` | Dedupe 24 mesi limitato alla versione informativa corrente |
 | Functions | `richiedi-otp-privacy` | Genera OTP, invia SMS via Smshosting |
 | Functions | `verifica-otp-privacy` | Verifica OTP, genera PDF con evidenze della dichiarazione e salva |
 | Functions | `genera-pdf-consenso-cartaceo` | PDF precompilato per download (fallback cartaceo) |
 | Functions | `upload-consenso-cartaceo` | Upload scansione modulo firmato a mano |
 | Helper | `_lib/pdf-consenso.js` | Generazione PDF con `pdfkit` |
+| Helper | `_lib/privacy-config.js` | Versione informativa corrente condivisa |
 | Helper | `_lib/smshosting.js` | Wrapper REST Smshosting + normalizzazione numeri |
 | Frontend | `upload-contratti-vendita.html` | Modale OTP/cartaceo dentro `ensureConsensoPrivacy()` |
 
 ### Flusso OTP via SMS
 
 1. Operatore inserisce dati cliente nel wizard. Al click "Invia pratica" il wizard chiama `garantisci-anagrafica` → `anagrafica_id`.
-2. `check-consenso-privacy` ritorna `valido=false` (cliente nuovo o consenso scaduto).
+2. `check-consenso-privacy` ritorna `valido=false` se il cliente è nuovo, la dichiarazione è scaduta/revocata oppure appartiene a una versione precedente dell'informativa.
 3. Modale scelta → operatore seleziona la dichiarazione elettronica via OTP SMS.
 4. Modale OTP mostra dati cliente, cellulare pre-compilato (con bottone "Modifica numero") e checkbox marketing.
 5. Operatore clicca "Invia SMS" → `richiedi-otp-privacy` genera OTP 6 cifre, hash SHA256+salt random, salva record `pending` con `otp_scade_at = now() + 10 min`, invia SMS via Smshosting al cellulare. Se operatore ha modificato il numero, popup "Aggiorno anche anagrafica?" → conferma sì → secondo POST `garantisci-anagrafica` con nuovo cellulare.
@@ -773,7 +775,8 @@ Mirox archivia documenti e dati personali dei clienti. Prima della pratica il wi
 
 - **OTP via SMS**: registra la dichiarazione e i dati probatori (cellulare, data/ora Europe/Rome, ID SMS, IP operatore, operatore e consenso_id). Il PDF richiama l'art. 25(1) eIDAS: la forma elettronica non può essere privata di effetti per il solo fatto di essere elettronica. Non viene qualificata come firma elettronica qualificata né come automaticamente equivalente alla firma autografa.
 - **Cartaceo**: conserva la scansione del documento sottoscritto e il relativo hash SHA256. Il valore probatorio concreto dipende dal processo e dalle circostanze.
-- **Testo v2**: separa finalità e basi giuridiche, marketing facoltativo a 24 mesi, destinatari, trasferimenti extra SEE, OCR AI con verifica umana, conservazione, diritti e revoca. Il documento resta privato e leggibile via signed URL.
+- **Testo v3 CRM**: limita il perimetro ai trattamenti svolti da Kona Tech nel CRM Mirox. Distingue aggiornamenti/assistenza sulla pratica specifica da promozioni e nuovi contratti; il consenso promozionale copre esplicitamente chiamate con operatore, WhatsApp ed email per 24 mesi. Non disciplina i trattamenti contrattuali autonomi di WindTre o altro fornitore.
+- **Nessuna estensione retroattiva**: le informative v1/v2 restano archiviate come evidenza, ma `check-consenso-privacy` riusa soltanto `v3_2026_07_26`; un vecchio flag marketing non autorizza automaticamente il nuovo canale WhatsApp.
 - **Validazione necessaria**: prima di considerare il testo un parere legale definitivo, un consulente privacy deve confermare titolare/ruoli, DPO se designato, tempi di conservazione, contratti con responsabili/sub-responsabili, trasferimenti e canali effettivi di revoca.
 
 ### Smshosting (provider SMS)
@@ -787,7 +790,7 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 - **Revoca del consenso**: la tabella ha le colonne `revocato_at`, `revocato_motivo`, `revocato_da` ma non c'è ancora UI admin per gestirla. Per ora va fatta a mano via SQL.
 - **Cleanup pending**: gestito ogni giorno da `cron-pulizia-operativa`, che marca `scaduto` gli OTP pending oltre `otp_scade_at`.
 - **Cron pre-scadenza consensi**: dopo 24 mesi il consenso non è più valido e il cliente deve rifirmare. Non c'è notifica automatica al cliente di pre-scadenza (eventuale futuro modulo).
-- **Revisione legale**: la versione corrente è `v2_2026_07_26`; la revisione tecnica ha corretto gli errori più evidenti, ma resta necessaria la validazione professionale descritta in `docs/PRIVACY_LEGAL_REVIEW_2026-07-26.md`.
+- **Revisione legale**: la versione corrente è `v3_2026_07_26`; la revisione tecnica segue il perimetro CRM indicato dal titolare, ma resta necessaria la validazione professionale descritta in `docs/PRIVACY_LEGAL_REVIEW_2026-07-26.md`.
 
 ---
 

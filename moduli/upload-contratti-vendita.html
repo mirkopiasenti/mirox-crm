@@ -6459,7 +6459,7 @@ Reload Forever
    return new Promise((resolve) => {
      const html = cpBuildClientCard(cliente) + `
        <div style="margin-top:6px;font-size:13.5px;color:#0A2540;">
-         Prima di archiviare i dati nel CRM Mirox il cliente deve ricevere l'informativa privacy e dichiararne la presa visione. I trattamenti necessari al contratto non si basano sul consenso; il consenso marketing resta separato e facoltativo. Scegli la modalita' di registrazione:
+         Questa informativa riguarda l'acquisizione e l'archiviazione di dati e documenti nel CRM Mirox di Kona Tech, oltre ai successivi ricontatti. Non disciplina il contratto del fornitore. Il consenso promozionale resta separato e facoltativo. Scegli la modalita' di registrazione:
        </div>
        <div class="cp-choices">
          <button type="button" class="cp-choice" data-cp-modality="otp">
@@ -6504,10 +6504,13 @@ Reload Forever
          </div>
          <div style="font-size:11.5px;color:#697386;margin-top:6px;">Pre-compilato da anagrafica. Modifica se il numero corretto e' diverso.</div>
        </div>
+       <div class="cp-info">
+         <strong>Ricontatti di servizio.</strong> Kona Tech potra' usare chiamate, WhatsApp o email per aggiornamenti e assistenza riferiti alla pratica specifica. Questi contatti non sono promozionali e non dipendono dal flag seguente.
+       </div>
        <label class="cp-checkbox">
          <input type="checkbox" id="cpOtpMarketing" />
          <span class="cp-checkbox-text">
-           <strong>Consenso marketing (facoltativo, 24 mesi).</strong> Acconsento a ricevere comunicazioni commerciali via SMS, email e telefono su prodotti e servizi commercializzati dal Titolare. Posso revocare il consenso in qualsiasi momento, anche per singolo canale, senza conseguenze sul contratto.
+           <strong>Consenso ai ricontatti promozionali (facoltativo, 24 mesi).</strong> Acconsento a essere ricontattato da Kona Tech tramite chiamata telefonica, messaggio WhatsApp o email per nuove offerte, promozioni, servizi o nuovi contratti, anche diversi dalla pratica attuale. Posso revocare il consenso in qualsiasi momento, anche per singolo canale. Gli aggiornamenti di servizio sulla pratica specifica restano separati.
          </span>
        </label>
        <div id="cpOtpStatus" class="cp-status cp-status-info" style="display:none;"></div>
@@ -6706,7 +6709,7 @@ Reload Forever
            }
            return;
          }
-         setStatus('Consenso confermato. Valido fino al ' + cpFormatItalianDate(json.valido_fino_al) + '. Procedo con l\'invio pratica.', 'ok');
+         setStatus('Dichiarazione privacy confermata. Valida fino al ' + cpFormatItalianDate(json.valido_fino_al) + '. Procedo con l\'invio pratica.', 'ok');
          if (timerHandle) clearInterval(timerHandle);
          if (cooldownHandle) clearInterval(cooldownHandle);
          setTimeout(() => {
@@ -6760,10 +6763,13 @@ Reload Forever
      let scannedFile = null;
 
      const html = cpBuildClientCard(cliente) + `
+       <div class="cp-info">
+         <strong>Ricontatti di servizio.</strong> Kona Tech potra' usare chiamate, WhatsApp o email per aggiornamenti e assistenza riferiti alla pratica specifica. Questi contatti non sono promozionali e non dipendono dal flag seguente.
+       </div>
        <label class="cp-checkbox">
          <input type="checkbox" id="cpCartMarketing" />
          <span class="cp-checkbox-text">
-           <strong>Consenso marketing (facoltativo, 24 mesi).</strong> Acconsento a ricevere comunicazioni commerciali via SMS, email e telefono su prodotti e servizi commercializzati dal Titolare. Posso revocare il consenso in qualsiasi momento, anche per singolo canale, senza conseguenze sul contratto.
+           <strong>Consenso ai ricontatti promozionali (facoltativo, 24 mesi).</strong> Acconsento a essere ricontattato da Kona Tech tramite chiamata telefonica, messaggio WhatsApp o email per nuove offerte, promozioni, servizi o nuovi contratti, anche diversi dalla pratica attuale. Posso revocare il consenso in qualsiasi momento, anche per singolo canale. Gli aggiornamenti di servizio sulla pratica specifica restano separati.
          </span>
        </label>
        <div class="cp-info">

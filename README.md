@@ -28,7 +28,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `css/` | `style.css`, `mirox-modules.css` |
 | `assets/` | Logo, favicon |
 | `netlify/functions/` | Endpoint server-side (vedi sotto) |
-| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `pdf-consenso`) |
+| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`) |
 | `tests/` | Test automatici Node (`node:test`): regressioni vendita, sicurezza/XSS, PDF privacy, sintassi e link locali |
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |
 | `netlify.toml` | Config Netlify, header di sicurezza (CSP/HSTS/Permissions-Policy) e cron |
@@ -55,7 +55,7 @@ Tutte le functions, eccetto i due cron Netlify e l'endpoint anon intenzionale `p
 | `cron-pulizia-operativa` | scheduled | nessuna (cron Netlify) | Scade OTP pending, elimina contatori rate-limit scaduti e rimuove bozze vendita oltre 24 ore con relativi PDF |
 | `public-prenota` | GET / POST | nessuna (form pubblico) | Endpoint per `prenota.html`: rate limit persistente su Postgres e POST atomica tramite RPC con lock e nuovo controllo dello slot nella stessa transazione |
 | `garantisci-anagrafica` | POST | authenticated | Upsert anagrafica (lookup CF/PIVA, update campi vuoti / cambiati o insert). Usato dal wizard prima della raccolta consenso; per `Turista` salva `Consumer` su `anagrafica` e non richiede email |
-| `check-consenso-privacy` | GET | authenticated | Dedupe 24 mesi: cerca un consenso `stato='confermato'`, non scaduto, non revocato per `anagrafica_id` |
+| `check-consenso-privacy` | GET | authenticated | Dedupe 24 mesi: cerca per `anagrafica_id` una dichiarazione confermata, non scaduta, non revocata e riferita alla versione informativa corrente |
 | `richiedi-otp-privacy` | POST | authenticated | Genera OTP 6 cifre, salva hash+salt, invia SMS via Smshosting. Rate-limit 3 invii/ora per anagrafica + cooldown 60s |
 | `verifica-otp-privacy` | POST | authenticated | Verifica OTP (max 3 tentativi), genera il PDF informativa/dichiarazione con dati probatori, lo archivia e imposta `valido_fino_al = now()+24 mesi` |
 | `genera-pdf-consenso-cartaceo` | GET | authenticated | Stream PDF precompilato (riquadro firma vuoto) per il flusso cartaceo |
@@ -68,6 +68,7 @@ Tutte le functions, eccetto i due cron Netlify e l'endpoint anon intenzionale `p
 - **Invio documenti**: la pratica nasce `bozza`; diventa `inviata` soltanto dopo tutti gli upload. Se un documento fallisce, il rollback compensativo elimina pratica incompleta, contratti e file già caricati; il cron giornaliero recupera eventuali bozze orfane oltre 24 ore.
 - **Identità**: `operatore_id` e `uploaded_by` derivano sempre dal JWT autenticato. Le conferme sensibili (rimborso manuale e stato KO Apri/Chiudi) richiedono la password dell'account corrente verificata da Supabase; non esistono password operative nel sorgente.
 - **Scritture protette**: il browser non ha policy INSERT/UPDATE/DELETE sui bucket dati, né INSERT/DELETE su `vendita_documenti` o UPDATE su `vendita_contratti`. Upload, rimozioni e verifica passano dalle Netlify Functions autenticate.
+- **Informativa CRM**: la versione corrente `v3_2026_07_26` riguarda esclusivamente dati e documenti archiviati nel CRM Kona Tech. I ricontatti di servizio sulla pratica specifica sono separati dal consenso promozionale facoltativo per telefono, WhatsApp ed email. Le versioni precedenti restano evidenza storica ma non vengono riutilizzate per autorizzare il nuovo canale WhatsApp.
 - **Sicurezza frontend**: tutti gli script CDN sono versionati e protetti da SRI; `MiroxSafe` codifica i dati dinamici; Netlify invia CSP, HSTS e Permissions-Policy. La CSP mantiene temporaneamente `'unsafe-inline'` perché le pagine statiche legacy contengono ancora script e handler inline.
 
 ## Setup locale

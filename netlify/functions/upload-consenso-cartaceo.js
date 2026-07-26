@@ -29,7 +29,7 @@ const Busboy = require('busboy');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const { requireAuth } = require('./_lib/require-auth');
-const { INFORMATIVA_VERSIONE } = require('./_lib/pdf-consenso');
+const { INFORMATIVA_VERSIONE } = require('./_lib/privacy-config');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB

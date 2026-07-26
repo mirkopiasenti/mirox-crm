@@ -268,7 +268,8 @@ exports.handler = async (event) => {
                 valido_fino_al: validoFinoAl.toISOString(),
                 pdf_storage_path: attemptPath,
                 pdf_filename: attemptFileName,
-                informativa_hash: pdfHash
+                informativa_hash: pdfHash,
+                informativa_versione: INFORMATIVA_VERSIONE
             })
             .eq('id', consensoId);
         if (updateErr) {

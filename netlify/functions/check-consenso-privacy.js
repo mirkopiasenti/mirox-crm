@@ -1,8 +1,8 @@
 /**
  * GET /.netlify/functions/check-consenso-privacy?anagrafica_id=<uuid>
  *
- * Verifica se per l'anagrafica esiste un consenso privacy gia' attivo
- * (stato='confermato', non scaduto, non revocato). Usato dal wizard
+ * Verifica se per l'anagrafica esiste una dichiarazione privacy gia' attiva
+ * (versione corrente, stato='confermato', non scaduta, non revocata). Usato dal wizard
  * upload-contratti-vendita per fare dedupe sulla finestra di validita'
  * di 24 mesi: se il documento e' ancora valido, il wizard salta il flusso
  * OTP/cartaceo e procede direttamente all'upload pratica.
@@ -23,6 +23,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { requireAuth } = require('./_lib/require-auth');
+const { INFORMATIVA_VERSIONE } = require('./_lib/privacy-config');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -67,9 +68,10 @@ exports.handler = async (event) => {
     try {
         const { data, error } = await supabase
             .from('vendita_consensi_privacy')
-            .select('id, modalita, valido_fino_al, otp_confermato_at, created_at, consenso_marketing, pdf_storage_path, pdf_filename')
+            .select('id, modalita, valido_fino_al, otp_confermato_at, created_at, informativa_versione, consenso_marketing, pdf_storage_path, pdf_filename')
             .eq('anagrafica_id', anagraficaId)
             .eq('stato', 'confermato')
+            .eq('informativa_versione', INFORMATIVA_VERSIONE)
             .is('revocato_at', null)
             .gt('valido_fino_al', new Date().toISOString())
             .order('valido_fino_al', { ascending: false })
@@ -97,6 +99,7 @@ exports.handler = async (event) => {
                 modalita_label: modalitaLabel,
                 valido_fino_al: data.valido_fino_al,
                 confermato_at: data.otp_confermato_at || data.created_at,
+                informativa_versione: data.informativa_versione,
                 consenso_marketing: !!data.consenso_marketing,
                 pdf_storage_path: data.pdf_storage_path,
                 pdf_filename: data.pdf_filename

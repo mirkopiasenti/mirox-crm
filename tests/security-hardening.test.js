@@ -99,7 +99,7 @@ test('migration 055 applica 24 mesi, lock atomico e privilegi minimi', () => {
   assert.doesNotMatch(migration, /create\s+or\s+replace\s+function\s+public\.get_slot_disponibili/i);
 });
 
-test('informativa privacy v2 genera PDF OTP e cartaceo a tre pagine', async () => {
+test('informativa privacy CRM v3 genera PDF OTP e cartaceo a tre pagine', async () => {
   const {
     generateConsensoPdf,
     INFORMATIVA_VERSIONE
@@ -139,5 +139,28 @@ test('informativa privacy v2 genera PDF OTP e cartaceo a tre pagine', async () =
     assert.match(generated.hash, /^[0-9a-f]{64}$/);
     assert.equal((generated.buffer.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length, 3);
   }
-  assert.equal(INFORMATIVA_VERSIONE, 'v2_2026_07_26');
+  assert.equal(INFORMATIVA_VERSIONE, 'v3_2026_07_26');
+});
+
+test('informativa v3 limita il perimetro al CRM e richiede la versione corrente per il riuso', () => {
+  const pdfSource = fs.readFileSync(
+    path.join(ROOT, 'netlify/functions/_lib/pdf-consenso.js'),
+    'utf8'
+  );
+  const checkSource = fs.readFileSync(
+    path.join(ROOT, 'netlify/functions/check-consenso-privacy.js'),
+    'utf8'
+  );
+  const cartSource = fs.readFileSync(
+    path.join(ROOT, 'netlify/functions/crea-vendita-pratica-carrello.js'),
+    'utf8'
+  );
+
+  assert.match(pdfSource, /sistema gestionale di proprietà e sotto la gestione/);
+  assert.match(pdfSource, /Non disciplina il contratto stipulato con Wind Tre/);
+  assert.match(pdfSource, /chiamata telefonica con operatore, messaggio WhatsApp o email/);
+  assert.match(pdfSource, /Questi contatti di servizio non dipendono dal consenso marketing/);
+  assert.doesNotMatch(pdfSource, /comunicazioni commerciali via SMS/);
+  assert.match(checkSource, /\.eq\('informativa_versione', INFORMATIVA_VERSIONE\)/);
+  assert.match(cartSource, /\.eq\('informativa_versione', INFORMATIVA_VERSIONE\)/);
 });
