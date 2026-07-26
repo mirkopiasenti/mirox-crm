@@ -6507,12 +6507,20 @@ Reload Forever
        <div class="cp-info">
          <strong>Ricontatti di servizio.</strong> Kona Tech potra' usare chiamate, WhatsApp o email per aggiornamenti e assistenza riferiti alla pratica specifica. Questi contatti non sono promozionali e non dipendono dal flag seguente.
        </div>
-       <label class="cp-checkbox">
-         <input type="checkbox" id="cpOtpMarketing" />
-         <span class="cp-checkbox-text">
-           <strong>Consenso ai ricontatti promozionali (facoltativo, 24 mesi).</strong> Acconsento a essere ricontattato da Kona Tech tramite chiamata telefonica, messaggio WhatsApp o email per nuove offerte, promozioni, servizi o nuovi contratti, anche diversi dalla pratica attuale. Posso revocare il consenso in qualsiasi momento, anche per singolo canale. Gli aggiornamenti di servizio sulla pratica specifica restano separati.
-         </span>
-       </label>
+       <div class="cp-section">
+         <h4>Consenso ai ricontatti promozionali (facoltativo, 24 mesi)</h4>
+         <div style="font-size:12px;color:#697386;margin-bottom:8px;">La scelta tra ACCONSENTO e NON ACCONSENTO e' obbligatoria per registrare la dichiarazione, ma il consenso marketing resta facoltativo.</div>
+         <label class="cp-checkbox">
+           <input type="radio" name="cpOtpMarketing" value="true" />
+           <span class="cp-checkbox-text">
+             <strong>ACCONSENTO.</strong> Acconsento a essere ricontattato da Kona Tech tramite chiamata telefonica, messaggio WhatsApp o email per nuove offerte, promozioni, servizi o nuovi contratti, anche diversi dalla pratica attuale. Posso revocare il consenso in qualsiasi momento, anche per singolo canale.
+           </span>
+         </label>
+         <label class="cp-checkbox">
+           <input type="radio" name="cpOtpMarketing" value="false" />
+           <span class="cp-checkbox-text"><strong>NON ACCONSENTO</strong> ai ricontatti promozionali. Gli aggiornamenti di servizio sulla pratica specifica restano comunque consentiti e separati.</span>
+         </label>
+       </div>
        <div id="cpOtpStatus" class="cp-status cp-status-info" style="display:none;"></div>
        <div id="cpOtpInputArea" style="display:none;">
          <div class="cp-section">
@@ -6529,7 +6537,7 @@ Reload Forever
      `;
      const footer = `
        <button type="button" class="mx-btn mx-btn-secondary" data-cp-cancel>Annulla</button>
-       <button type="button" class="mx-btn mx-btn-primary" id="cpOtpSend">Invia SMS</button>
+       <button type="button" class="mx-btn mx-btn-primary" id="cpOtpSend" disabled>Invia SMS</button>
        <button type="button" class="mx-btn mx-btn-primary" id="cpOtpVerify" style="display:none;">Verifica OTP</button>
      `;
      // closable:false disabilita chiusura via backdrop-click / ESC / X in alto.
@@ -6543,7 +6551,7 @@ Reload Forever
 
      const cellularInput = m.body.querySelector('#cpOtpCellulare');
      const editBtn = m.body.querySelector('#cpOtpEditNum');
-     const marketingChk = m.body.querySelector('#cpOtpMarketing');
+     const marketingChoices = Array.from(m.body.querySelectorAll('input[name="cpOtpMarketing"]'));
      const statusEl = m.body.querySelector('#cpOtpStatus');
      const inputArea = m.body.querySelector('#cpOtpInputArea');
      const sendBtn = m.foot.querySelector('#cpOtpSend');
@@ -6552,6 +6560,18 @@ Reload Forever
      const timerEl = m.body.querySelector('#cpOtpTimer');
      const otpInputs = Array.from(m.body.querySelectorAll('[data-cp-otp]'));
      cellularInput.readOnly = true;
+
+     function marketingChoice() {
+       const selected = marketingChoices.find((input) => input.checked);
+       if (!selected) return null;
+       return selected.value === 'true';
+     }
+
+     marketingChoices.forEach((input) => {
+       input.addEventListener('change', () => {
+         sendBtn.disabled = marketingChoice() === null;
+       });
+     });
 
      editBtn.addEventListener('click', () => {
        cellularInput.readOnly = false;
@@ -6633,6 +6653,11 @@ Reload Forever
          setStatus('Numero cellulare non valido. Usa formato italiano (3XX...) o E.164 (+39...).', 'err');
          return;
        }
+       const consensoMarketing = marketingChoice();
+       if (consensoMarketing === null) {
+         setStatus('Scegli ACCONSENTO oppure NON ACCONSENTO prima di inviare l\'SMS.', 'err');
+         return;
+       }
        sendBtn.disabled = true;
        sendBtn.textContent = 'Invio in corso...';
        setStatus('Invio SMS in corso al ' + numNorm + '...', 'info');
@@ -6644,13 +6669,13 @@ Reload Forever
            body: JSON.stringify({
              anagrafica_id: anagraficaId,
              cellulare: numNorm,
-             consenso_marketing: !!marketingChk.checked,
+             consenso_marketing: consensoMarketing,
              pratica_id: praticaId
            })
          });
          const json = await res.json().catch(() => ({}));
          if (!res.ok || !json.success) {
-           sendBtn.disabled = false;
+           sendBtn.disabled = marketingChoice() === null;
            sendBtn.textContent = isResend ? 'Reinvia SMS' : 'Invia SMS';
            setStatus(json.error || ('Errore invio SMS (HTTP ' + res.status + ')'), 'err');
            return;
@@ -6664,14 +6689,14 @@ Reload Forever
          inputArea.style.display = 'block';
          cellularInput.readOnly = true;
          editBtn.disabled = true;
-         marketingChk.disabled = true;
+         marketingChoices.forEach((input) => { input.disabled = true; });
          const simulatedNote = json.simulated ? ' (modalita\' simulazione)' : '';
          setStatus('SMS inviato al ' + numNorm + simulatedNote + '. Chiedi al cliente di leggere il codice ricevuto.', 'ok');
          startCountdown();
          startResendCooldown(60);
          otpInputs[0].focus();
        } catch (e) {
-         sendBtn.disabled = false;
+         sendBtn.disabled = marketingChoice() === null;
          sendBtn.textContent = isResend ? 'Reinvia SMS' : 'Invia SMS';
          setStatus('Errore di rete: ' + (e && e.message ? e.message : String(e)), 'err');
        }
@@ -6769,14 +6794,14 @@ Reload Forever
        <div class="cp-info">
          <strong>Procedura:</strong>
          <ol style="margin:6px 0 0;padding-left:20px;line-height:1.7;">
-           <li>Scarica il PDF dell'informativa precompilato con i dati del cliente.</li>
-           <li>Stampalo, fai barrare al cliente ACCONSENTO oppure NON ACCONSENTO e raccogli la firma.</li>
+           <li>Scegli ACCONSENTO oppure NON ACCONSENTO.</li>
+           <li>Scarica il PDF precompilato: la scelta sara' gia' visibile sul modulo.</li>
+           <li>Stampalo e raccogli la firma del cliente.</li>
            <li>Scansiona il modulo firmato e caricalo qui sotto in formato PDF.</li>
-           <li>Indica qui sotto la scelta riportata sul modulo, così il dato registrato coincide con la scansione.</li>
          </ol>
        </div>
        <div class="cp-section">
-         <h4>Scelta marketing riportata sul modulo firmato</h4>
+         <h4>Scelta marketing da riportare sul modulo</h4>
          <label class="cp-checkbox">
            <input type="radio" name="cpCartMarketing" value="true" />
            <span class="cp-checkbox-text"><strong>ACCONSENTO</strong></span>
@@ -6787,7 +6812,7 @@ Reload Forever
          </label>
        </div>
        <div style="display:flex;gap:10px;align-items:center;">
-         <button type="button" class="mx-btn mx-btn-primary" id="cpCartDownload">Scarica modulo PDF</button>
+         <button type="button" class="mx-btn mx-btn-primary" id="cpCartDownload" disabled>Scarica modulo PDF</button>
          <span id="cpCartDownloadInfo" style="font-size:12px;color:#697386;"></span>
        </div>
        <div class="cp-section">
@@ -6828,6 +6853,10 @@ Reload Forever
        confirmBtn.disabled = !(downloaded && scannedFile && marketingChoice() !== null);
      }
 
+     function refreshDownloadEnabled() {
+       dlBtn.disabled = marketingChoice() === null;
+     }
+
      function marketingChoice() {
        const selected = marketingChoices.find((input) => input.checked);
        if (!selected) return null;
@@ -6835,10 +6864,17 @@ Reload Forever
      }
 
      dlBtn.addEventListener('click', async () => {
+       const consensoMarketing = marketingChoice();
+       if (consensoMarketing === null) {
+         setStatus('Scegli ACCONSENTO oppure NON ACCONSENTO prima di scaricare il modulo.', 'err');
+         return;
+       }
        dlBtn.disabled = true;
        dlBtn.textContent = 'Generazione in corso...';
        try {
-         const url = '/.netlify/functions/genera-pdf-consenso-cartaceo?anagrafica_id=' + encodeURIComponent(anagraficaId);
+         const url = '/.netlify/functions/genera-pdf-consenso-cartaceo?anagrafica_id='
+           + encodeURIComponent(anagraficaId)
+           + '&consenso_marketing=' + (consensoMarketing ? 'true' : 'false');
          const res = await MiroxApi.fetch(url);
          if (!res.ok) {
            const j = await res.json().catch(() => ({}));
@@ -6855,11 +6891,12 @@ Reload Forever
          setTimeout(() => URL.revokeObjectURL(objUrl), 5000);
          downloaded = true;
          dlInfo.textContent = 'Scaricato: ' + filename;
+         marketingChoices.forEach((input) => { input.disabled = true; });
          dlBtn.disabled = false;
          dlBtn.textContent = 'Scarica di nuovo';
          refreshConfirmEnabled();
        } catch (e) {
-         dlBtn.disabled = false;
+         refreshDownloadEnabled();
          dlBtn.textContent = 'Scarica modulo PDF';
          setStatus('Errore generazione PDF: ' + (e.message || e), 'err');
        }
@@ -6889,7 +6926,11 @@ Reload Forever
      }
 
      drop.addEventListener('click', () => fileInput.click());
-     marketingChoices.forEach((input) => input.addEventListener('change', refreshConfirmEnabled));
+     marketingChoices.forEach((input) => input.addEventListener('change', () => {
+       refreshDownloadEnabled();
+       refreshConfirmEnabled();
+     }));
+     refreshDownloadEnabled();
      fileInput.addEventListener('change', () => handleFile(fileInput.files && fileInput.files[0]));
      drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('is-over'); });
      drop.addEventListener('dragleave', () => drop.classList.remove('is-over'));

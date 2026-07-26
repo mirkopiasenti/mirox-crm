@@ -102,8 +102,8 @@ function buildIndirizzo(a) {
     return composed || '-';
 }
 
-const PAPER_BODY_FONT_SIZE = 8;
-const PAPER_LINE_GAP = -0.5;
+const PAPER_BODY_FONT_SIZE = 10;
+const PAPER_LINE_GAP = 0;
 const PAPER_MARGIN = 34; // 12 mm
 
 const PAPER_TITLE = 'INFORMATIVA PRIVACY CRM MIROX E CONSENSO AI RICONTATTI — KONA TECH S.r.l.';
@@ -201,6 +201,10 @@ function drawPaperInlineBlock(doc, title, body, x, y, width) {
 async function generateConsensoPdfCartaceo(opts) {
     const a = opts.anagrafica || {};
     const dataCompilazione = opts.dataCompilazione || new Date().toISOString();
+    if (typeof opts.consensoMarketing !== 'boolean') {
+        throw new Error('La scelta marketing ACCONSENTO/NON ACCONSENTO è obbligatoria per il modulo cartaceo');
+    }
+    const consensoMarketing = opts.consensoMarketing;
 
     return new Promise((resolve, reject) => {
         try {
@@ -239,7 +243,7 @@ async function generateConsensoPdfCartaceo(opts) {
             const columnGap = 12;
             const columnWidth = (contentWidth - columnGap) / 2;
 
-            doc.fillColor('#000000').font('Helvetica-Bold').fontSize(10.5);
+            doc.fillColor('#000000').font('Helvetica-Bold').fontSize(12.5);
             doc.text(PAPER_TITLE, left, PAPER_MARGIN, {
                 width: contentWidth,
                 align: 'left',
@@ -261,7 +265,7 @@ async function generateConsensoPdfCartaceo(opts) {
             });
 
             let currentY = Math.max(leftY, rightY) + 5;
-            doc.fillColor('#000000').font('Helvetica-Bold').fontSize(8.5);
+            doc.fillColor('#000000').font('Helvetica-Bold').fontSize(10.5);
             doc.text('DATI DELL\'INTERESSATO', left, currentY, {
                 width: contentWidth,
                 lineGap: PAPER_LINE_GAP
@@ -307,14 +311,17 @@ async function generateConsensoPdfCartaceo(opts) {
                 contentWidth
             ) + 3;
 
-            doc.fillColor('#000000').font('Helvetica-Bold').fontSize(PAPER_BODY_FONT_SIZE);
-            doc.text('[ ] ACCONSENTO      [ ] NON ACCONSENTO', left, currentY, {
+            const sceltaMarketing = consensoMarketing
+                ? '[X] ACCONSENTO      [ ] NON ACCONSENTO'
+                : '[ ] ACCONSENTO      [X] NON ACCONSENTO';
+            doc.fillColor('#000000').font('Helvetica-Bold').fontSize(10.5);
+            doc.text(sceltaMarketing, left, currentY, {
                 width: contentWidth,
                 lineGap: PAPER_LINE_GAP
             });
-            currentY = doc.y + 7;
+            currentY = doc.y + 28;
 
-            doc.font('Helvetica').fontSize(PAPER_BODY_FONT_SIZE);
+            doc.font('Helvetica').fontSize(10.5);
             doc.text(
                 'Luogo e data: ____________________  Firma leggibile dell\'interessato: ____________________',
                 left,
@@ -324,7 +331,7 @@ async function generateConsensoPdfCartaceo(opts) {
             const signatureBottom = doc.y;
             const versionY = doc.page.height - PAPER_MARGIN - 12;
 
-            doc.font('Helvetica').fontSize(7.5);
+            doc.font('Helvetica').fontSize(8);
             doc.text(
                 `Versione ${INFORMATIVA_VERSIONE_CARTACEO}`,
                 left,
@@ -625,11 +632,17 @@ async function generateConsensoPdfDigitale(opts) {
             doc.y = cy;
 
             drawCheckRow(doc, left, cy, consensoMarketing,
-                'Acconsento a essere ricontattato da Kona Tech, utilizzando i dati presenti nel CRM, tramite chiamata ' +
+                'ACCONSENTO. Acconsento a essere ricontattato da Kona Tech, utilizzando i dati presenti nel CRM, tramite chiamata ' +
                 'telefonica con operatore, messaggio WhatsApp o email per ricevere proposte su nuove offerte, promozioni, ' +
                 'servizi o nuovi contratti, anche diversi e ulteriori rispetto alla pratica originaria (punto 3.d), ' +
                 'per un massimo di 24 mesi. Posso revocare il consenso in ogni momento, anche per singolo canale. ' +
                 'CONSENSO FACOLTATIVO.',
+                { width: right - left - 22 });
+
+            cy = doc.y + 8;
+            doc.y = cy;
+            drawCheckRow(doc, left, cy, !consensoMarketing,
+                'NON ACCONSENTO al trattamento per finalità di marketing descritto sopra.',
                 { width: right - left - 22 });
 
             doc.y = doc.y + 18;
@@ -654,7 +667,8 @@ async function generateConsensoPdfDigitale(opts) {
             const linesR = [
                 'Operatore Mirox:    ' + safeText(otpMd.operatoreNome, '-'),
                 'IP operatore:       ' + safeText(otpMd.ipOperatore, '-'),
-                'ID consenso:        ' + safeText(otpMd.consensoId, '-')
+                'ID consenso:        ' + safeText(otpMd.consensoId, '-'),
+                'Scelta marketing:   ' + (consensoMarketing ? 'ACCONSENTO' : 'NON ACCONSENTO')
             ];
             let ly = metaY;
             linesL.forEach((t) => { doc.text(t, left + 12, ly, { width: (right - left) / 2 - 12 }); ly += 14; });

@@ -6,7 +6,7 @@
  *     anagrafica_id: uuid,            // obbligatorio
  *     cellulare: string,              // numero a cui mandare l'OTP (puo' essere
  *                                     //   diverso dal cellulare in anagrafica)
- *     consenso_marketing: boolean,    // opzionale, default false
+ *     consenso_marketing: boolean,    // obbligatorio: ACCONSENTO/NON ACCONSENTO
  *     pratica_id: uuid|null           // opzionale, riferimento di origine
  *   }
  *
@@ -97,7 +97,13 @@ exports.handler = async (event) => {
         return response(400, { success: false, error: 'Cellulare non valido: usare formato italiano o E.164' });
     }
 
-    const consensoMarketing = !!payload.consenso_marketing;
+    if (typeof payload.consenso_marketing !== 'boolean') {
+        return response(400, {
+            success: false,
+            error: 'La scelta marketing ACCONSENTO/NON ACCONSENTO e\' obbligatoria prima dell\'invio OTP'
+        });
+    }
+    const consensoMarketing = payload.consenso_marketing;
     const praticaId = (payload.pratica_id && UUID_REGEX.test(String(payload.pratica_id))) ? String(payload.pratica_id).toLowerCase() : null;
 
     const SUPABASE_URL = process.env.SUPABASE_URL;

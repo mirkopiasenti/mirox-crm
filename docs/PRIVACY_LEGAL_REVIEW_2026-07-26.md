@@ -4,7 +4,7 @@
 
 Questa revisione migliora il testo e il flusso del CRM sulla base del GDPR e delle fonti ufficiali disponibili. È una revisione tecnico-documentale, non un parere legale e non sostituisce la validazione di un avvocato o consulente privacy che conosca i rapporti contrattuali effettivi di Kona Tech.
 
-Le versioni PDF correnti sono `v4_2026_07_26` per il modulo cartaceo e `v4_2026_07_26_dig` per la dichiarazione digitale via OTP.
+Le versioni PDF correnti sono `v5_2026_07_26` per il modulo cartaceo e `v5_2026_07_26_dig` per la dichiarazione digitale via OTP.
 
 ## Correzioni implementate
 
@@ -16,9 +16,10 @@ Le versioni PDF correnti sono `v4_2026_07_26` per il modulo cartaceo e `v4_2026_
 - Il consenso promozionale facoltativo copre in modo espresso chiamate con operatore, messaggi WhatsApp ed email per nuove offerte, promozioni, servizi o nuovi contratti, anche diversi dalla pratica originaria. Dura al massimo 24 mesi ed è revocabile anche per singolo canale.
 - Sono state distinte le categorie di dati, le finalità e le basi giuridiche; sono descritti destinatari, possibili trasferimenti extra SEE, tempi di conservazione e diritti dell'interessato.
 - L'OCR tramite Anthropic è dichiarato come supporto alla trascrizione con verifica umana e senza decisione esclusivamente automatizzata con effetti significativi.
-- Il PDF digitale resta su tre pagine e descrive il flusso reale: OTP di 6 cifre inviato via SMS e conservazione di invio/conferma, identificativo SMS, esito/tentativi, IP, user agent e hash SHA256 del documento.
-- Il modulo cartaceo è una sola pagina A4 monocromatica, corpo 8 pt, con informativa su due colonne e dati cliente, dichiarazioni, doppia scelta marketing e riga della firma a larghezza piena.
-- I documenti v1/v2/v3 restano validi come evidenza storica ma non vengono riutilizzati dal backend: alla successiva pratica il cliente deve ricevere una delle due versioni v4 e scegliere nuovamente il flag promozionale. Alla verifica production del 26 luglio 2026 risultavano 170 documenti v1 confermati: 168 con `consenso_marketing=true` e 2 con `false`; nessuno è stato riscritto o riclassificato.
+- Il PDF digitale resta su tre pagine e descrive il flusso reale: OTP di 6 cifre inviato via SMS e conservazione di invio/conferma, identificativo SMS, esito/tentativi, IP, user agent e hash SHA256 del documento. Mostra sia ACCONSENTO sia NON ACCONSENTO, marca una sola opzione e riporta la scelta nel riquadro probatorio.
+- Il modulo cartaceo è una sola pagina A4 monocromatica, corpo 10 pt, con informativa su due colonne e dati cliente, dichiarazioni, scelta marketing già marcata e riga della firma a larghezza piena separata dal testo.
+- In entrambi i flussi l'operatore deve scegliere esplicitamente ACCONSENTO oppure NON ACCONSENTO prima del download o dell'invio OTP. L'obbligo riguarda l'espressione della scelta, non il consenso marketing: NON ACCONSENTO resta pienamente ammesso.
+- I documenti v1/v2/v3/v4 restano validi come evidenza storica ma non vengono riutilizzati dal backend: alla successiva pratica il cliente deve ricevere una delle due versioni v5 e scegliere nuovamente il flag promozionale. Alla verifica production del 26 luglio 2026 risultavano 170 documenti v1 confermati: 168 con `consenso_marketing=true` e 2 con `false`; nessuno è stato riscritto o riclassificato.
 
 ## Decisioni da far validare prima di considerare il testo definitivo
 

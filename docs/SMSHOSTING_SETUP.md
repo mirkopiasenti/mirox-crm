@@ -112,9 +112,10 @@ Per iniziare:
 4. Inserisci un cliente di test con tuo cellulare reale
 5. Aggiungi un contratto al carrello, premi "Invia pratica"
 6. Quando si apre il popup "OTP o cartaceo?", scegli OTP
-7. Premi "Invia SMS" → vedrai nei log Netlify (Functions → richiedi-otp-privacy → Real-time logs) la riga `[smshosting][SIMULATED]` con il codice OTP in chiaro
-8. Inserisci quel codice nei 6 box → "Verifica OTP" → conferma
-9. La pratica viene creata normalmente. Il PDF generato è in `consensi-privacy/<YYYY>/<MM>/`
+7. Scegli esplicitamente ACCONSENTO oppure NON ACCONSENTO; finché non scegli, "Invia SMS" resta disabilitato
+8. Premi "Invia SMS" → vedrai nei log Netlify (Functions → richiedi-otp-privacy → Real-time logs) la riga `[smshosting][SIMULATED]` con il codice OTP in chiaro
+9. Inserisci quel codice nei 6 box → "Verifica OTP" → conferma
+10. La pratica viene creata normalmente. Il PDF generato è in `consensi-privacy/<YYYY>/<MM>/` e mostra la scelta sia nella sezione consenso sia nel riquadro probatorio
 
 ### 6.2 Test reale (1 SMS = ~€0.05)
 
@@ -126,11 +127,12 @@ Per iniziare:
 ### 6.3 Test del flusso cartaceo (no SMS, no credito)
 
 1. Su upload-contratti: scegli "Modulo cartaceo" al popup
-2. Clicca "Scarica modulo PDF" → ti scarica `Privacy_<RagSoc>_<CF>_<data>.pdf`
-3. Apri il PDF: deve essere una sola pagina A4 in bianco e nero, con dati cliente, ACCONSENTO/NON ACCONSENTO entrambi vuoti e riga firma
-4. Stampa, barra una scelta, firma a mano (anche con scarabocchio per test) e scansiona
-5. Nella modale seleziona la stessa scelta presente sul foglio, carica la scansione e premi "Carica e conferma"
-6. Il PDF viene salvato in `consensi-privacy/<YYYY>/<MM>/` con stesso naming. Il flusso non richiede credito SMS.
+2. Scegli esplicitamente ACCONSENTO oppure NON ACCONSENTO; finché non scegli, "Scarica modulo PDF" resta disabilitato
+3. Clicca "Scarica modulo PDF" → ti scarica `Privacy_<RagSoc>_<CF>_<data>.pdf` e blocca la scelta per mantenerla coerente con il file
+4. Apri il PDF: deve essere una sola pagina A4 in bianco e nero, corpo 10 pt, con dati cliente, una sola scelta già marcata e riga firma separata dal testo
+5. Stampa, firma a mano (anche con scarabocchio per test) e scansiona
+6. Carica la scansione e premi "Carica e conferma"
+7. Il PDF viene salvato in `consensi-privacy/<YYYY>/<MM>/` con stesso naming. Il flusso non richiede credito SMS.
 
 ---
 

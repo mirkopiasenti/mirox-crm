@@ -33,7 +33,7 @@ const carrelloModule = loadCommonJs('netlify/functions/crea-vendita-pratica-carr
   '@supabase/supabase-js': { createClient() { return {}; } },
   './_lib/require-auth': { requireAuth: async () => ({ ok: false }) },
   './_lib/privacy-config': {
-    INFORMATIVE_VERSIONI_CORRENTI: ['v4_2026_07_26', 'v4_2026_07_26_dig']
+    INFORMATIVE_VERSIONI_CORRENTI: ['v5_2026_07_26', 'v5_2026_07_26_dig']
   }
 });
 

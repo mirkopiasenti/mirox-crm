@@ -99,7 +99,7 @@ test('migration 055 applica 24 mesi, lock atomico e privilegi minimi', () => {
   assert.doesNotMatch(migration, /create\s+or\s+replace\s+function\s+public\.get_slot_disponibili/i);
 });
 
-test('informative privacy CRM v4 generano cartaceo su una pagina e digitale su tre pagine', async () => {
+test('informative privacy CRM v5 generano cartaceo su una pagina e digitale su tre pagine', async () => {
   const {
     generateConsensoPdf,
     INFORMATIVA_VERSIONE_CARTACEO,
@@ -133,21 +133,38 @@ test('informative privacy CRM v4 generano cartaceo su una pagina e digitale su t
       consensoId: '11111111-1111-4111-8111-111111111111'
     }
   });
-  const paper = await generateConsensoPdf({ ...base, modalita: 'cartaceo' });
+  const paperYes = await generateConsensoPdf({ ...base, modalita: 'cartaceo' });
+  const paperNo = await generateConsensoPdf({
+    ...base,
+    modalita: 'cartaceo',
+    consensoMarketing: false
+  });
 
   assert.equal(otp.buffer.subarray(0, 5).toString('ascii'), '%PDF-');
-  assert.equal(paper.buffer.subarray(0, 5).toString('ascii'), '%PDF-');
+  assert.equal(paperYes.buffer.subarray(0, 5).toString('ascii'), '%PDF-');
+  assert.equal(paperNo.buffer.subarray(0, 5).toString('ascii'), '%PDF-');
   assert.match(otp.hash, /^[0-9a-f]{64}$/);
-  assert.match(paper.hash, /^[0-9a-f]{64}$/);
+  assert.match(paperYes.hash, /^[0-9a-f]{64}$/);
+  assert.match(paperNo.hash, /^[0-9a-f]{64}$/);
   assert.equal((otp.buffer.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length, 3);
-  assert.equal((paper.buffer.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length, 1);
+  assert.equal((paperYes.buffer.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length, 1);
+  assert.equal((paperNo.buffer.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length, 1);
   assert.equal(otp.informativaVersione, INFORMATIVA_VERSIONE_DIGITALE);
-  assert.equal(paper.informativaVersione, INFORMATIVA_VERSIONE_CARTACEO);
-  assert.equal(INFORMATIVA_VERSIONE_CARTACEO, 'v4_2026_07_26');
-  assert.equal(INFORMATIVA_VERSIONE_DIGITALE, 'v4_2026_07_26_dig');
+  assert.equal(paperYes.informativaVersione, INFORMATIVA_VERSIONE_CARTACEO);
+  assert.equal(paperNo.informativaVersione, INFORMATIVA_VERSIONE_CARTACEO);
+  assert.equal(INFORMATIVA_VERSIONE_CARTACEO, 'v5_2026_07_26');
+  assert.equal(INFORMATIVA_VERSIONE_DIGITALE, 'v5_2026_07_26_dig');
+  await assert.rejects(
+    generateConsensoPdf({
+      ...base,
+      modalita: 'cartaceo',
+      consensoMarketing: undefined
+    }),
+    /ACCONSENTO\/NON ACCONSENTO/
+  );
 });
 
-test('informative v4 rispettano testi, layout cartaceo e riuso di entrambe le modalita', () => {
+test('informative v5 rendono obbligatoria e visibile la scelta marketing', () => {
   const pdfSource = fs.readFileSync(
     path.join(ROOT, 'netlify/functions/_lib/pdf-consenso.js'),
     'utf8'
@@ -160,10 +177,23 @@ test('informative v4 rispettano testi, layout cartaceo e riuso di entrambe le mo
     path.join(ROOT, 'netlify/functions/crea-vendita-pratica-carrello.js'),
     'utf8'
   );
+  const paperEndpointSource = fs.readFileSync(
+    path.join(ROOT, 'netlify/functions/genera-pdf-consenso-cartaceo.js'),
+    'utf8'
+  );
+  const otpRequestSource = fs.readFileSync(
+    path.join(ROOT, 'netlify/functions/richiedi-otp-privacy.js'),
+    'utf8'
+  );
+  const wizardSource = fs.readFileSync(
+    path.join(ROOT, 'moduli/upload-contratti-vendita.html'),
+    'utf8'
+  );
 
-  assert.match(pdfSource, /const PAPER_BODY_FONT_SIZE = 8;/);
+  assert.match(pdfSource, /const PAPER_BODY_FONT_SIZE = 10;/);
   assert.match(pdfSource, /const PAPER_MARGIN = 34;/);
-  assert.match(pdfSource, /\[ \] ACCONSENTO      \[ \] NON ACCONSENTO/);
+  assert.match(pdfSource, /\[X\] ACCONSENTO      \[ \] NON ACCONSENTO/);
+  assert.match(pdfSource, /\[ \] ACCONSENTO      \[X\] NON ACCONSENTO/);
   assert.match(pdfSource, /Firma leggibile dell\\'interessato: ____________________/);
   assert.match(pdfSource, /Versione \$\{INFORMATIVA_VERSIONE_CARTACEO\}/);
   assert.doesNotMatch(pdfSource, /Qualora venga designato/);
@@ -171,6 +201,15 @@ test('informative v4 rispettano testi, layout cartaceo e riuso di entrambe le mo
   assert.match(pdfSource, /nominati responsabili del trattamento ai sensi dell\\'art\. 28 GDPR ove trattino dati per conto del Titolare/);
   assert.match(pdfSource, /codice OTP di 6 cifre inviato via SMS/);
   assert.match(pdfSource, /esito e tentativi dell\\'OTP, indirizzo IP, user agent e hash SHA-256 del documento/);
+  assert.match(pdfSource, /Scelta marketing:\s+' \+ \(consensoMarketing \? 'ACCONSENTO' : 'NON ACCONSENTO'\)/);
+  assert.match(paperEndpointSource, /consenso_marketing=true\|false/);
+  assert.match(paperEndpointSource, /consensoMarketingRaw !== 'true' && consensoMarketingRaw !== 'false'/);
+  assert.match(otpRequestSource, /typeof payload\.consenso_marketing !== 'boolean'/);
+  assert.match(wizardSource, /name="cpOtpMarketing" value="true"/);
+  assert.match(wizardSource, /name="cpOtpMarketing" value="false"/);
+  assert.match(wizardSource, /id="cpOtpSend" disabled/);
+  assert.match(wizardSource, /id="cpCartDownload" disabled/);
+  assert.match(wizardSource, /&consenso_marketing=' \+ \(consensoMarketing \? 'true' : 'false'\)/);
   assert.match(checkSource, /\.in\('informativa_versione', INFORMATIVE_VERSIONI_CORRENTI\)/);
   assert.match(cartSource, /\.in\('informativa_versione', INFORMATIVE_VERSIONI_CORRENTI\)/);
 });
