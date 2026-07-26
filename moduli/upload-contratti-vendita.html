@@ -1039,9 +1039,10 @@
  }
  }
 </style>
+<script src="../js/mirox-safe.js"></script>
 </head>
 <body>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
 <script src="../js/config.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/mirox-ui.js"></script>
@@ -4668,13 +4669,13 @@ Reload Forever
  updateLoadingOverlay('Caricamento in corso', 'Creazione pratica e contratti...');
  markTechnicalChecking('Verifica...');
 
- // Pre-step: consenso privacy GDPR (migration 034). Garantisce
- // anagrafica, fa dedupe 48 mesi, altrimenti apre modale OTP/cartaceo.
+ // Pre-step: informativa privacy GDPR (migration 034). Garantisce
+ // anagrafica, riusa l'informativa fino a 24 mesi, altrimenti apre modale OTP/cartaceo.
  // Ritorna { consenso_id, anagrafica_id, riusato }.
  hideLoadingOverlay();
  const consensoResult = await ensureConsensoPrivacy(payload);
  if (!consensoResult || !consensoResult.consenso_id) {
-   throw new Error('Consenso privacy non raccolto: impossibile procedere con l\'invio pratica.');
+   throw new Error('Presa visione dell\'informativa privacy non raccolta: impossibile procedere con l\'invio pratica.');
  }
  payload.pratica = payload.pratica || {};
  payload.pratica.consenso_id = consensoResult.consenso_id;
@@ -6403,8 +6404,8 @@ Reload Forever
    const turista = isTuristaCluster(cliente.cluster);
    if (!cliente.cf_piva || !cliente.cellulare || (!turista && !cliente.email) || !cliente.ragione_sociale) {
      throw new Error(turista
-       ? 'Dati cliente incompleti per il consenso privacy. Compila CF/PIVA, ragione sociale e cellulare.'
-       : 'Dati cliente incompleti per il consenso privacy. Compila CF/PIVA, ragione sociale, email e cellulare.');
+       ? 'Dati cliente incompleti per l\'informativa privacy. Compila CF/PIVA, ragione sociale e cellulare.'
+       : 'Dati cliente incompleti per l\'informativa privacy. Compila CF/PIVA, ragione sociale, email e cellulare.');
    }
 
    // 1) garantisci-anagrafica -> anagrafica_id
@@ -6422,25 +6423,25 @@ Reload Forever
    const anagraficaId = garJson.anagrafica_id;
 
    // 2) check-consenso-privacy
-   updateLoadingOverlay('Verifica consenso privacy', 'Controllo consensi attivi del cliente...');
+   updateLoadingOverlay('Verifica informativa privacy', 'Controllo documenti privacy attivi del cliente...');
    const chkRes = await MiroxApi.fetch('/.netlify/functions/check-consenso-privacy?anagrafica_id=' + encodeURIComponent(anagraficaId));
    const chkJson = await chkRes.json().catch(() => ({}));
    if (!chkRes.ok || !chkJson.success) {
      hideLoadingOverlay();
-     throw new Error('Errore verifica consenso: ' + (chkJson.error || ('HTTP ' + chkRes.status)));
+     throw new Error('Errore verifica informativa privacy: ' + (chkJson.error || ('HTTP ' + chkRes.status)));
    }
 
    hideLoadingOverlay();
 
    if (chkJson.valido && chkJson.consenso) {
      const scadenza = cpFormatItalianDate(chkJson.consenso.valido_fino_al);
-     MiroxUI.toast('Consenso privacy gia\' attivo per questo cliente (valido fino al ' + scadenza + ')', 'success', 5000);
+     MiroxUI.toast('Informativa privacy gia\' registrata per questo cliente (valida fino al ' + scadenza + ')', 'success', 5000);
      return { consenso_id: chkJson.consenso.id, anagrafica_id: anagraficaId, riusato: true };
    }
 
    // 3) modale "OTP o cartaceo?"
    const modality = await chooseConsensoModality({ cliente });
-   if (!modality) throw new Error('Raccolta consenso annullata');
+   if (!modality) throw new Error('Raccolta informativa annullata');
 
    if (modality === 'otp') {
      const r = await runOtpFlow({ anagraficaId, cliente, praticaId: null });
@@ -6448,7 +6449,7 @@ Reload Forever
      return { consenso_id: r.consenso_id, anagrafica_id: anagraficaId, riusato: false };
    } else {
      const r = await runCartaceoFlow({ anagraficaId, cliente, praticaId: null });
-     if (!r) throw new Error('Raccolta consenso cartaceo annullata');
+     if (!r) throw new Error('Raccolta informativa cartacea annullata');
      return { consenso_id: r.consenso_id, anagrafica_id: anagraficaId, riusato: false };
    }
  }
@@ -6458,13 +6459,13 @@ Reload Forever
    return new Promise((resolve) => {
      const html = cpBuildClientCard(cliente) + `
        <div style="margin-top:6px;font-size:13.5px;color:#0A2540;">
-         Per archiviare i dati di questo cliente nel CRM Mirox e' richiesto il consenso al trattamento dei dati personali ai sensi dell'art. 13 GDPR. Scegli la modalita' di raccolta:
+         Prima di archiviare i dati nel CRM Mirox il cliente deve ricevere l'informativa privacy e dichiararne la presa visione. I trattamenti necessari al contratto non si basano sul consenso; il consenso marketing resta separato e facoltativo. Scegli la modalita' di registrazione:
        </div>
        <div class="cp-choices">
          <button type="button" class="cp-choice" data-cp-modality="otp">
            <span class="cp-choice-badge">Consigliato</span>
-           <span class="cp-choice-title">Firma con OTP via SMS</span>
-           <span class="cp-choice-sub">Invio codice di verifica al cellulare del cliente. Il consenso viene archiviato in formato elettronico con audit trail completo.</span>
+           <span class="cp-choice-title">Dichiarazione con OTP via SMS</span>
+           <span class="cp-choice-sub">Invio del codice al cellulare del cliente e registrazione elettronica della presa visione, con dati probatori.</span>
          </button>
          <button type="button" class="cp-choice" data-cp-modality="cartaceo">
            <span class="cp-choice-title">Modulo cartaceo</span>
@@ -6473,7 +6474,7 @@ Reload Forever
        </div>
      `;
      const footer = `<button type="button" class="mx-btn mx-btn-secondary" data-cp-cancel>Annulla</button>`;
-     const m = MiroxUI._build({ title: 'Consenso privacy GDPR', bodyHtml: html, footerHtml: footer, large: true, onClose: () => resolve(null) });
+     const m = MiroxUI._build({ title: 'Informativa privacy GDPR', bodyHtml: html, footerHtml: footer, large: true, onClose: () => resolve(null) });
      m.body.querySelectorAll('[data-cp-modality]').forEach((btn) => {
        btn.addEventListener('click', () => {
          const v = btn.getAttribute('data-cp-modality');
@@ -6506,7 +6507,7 @@ Reload Forever
        <label class="cp-checkbox">
          <input type="checkbox" id="cpOtpMarketing" />
          <span class="cp-checkbox-text">
-           <strong>Consenso marketing (facoltativo).</strong> Acconsento al trattamento dei miei dati personali per finalita' di marketing diretto, ovvero ricezione di comunicazioni commerciali via SMS, email o telefono relative a nuove offerte e servizi del titolare. Sempre revocabile.
+           <strong>Consenso marketing (facoltativo, 24 mesi).</strong> Acconsento a ricevere comunicazioni commerciali via SMS, email e telefono su prodotti e servizi commercializzati dal Titolare. Posso revocare il consenso in qualsiasi momento, anche per singolo canale, senza conseguenze sul contratto.
          </span>
        </label>
        <div id="cpOtpStatus" class="cp-status cp-status-info" style="display:none;"></div>
@@ -6531,7 +6532,7 @@ Reload Forever
      // closable:false disabilita chiusura via backdrop-click / ESC / X in alto.
      // L'utente puo' chiudere solo col bottone "Annulla" esplicito nel footer:
      // evita che il modale sparisca mentre si sta correggendo il numero cellulare.
-     const m = MiroxUI._build({ title: 'Consenso privacy - Firma con OTP', bodyHtml: html, footerHtml: footer, large: true, closable: false, onClose: () => {
+     const m = MiroxUI._build({ title: 'Informativa privacy - Conferma con OTP', bodyHtml: html, footerHtml: footer, large: true, closable: false, onClose: () => {
        if (timerHandle) clearInterval(timerHandle);
        if (cooldownHandle) clearInterval(cooldownHandle);
        resolve(null);
@@ -6762,7 +6763,7 @@ Reload Forever
        <label class="cp-checkbox">
          <input type="checkbox" id="cpCartMarketing" />
          <span class="cp-checkbox-text">
-           <strong>Consenso marketing (facoltativo).</strong> Acconsento al trattamento dei miei dati personali per finalita' di marketing diretto, ovvero ricezione di comunicazioni commerciali via SMS, email o telefono relative a nuove offerte e servizi del titolare. Sempre revocabile.
+           <strong>Consenso marketing (facoltativo, 24 mesi).</strong> Acconsento a ricevere comunicazioni commerciali via SMS, email e telefono su prodotti e servizi commercializzati dal Titolare. Posso revocare il consenso in qualsiasi momento, anche per singolo canale, senza conseguenze sul contratto.
          </span>
        </label>
        <div class="cp-info">
@@ -6793,7 +6794,7 @@ Reload Forever
      `;
      // closable:false: solo il bottone "Annulla" chiude il modale (no backdrop/ESC/X),
      // per evitare chiusure accidentali mentre si carica il PDF firmato.
-     const m = MiroxUI._build({ title: 'Consenso privacy - Modulo cartaceo', bodyHtml: html, footerHtml: footer, large: true, closable: false, onClose: () => resolve(null) });
+     const m = MiroxUI._build({ title: 'Informativa privacy - Modulo cartaceo', bodyHtml: html, footerHtml: footer, large: true, closable: false, onClose: () => resolve(null) });
 
      const marketingChk = m.body.querySelector('#cpCartMarketing');
      const dlBtn = m.body.querySelector('#cpCartDownload');

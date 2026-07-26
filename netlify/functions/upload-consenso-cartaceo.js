@@ -11,7 +11,7 @@
  *  1) Valida campi + file
  *  2) Carica scansione su bucket consensi-privacy
  *  3) Crea record vendita_consensi_privacy con stato='confermato',
- *     modalita='cartaceo', valido_fino_al = now()+48mo
+ *     modalita='cartaceo', valido_fino_al = now()+24mo
  *
  * Response 200:
  *   {
@@ -33,7 +33,7 @@ const { INFORMATIVA_VERSIONE } = require('./_lib/pdf-consenso');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
-const VALIDITA_MESI = 48;
+const VALIDITA_MESI = 24;
 const BUCKET_CONSENSI = 'consensi-privacy';
 
 const CORS_HEADERS = {

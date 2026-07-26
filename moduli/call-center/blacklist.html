@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../../css/style.css">
+<script src="../../js/mirox-safe.js"></script>
 </head>
 <body>
 <div class="cc-layout">
@@ -52,12 +53,13 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
 <script src="js/config.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/app.js"></script>
 <script src="js/notifiche.js"></script>
     <script src="../../js/cc-header.js"></script>
+<script src="../../js/mirox-ui.js"></script>
 <script src="../../js/mirox-api.js"></script>
 <script src="../../js/mirox-error-reporter.js"></script>
 <script>if (window.MiroxErrorReporter) window.MiroxErrorReporter.install({ source: 'cc-blacklist' });</script>
@@ -97,17 +99,22 @@ function filtro() {
 
     let html = '<div class="table-container"><table><thead><tr><th>Nome</th><th>CF/PIVA</th><th>Cellulare</th><th>Motivo</th><th>Data</th><th></th></tr></thead><tbody>';
     for (const i of f) {
+        const safeId = MiroxSafe.isRecordId(i.id) ? String(i.id) : '';
         html += `<tr>
             <td style="font-weight:600">${Utils.escapeHtml(i.nome_cognome||'')}</td>
             <td>${Utils.escapeHtml(i.cf_piva||'')}</td>
             <td>${Utils.escapeHtml(i.cellulare||'-')}</td>
             <td>${Utils.escapeHtml(i.motivo||'-')}</td>
             <td>${Utils.formatDate(i.created_at)}</td>
-            <td>${Auth.isAdmin()?'<button class="btn btn-sm btn-danger" onclick="rimuovi(\''+i.id+'\')">Rimuovi</button>':''}</td>
+            <td>${Auth.isAdmin() && safeId ? `<button class="btn btn-sm btn-danger" data-rimuovi-id="${safeId}">Rimuovi</button>` : ''}</td>
         </tr>`;
     }
     html += '</tbody></table></div>';
-    document.getElementById('lista').innerHTML = html;
+    const lista = document.getElementById('lista');
+    lista.innerHTML = html;
+    lista.querySelectorAll('[data-rimuovi-id]').forEach((button) => {
+        button.addEventListener('click', () => rimuovi(button.dataset.rimuoviId));
+    });
 }
 
 async function aggiungi() {
@@ -132,8 +139,20 @@ async function aggiungi() {
 }
 
 async function rimuovi(id) {
-    if (!confirm('Sei sicuro di voler rimuovere questo record dalla Black List?')) return;
-    await db.from('blacklist').delete().eq('id',id);
+    if (!MiroxSafe.isRecordId(id)) {
+        Utils.toast('Identificativo non valido', 'danger');
+        return;
+    }
+    const confermato = await MiroxUI.confirm(
+        'Sei sicuro di voler rimuovere questo record dalla Black List?',
+        { title: 'Rimuovi dalla Black List', danger: true, okText: 'Rimuovi' }
+    );
+    if (!confermato) return;
+    const { error } = await db.from('blacklist').delete().eq('id', id);
+    if (error) {
+        Utils.toast(`Errore: ${error.message}`, 'danger');
+        return;
+    }
     Utils.toast('Rimosso','success');
     await carica();
 }

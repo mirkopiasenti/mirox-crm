@@ -5,7 +5,7 @@
 <link rel="icon" type="image/png" href="../assets/favicon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestione Dispositivi in Comodato - WindTre</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
 <style> * {
  margin: 0;
  padding: 0;
@@ -462,9 +462,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/mirox-modules.css">
+<script src="../js/mirox-safe.js"></script>
 </head>
 <body>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
 <script src="../js/config.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/anagrafica-helper.js"></script>
@@ -655,6 +656,7 @@
 </div> <script> // Configurazione URL Google Apps Script
  // Migrato su Supabase: tabella post_vendita_dispositivi_comodato + storage bucket comodato-files
  const sb = db;
+ const escapeHtml = (value) => window.MiroxSafe.escapeHtml(value);
  (async () => {
  const p = window.__profilo || await Auth.getSessione();
  if (p) {
@@ -1179,7 +1181,7 @@
 
  function mostraRisultatoRicerca(dispositivo) {
  const html = `
-<strong> Dispositivo Trovato</strong><br> Cliente: ${dispositivo.nome} ${dispositivo.cognome}<br> CF: ${dispositivo.cf}<br> IMEI: ${dispositivo.imei || 'N/A'}<br> SIM: ${dispositivo.sim || 'N/A'}<br> Data Uscita: ${new Date(dispositivo.dataUscita).toLocaleDateString('it-IT')}<br> Giorni fuori: ${calcolaGiorniFuori(dispositivo.dataUscita)}
+<strong>Dispositivo trovato</strong><br> Cliente: ${escapeHtml(dispositivo.nome)} ${escapeHtml(dispositivo.cognome)}<br> CF: ${escapeHtml(dispositivo.cf)}<br> IMEI: ${escapeHtml(dispositivo.imei || 'N/A')}<br> SIM: ${escapeHtml(dispositivo.sim || 'N/A')}<br> Data uscita: ${escapeHtml(new Date(dispositivo.dataUscita).toLocaleDateString('it-IT'))}<br> Giorni fuori: ${escapeHtml(calcolaGiorniFuori(dispositivo.dataUscita))}
  `;
  
  document.getElementById('dispositivo-trovato').innerHTML = html;
@@ -1419,7 +1421,7 @@
  applicaFiltri();
  } catch (error) {
  console.error('Errore:', error);
- tbody.innerHTML = '<tr><td colspan="7"style="text-align: center; color: red;">Errore nel caricamento: ' + error.message + '</td></tr>';
+ tbody.innerHTML = '<tr><td colspan="7"style="text-align: center; color: red;">Errore nel caricamento: ' + escapeHtml(error.message) + '</td></tr>';
  }
  }
 
@@ -1466,6 +1468,8 @@
  dispositivi.forEach(d => {
  const giorniFuori = d.stato === 'fuori' ? calcolaGiorniFuori(d.dataUscita) : '-';
  const rowClass = d.stato === 'fuori' && giorniFuori> 7 ? 'highlight' : '';
+ const statoClass = d.stato === 'fuori' ? 'fuori' : 'rientrato';
+ const safeId = window.MiroxSafe.isRecordId(d.id) ? String(d.id) : '';
  
  // Formatta data rientro
  let dataRientro = '-';
@@ -1486,21 +1490,21 @@
  }
  
  const azioneRientroHtml = d.stato === 'fuori'
-   ? `<button type="button" class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="apriRientroDispositivo('${d.id}')">Rientro</button>`
+   ? `<button type="button" class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="apriRientroDispositivo('${safeId}')" ${safeId ? '' : 'disabled'}>Rientro</button>`
    : '';
- const azioneAllegatiHtml = `<button type="button" class="btn" style="padding:6px 10px;font-size:12px;background:#fff;color:#0A2540;border:1px solid #E3E8EE;border-radius:8px;cursor:pointer;font-weight:600;margin-left:6px;" onclick="apriAllegatiComodato('${d.id}')" title="Mostra allegati pratica">Allegati</button>`;
+ const azioneAllegatiHtml = `<button type="button" class="btn" style="padding:6px 10px;font-size:12px;background:#fff;color:#0A2540;border:1px solid #E3E8EE;border-radius:8px;cursor:pointer;font-weight:600;margin-left:6px;" onclick="apriAllegatiComodato('${safeId}')" title="Mostra allegati pratica" ${safeId ? '' : 'disabled'}>Allegati</button>`;
  const azioniRowHtml = (azioneRientroHtml || azioneAllegatiHtml)
    ? `${azioneRientroHtml}${azioneAllegatiHtml}`
    : '<span style="color:#9BA8B4;font-size:12px;">—</span>';
  html += `
 <tr class="${rowClass}">
-<td>${d.nome} ${d.cognome}</td>
-<td>${d.cf}</td>
-<td>${d.telefono || '-'}</td>
-<td>${dataUscita}</td>
-<td>${dataRientro}</td>
-<td>${giorniFuori}</td>
-<td><span class="status-badge ${d.stato}">${d.stato === 'fuori' ? 'In Assistenza' : 'Rientrato'}</span></td>
+<td>${escapeHtml(d.nome)} ${escapeHtml(d.cognome)}</td>
+<td>${escapeHtml(d.cf)}</td>
+<td>${escapeHtml(d.telefono || '-')}</td>
+<td>${escapeHtml(dataUscita)}</td>
+<td>${escapeHtml(dataRientro)}</td>
+<td>${escapeHtml(giorniFuori)}</td>
+<td><span class="status-badge ${statoClass}">${d.stato === 'fuori' ? 'In Assistenza' : 'Rientrato'}</span></td>
 <td>${azioniRowHtml}</td>
 </tr> `;
  });

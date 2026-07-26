@@ -99,6 +99,7 @@
     .perm-grid { grid-template-columns: 1fr; }
   }
 </style>
+<script src="js/mirox-safe.js"></script>
 </head>
 <body>
 
@@ -167,7 +168,7 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
 <script src="js/config.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/mirox-ui.js"></script>
@@ -192,10 +193,7 @@ let permEditId = null;
 let currentProfilo = null;
 
 function escapeHtml(str) {
-  if (str === null || str === undefined) return '';
-  const div = document.createElement('div');
-  div.textContent = String(str);
-  return div.innerHTML;
+  return MiroxSafe.escapeHtml(str);
 }
 
 function openModal(id) { document.getElementById(id).classList.add('active'); }

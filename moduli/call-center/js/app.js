@@ -43,25 +43,30 @@ const App = {
             const items = gruppiAccessibili[gruppoKey];
             if (!items || items.length === 0) continue;
 
-            html += `<div class="nav-group-label">${gruppi[gruppoKey]}</div>`;
+            html += `<div class="nav-group-label">${Utils.escapeHtml(gruppi[gruppoKey])}</div>`;
 
             for (const item of items) {
                 const isActive = item.key === paginaCorrente;
+                const href = window.MiroxSafe.safeUrl(item.href);
                 html += `
-                <a href="${item.href}" class="nav-item ${isActive ? 'active' : ''}" id="nav-${item.key}">
+                <a href="${Utils.escapeHtml(href || '#')}" class="nav-item ${isActive ? 'active' : ''}" id="nav-${Utils.escapeHtml(item.key)}">
                     ${getIconSvg(item.icona)}
-                    <span>${item.titolo}</span>
+                    <span>${Utils.escapeHtml(item.titolo)}</span>
                 </a>`;
             }
         }
 
+        const profiloNomeRaw = String(profilo.nome || 'Operatore');
+        const profiloNome = Utils.escapeHtml(profiloNomeRaw);
+        const profiloIniziale = Utils.escapeHtml(profiloNomeRaw.charAt(0).toUpperCase() || 'O');
+        const profiloColore = window.MiroxSafe.safeCssColor(profilo.colore);
         html += `
         </nav>
         <div class="sidebar-footer">
             <div class="sidebar-user">
-                <div class="user-avatar" style="background: ${profilo.colore}">${profilo.nome.charAt(0)}</div>
+                <div class="user-avatar" style="background: ${profiloColore}">${profiloIniziale}</div>
                 <div class="user-info">
-                    <div class="user-name">${profilo.nome}</div>
+                    <div class="user-name">${profiloNome}</div>
                     <div class="user-role">${profilo.ruolo === 'admin' ? 'Admin' : 'Operatore'}</div>
                 </div>
             </div>
@@ -163,7 +168,7 @@ const Utils = {
         const toast = document.createElement('div');
         toast.className = `toast toast-${tipo}`;
         toast.innerHTML = `
-            <span>${messaggio}</span>
+            <span>${Utils.escapeHtml(messaggio)}</span>
             <button onclick="this.parentElement.remove()">&times;</button>
         `;
         container.appendChild(toast);
@@ -182,7 +187,7 @@ const Utils = {
             overlay.className = 'loading-overlay';
             document.body.appendChild(overlay);
         }
-        overlay.innerHTML = `<div class="loading-card"><div class="spinner"></div><p>${messaggio}</p></div>`;
+        overlay.innerHTML = `<div class="loading-card"><div class="spinner"></div><p>${Utils.escapeHtml(messaggio)}</p></div>`;
         overlay.classList.add('active');
     },
 
@@ -217,10 +222,7 @@ const Utils = {
      * Escape HTML per sicurezza
      */
     escapeHtml(str) {
-        if (!str) return '';
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
+        return window.MiroxSafe ? window.MiroxSafe.escapeHtml(str) : '';
     },
 
     /**
@@ -242,8 +244,8 @@ const Utils = {
     },
     avatarHtml(nome, idOrNome, size) {
         size = size || 24;
-        const colore = Utils.getColoreOperatore(idOrNome || nome);
-        const iniziale = (nome || '?').charAt(0).toUpperCase();
+        const colore = window.MiroxSafe.safeCssColor(Utils.getColoreOperatore(idOrNome || nome));
+        const iniziale = Utils.escapeHtml((nome || '?').charAt(0).toUpperCase());
         return `<span style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;background:${colore};color:white;font-size:${Math.round(size*0.45)}px;font-weight:700;flex-shrink:0">${iniziale}</span>`;
     },
 

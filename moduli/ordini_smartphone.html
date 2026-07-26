@@ -585,9 +585,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/mirox-modules.css">
+<script src="../js/mirox-safe.js"></script>
 </head>
 <body>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
 <script src="../js/config.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/anagrafica-helper.js"></script>
@@ -755,6 +756,7 @@
 </div>
 </div> <script> // Migrato su Supabase. Tabella: vendita_ordini_smartphone (con anagrafica unificata)
  const sb = db;
+ const escapeHtml = (value) => window.MiroxSafe.escapeHtml(value);
  let allOrders = [];
  let currentOrderId = null;
  // Stato della ricerca anagrafica
@@ -965,7 +967,7 @@
    if (window.MiroxMailer) {
      try {
        const noteBlock = record.note
-         ? `<div style="background:#fff7ed;border-left:4px solid #FF6600;padding:14px 16px;border-radius:8px;margin-top:18px;"><div style="font-size:11px;font-weight:700;color:#9BA8B4;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Note</div><div style="font-size:14px;line-height:1.5;color:#0A2540;">${record.note}</div></div>`
+         ? `<div style="background:#fff7ed;border-left:4px solid #FF6600;padding:14px 16px;border-radius:8px;margin-top:18px;"><div style="font-size:11px;font-weight:700;color:#9BA8B4;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">Note</div><div style="font-size:14px;line-height:1.5;color:#0A2540;">${escapeHtml(record.note)}</div></div>`
          : '';
        await window.MiroxMailer.send({
          to: 'mirko.piasenti@gmail.com',
@@ -1034,7 +1036,7 @@
  applyFilters();
  } catch (error) {
  console.error('Errore:', error);
- container.innerHTML = '<div class="alert alert-error">Errore nel caricamento: ' + error.message + '</div>';
+ container.innerHTML = '<div class="alert alert-error">Errore nel caricamento: ' + escapeHtml(error.message) + '</div>';
  }
  }
 
@@ -1061,14 +1063,17 @@
 <th>Azioni</th>
 </tr>
 </thead>
-<tbody> ${orders.map(order => `
+<tbody> ${orders.map(order => {
+ const safeId = window.MiroxSafe.isRecordId(order.id) ? String(order.id) : '';
+ return `
 <tr>
-<td>${order.nomeCognome}</td>
-<td>${order.marca} ${order.modello} - ${order.memoria}</td>
-<td>${order.dataRegistrazione}</td>
-<td><span class="status-badge status-${getStatusClass(order.stato)}">${order.stato}</span></td>
-<td><button type="button" class="btn-dettaglio"onclick="showOrderDetail('${order.id}')">Dettaglio</button></td>
-</tr> `).join('')}
+<td>${escapeHtml(order.nomeCognome)}</td>
+<td>${escapeHtml(order.marca)} ${escapeHtml(order.modello)} - ${escapeHtml(order.memoria)}</td>
+<td>${escapeHtml(order.dataRegistrazione)}</td>
+<td><span class="status-badge status-${getStatusClass(order.stato)}">${escapeHtml(order.stato)}</span></td>
+<td><button type="button" class="btn-dettaglio" onclick="showOrderDetail('${safeId}')" ${safeId ? '' : 'disabled'}>Dettaglio</button></td>
+</tr> `;
+ }).join('')}
 </tbody>
 </table> `;
  }
@@ -1096,47 +1101,47 @@
  modalBody.innerHTML = `
 <div class="detail-row">
 <div class="detail-label">Operatore:</div>
-<div class="detail-value">${order.operatore}</div>
+<div class="detail-value">${escapeHtml(order.operatore)}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Intestatario:</div>
-<div class="detail-value">${order.nomeCognome}</div>
+<div class="detail-value">${escapeHtml(order.nomeCognome)}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">CF / P.IVA:</div>
-<div class="detail-value">${order.cfPiva || '-'}</div>
+<div class="detail-value">${escapeHtml(order.cfPiva || '-')}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Cellulare:</div>
-<div class="detail-value">${order.cellulare}</div>
+<div class="detail-value">${escapeHtml(order.cellulare)}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Marca:</div>
-<div class="detail-value">${order.marca}</div>
+<div class="detail-value">${escapeHtml(order.marca)}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Modello:</div>
-<div class="detail-value">${order.modello}</div>
+<div class="detail-value">${escapeHtml(order.modello)}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Memoria:</div>
-<div class="detail-value">${order.memoria}</div>
+<div class="detail-value">${escapeHtml(order.memoria)}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Colorazione:</div>
-<div class="detail-value">${order.colorazione}</div>
+<div class="detail-value">${escapeHtml(order.colorazione)}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Note:</div>
-<div class="detail-value">${order.note || 'Nessuna nota'}</div>
+<div class="detail-value">${escapeHtml(order.note || 'Nessuna nota')}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Data Registrazione:</div>
-<div class="detail-value">${order.dataRegistrazione}</div>
+<div class="detail-value">${escapeHtml(order.dataRegistrazione)}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Stato Attuale:</div>
-<div class="detail-value"><span class="order-status status-${getStatusClass(order.stato)}">${order.stato}</span></div>
+<div class="detail-value"><span class="order-status status-${getStatusClass(order.stato)}">${escapeHtml(order.stato)}</span></div>
 </div> <div class="status-update-section">
 <h3>Aggiorna Stato</h3>
 <div class="status-buttons">
@@ -1229,7 +1234,7 @@
  function showMessage(text, type) {
  const container = document.getElementById('message-container');
  const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
- container.innerHTML = `<div class="alert ${alertClass}">${text}</div>`;
+ container.innerHTML = `<div class="alert ${alertClass}">${escapeHtml(text)}</div>`;
  
  setTimeout(() => {
  container.innerHTML = '';

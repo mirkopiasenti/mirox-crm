@@ -61,13 +61,13 @@ Nel form di richiesta:
 
 ## 3. Acquisto credito SMS
 
-Volume stimato a regime (300 contratti/mese → ~100 OTP/mese dopo dedupe 48 mesi): **€5-8/mese**.
+Con la validità ridotta a 24 mesi il volume dipende dai clienti unici che ritornano e non può essere ricavato dal solo numero di contratti. Prima di acquistare credito, verificare il listino corrente e misurare per almeno un mese gli OTP realmente inviati.
 
 Per iniziare:
 
 1. Pannello → **"Acquista crediti"**
 2. Scegli il pacchetto **Premium / Transactional** (consegna prioritaria, essenziale per OTP)
-3. Consigliato per partire: **500 SMS** (~€20-25, dura circa 5-6 mesi)
+3. Per partire scegliere il taglio minimo coerente con il volume misurato; prezzi e durata vanno verificati nel pannello Smshosting
 4. Pagamento con carta o bonifico (fattura italiana automatica con i dati di Kona Tech)
 
 ---
@@ -183,12 +183,11 @@ WHERE modalita='otp_sms'
 |---|---|
 | Account Smshosting | gratuito |
 | Verifica account + mittente | gratuito |
-| SMS Premium/Transactional | ~€0.045-0.055 per invio |
-| Pacchetto 500 SMS (avvio) | ~€22 |
-| Volume regime (anno 1) | ~€100/anno |
-| Volume regime (anno 4 con dedupe 48 mesi a regime) | ~€55/anno |
+| SMS Premium/Transactional | verificare il listino corrente |
+| Pacchetto iniziale | scegliere dopo la misura degli OTP reali |
+| Volume annuo | `OTP effettivamente inviati × tariffa corrente` |
 
-**ROI**: il sistema consensi vale come prova legale in caso di reclamo Garante (sanzioni da €10k a €20M). €100/anno è una polizza assicurativa molto economica.
+L'OTP contribuisce alla tracciabilità della dichiarazione, ma non sostituisce da solo la conformità complessiva del trattamento né garantisce un esito probatorio predeterminato.
 
 ---
 

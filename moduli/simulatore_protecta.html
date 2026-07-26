@@ -332,9 +332,10 @@
  .btn-group { grid-template-columns: 1fr; }
  }
 </style>
+<script src="../js/mirox-safe.js"></script>
 </head>
 <body>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
 <script src="../js/config.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/mirox-ui.js"></script>
@@ -382,8 +383,8 @@
 </div>
 </div> <div id="previewLive" class="live-preview"></div>
 <div id="risultati" class="result-card"></div>
-</div> <div id="printContent"></div> <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script> <!-- LOADING OVERLAY -->
+</div> <div id="printContent"></div> <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script> <!-- LOADING OVERLAY -->
 <div id="loadingOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;justify-content:center;align-items:center;">
 <div style="background:#fff;border-radius:16px;padding:32px 40px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
 <div style="width:48px;height:48px;border:4px solid #E3E8EE;border-top:4px solid #FF6600;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px;"></div>
@@ -837,8 +838,8 @@
 <div style="margin-top:14px;padding:12px;background:#F3F4F6;border:1px dashed #9CA3AF;border-radius:10px;color:#374151;font-size:13px;text-align:center;">Modalita' simulazione: nessun preventivo verra' salvato.</div>`;
  } else {
    const isEsistente = sessionState.mode === 'esistente';
-   const nomeVal = isEsistente ? String(sessionState.cliente).replace(/"/g, '&quot;') : '';
-   const telVal  = isEsistente ? String(sessionState.telefono).replace(/"/g, '&quot;') : '';
+   const nomeVal = isEsistente ? escapeHtml(sessionState.cliente) : '';
+   const telVal  = isEsistente ? escapeHtml(sessionState.telefono) : '';
    const disabledAttr = isEsistente ? 'readonly' : '';
    const bgLock = isEsistente ? 'background:#EEF3F8;cursor:not-allowed;' : '';
    const noteLock = isEsistente
@@ -850,7 +851,7 @@
 ${noteLock}
 <input type="text"id="clienteNome"placeholder="Nome e Cognome"value="${nomeVal}"${disabledAttr}style="width:100%;padding:10px;margin-bottom:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;box-sizing:border-box;${bgLock}">
 <input type="tel"id="clienteTel"placeholder="Numero cellulare"value="${telVal}"${disabledAttr}style="width:100%;padding:10px;margin-bottom:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;box-sizing:border-box;${bgLock}">
-<input type="text"id="operatoreSelect"readonly value="${(window.__profilo?.nome || window.__profilo?.email || '')}"style="width:100%;padding:10px;margin-bottom:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;box-sizing:border-box;background:#EEF3F8;cursor:not-allowed;">
+<input type="text"id="operatoreSelect"readonly value="${escapeHtml(window.__profilo?.nome || window.__profilo?.email || '')}"style="width:100%;padding:10px;margin-bottom:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;box-sizing:border-box;background:#EEF3F8;cursor:not-allowed;">
 </div>`;
    html += `<button class="print-btn"onclick="generaStampa()"> Scarica PDF Preventivo</button>`;
  }
@@ -862,6 +863,8 @@ ${noteLock}
  // Migrato su Supabase: tabella vendita_simulatore_protecta + storage bucket protecta-files
  const sb = db;
  const PROTECTA_BUCKET = 'protecta-files';
+ const escapeHtml = window.MiroxSafe.escapeHtml;
+ let existingTrattativeChoices = [];
 
  // ========== SESSIONE (modalita' simulatore) ==========
  // sessionMode: 'nuova' | 'esistente' | 'simulazione'
@@ -949,24 +952,36 @@ ${noteLock}
          '<div style="text-align:center;padding:24px;color:#888;font-size:13px;">Nessuna trattativa in corso.<br>Torna indietro e apri una nuova trattativa.</div>';
        return;
      }
-     document.getElementById('existingTrattativeContent').innerHTML = arr.map(g => {
-       const cliSafe = String(g.cliente).replace(/'/g, "\\'");
-       const telSafe = String(g.telefono).replace(/'/g, "\\'");
-       const idSafe  = String(g.trattativa_id).replace(/'/g, "\\'");
-       const dataFmt = g.ultimo ? new Date(g.ultimo).toLocaleDateString('it-IT') : '';
-       return `<button onclick="pickExistingTrattativa('${idSafe}','${cliSafe}','${telSafe}')" style="display:block;width:100%;background:#fff;border:2px solid #E3E8EE;border-radius:10px;padding:12px 14px;margin-bottom:8px;text-align:left;cursor:pointer;font-family:inherit;transition:border-color 0.15s;" onmouseover="this.style.borderColor='#FF6600'" onmouseout="this.style.borderColor='#E3E8EE'">
-<div style="font-weight:700;font-size:14px;color:#1a1a2e;">${g.cliente || '(senza nome)'}</div>
-<div style="font-size:12px;color:#555;margin-top:3px;">${g.telefono || '-'} &nbsp;·&nbsp; ${g.operatore || '-'}</div>
-<div style="font-size:11px;color:#888;margin-top:3px;">${g.count} preventiv${g.count === 1 ? 'o' : 'i'} &nbsp;·&nbsp; ultimo ${dataFmt}</div>
-</button>`;
-     }).join('');
+	     existingTrattativeChoices = arr;
+	     document.getElementById('existingTrattativeContent').innerHTML = arr.map((g, index) => {
+	       const dataFmt = g.ultimo ? new Date(g.ultimo).toLocaleDateString('it-IT') : '';
+	       return `<button type="button" class="js-existing-trattativa" data-choice-index="${index}" style="display:block;width:100%;background:#fff;border:2px solid #E3E8EE;border-radius:10px;padding:12px 14px;margin-bottom:8px;text-align:left;cursor:pointer;font-family:inherit;transition:border-color 0.15s;">
+	<div style="font-weight:700;font-size:14px;color:#1a1a2e;">${escapeHtml(g.cliente || '(senza nome)')}</div>
+	<div style="font-size:12px;color:#555;margin-top:3px;">${escapeHtml(g.telefono || '-')} &nbsp;·&nbsp; ${escapeHtml(g.operatore || '-')}</div>
+	<div style="font-size:11px;color:#888;margin-top:3px;">${g.count} preventiv${g.count === 1 ? 'o' : 'i'} &nbsp;·&nbsp; ultimo ${escapeHtml(dataFmt)}</div>
+	</button>`;
+	     }).join('');
    } catch (e) {
      console.error('Errore caricamento trattative esistenti:', e);
      document.getElementById('existingTrattativeLoading').style.display = 'none';
      document.getElementById('existingTrattativeContent').innerHTML =
        '<div style="text-align:center;padding:20px;color:#dc2626;font-size:13px;">Errore nel caricamento</div>';
-   }
+	 }
+
  }
+
+ document.addEventListener('click', (event) => {
+   const existingButton = event.target.closest('.js-existing-trattativa');
+   if (existingButton) {
+     const choice = existingTrattativeChoices[Number(existingButton.dataset.choiceIndex)];
+     if (choice) pickExistingTrattativa(choice.trattativa_id, choice.cliente, choice.telefono);
+     return;
+   }
+   const pdfButton = event.target.closest('.js-protecta-pdf');
+   if (pdfButton) {
+     MiroxStorage.openAttachment(PROTECTA_BUCKET, pdfButton.dataset.storagePath);
+   }
+ });
 
  function closeExistingTrattativeModal() {
    // Chiusura senza selezione: se non c'e' ancora una sessione attiva torna al selettore modalita'
@@ -1006,7 +1021,7 @@ ${noteLock}
      banner.style.background = '#E7F0FA';
      banner.style.border = '1px solid #B7CFEA';
      banner.style.color = '#0F3D75';
-     label.innerHTML = `<strong>Aggiunta preventivo a:</strong> ${sessionState.trattativaLabel}`;
+	     label.innerHTML = `<strong>Aggiunta preventivo a:</strong> ${escapeHtml(sessionState.trattativaLabel)}`;
    } else if (sessionState.mode === 'simulazione') {
      banner.style.background = '#F3F4F6';
      banner.style.border = '1px solid #D1D5DB';
@@ -1472,7 +1487,7 @@ ${noteLock}
      const msg = searchTermTrattative
        ? `Nessuna trattativa corrisponde alla ricerca "${searchTermTrattative}"`
        : `Nessuna trattativa ${labels[filtroCorrente] || ''}`;
-     document.getElementById('trattativeContent').innerHTML = `<div style="text-align:center;padding:40px;color:#888;">${msg}</div>`;
+	     document.getElementById('trattativeContent').innerHTML = `<div style="text-align:center;padding:40px;color:#888;">${escapeHtml(msg)}</div>`;
      return;
    }
 
@@ -1486,20 +1501,21 @@ ${noteLock}
 
      const ultimoFmt = g.ultimo ? new Date(g.ultimo).toLocaleString('it-IT') : '';
      const nPrev = g.preventivi.length;
-     const trattIdSafe = g.trattativa_id ? String(g.trattativa_id).replace(/'/g, "\\'") : '';
-     // Se legacy (nessun trattativa_id) usiamo l'id del singolo preventivo come chiave update.
-     const legacyId = !g.trattativa_id && g.preventivi[0] ? g.preventivi[0].id : null;
+	     const trattIdSafe = MiroxSafe.isUuid(g.trattativa_id) ? String(g.trattativa_id) : '';
+	     // Se legacy (nessun trattativa_id) usiamo l'id del singolo preventivo come chiave update.
+	     const legacyId = !g.trattativa_id && g.preventivi[0] && MiroxSafe.isRecordId(g.preventivi[0].id)
+	       ? String(g.preventivi[0].id)
+	       : null;
 
      const preventiviHtml = g.preventivi.map(p => {
        const dataFmt = p.data ? new Date(p.data).toLocaleString('it-IT') : '';
-       const pathSafe = p.pdfPath ? p.pdfPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'") : '';
-       const pdfBtn = p.pdfPath
-         ? `<a href="#"onclick="MiroxStorage.openAttachment('${PROTECTA_BUCKET}','${pathSafe}');return false;"style="color:#003366;text-decoration:none;font-size:12px;font-weight:600;">Apri PDF →</a>`
-         : '<span style="color:#9CA3AF;font-size:12px;">(nessun PDF)</span>';
+	       const pdfBtn = p.pdfPath
+	         ? `<button type="button" class="js-protecta-pdf" data-storage-path="${escapeHtml(p.pdfPath)}" style="color:#003366;background:none;border:0;padding:0;font-size:12px;font-weight:600;cursor:pointer;">Apri PDF</button>`
+	         : '<span style="color:#9CA3AF;font-size:12px;">(nessun PDF)</span>';
        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-top:1px dashed #eee;font-size:12px;">
 <div style="flex:1;min-width:0;">
-<div style="font-weight:600;color:#1a1a2e;">${p.kit || '-'}</div>
-<div style="color:#888;font-size:11px;margin-top:2px;">${dataFmt}</div>
+	<div style="font-weight:600;color:#1a1a2e;">${escapeHtml(p.kit || '-')}</div>
+	<div style="color:#888;font-size:11px;margin-top:2px;">${escapeHtml(dataFmt)}</div>
 </div>
 <div style="margin-left:8px;">${pdfBtn}</div>
 </div>`;
@@ -1515,12 +1531,12 @@ ${noteLock}
 <div style="background:#fff;border-radius:12px;margin-bottom:12px;box-shadow:0 2px 10px rgba(0,0,0,0.07);overflow:hidden;">
 <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-left:5px solid ${statoBorder};">
 <div style="flex:1;min-width:0;">
-<div style="font-weight:700;font-size:16px;color:#1a1a2e;">${g.cliente || '-'}</div>
-<div style="font-size:13px;color:#555;margin-top:4px;">${g.telefono || '-'} &nbsp;·&nbsp; ${g.operatore || '-'}</div>
-<div style="font-size:12px;color:#888;margin-top:4px;">${nPrev} preventiv${nPrev === 1 ? 'o' : 'i'} &nbsp;·&nbsp; ultimo ${ultimoFmt}</div>
+	<div style="font-weight:700;font-size:16px;color:#1a1a2e;">${escapeHtml(g.cliente || '-')}</div>
+	<div style="font-size:13px;color:#555;margin-top:4px;">${escapeHtml(g.telefono || '-')} &nbsp;·&nbsp; ${escapeHtml(g.operatore || '-')}</div>
+	<div style="font-size:12px;color:#888;margin-top:4px;">${nPrev} preventiv${nPrev === 1 ? 'o' : 'i'} &nbsp;·&nbsp; ultimo ${escapeHtml(ultimoFmt)}</div>
 </div>
 <div style="background:${statoBg};color:${statoColor};border:2px solid ${statoBorder};padding:8px 14px;border-radius:10px;text-align:center;min-width:80px;">
-<div style="font-size:13px;font-weight:700;">${stato}</div>
+	<div style="font-size:13px;font-weight:700;">${escapeHtml(stato)}</div>
 </div>
 </div>
 <div style="background:#FBFCFD;">${preventiviHtml}</div>

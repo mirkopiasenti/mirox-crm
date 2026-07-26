@@ -353,12 +353,12 @@
                 tellClaude: 'Errore RLS/PostgREST su ' + (input.source || 'pagina') + ', da capire quale query e con quale ruolo.'
             };
         }
-        if (/consenso privacy|consenso.*scaduto|consenso.*mancante/i.test(lo)) {
+        if (/consenso privacy|consenso.*scaduto|consenso.*mancante|informativa privacy.*(?:mancante|scaduta)/i.test(lo)) {
             return {
-                what: 'Il cliente non ha un consenso privacy valido: la pratica e\' stata bloccata.',
-                where: 'Submit pratica in ' + sourceLabel + '. Puo\' essere consenso mai raccolto, scaduto (48 mesi) o revocato.',
+                what: 'Il cliente non ha un documento privacy valido: la pratica e\' stata bloccata.',
+                where: 'Submit pratica in ' + sourceLabel + '. Puo\' essere informativa mai raccolta, scaduta (24 mesi) o revocata.',
                 action: 'L\'operatore deve rifare il pre-step "Consenso privacy" (OTP via SMS o modulo cartaceo) prima di reinviare la pratica.',
-                tellClaude: 'Submit pratica bloccato per consenso privacy assente/scaduto.'
+                tellClaude: 'Submit pratica bloccato per informativa privacy assente/scaduta.'
             };
         }
         if (/smshosting|sms.*failed|otp.*invalid|otp.*scad|cellulare.*non valido/i.test(lo)) {

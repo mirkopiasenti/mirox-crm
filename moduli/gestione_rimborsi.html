@@ -468,9 +468,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/mirox-modules.css">
+<script src="../js/mirox-safe.js"></script>
 </head>
 <body>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
 <script src="../js/config.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/anagrafica-helper.js"></script>
@@ -658,10 +659,11 @@
 <div id="modalDettagliBody"></div>
 </div>
 </div> <!-- Scripts -->
-<script src="https://unpkg.com/docx@7.8.2/build/index.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script> <script> // Migrato su Supabase: tabella post_vendita_gestione_rimborsi + storage bucket rimborsi-files
+<script src="https://unpkg.com/docx@7.8.2/build/index.js" integrity="sha384-zjTqOObJTD6OT6CUn8mSpDY+crIiP0cX457OjcZosSATiUFbmdXa9KRScjfLVxFH" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" integrity="sha384-PlRSzpewlarQuj5alIadXwjNUX+2eNMKwr0f07ShWYLy8B6TjEbm7ZlcN/ScSbwy" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script> <script> // Migrato su Supabase: tabella post_vendita_gestione_rimborsi + storage bucket rimborsi-files
  const sb = db;
+ const escapeHtml = window.MiroxSafe.escapeHtml;
  const RIMBORSI_BUCKET = 'rimborsi-files';
  async function uploadRimborsoPdf(rimborsoId, base64, filename, ragioneSociale) {
  try {
@@ -688,6 +690,8 @@
 
  let currentRimborsoData = null;
  let pendingRimborsoData = null; // Per salvare i dati prima della conferma
+ const rimborsiAttesaById = new Map();
+ const rimborsiCompletatiById = new Map();
 
  // Sezione anagrafica
  const anagSection = window.AnagraficaHelper.setupAnagraficaSection('anag', {
@@ -1060,18 +1064,24 @@
  document.getElementById('emptyStateAttesa').style.display = 'block';
  } else {
  document.getElementById('emptyStateAttesa').style.display = 'none';
- 
+ rimborsiAttesaById.clear();
  data.forEach(rimborso => {
+ const safeId = MiroxSafe.isRecordId(rimborso.rowId) ? String(rimborso.rowId) : '';
+ if (safeId) rimborsiAttesaById.set(safeId, rimborso);
  const row = tbody.insertRow();
  row.innerHTML = `
 <td><span class="status-badge status-attesa">Attesa Consegna</span></td>
-<td>${rimborso.nome} ${rimborso.cognome}</td>
-<td>€ ${parseFloat(rimborso.importo).toFixed(2)}</td>
+<td>${escapeHtml(rimborso.nome || '')} ${escapeHtml(rimborso.cognome || '')}</td>
+<td>€ ${Number.parseFloat(rimborso.importo || 0).toFixed(2)}</td>
 <td>${new Date(rimborso.dataCreazione).toLocaleDateString('it-IT')}</td>
 <td>
-<button type="button" class="btn btn-primary btn-small"onclick='gestisciRimborso(${JSON.stringify(rimborso)})'> Gestisci
+<button type="button" class="btn btn-primary btn-small js-gestisci-rimborso" ${safeId ? '' : 'disabled'}> Gestisci
 </button>
 </td> `;
+ row.querySelector('.js-gestisci-rimborso')?.addEventListener('click', () => {
+   const selected = rimborsiAttesaById.get(safeId);
+   if (selected) gestisciRimborso(selected);
+ });
  });
  }
  } catch (error) {
@@ -1126,18 +1136,24 @@
  document.getElementById('emptyStateCompletati').style.display = 'block';
  } else {
  document.getElementById('emptyStateCompletati').style.display = 'none';
- 
+ rimborsiCompletatiById.clear();
  data.forEach(rimborso => {
+ const safeId = MiroxSafe.isRecordId(rimborso.rowId) ? String(rimborso.rowId) : '';
+ if (safeId) rimborsiCompletatiById.set(safeId, rimborso);
  const row = tbody.insertRow();
  row.innerHTML = `
 <td><span class="status-badge status-chiuso">Chiuso</span></td>
-<td>${rimborso.nome} ${rimborso.cognome}</td>
-<td>€ ${parseFloat(rimborso.importo).toFixed(2)}</td>
+<td>${escapeHtml(rimborso.nome || '')} ${escapeHtml(rimborso.cognome || '')}</td>
+<td>€ ${Number.parseFloat(rimborso.importo || 0).toFixed(2)}</td>
 <td>${rimborso.dataConsegna ? new Date(rimborso.dataConsegna).toLocaleDateString('it-IT') : '-'}</td>
 <td>
-<button type="button" class="btn btn-secondary btn-small"onclick='mostraDettagli(${JSON.stringify(rimborso)})'> Dettagli
+<button type="button" class="btn btn-secondary btn-small js-dettagli-rimborso" ${safeId ? '' : 'disabled'}> Dettagli
 </button>
 </td> `;
+ row.querySelector('.js-dettagli-rimborso')?.addEventListener('click', () => {
+   const selected = rimborsiCompletatiById.get(safeId);
+   if (selected) mostraDettagli(selected);
+ });
  });
  }
  } catch (error) {
@@ -1155,16 +1171,19 @@
  // Gestisci rimborso (modale)
  function gestisciRimborso(rimborso) {
  currentRimborsoData = rimborso;
- 
+ const folderUrl = MiroxSafe.safeUrl(rimborso.folderUrl, { allowRelative: false });
+ const folderHtml = folderUrl
+   ? `<a href="${escapeHtml(folderUrl)}" target="_blank" rel="noopener noreferrer" class="link-button">Apri cartella</a>`
+   : '<span>Non disponibile</span>';
  const modalBody = document.getElementById('modalBody');
  modalBody.innerHTML = `
 <div class="detail-row">
 <div class="detail-label">Cliente:</div>
-<div class="detail-value">${rimborso.nome} ${rimborso.cognome}</div>
+<div class="detail-value">${escapeHtml(rimborso.nome || '')} ${escapeHtml(rimborso.cognome || '')}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Codice Fiscale:</div>
-<div class="detail-value">${rimborso.codiceFiscale}</div>
+<div class="detail-value">${escapeHtml(rimborso.codiceFiscale || '-')}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Importo:</div>
@@ -1172,20 +1191,20 @@
 </div>
 <div class="detail-row">
 <div class="detail-label">ID Contratto:</div>
-<div class="detail-value">${rimborso.idContratto}</div>
+<div class="detail-value">${escapeHtml(rimborso.idContratto || '-')}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Motivazione:</div>
-<div class="detail-value">${rimborso.motivazione}</div>
+<div class="detail-value">${escapeHtml(rimborso.motivazione || '-')}</div>
 </div> ${rimborso.noteInterne ? `
 <div class="detail-row">
 <div class="detail-label">Note Interne:</div>
-<div class="detail-value">${rimborso.noteInterne}</div>
+<div class="detail-value">${escapeHtml(rimborso.noteInterne)}</div>
 </div> ` : ''}
 <div class="detail-row">
 <div class="detail-label">Cartella Drive:</div>
 <div class="detail-value">
-<a href="${rimborso.folderUrl}"target="_blank"class="link-button">Apri Cartella</a>
+${folderHtml}
 </div>
 </div> <hr> <div class="form-section">
 <h2>Completa Rimborso</h2>
@@ -1275,15 +1294,19 @@
 
  // Mostra dettagli rimborso completato
  function mostraDettagli(rimborso) {
+ const folderUrl = MiroxSafe.safeUrl(rimborso.folderUrl, { allowRelative: false });
+ const folderHtml = folderUrl
+   ? `<a href="${escapeHtml(folderUrl)}" target="_blank" rel="noopener noreferrer" class="link-button">Apri cartella</a>`
+   : '<span>Non disponibile</span>';
  const modalBody = document.getElementById('modalDettagliBody');
  modalBody.innerHTML = `
 <div class="detail-row">
 <div class="detail-label">Cliente:</div>
-<div class="detail-value">${rimborso.nome} ${rimborso.cognome}</div>
+<div class="detail-value">${escapeHtml(rimborso.nome || '')} ${escapeHtml(rimborso.cognome || '')}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Codice Fiscale:</div>
-<div class="detail-value">${rimborso.codiceFiscale}</div>
+<div class="detail-value">${escapeHtml(rimborso.codiceFiscale || '-')}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Importo:</div>
@@ -1291,15 +1314,15 @@
 </div>
 <div class="detail-row">
 <div class="detail-label">ID Contratto:</div>
-<div class="detail-value">${rimborso.idContratto}</div>
+<div class="detail-value">${escapeHtml(rimborso.idContratto || '-')}</div>
 </div>
 <div class="detail-row">
 <div class="detail-label">Motivazione:</div>
-<div class="detail-value">${rimborso.motivazione}</div>
+<div class="detail-value">${escapeHtml(rimborso.motivazione || '-')}</div>
 </div> ${rimborso.noteInterne ? `
 <div class="detail-row">
 <div class="detail-label">Note Interne:</div>
-<div class="detail-value">${rimborso.noteInterne}</div>
+<div class="detail-value">${escapeHtml(rimborso.noteInterne)}</div>
 </div> ` : ''}
 <div class="detail-row">
 <div class="detail-label">Data Creazione:</div>
@@ -1311,12 +1334,12 @@
 </div> ${rimborso.noteAggiuntive ? `
 <div class="detail-row">
 <div class="detail-label">Note Aggiuntive:</div>
-<div class="detail-value">${rimborso.noteAggiuntive}</div>
+<div class="detail-value">${escapeHtml(rimborso.noteAggiuntive)}</div>
 </div> ` : ''}
 <div class="detail-row">
 <div class="detail-label">Cartella Drive:</div>
 <div class="detail-value">
-<a href="${rimborso.folderUrl}"target="_blank"class="link-button">Apri Cartella</a>
+${folderHtml}
 </div>
 </div> <button type="button"class="btn btn-secondary"onclick="closeModalDettagli()"style="margin-top: 1.5rem; width: 100%;"> Chiudi
 </button> `;

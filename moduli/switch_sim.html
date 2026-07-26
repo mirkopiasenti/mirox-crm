@@ -1488,9 +1488,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/mirox-modules.css">
+<script src="../js/mirox-safe.js"></script>
 </head>
 <body>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
 <script src="../js/config.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/anagrafica-helper.js"></script>
@@ -2055,6 +2056,7 @@ Mostra anche ricariche in OK
  // ========================================
  // Migrato su Supabase: tabella vendita_switch_sim + storage bucket switch-sim-files
  const sb = db;
+ const escapeHtml = (value) => window.MiroxSafe.escapeHtml(value);
  const SWITCH_SIM_BUCKET = 'switch-sim-files';
 
  // Drag-drop bindings su tutte le .mx-drop-zone della pagina
@@ -2069,7 +2071,7 @@ Mostra anche ricariche in OK
      Array.from(inp.files).forEach(f => {
        const row = document.createElement('div');
        row.className = 'mx-file-row';
-       row.innerHTML = `<span class="mx-file-name">${f.name}</span><button type="button" class="mx-file-remove" title="Rimuovi" onclick="clearSwitchFile('${inputId}')">×</button>`;
+       row.innerHTML = `<span class="mx-file-name">${escapeHtml(f.name)}</span><button type="button" class="mx-file-remove" title="Rimuovi" onclick="clearSwitchFile('${inputId}')">×</button>`;
        list.appendChild(row);
      });
    } else {
@@ -2496,9 +2498,9 @@ Mostra anche ricariche in OK
 <div class="mnp-item">
 <div class="mnp-item-index">${index + 1}</div>
 <div class="mnp-item-content">
-<div class="mnp-item-numero"> ${item.numero}</div>
+<div class="mnp-item-numero">${escapeHtml(item.numero)}</div>
 <div class="mnp-item-offerta">
-<span class="mnp-item-offerta-badge"> ${item.offerta}</span>
+<span class="mnp-item-offerta-badge">${escapeHtml(item.offerta)}</span>
 </div>
 </div>
 <button type="button"class="remove-number-btn"onclick="rimuoviNumero(${index})">Rimuovi
@@ -2896,20 +2898,21 @@ Mostra anche ricariche in OK
  tbody.innerHTML = filteredAttesaData.map(record => {
  const hasNuovo = record.nuovoNomeCognome && record.nuovoNomeCognome !== '-';
  const hasNuovoCF = record.nuovoCFPIVA && record.nuovoCFPIVA !== '-';
+ const safeRowId = window.MiroxSafe.isRecordId(record.rowIndex) ? String(record.rowIndex) : '';
 
  return `
 <tr>
 <td><span class="badge badge-attesa" title="ATTESA ATTIVAZIONE SIM">ATTESA</span></td>
-<td title="${record.attualeNomeCognome || ''}">${record.attualeNomeCognome || '-'}</td>
-<td title="${record.attualeCFPIVA || ''}">${record.attualeCFPIVA || '-'}</td>
-<td class="${hasNuovo ? 'highlight-yellow' : ''}" title="${record.nuovoNomeCognome || ''}">${record.nuovoNomeCognome || '-'}</td>
-<td class="${hasNuovoCF ? 'highlight-yellow' : ''}" title="${record.nuovoCFPIVA || ''}">${record.nuovoCFPIVA || '-'}</td>
-<td title="${record.numeroMNP || ''}">${record.numeroMNP || '-'}</td>
-<td title="${record.dataInserimento || ''}">${record.dataInserimento || '-'}</td>
-<td>${record.folderUrl || record.rowIndex ? `<button type="button" class="action-btn" style="background:#fff;border:1px solid #E3E8EE;color:#0A2540;padding:6px 10px;border-radius:8px;cursor:pointer;font-weight:600;" onclick="apriAllegatiSwitchSim(${record.rowIndex})" title="Mostra elenco allegati pratica">Allegati</button>` : '-'}</td>
+<td title="${escapeHtml(record.attualeNomeCognome || '')}">${escapeHtml(record.attualeNomeCognome || '-')}</td>
+<td title="${escapeHtml(record.attualeCFPIVA || '')}">${escapeHtml(record.attualeCFPIVA || '-')}</td>
+<td class="${hasNuovo ? 'highlight-yellow' : ''}" title="${escapeHtml(record.nuovoNomeCognome || '')}">${escapeHtml(record.nuovoNomeCognome || '-')}</td>
+<td class="${hasNuovoCF ? 'highlight-yellow' : ''}" title="${escapeHtml(record.nuovoCFPIVA || '')}">${escapeHtml(record.nuovoCFPIVA || '-')}</td>
+<td title="${escapeHtml(record.numeroMNP || '')}">${escapeHtml(record.numeroMNP || '-')}</td>
+<td title="${escapeHtml(record.dataInserimento || '')}">${escapeHtml(record.dataInserimento || '-')}</td>
+<td>${record.folderUrl || record.rowIndex ? `<button type="button" class="action-btn" style="background:#fff;border:1px solid #E3E8EE;color:#0A2540;padding:6px 10px;border-radius:8px;cursor:pointer;font-weight:600;" onclick="apriAllegatiSwitchSim(${safeRowId || 0})" title="Mostra elenco allegati pratica" ${safeRowId ? '' : 'disabled'}>Allegati</button>` : '-'}</td>
 <td style="white-space:nowrap;">
-<button type="button" class="action-btn" style="background:#DCFCE7;color:#047857;border:1px solid #BBF7D0;font-weight:700;margin-right:6px;padding:7px 14px;border-radius:8px;cursor:pointer;" onclick="apriAttivazione(${record.rowIndex})" title="Attiva pratica (apri dettagli)">ATTIVAZIONE</button>
-<button type="button" class="action-btn" style="background:#FEE2E2;color:#b91c1c;border:1px solid #FECACA;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;" onclick="cambiaStatoAttesa(${record.rowIndex}, 'KO')" title="Pratica KO">KO</button>
+<button type="button" class="action-btn" style="background:#DCFCE7;color:#047857;border:1px solid #BBF7D0;font-weight:700;margin-right:6px;padding:7px 14px;border-radius:8px;cursor:pointer;" onclick="apriAttivazione(${safeRowId || 0})" title="Attiva pratica (apri dettagli)" ${safeRowId ? '' : 'disabled'}>ATTIVAZIONE</button>
+<button type="button" class="action-btn" style="background:#FEE2E2;color:#b91c1c;border:1px solid #FECACA;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;" onclick="cambiaStatoAttesa(${safeRowId || 0}, 'KO')" title="Pratica KO" ${safeRowId ? '' : 'disabled'}>KO</button>
 </td>
 </tr>`;
  }).join('');
@@ -2917,7 +2920,7 @@ Mostra anche ricariche in OK
 
  function mostraErroreTabellaAttesa(messaggio) {
  document.getElementById('attesaTableBody').innerHTML =
- '<tr><td colspan="9" style="text-align: center; padding: 3rem; color: #f44336;">' + messaggio + '</td></tr>';
+ '<tr><td colspan="9" style="text-align: center; padding: 3rem; color: #f44336;">' + escapeHtml(messaggio) + '</td></tr>';
  }
 
  function apriDettagliAttesa(rowIndex) {
@@ -3048,6 +3051,7 @@ Mostra anche ricariche in OK
  }
 
  tbody.innerHTML = filteredData.map(record => {
+ const safeRowId = MiroxSafe.isRecordId(record.rowIndex) ? String(record.rowIndex) : '';
  // Badge stato
  let badgeClass = 'badge-attesa';
  if (record.stato === 'ATTESA ATTIVAZIONE SIM') badgeClass = 'badge-attesa';
@@ -3071,19 +3075,19 @@ Mostra anche ricariche in OK
 
  return`
 <tr>
-<td><span class="badge ${badgeClass}"title="${record.stato || ''}">${statoAbbreviato}</span></td>
-<td title="${record.attualeNomeCognome || ''}">${record.attualeNomeCognome || '-'}</td>
-<td title="${record.attualeCFPIVA || ''}">${record.attualeCFPIVA || '-'}</td>
-<td class="${hasNuovo ? 'highlight-yellow' : ''}"title="${record.nuovoNomeCognome || ''}">${record.nuovoNomeCognome || '-'}</td>
-<td class="${hasNuovoCF ? 'highlight-yellow' : ''}"title="${record.nuovoCFPIVA || ''}">${record.nuovoCFPIVA || '-'}</td>
-<td title="${record.numeroMNP || ''}">${record.numeroMNP || '-'}</td>
-<td title="${record.giornoRientro || ''}">${record.giornoRientro || '-'}</td>
-<td>${record.folderUrl || record.rowIndex ? `<button type="button" class="action-btn" style="background:#fff;border:1px solid #E3E8EE;color:#0A2540;padding:6px 10px;border-radius:8px;cursor:pointer;font-weight:600;" onclick="apriAllegatiSwitchSim(${record.rowIndex})" title="Mostra elenco allegati pratica">Allegati</button>` : '-'}</td>
+<td><span class="badge ${badgeClass}"title="${escapeHtml(record.stato || '')}">${escapeHtml(statoAbbreviato)}</span></td>
+<td title="${escapeHtml(record.attualeNomeCognome || '')}">${escapeHtml(record.attualeNomeCognome || '-')}</td>
+<td title="${escapeHtml(record.attualeCFPIVA || '')}">${escapeHtml(record.attualeCFPIVA || '-')}</td>
+<td class="${hasNuovo ? 'highlight-yellow' : ''}"title="${escapeHtml(record.nuovoNomeCognome || '')}">${escapeHtml(record.nuovoNomeCognome || '-')}</td>
+<td class="${hasNuovoCF ? 'highlight-yellow' : ''}"title="${escapeHtml(record.nuovoCFPIVA || '')}">${escapeHtml(record.nuovoCFPIVA || '-')}</td>
+<td title="${escapeHtml(record.numeroMNP || '')}">${escapeHtml(record.numeroMNP || '-')}</td>
+<td title="${escapeHtml(record.giornoRientro || '')}">${escapeHtml(record.giornoRientro || '-')}</td>
+<td>${record.folderUrl || record.rowIndex ? `<button type="button" class="action-btn" style="background:#fff;border:1px solid #E3E8EE;color:#0A2540;padding:6px 10px;border-radius:8px;cursor:pointer;font-weight:600;" onclick="apriAllegatiSwitchSim(${safeRowId || 0})" title="Mostra elenco allegati pratica" ${safeRowId ? '' : 'disabled'}>Allegati</button>` : '-'}</td>
 <td class="riepilogo-actions" style="white-space:nowrap;">
-<button type="button" class="action-btn" style="background:#2196F3;color:white;margin-right:.3rem;padding:6px 12px;border-radius:8px;cursor:pointer;border:none;font-weight:600;" onclick="apriDettagli(${record.rowIndex})" title="Apri dettagli tecnici">DETTAGLI</button>
+<button type="button" class="action-btn" style="background:#2196F3;color:white;margin-right:.3rem;padding:6px 12px;border-radius:8px;cursor:pointer;border:none;font-weight:600;" onclick="apriDettagli(${safeRowId || 0})" title="Apri dettagli tecnici" ${safeRowId ? '' : 'disabled'}>DETTAGLI</button>
 ${showActions
- ? `<button type="button" class="action-btn btn-update" style="background:#4CAF50;color:#fff;margin-right:.3rem;padding:6px 12px;border-radius:8px;cursor:pointer;border:none;font-weight:600;" onclick="cambiaStato(${record.rowIndex}, 'CHIUSO')" title="Segna come CHIUSO">CHIUSO</button>
-<button type="button" class="action-btn btn-update" style="background:#f44336;color:#fff;padding:6px 12px;border-radius:8px;cursor:pointer;border:none;font-weight:600;" onclick="cambiaStato(${record.rowIndex}, 'KO')" title="Segna come KO">KO</button>`
+ ? `<button type="button" class="action-btn btn-update" style="background:#4CAF50;color:#fff;margin-right:.3rem;padding:6px 12px;border-radius:8px;cursor:pointer;border:none;font-weight:600;" onclick="cambiaStato(${safeRowId || 0}, 'CHIUSO')" title="Segna come CHIUSO" ${safeRowId ? '' : 'disabled'}>CHIUSO</button>
+<button type="button" class="action-btn btn-update" style="background:#f44336;color:#fff;padding:6px 12px;border-radius:8px;cursor:pointer;border:none;font-weight:600;" onclick="cambiaStato(${safeRowId || 0}, 'KO')" title="Segna come KO" ${safeRowId ? '' : 'disabled'}>KO</button>`
  : ''}
 </td>
 </tr> `;
@@ -3122,7 +3126,7 @@ ${showActions
 
  function mostraErroreTabella(messaggio) {
  document.getElementById('tableBody').innerHTML = 
- `<tr><td colspan="10"style="text-align: center; padding: 3rem; color: #f44336;">${messaggio}</td></tr>`;
+ `<tr><td colspan="10"style="text-align: center; padding: 3rem; color: #f44336;">${escapeHtml(messaggio)}</td></tr>`;
  }
 
  // ========================================
@@ -3640,7 +3644,7 @@ ${showActions
  aggiornaStatistiche();
  } catch (error) {
  document.getElementById('ricaricheTableBody').innerHTML = `
-<tr><td colspan="4" style="text-align: center; color: red; padding: 2rem;">Errore: ${error.message}</td></tr>`;
+<tr><td colspan="4" style="text-align: center; color: red; padding: 2rem;">Errore: ${escapeHtml(error.message)}</td></tr>`;
  }
  })();
  }
@@ -3714,7 +3718,8 @@ ${showActions
      return;
    }
 
-   tbody.innerHTML = righe.map(({ r, dataPrevista, dataEsec, importo, effettuata }) => {
+	   tbody.innerHTML = righe.map(({ r, dataPrevista, dataEsec, importo, effettuata }) => {
+	     const safeRowId = MiroxSafe.isRecordId(r.rowIndex) ? String(r.rowIndex) : '';
      let stato = '';
      if (effettuata) {
        stato = `<span style="background:#DCFCE7;color:#047857;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;">OK</span>`;
@@ -3726,22 +3731,22 @@ ${showActions
          stato = `<span style="background:#FFF7ED;color:#b45309;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;">DA FARE</span>`;
        }
      }
-     const azione = effettuata
-       ? `<span style="color:#9BA8B4;font-size:12px;">${dataEsec || ''} · ${importo || ''}</span>`
-       : `<button type="button" class="action-btn" style="background:#DCFCE7;color:#047857;border:1px solid #BBF7D0;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;" onclick="apriRicarica(${r.rowIndex},'${tipo}')">Registra</button>`;
-     return `<tr>
-       <td><strong>${r.ragioneSociale || '-'}</strong></td>
-       <td style="font-family:monospace;font-size:12.5px;">${r.attualeCFPIVA || '-'}</td>
-       <td>${r.gestoreSim || '-'}</td>
-       <td>${r.numeroMNP || '-'}</td>
-       <td>${dataPrevista || '-'}</td>
+	     const azione = effettuata
+	       ? `<span style="color:#9BA8B4;font-size:12px;">${escapeHtml(dataEsec || '')} · ${escapeHtml(importo || '')}</span>`
+	       : `<button type="button" class="action-btn" style="background:#DCFCE7;color:#047857;border:1px solid #BBF7D0;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;" onclick="apriRicarica(${safeRowId || 0},'${tipo}')" ${safeRowId ? '' : 'disabled'}>Registra</button>`;
+	     return `<tr>
+	       <td><strong>${escapeHtml(r.ragioneSociale || '-')}</strong></td>
+	       <td style="font-family:monospace;font-size:12.5px;">${escapeHtml(r.attualeCFPIVA || '-')}</td>
+	       <td>${escapeHtml(r.gestoreSim || '-')}</td>
+	       <td>${escapeHtml(r.numeroMNP || '-')}</td>
+	       <td>${escapeHtml(dataPrevista || '-')}</td>
        <td>${stato}</td>
        <td>${azione}</td>
      </tr>`;
    }).join('');
  }
  
- function renderCellaRicarica(ricarica, tipo) {
+	 function renderCellaRicarica(ricarica, tipo) {
  const dataPrevista = tipo === 'prima' ? ricarica.primaRicarica : ricarica.secondaRicarica;
  const dataEsecuzione = tipo === 'prima' ? ricarica.dataEsecuzionePrima : ricarica.dataEsecuzioneSeconda;
  const importo = tipo === 'prima' ? ricarica.importoPrima : ricarica.importoSeconda;
@@ -3751,10 +3756,10 @@ ${showActions
  return'<span style="color: #4CAF50; font-weight: bold; font-size: 1.1rem;">OK</span>';
  }
  
- if (effettuata) {
- return`
-<div class="ricarica-status"> Effettuata</div>
-<div class="ricarica-esito">${dataEsecuzione || '-'} - ${importo || '€ 0.00'}</div> `;
+	 if (effettuata) {
+	 return`
+	<div class="ricarica-status"> Effettuata</div>
+	<div class="ricarica-esito">${escapeHtml(dataEsecuzione || '-')} - ${escapeHtml(importo || '€ 0.00')}</div> `;
  }
  
  const scaduta = isRicaricaScaduta(ricarica, tipo);
@@ -3767,9 +3772,9 @@ ${showActions
  return`
 <div style="margin-bottom: 0.5rem;">
 <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">Ricarica Entro:</div>
-<div class="ricarica-data ${classeData}">${dataPrevista}</div>
-</div>
-<button type="button" class="btn-gestisci"onclick="apriModalRicarica(${ricarica.rowIndex}, '${tipo}')"> GESTISCI
+	<div class="ricarica-data ${classeData}">${escapeHtml(dataPrevista)}</div>
+	</div>
+	<button type="button" class="btn-gestisci"onclick="apriModalRicarica(${MiroxSafe.isRecordId(ricarica.rowIndex) ? String(ricarica.rowIndex) : 0}, '${tipo}')" ${MiroxSafe.isRecordId(ricarica.rowIndex) ? '' : 'disabled'}> GESTISCI
 </button> `;
  }
  

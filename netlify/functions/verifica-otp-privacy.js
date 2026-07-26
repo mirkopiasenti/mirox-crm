@@ -12,7 +12,7 @@
  *  2) Verifica hash(otp+salt) === otp_hash
  *  3) Se KO: incrementa otp_tentativi, se raggiunge 3 marca 'fallito'
  *  4) Se OK: genera PDF con metadata firma, upload bucket consensi-privacy,
- *     update record (stato='confermato', valido_fino_al = now()+48mo,
+ *     update record (stato='confermato', valido_fino_al = now()+24mo,
  *     pdf_storage_path, pdf_filename, informativa_hash, otp_confermato_at)
  *
  * Response 200 (success):
@@ -33,7 +33,7 @@ const { generateConsensoPdf, INFORMATIVA_VERSIONE } = require('./_lib/pdf-consen
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_TENTATIVI = 3;
-const VALIDITA_MESI = 48;
+const VALIDITA_MESI = 24;
 const BUCKET_CONSENSI = 'consensi-privacy';
 
 const CORS_HEADERS = {

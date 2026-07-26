@@ -960,7 +960,7 @@ exports.handler = async (event) => {
     // La pratica non puo' essere creata se per l'anagrafica non esiste
     // un consenso 'confermato', non scaduto, non revocato. Il wizard
     // dovrebbe averlo raccolto (modale OTP o cartaceo) prima del submit
-    // oppure trovato in dedupe 48 mesi. Il client puo' passare
+    // oppure trovato nel riuso massimo di 24 mesi. Il client puo' passare
     // pratica.consenso_id per evitare race su consensi multipli; se
     // passato, verifichiamo che corrisponda davvero a quello attivo.
     // ----------------------------------------------------------------
@@ -977,10 +977,10 @@ exports.handler = async (event) => {
       .maybeSingle();
 
     if (consensoLookupError) {
-      throw new Error(readableError(consensoLookupError, 'Errore verifica consenso privacy'));
+      throw new Error(readableError(consensoLookupError, 'Errore verifica informativa privacy'));
     }
     if (!consensoAttivo) {
-      throw new Error('Consenso privacy mancante o scaduto per questo cliente. Raccogliere un nuovo consenso (OTP via SMS o modulo cartaceo firmato) prima di inviare la pratica.');
+      throw new Error('Informativa privacy mancante o scaduta per questo cliente. Registrare una nuova presa visione (OTP via SMS o modulo cartaceo firmato) prima di inviare la pratica.');
     }
     if (consensoIdInput && consensoIdInput !== consensoAttivo.id) {
       throw new Error('consenso_id passato dal client non corrisponde al consenso attivo per questa anagrafica');

@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="it">
 <head> <meta charset="UTF-8"> <link rel="icon" type="image/png" href="assets/favicon.png"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Login - Mirox Vendita</title> <link rel="preconnect" href="https://fonts.googleapis.com"> <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"> <link rel="stylesheet" href="css/style.css">
+<script src="js/mirox-safe.js"></script>
 </head>
-<body> <div class="login-container"> <div class="login-card"> <div class="login-logo"> <img src="assets/logo.png" alt="Mirox CRM" style="width:200px"> </div> <p class="login-title">Accedi al sistema</p> <div id="alertBox"></div> <form id="loginForm" style="text-align: left;"> <div class="form-group"> <label class="form-label">Email</label> <input type="email" id="email" class="form-control" placeholder="nome@konatech.it" required autocomplete="email"> </div> <div class="form-group"> <label class="form-label">Password</label> <input type="password" id="password" class="form-control" placeholder="Inserisci password" required autocomplete="current-password"> </div> <button type="submit" class="btn btn-primary btn-lg w-full" id="btnLogin" style="justify-content: center;"> <span id="btnText">Accedi</span> <span id="btnSpinner" class="hidden">Accesso in corso...</span> </button> </form> <p style="margin-top: 24px; font-size: 12px; color: var(--text-light);"> MIROX CRM - Vendita </p> </div> </div> <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script> <script src="js/config.js"></script> <script src="js/auth.js"></script> <script> (async () => {
+<body> <div class="login-container"> <div class="login-card"> <div class="login-logo"> <img src="assets/logo.png" alt="Mirox CRM" style="width:200px"> </div> <p class="login-title">Accedi al sistema</p> <div id="alertBox"></div> <form id="loginForm" style="text-align: left;"> <div class="form-group"> <label class="form-label">Email</label> <input type="email" id="email" class="form-control" placeholder="nome@konatech.it" required autocomplete="email"> </div> <div class="form-group"> <label class="form-label">Password</label> <input type="password" id="password" class="form-control" placeholder="Inserisci password" required autocomplete="current-password"> </div> <button type="submit" class="btn btn-primary btn-lg w-full" id="btnLogin" style="justify-content: center;"> <span id="btnText">Accedi</span> <span id="btnSpinner" class="hidden">Accesso in corso...</span> </button> </form> <p style="margin-top: 24px; font-size: 12px; color: var(--text-light);"> MIROX CRM - Vendita </p> </div> </div> <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script> <script src="js/config.js"></script> <script src="js/auth.js"></script> <script> (async () => {
       // Forza logout di eventuale sessione persistente all'arrivo sulla pagina di login.
       try {
         await db.auth.signOut();
@@ -34,7 +35,11 @@
       } catch (err) { showAlert(err.message); resetBtn(); }
     });
     function showAlert(msg) {
-      document.getElementById('alertBox').innerHTML = '<div class="alert alert-danger">' + msg + '</div>';
+      const alertBox = document.getElementById('alertBox');
+      const alert = document.createElement('div');
+      alert.className = 'alert alert-danger';
+      alert.textContent = String(msg || 'Errore di accesso');
+      alertBox.replaceChildren(alert);
     }
     function resetBtn() {
       document.getElementById('btnLogin').disabled = false;

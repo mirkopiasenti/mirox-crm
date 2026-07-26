@@ -21,9 +21,11 @@
     if (window.MiroxUpload) return;
 
     function esc(s) {
-        const d = document.createElement('div');
-        d.textContent = s == null ? '' : String(s);
-        return d.innerHTML;
+        return window.MiroxSafe
+            ? window.MiroxSafe.escapeHtml(s)
+            : String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+            })[c]);
     }
 
     function formatSize(value) {

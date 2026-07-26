@@ -190,16 +190,22 @@ exports.handler = async (event) => {
     }
 
     let storagePath = normalizeRequestedPath(bucket, fields.path);
-    let uploadResult = await supabase.storage.from(bucket).upload(storagePath, file.buffer, {
+    const uploadOptions = {
       contentType: 'application/pdf',
-      upsert: false
+      upsert: false,
+      metadata: {
+        uploaded_by: auth.profilo.id,
+        source: 'upload-documento-modulo'
+      }
+    };
+    let uploadResult = await supabase.storage.from(bucket).upload(storagePath, file.buffer, {
+      ...uploadOptions
     });
 
     if (uploadResult.error && isDuplicateError(uploadResult.error)) {
       storagePath = collisionPath(storagePath);
       uploadResult = await supabase.storage.from(bucket).upload(storagePath, file.buffer, {
-        contentType: 'application/pdf',
-        upsert: false
+        ...uploadOptions
       });
     }
 

@@ -20,6 +20,7 @@
         .stato-annullato .app-nome { text-decoration:line-through; color:var(--danger); }
         .stato-rischedulato .app-nome { text-decoration:line-through; color:var(--warning); }
     </style>
+<script src="../../js/mirox-safe.js"></script>
 </head>
 <body>
 <div class="cc-layout">
@@ -102,7 +103,7 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
 <script src="js/config.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/app.js"></script>
@@ -191,8 +192,9 @@ function render() {
         for (const a of grouped[key].sort((x,y) => new Date(x.data_ora)-new Date(y.data_ora))) {
             const statoClass = a.stato==='annullato'?'stato-annullato':a.stato==='rischedulato'?'stato-rischedulato':'';
             const fissatoDa = a.fissato_da_nome || 'Online';
-            const fissatoColor = a.fissato_da_operatore_id ? Utils.getColoreOperatore(a.fissato_da_operatore_id) : '#aaa';
-            html += `<div class="app-item ${statoClass}" onclick='dettagli(${JSON.stringify(a).replace(/'/g,"&#39;")})'>
+            const fissatoColor = MiroxSafe.safeCssColor(a.fissato_da_operatore_id ? Utils.getColoreOperatore(a.fissato_da_operatore_id) : '#aaaaaa');
+            const safeId = MiroxSafe.isRecordId(a.id) ? String(a.id) : '';
+            html += `<div class="app-item ${statoClass}" data-appuntamento-id="${Utils.escapeHtml(safeId)}" role="button" tabindex="0">
                 <div class="app-time">${Utils.formatTime(a.data_ora)}</div>
                 <div class="app-info">
                     <div class="app-nome">${Utils.escapeHtml(getRagioneSociale(a))}</div>
@@ -201,11 +203,21 @@ function render() {
                         <span class="fissato-da" style="border-left:3px solid ${fissatoColor};padding-left:8px">${Utils.avatarHtml(fissatoDa, a.fissato_da_operatore_id, 18)} ${Utils.escapeHtml(fissatoDa)}</span>
                     </div>
                 </div>
-                <span class="badge ${a.stato==='confermato'?'badge-success':a.stato==='annullato'?'badge-danger':'badge-warning'}">${a.stato}</span>
+                <span class="badge ${a.stato==='confermato'?'badge-success':a.stato==='annullato'?'badge-danger':'badge-warning'}">${Utils.escapeHtml(a.stato)}</span>
             </div>`;
         }
     }
     document.getElementById('lista').innerHTML = html;
+    document.querySelectorAll('#lista [data-appuntamento-id]').forEach(item => {
+        const open = () => {
+            const selected = filtrati.find(a => String(a.id) === item.dataset.appuntamentoId);
+            if (selected) dettagli(selected);
+        };
+        item.addEventListener('click', open);
+        item.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); }
+        });
+    });
 }
 
 function dettagli(a) {
@@ -220,7 +232,7 @@ function dettagli(a) {
         <p><strong>Telefono:</strong> ${Utils.escapeHtml(a.telefono)}</p>
         <p><strong>Motivo:</strong> ${Utils.escapeHtml(a.motivo)}</p>
         <p><strong>Note:</strong> ${Utils.escapeHtml(a.note||'Nessuna')}</p>
-        <p><strong>Stato:</strong> <span class="badge ${a.stato==='confermato'?'badge-success':a.stato==='annullato'?'badge-danger':'badge-warning'}">${a.stato}</span></p>
+        <p><strong>Stato:</strong> <span class="badge ${a.stato==='confermato'?'badge-success':a.stato==='annullato'?'badge-danger':'badge-warning'}">${Utils.escapeHtml(a.stato)}</span></p>
         <p><strong>Fonte:</strong> ${a.fonte==='pubblico'?'Sito/Social':'Interno'}</p>
         <p><strong>Fissato da:</strong> ${Utils.escapeHtml(a.fissato_da_nome||'Prenotazione online')}</p>
     `;
@@ -252,12 +264,21 @@ async function caricaSlotSposta() {
         document.getElementById('spostaSlots').innerHTML = '<p class="text-secondary">Nessuno slot disponibile</p>';
         return;
     }
-    document.getElementById('spostaSlots').innerHTML = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">' +
-        slots.map(s => {
-            const t = new Date(s);
-            const ora = t.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
-            return `<button class="btn btn-sm btn-secondary" onclick="selezionaSlotSposta(this,'${s}')" style="justify-content:center">${ora}</button>`;
-        }).join('') + '</div>';
+    const container = document.getElementById('spostaSlots');
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:8px';
+    slots.forEach(slot => {
+        const parsed = new Date(slot);
+        if (Number.isNaN(parsed.getTime())) return;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-sm btn-secondary';
+        button.style.justifyContent = 'center';
+        button.textContent = parsed.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+        button.addEventListener('click', () => selezionaSlotSposta(button, slot));
+        grid.appendChild(button);
+    });
+    container.replaceChildren(grid);
 }
 
 function selezionaSlotSposta(el, slot) {

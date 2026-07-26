@@ -243,9 +243,10 @@ table.avanz thead th.empty-obanec { background: #ffffff !important; border: none
 .empty-state { padding: 40px 20px; text-align: center; color: var(--text-secondary); }
 .empty-state .empty-icon { font-size: 36px; margin-bottom: 8px; opacity: 0.45; }
 </style>
+<script src="../js/mirox-safe.js"></script>
 </head>
 <body>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
 <script src="../js/config.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/mirox-ui.js"></script>
@@ -335,7 +336,7 @@ const DPState = {
 // ============================================================
 // UTIL
 // ============================================================
-function escapeHtml(s) { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
+function escapeHtml(s) { return MiroxSafe.escapeHtml(s); }
 function normalizzaNome(s) { return String(s || '').trim().toUpperCase(); }
 function isoOggi() {
   const d = new Date();

@@ -6,7 +6,7 @@
  *  - Sezioni informativa GDPR art. 13 (finalita', base giuridica, conservazione,
  *    diritti dell'interessato, reclamo Garante, ecc.)
  *  - Dati dell'interessato (ragione sociale, CF/PIVA, indirizzo, contatti)
- *  - Checkbox consensi (informativa obbligatoria + marketing opzionale)
+ *  - Presa visione dell'informativa + consenso marketing opzionale
  *  - Box firma:
  *      * modalita='otp_sms': metadata trascritti (numero, timestamp, hash,
  *        sms_id, IP operatore)
@@ -31,7 +31,7 @@
  *     dataCompilazione: '2026-06-25T18:32:11+02:00'  // ISO; default now
  *   });
  *
- * Ritorna: Buffer del PDF.
+ * Ritorna: { buffer, hash } con il Buffer PDF e il relativo SHA256.
  */
 
 const PDFDocument = require('pdfkit');
@@ -39,7 +39,7 @@ const crypto = require('crypto');
 
 // Versione corrente del testo dell'informativa. Cambiare quando si modifica
 // il testo legale: ogni consenso salvato traccia la versione vista.
-const INFORMATIVA_VERSIONE = 'v1_2026_06_25';
+const INFORMATIVA_VERSIONE = 'v2_2026_07_26';
 
 // Dati Titolare hardcoded (Kona Tech S.r.l.)
 const TITOLARE = {
@@ -47,9 +47,7 @@ const TITOLARE = {
     piva: '05146970230',
     sedeLegale: 'Via Dossi, 7 - 37058 Sanguinetto (VR) - Italia',
     emailContatto: 'info@konatech.it',
-    pec: 'konatechsrl@pec.it',
-    dpoNome: 'Mirko Piasenti',
-    dpoEmail: 'info@konatech.it'
+    pec: 'konatechsrl@pec.it'
 };
 
 // Palette
@@ -155,7 +153,7 @@ function drawHeader(doc) {
     const right = doc.page.width - doc.page.margins.right;
     doc.rect(left, 30, right - left, 50).fillAndStroke('#FFF7ED', COL_BORDER);
     doc.fillColor(COL_PRIMARY).font('Helvetica-Bold').fontSize(16);
-    doc.text('Informativa privacy e raccolta consenso', left + 12, 42, { width: right - left - 24 });
+    doc.text('Informativa privacy e consenso marketing', left + 12, 42, { width: right - left - 24 });
     doc.fillColor(COL_MUTED).font('Helvetica').fontSize(8.5);
     doc.text('Titolare: ' + TITOLARE.ragioneSociale + ' — P.IVA ' + TITOLARE.piva, left + 12, 62);
     doc.fillColor(COL_TEXT);
@@ -168,13 +166,19 @@ function drawFooter(doc, opts) {
     const left = doc.page.margins.left;
     const right = doc.page.width - doc.page.margins.right;
     const yBase = doc.page.height - 40;
+    const previousBottomMargin = doc.page.margins.bottom;
+    // Il footer vive intenzionalmente dentro il margine inferiore. Durante la
+    // scrittura azzeriamo il margine per evitare che PDFKit aggiunga pagine
+    // vuote quando il cursore supera l'area del corpo.
+    doc.page.margins.bottom = 0;
     doc.lineWidth(0.5).strokeColor(COL_BORDER).moveTo(left, yBase - 6).lineTo(right, yBase - 6).stroke();
     doc.fillColor(COL_MUTED).font('Helvetica').fontSize(7.5);
     const v = `Versione informativa: ${opts.informativaVersione}`;
     const h = opts.documentoHash ? `Hash documento (SHA256): ${opts.documentoHash.slice(0, 32)}…` : '';
-    doc.text(v, left, yBase, { width: right - left, align: 'left' });
-    if (h) doc.text(h, left, yBase + 9, { width: right - left, align: 'left' });
-    doc.text('Pagina ' + (doc.page.number || 1), left, yBase, { width: right - left, align: 'right' });
+    doc.text(v, left, yBase, { width: right - left, align: 'left', lineBreak: false });
+    if (h) doc.text(h, left, yBase + 9, { width: right - left, align: 'left', lineBreak: false });
+    doc.text('Pagina ' + (opts.pageNumber || 1), left, yBase, { width: right - left, align: 'right', lineBreak: false });
+    doc.page.margins.bottom = previousBottomMargin;
 }
 
 /**
@@ -194,12 +198,13 @@ async function generateConsensoPdf(opts) {
             const chunks = [];
             const doc = new PDFDocument({
                 size: 'A4',
+                bufferPages: true,
                 margins: { top: 95, right: 50, bottom: 60, left: 50 },
                 info: {
                     Title: `Informativa privacy ${safeText(a.ragione_sociale, 'cliente')}`,
                     Author: TITOLARE.ragioneSociale,
-                    Subject: 'Informativa GDPR e raccolta consenso al trattamento',
-                    Keywords: 'GDPR, privacy, consenso, ' + safeText(a.cf_piva)
+                    Subject: 'Informativa GDPR e consenso facoltativo al marketing',
+                    Keywords: 'GDPR, privacy, informativa, marketing, ' + safeText(a.cf_piva)
                 }
             });
 
@@ -224,7 +229,9 @@ async function generateConsensoPdf(opts) {
                 `Recapiti per esercitare i propri diritti o ricevere chiarimenti sul trattamento dei dati: ` +
                 `email ${TITOLARE.emailContatto} - PEC ${TITOLARE.pec}.`);
             drawParagraph(doc,
-                `Responsabile della Protezione dei Dati (DPO): ${TITOLARE.dpoNome}, contattabile all'indirizzo ${TITOLARE.dpoEmail}.`);
+                `Le richieste in materia di protezione dei dati possono essere inviate agli stessi recapiti. Qualora venga designato ` +
+                `un Responsabile della Protezione dei Dati, i relativi recapiti saranno pubblicati e comunicati ` +
+                `agli interessati secondo la normativa applicabile.`);
 
             // -------- Dati raccolti --------
             drawSectionTitle(doc, '2. Categorie di dati personali trattati');
@@ -232,38 +239,61 @@ async function generateConsensoPdf(opts) {
             drawBulletList(doc, [
                 'dati anagrafici e identificativi (nome, cognome / ragione sociale, codice fiscale o partita IVA, data di nascita ove applicabile);',
                 'dati di contatto (indirizzo di residenza/sede, numero di telefono cellulare, indirizzo email);',
-                'copia del documento d\'identità in corso di validità (necessaria per gli adempimenti KYC degli operatori di telecomunicazioni);',
-                'dati relativi al contratto di fornitura di servizi di telecomunicazioni e/o ai servizi accessori (offerta sottoscritta, IMEI dispositivo eventualmente acquistato, dati di portabilità);',
-                'eventuali dati di contatto pregressi e storico delle interazioni con il servizio clienti.'
+                'dati contenuti nel documento d\'identità e relativa copia, quando richiesta dal gestore o necessaria per identificazione, attivazione e prevenzione delle frodi;',
+                'dati relativi a proposte, contratti e servizi richiesti (offerta, codice cliente, dati di portabilità, POD/PDR, eventuale IMEI e informazioni di pagamento senza acquisire credenziali o dati completi della carta);',
+                'storico delle interazioni, appuntamenti, assistenza e pratiche post-vendita;',
+                'dati tecnici e probatori del flusso privacy (data e ora, indirizzo IP dell\'operatore, user agent, identificativo SMS, esito OTP e hash del documento).'
             ]);
+            drawParagraph(doc,
+                'I dati sono raccolti principalmente presso l\'interessato; alcuni dati sullo stato della pratica ' +
+                'possono provenire dall\'operatore o partner presso il quale il contratto viene attivato.');
 
             // -------- Finalita' --------
             drawSectionTitle(doc, '3. Finalità del trattamento e base giuridica');
             drawParagraph(doc, 'I dati personali sono trattati per le finalità di seguito indicate:');
             drawBulletList(doc, [
-                'a) gestione del rapporto contrattuale di rivendita (raccolta della proposta di adesione PDA, archiviazione del contratto, trasmissione al gestore di telecomunicazioni o al partner di riferimento) - base giuridica: esecuzione di un contratto di cui l\'interessato è parte ex art. 6, par. 1, lett. b) GDPR;',
-                'b) adempimento degli obblighi di legge in materia di KYC (Know Your Customer) e di anti-frode previsti dalla normativa di settore per gli operatori di telecomunicazioni - base giuridica: obbligo legale ex art. 6, par. 1, lett. c) GDPR;',
-                'c) gestione dell\'assistenza post-vendita e ricontatto dell\'interessato per finalità tecniche connesse al contratto (verifica documentazione, attivazione, anomalie, supporto) - base giuridica: legittimo interesse del Titolare ex art. 6, par. 1, lett. f) GDPR;',
-                'd) invio di comunicazioni commerciali via SMS, email o chiamata telefonica relative a nuove offerte e promozioni di prodotti e servizi commercializzati dal Titolare - base giuridica: consenso specifico dell\'interessato ex art. 6, par. 1, lett. a) GDPR (consenso opzionale, separato, sempre revocabile).'
+                'a) svolgere attività precontrattuali richieste dall\'interessato, predisporre e gestire la proposta/il contratto, trasmettere i dati all\'operatore o partner scelto, gestire attivazione, consegna e pagamento - base giuridica: art. 6, par. 1, lett. b) GDPR;',
+                'b) adempiere obblighi normativi, fiscali, contabili, di identificazione e, quando applicabili, di prevenzione delle frodi - base giuridica: art. 6, par. 1, lett. c) GDPR;',
+                'c) gestire assistenza, reclami, anomalie, post-vendita ed esercitare o difendere diritti - basi giuridiche, secondo il caso: esecuzione del contratto, obbligo legale o legittimo interesse del Titolare alla corretta gestione e tutela del rapporto, ai sensi dell\'art. 6, par. 1, lett. b), c) e f) GDPR;',
+                'd) proteggere il CRM, prevenire abusi, documentare operazioni e garantire integrità e tracciabilità - base giuridica: legittimo interesse del Titolare alla sicurezza e alla tutela dei propri sistemi e diritti, art. 6, par. 1, lett. f) GDPR;',
+                'e) inviare comunicazioni promozionali su prodotti e servizi commercializzati dal Titolare tramite SMS, email e chiamata telefonica - base giuridica: consenso facoltativo, specifico e revocabile, art. 6, par. 1, lett. a) GDPR e normativa nazionale sulle comunicazioni elettroniche.'
             ]);
 
             // -------- Modalita' --------
             drawSectionTitle(doc, '4. Modalità del trattamento');
             drawParagraph(doc,
-                'I dati sono trattati con strumenti elettronici tramite il sistema gestionale interno del Titolare (CRM Mirox) e custoditi su infrastruttura cloud con cifratura at-rest e in-transit. L\'accesso ai dati è riservato al personale autorizzato del Titolare, formalmente nominato incaricato del trattamento e vincolato al segreto professionale. Il trattamento è effettuato adottando le misure di sicurezza tecniche e organizzative adeguate ai sensi dell\'art. 32 GDPR.');
+                'I dati sono trattati prevalentemente con strumenti elettronici tramite il CRM Mirox e servizi cloud, ' +
+                'con misure tecniche e organizzative adeguate al rischio ai sensi dell\'art. 32 GDPR. L\'accesso è ' +
+                'limitato al personale autorizzato e ai fornitori che ne abbiano necessità per le attività affidate.');
+            drawParagraph(doc,
+                'Per agevolare la trascrizione dei dati presenti nella proposta di adesione può essere utilizzato ' +
+                'un servizio di intelligenza artificiale fornito da Anthropic. Il documento è analizzato per estrarre ' +
+                'i campi da riportare nel CRM; il risultato è verificato dall\'operatore. L\'OCR non assume decisioni ' +
+                'sull\'interessato e non produce effetti giuridici o analogamente significativi senza intervento umano.');
 
             // -------- Comunicazione a terzi --------
+            doc.addPage();
             drawSectionTitle(doc, '5. Comunicazione e destinatari dei dati');
             drawParagraph(doc,
-                'I dati personali possono essere comunicati ai seguenti soggetti: (i) operatori di telecomunicazioni e partner commerciali presso cui sono attivati i contratti sottoscritti (a titolo esemplificativo: WindTre, Engie, Verisure), nei limiti strettamente necessari all\'erogazione del servizio richiesto; (ii) consulenti, professionisti e fornitori di servizi tecnici (commercialista, fornitori cloud, gestori dei sistemi informatici) nominati Responsabili del trattamento ex art. 28 GDPR; (iii) autorità competenti in caso di richieste formali ai sensi di legge.');
-            drawParagraph(doc, 'I dati non sono diffusi e non sono oggetto di trasferimento verso paesi extra-UE.');
+                'Nei limiti necessari, i dati possono essere comunicati a: operatori di telecomunicazioni, energia, ' +
+                'sicurezza, assicurazione o altri partner scelti per il servizio richiesto, che operano secondo il ' +
+                'ruolo privacy loro applicabile; fornitori di hosting, database, posta elettronica, SMS, assistenza ' +
+                'informatica e intelligenza artificiale, normalmente nominati responsabili del trattamento ai sensi ' +
+                'dell\'art. 28 GDPR; consulenti e professionisti; autorità e soggetti legittimati dalla legge.');
+            drawParagraph(doc,
+                'I dati non sono diffusi. Alcuni fornitori tecnologici possono trattare dati anche fuori dallo Spazio ' +
+                'Economico Europeo. In tali casi il trasferimento avviene nel rispetto del Capo V GDPR, sulla base di ' +
+                'una decisione di adeguatezza, clausole contrattuali standard o altra garanzia applicabile, con eventuali ' +
+                'misure supplementari. Informazioni sulle garanzie possono essere richieste ai recapiti del punto 1.');
 
             // -------- Conservazione --------
             drawSectionTitle(doc, '6. Periodo di conservazione');
             drawBulletList(doc, [
-                'dati relativi al contratto e copia del documento d\'identità: 10 anni dalla cessazione del rapporto contrattuale, in conformità agli obblighi di conservazione previsti dalla normativa fiscale e di settore (artt. 2214-2220 c.c. e D.P.R. 633/1972);',
-                'dati trattati per finalità di marketing diretto (di cui al punto 3.d): 24 mesi dalla raccolta del consenso, salvo rinnovo espresso da parte dell\'interessato;',
-                'log tecnici, registri di accesso e copia del presente modulo di consenso: per il tempo necessario all\'esercizio dei diritti del Titolare in eventuale contenzioso, e comunque non oltre 10 anni.'
+                'dati contrattuali, amministrativi e contabili: per la durata del rapporto e successivamente per 10 anni, salvo termini maggiori imposti dalla legge o necessari per un contenzioso;',
+                'copia del documento d\'identità e documenti di attivazione: per il tempo necessario a identificazione, attivazione, controlli del partner e gestione di contestazioni; comunque non oltre il termine applicabile ai dati contrattuali, salvo specifico obbligo di legge;',
+                'dati usati per marketing diretto: 24 mesi dalla raccolta del consenso, salvo revoca anticipata o nuovo consenso;',
+                'prova dell\'informativa, del consenso marketing, della revoca e relativi log: per il tempo necessario a dimostrare la conformità e tutelare i diritti, di regola non oltre 10 anni dall\'ultima operazione rilevante;',
+                'log tecnici di sicurezza: per il periodo proporzionato alla finalità e, di regola, non oltre 12 mesi, salvo necessità di accertare incidenti o illeciti.'
             ]);
 
             // -------- Diritti --------
@@ -276,8 +306,8 @@ async function generateConsensoPdf(opts) {
                 'diritto alla cancellazione dei dati ("diritto all\'oblio", art. 17), nei limiti consentiti dagli obblighi di conservazione;',
                 'diritto alla limitazione del trattamento (art. 18);',
                 'diritto alla portabilità dei dati (art. 20);',
-                'diritto di opposizione al trattamento per finalità di marketing (art. 21);',
-                'diritto di revocare in qualsiasi momento il consenso prestato per le finalità di cui al punto 3.d, senza pregiudicare la liceità del trattamento effettuato prima della revoca.'
+                'diritto di opposizione ai trattamenti fondati sul legittimo interesse e, in ogni momento, al marketing diretto (art. 21);',
+                'diritto di revocare in qualsiasi momento il consenso marketing, anche limitatamente a uno o più canali, con la stessa facilità con cui è stato prestato, senza pregiudicare la liceità del trattamento precedente.'
             ]);
             drawParagraph(doc,
                 'L\'interessato ha inoltre diritto di proporre reclamo al Garante per la Protezione dei Dati Personali (www.garanteprivacy.it) qualora ritenga che il trattamento dei propri dati personali avvenga in violazione della normativa applicabile.');
@@ -285,7 +315,11 @@ async function generateConsensoPdf(opts) {
             // -------- Natura conferimento --------
             drawSectionTitle(doc, '8. Natura del conferimento dei dati');
             drawParagraph(doc,
-                'Il conferimento dei dati per le finalità di cui ai punti 3.a, 3.b e 3.c è necessario per dare esecuzione al contratto e adempiere agli obblighi di legge: l\'eventuale rifiuto comporta l\'impossibilità di sottoscrivere il contratto. Il conferimento dei dati per la finalità di marketing (punto 3.d) è invece facoltativo: l\'eventuale rifiuto non pregiudica la sottoscrizione del contratto.');
+                'Il conferimento dei dati necessari alle finalità contrattuali e agli obblighi di legge è richiesto per ' +
+                'gestire la pratica; in mancanza, il Titolare potrebbe non poter concludere o eseguire il servizio. ' +
+                'La presa visione dell\'informativa documenta che l\'interessato ha ricevuto queste informazioni, ma ' +
+                'non trasforma il consenso nella base giuridica dei trattamenti contrattuali o obbligatori. Il consenso ' +
+                'marketing è facoltativo: negarlo o revocarlo non produce conseguenze sul contratto o sull\'assistenza.');
 
             // -------- Dati interessato --------
             doc.addPage();
@@ -302,7 +336,7 @@ async function generateConsensoPdf(opts) {
                 ['Indirizzo', buildIndirizzo(a)],
                 ['Cellulare', safeText(a.cellulare)],
                 ['Email', safeText(a.email)],
-                ['Data raccolta consenso', formatItalianDate(dataCompilazione)]
+                ['Data informativa/dichiarazione', formatItalianDate(dataCompilazione)]
             ];
             const left = doc.page.margins.left;
             const right = doc.page.width - doc.page.margins.right;
@@ -318,17 +352,18 @@ async function generateConsensoPdf(opts) {
                 rowY += 22;
             });
             doc.y = rowY + 10;
+            doc.x = left;
 
-            // -------- Consensi --------
-            drawSectionTitle(doc, '10. Consensi prestati dall\'interessato');
+            // -------- Dichiarazioni e consenso --------
+            drawSectionTitle(doc, '10. Presa visione e consenso facoltativo');
             doc.fillColor(COL_TEXT).font('Helvetica').fontSize(9.5);
 
             let cy = doc.y + 2;
             drawCheckRow(doc, left, cy, consensoContratto,
-                'Dichiaro di aver preso visione dell\'informativa di cui sopra ai sensi dell\'art. 13 GDPR e ' +
-                'acconsento al trattamento dei miei dati personali per le finalità contrattuali, di adempimento ' +
-                'degli obblighi di legge e di assistenza post-vendita (punti 3.a, 3.b, 3.c). ' +
-                'CONSENSO OBBLIGATORIO ai fini della sottoscrizione del contratto.',
+                'Dichiaro di aver ricevuto e preso visione dell\'informativa resa ai sensi degli artt. 13 e 14 GDPR. ' +
+                'Prendo atto che i trattamenti necessari alla pratica, agli obblighi di legge, alla sicurezza e ' +
+                'all\'assistenza si fondano sulle basi giuridiche indicate al punto 3 e non sul mio consenso. ' +
+                'PRESA VISIONE DELL\'INFORMATIVA.',
                 { width: right - left - 22 });
             cy = doc.y + 12;
             doc.y = cy;
@@ -336,22 +371,23 @@ async function generateConsensoPdf(opts) {
             drawCheckRow(doc, left, cy, consensoMarketing,
                 'Acconsento al trattamento dei miei dati personali per finalità di marketing diretto (invio di ' +
                 'comunicazioni commerciali via SMS, email o chiamata telefonica relative a nuove offerte e ' +
-                'promozioni di prodotti e servizi del Titolare - punto 3.d). ' +
-                'CONSENSO FACOLTATIVO, sempre revocabile.',
+                'promozioni di prodotti e servizi commercializzati dal Titolare - punto 3.e), per un massimo di ' +
+                '24 mesi. Posso revocare il consenso in ogni momento, anche per singolo canale. ' +
+                'CONSENSO FACOLTATIVO.',
                 { width: right - left - 22 });
 
             doc.y = doc.y + 18;
 
             // -------- Firma --------
-            drawSectionTitle(doc, '11. Modalità di sottoscrizione e firma');
+            drawSectionTitle(doc, '11. Modalità di registrazione della dichiarazione');
 
             if (modalita === 'otp_sms') {
                 const firmaBoxY = doc.y;
-                const firmaBoxH = 130;
+                const firmaBoxH = 142;
                 doc.lineWidth(1).strokeColor(COL_GREEN);
                 doc.rect(left, firmaBoxY, right - left, firmaBoxH).stroke();
                 doc.fillColor(COL_GREEN).font('Helvetica-Bold').fontSize(10);
-                doc.text('Documento firmato elettronicamente tramite OTP via SMS', left + 12, firmaBoxY + 10, { width: right - left - 24 });
+                doc.text('Dichiarazione registrata elettronicamente tramite OTP via SMS', left + 12, firmaBoxY + 10, { width: right - left - 24 });
                 doc.fillColor(COL_TEXT).font('Helvetica').fontSize(8.5);
 
                 const metaY = firmaBoxY + 28;
@@ -372,11 +408,12 @@ async function generateConsensoPdf(opts) {
 
                 doc.fillColor(COL_MUTED).fontSize(8);
                 doc.text(
-                    'Ai sensi dell\'art. 20 del Regolamento (UE) n. 910/2014 (eIDAS) la presente firma elettronica ' +
-                    'semplice, generata tramite invio di codice usa-e-getta al recapito telefonico dell\'interessato ' +
-                    'e validata da operatore terzo identificato, costituisce evidenza informatica idonea a dimostrare ' +
-                    'la manifestazione di consenso da parte dell\'interessato.',
-                    left + 12, firmaBoxY + firmaBoxH - 38,
+                    'Il codice OTP, inviato al recapito indicato e verificato nel CRM, registra la dichiarazione e i ' +
+                    'relativi dati probatori. Ai sensi dell\'art. 25, par. 1, del Regolamento (UE) n. 910/2014 (eIDAS), ' +
+                    'una firma elettronica non può essere privata di effetti giuridici o ammissibilità come prova per ' +
+                    'il solo fatto della forma elettronica. Questa procedura non è una firma elettronica qualificata ' +
+                    'e non equivale automaticamente a una firma autografa.',
+                    left + 12, firmaBoxY + firmaBoxH - 50,
                     { width: right - left - 24, align: 'justify' });
                 doc.y = firmaBoxY + firmaBoxH + 14;
             } else {
@@ -406,7 +443,7 @@ async function generateConsensoPdf(opts) {
             const range = doc.bufferedPageRange();
             for (let i = 0; i < range.count; i += 1) {
                 doc.switchToPage(range.start + i);
-                drawFooter(doc, { informativaVersione });
+                drawFooter(doc, { informativaVersione, pageNumber: i + 1 });
             }
 
             doc.end();

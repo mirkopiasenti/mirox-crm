@@ -4,7 +4,7 @@
  * Verifica se per l'anagrafica esiste un consenso privacy gia' attivo
  * (stato='confermato', non scaduto, non revocato). Usato dal wizard
  * upload-contratti-vendita per fare dedupe sulla finestra di validita'
- * di 48 mesi: se il consenso e' ancora valido, il wizard salta il flusso
+ * di 24 mesi: se il documento e' ancora valido, il wizard salta il flusso
  * OTP/cartaceo e procede direttamente all'upload pratica.
  *
  * Response 200:
@@ -86,7 +86,7 @@ exports.handler = async (event) => {
 
         const modalitaLabel = data.modalita === 'cartaceo'
             ? 'Modulo cartaceo firmato'
-            : 'Firma elettronica via OTP SMS';
+            : 'Dichiarazione elettronica via OTP SMS';
 
         return response(200, {
             success: true,

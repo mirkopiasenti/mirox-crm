@@ -8,8 +8,8 @@
  *   await MiroxStorage.signedUrl(bucket, path, expiresIn=300) -> string|null
  *   await MiroxStorage.openAttachment(bucket, path)            -> apre in nuova tab
  *
- * Per binding inline negli innerHTML usare:
- *   <a href="#" onclick="MiroxStorage.openAttachment('contratti-vendita','2026/...'); return false;">Apri</a>
+ * Per contenuti dinamici usare attributi data-* e addEventListener; non
+ * interpolare bucket/path in handler inline.
  *
  * Richiede `window.db` (client Supabase, da js/config.js).
  */
@@ -71,9 +71,11 @@
                 if (root.MiroxUI && typeof root.MiroxUI.alert === 'function') {
                     await root.MiroxUI.alert(FALLBACK_MSG);
                 } else {
-                    alert(FALLBACK_MSG);
+                    console.warn('[MiroxStorage]', FALLBACK_MSG);
                 }
-            } catch (_) { alert(FALLBACK_MSG); }
+            } catch (_) {
+                console.warn('[MiroxStorage]', FALLBACK_MSG);
+            }
             return;
         }
         // noopener evita che la nuova tab abbia accesso a window.opener

@@ -4,8 +4,8 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 
 ## Stack
 
-- **Frontend**: HTML statico + JavaScript vanilla (no bundler), Inter via Google Fonts, client Supabase `@supabase/supabase-js@2` da CDN
-- **Backend serverless**: Netlify Functions (Node + esbuild), librerie `@supabase/supabase-js`, `nodemailer`, `busboy`, `pdfkit` (generazione PDF informativa privacy)
+- **Frontend**: HTML statico + JavaScript vanilla (no bundler), Inter via Google Fonts, client Supabase `@supabase/supabase-js@2.110.8` da CDN con Subresource Integrity
+- **Backend serverless**: Netlify Functions (Node >=22 + esbuild), librerie versionate esattamente (`@supabase/supabase-js@2.110.8`, `nodemailer@9.0.3`, `busboy`, `pdfkit`)
 - **Database**: Supabase Postgres (Auth + Storage + RLS + RPC + Trigger), 9 bucket Storage (`moduli-template` pubblico + 8 privati con signed URL on-demand)
 - **Email**: Gmail SMTP via nodemailer + template DB (`email_template` + `email_log`)
 - **SMS transactional**: Smshosting REST API (consensi privacy via OTP — vedi `docs/SMSHOSTING_SETUP.md`)
@@ -24,20 +24,20 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `admin-gare.html` | Configurazione **Gare & Avanzamento** — metriche, obiettivi mensili per operatore, editor compenso a scaglioni + bonus, duplica dal mese precedente, flag operatori "in gara". Solo admin |
 | `moduli/` | 16 pagine funzionali Vendita / Post-Vendita (`apri_chiudi`, `switch_sim`, `ordini_smartphone`, `dispositivi_comodato`, `gestione_rimborsi`, `segnalazioni`, `simulatore_protecta`, `storico_cliente`, `ticket`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `dashboard_pezzi` (3 tab: Day by Day + Gare Individuali + Avanzamento Mensile), `upload-contratti-vendita`) |
 | `moduli/call-center/` | **Modulo Call Center integrato (Fase 1)** — 11 pagine (`registra-chiamata`, `elenco-chiamate`, `rilavorazione`, `appuntamenti`, `appuntamenti-oggi`, `prenota-interno`, `esiti-appuntamenti`, `blacklist`, `call-center-lead-outbound`, `prenota-interno-outbound`, `registra-chiamata-outbound`) + `prenota.html` (form pubblico). La pagina `configurazione` è stata spostata sotto Admin Mirox (`admin-call-center-config.html`). Vedi sezione "Modulo Call Center" sotto e [CLAUDE.md](CLAUDE.md) per i dettagli di coordinamento col CC prod |
-| `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-storage`, `mirox-storage-upload`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `mirox-error-reporter`, `anagrafica-helper`, `vendita-storage-helper` |
+| `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-safe` (escape HTML, URL/ID/colori sicuri), `mirox-storage`, `mirox-storage-upload`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `mirox-error-reporter`, `anagrafica-helper`, `vendita-storage-helper` |
 | `css/` | `style.css`, `mirox-modules.css` |
 | `assets/` | Logo, favicon |
 | `netlify/functions/` | Endpoint server-side (vedi sotto) |
-| `netlify/functions/_lib/` | Helper condivisi (`mailer.js`) |
-| `tests/` | Test automatici Node (`node:test`): regressioni vendita + controllo sintassi e link locali |
+| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `pdf-consenso`) |
+| `tests/` | Test automatici Node (`node:test`): regressioni vendita, sicurezza/XSS, PDF privacy, sintassi e link locali |
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |
-| `netlify.toml` | Config Netlify + cron `cron-rientro-sim` |
+| `netlify.toml` | Config Netlify, header di sicurezza (CSP/HSTS/Permissions-Policy) e cron |
 | `package.json` | Dipendenze Node delle functions |
 | `CLAUDE.md` | Mappa completa per AI assistants (architettura, schema, regole di business, convenzioni) |
 
 ### Netlify Functions
 
-Tutte le functions, eccetto `cron-rientro-sim` e l'endpoint anon intenzionale `public-prenota`, richiedono `Authorization: Bearer <jwt>` valido — il client usa `MiroxApi.fetch()` che lo inietta automaticamente dalla sessione Supabase.
+Tutte le functions, eccetto i due cron Netlify e l'endpoint anon intenzionale `public-prenota`, richiedono `Authorization: Bearer <jwt>` valido — il client usa `MiroxApi.fetch()` che lo inietta automaticamente dalla sessione Supabase.
 
 | Function | Metodo | Auth | Scopo |
 |---|---|---|---|
@@ -45,18 +45,19 @@ Tutte le functions, eccetto `cron-rientro-sim` e l'endpoint anon intenzionale `p
 | `admin-vendita-config` | GET / POST | **admin** | CRUD admin del catalogo |
 | `crea-vendita-pratica-carrello` | POST | authenticated | Crea pratica + N contratti in stato provvisorio `bozza`, promuove i PDA e supporta le action idempotenti `finalize` / `rollback_upload_failure`. L'operatore viene sempre ricavato dal JWT. Per cluster `Turista` salva `cluster_cliente='Turista'` sui contratti, usa `Consumer` su `anagrafica` e non richiede email |
 | `upload-vendita-documento` | POST multipart | authenticated | Upload di PDF reali su `contratti-vendita` (anche staging `temp/<sess>/`). Verifica proprietà operatore/admin sulle bozze; sulle pratiche inviate consente la gestione da Verifica Contratti. Valida coerenza pratica/anagrafica/contratto, deriva il path dalla pratica e attribuisce l'upload all'utente autenticato |
-| `upload-documento-modulo` | POST multipart | authenticated | Upload server-side per i bucket operativi Apri/Chiudi, Switch SIM, Comodato, Rimborsi, Protecta e Segnalazioni. Accetta solo PDF reali max 20 MB e valida bucket/path tramite allowlist |
+| `upload-documento-modulo` | POST multipart | authenticated | Upload server-side per i bucket operativi Apri/Chiudi, Switch SIM, Comodato, Rimborsi, Protecta e Segnalazioni. Accetta solo PDF reali max 20 MB, valida bucket/path tramite allowlist e registra l'operatore JWT nei metadati Storage |
 | `gestisci-vendita-contratto` | POST | authenticated | Aggiornamento/verifica/riapertura dei contratti e rimozione allegati. Accetta soltanto campi consentiti, deriva snapshot e punteggi dal catalogo e usa l'identità JWT per `controllato_da` |
 | `elimina-vendita-contratto` | POST | **admin** | Eliminazione definitiva da Verifica Contratti: cancella il contratto, i record collegati, gli allegati Storage e la pratica se resta vuota |
 | `ocr-pda` | POST multipart | authenticated | OCR del PDA (Pratica di Adesione PDF) via Claude API — pre-compila l'anagrafica. In caso di errore Anthropic ritorna `error_code` strutturato (`ocr_credit_exhausted`, `ocr_rate_limited`, `ocr_unavailable`, `ocr_auth_error`, `ocr_generic_error`) per popup mirato lato client |
 | `search-anagrafica` | GET | authenticated | Ricerca cliente per CF/PIVA |
 | `mirox-send-email` | POST | authenticated | Invio email con template DB |
 | `cron-rientro-sim` | scheduled | nessuna (cron Netlify) | Notifica giornaliera rientro SIM |
-| `public-prenota` | GET / POST | nessuna (form pubblico) | Endpoint per `prenota.html`: GET slot disponibili + POST creazione appuntamento. Service_role + rate-limiting in-memory |
+| `cron-pulizia-operativa` | scheduled | nessuna (cron Netlify) | Scade OTP pending, elimina contatori rate-limit scaduti e rimuove bozze vendita oltre 24 ore con relativi PDF |
+| `public-prenota` | GET / POST | nessuna (form pubblico) | Endpoint per `prenota.html`: rate limit persistente su Postgres e POST atomica tramite RPC con lock e nuovo controllo dello slot nella stessa transazione |
 | `garantisci-anagrafica` | POST | authenticated | Upsert anagrafica (lookup CF/PIVA, update campi vuoti / cambiati o insert). Usato dal wizard prima della raccolta consenso; per `Turista` salva `Consumer` su `anagrafica` e non richiede email |
-| `check-consenso-privacy` | GET | authenticated | Dedupe 48 mesi: cerca un consenso `stato='confermato'`, non scaduto, non revocato per `anagrafica_id` |
+| `check-consenso-privacy` | GET | authenticated | Dedupe 24 mesi: cerca un consenso `stato='confermato'`, non scaduto, non revocato per `anagrafica_id` |
 | `richiedi-otp-privacy` | POST | authenticated | Genera OTP 6 cifre, salva hash+salt, invia SMS via Smshosting. Rate-limit 3 invii/ora per anagrafica + cooldown 60s |
-| `verifica-otp-privacy` | POST | authenticated | Verifica OTP (max 3 tentativi), genera PDF informativa con metadata firma, upload bucket `consensi-privacy`, segna `stato='confermato'` con `valido_fino_al = now()+48 mesi` |
+| `verifica-otp-privacy` | POST | authenticated | Verifica OTP (max 3 tentativi), genera il PDF informativa/dichiarazione con dati probatori, lo archivia e imposta `valido_fino_al = now()+24 mesi` |
 | `genera-pdf-consenso-cartaceo` | GET | authenticated | Stream PDF precompilato (riquadro firma vuoto) per il flusso cartaceo |
 | `upload-consenso-cartaceo` | POST multipart | authenticated | Upload scansione del modulo firmato a mano (max 20 MB, application/pdf), crea record `stato='confermato'` modalità `'cartaceo'` |
 
@@ -64,9 +65,10 @@ Tutte le functions, eccetto `cron-rientro-sim` e l'endpoint anon intenzionale `p
 
 - **Punto vendita**: `9001415852` = Legnago, `9000822241` = Cerea. Il valore selezionato/OCR viene propagato dal carrello al backend. Day by Day e Avanzamento Mensile contano solo Legnago; Gare Individuali conta entrambi i negozi.
 - **Reinserimenti**: un contratto può essere marcato come reinserimento solo rispetto a un contratto dello stesso cliente, stessa categoria, **stesso mese solare Europe/Rome** e stato post-vendita idoneo. La regola è verificata sia nel wizard sia server-side.
-- **Invio documenti**: la pratica nasce `bozza`; diventa `inviata` soltanto dopo tutti gli upload. Se un documento fallisce, il rollback compensativo elimina pratica incompleta, contratti e file già caricati per evitare duplicati al tentativo successivo.
+- **Invio documenti**: la pratica nasce `bozza`; diventa `inviata` soltanto dopo tutti gli upload. Se un documento fallisce, il rollback compensativo elimina pratica incompleta, contratti e file già caricati; il cron giornaliero recupera eventuali bozze orfane oltre 24 ore.
 - **Identità**: `operatore_id` e `uploaded_by` derivano sempre dal JWT autenticato. Le conferme sensibili (rimborso manuale e stato KO Apri/Chiudi) richiedono la password dell'account corrente verificata da Supabase; non esistono password operative nel sorgente.
 - **Scritture protette**: il browser non ha policy INSERT/UPDATE/DELETE sui bucket dati, né INSERT/DELETE su `vendita_documenti` o UPDATE su `vendita_contratti`. Upload, rimozioni e verifica passano dalle Netlify Functions autenticate.
+- **Sicurezza frontend**: tutti gli script CDN sono versionati e protetti da SRI; `MiroxSafe` codifica i dati dinamici; Netlify invia CSP, HSTS e Permissions-Policy. La CSP mantiene temporaneamente `'unsafe-inline'` perché le pagine statiche legacy contengono ancora script e handler inline.
 
 ## Setup locale
 
@@ -242,12 +244,15 @@ Dettagli operativi: vedi [CLAUDE.md](CLAUDE.md) sezione "Sistema di error report
 ## Schedulazioni
 
 - `cron-rientro-sim`: ogni giorno alle **07:00 UTC** (09:00 ora italiana estate / 08:00 inverno). Cerca pratiche `vendita_switch_sim` con `giorno_rientro = oggi` e `mail_rientro_inviata_at IS NULL`, invia notifica via template `rientro_sim`, imposta `mail_rientro_inviata_at = now()`.
+- `cron-pulizia-operativa`: ogni giorno alle **02:30 UTC**. Scade gli OTP pending oltre termine, elimina i contatori del rate limit pubblico scaduti e recupera fino a 100 pratiche `bozza` più vecchie di 24 ore cancellando prima i PDF Storage e poi la pratica.
 
 ## Link utili
 
 - Dashboard Supabase: <https://supabase.com/dashboard/project/lbgwamhjkjjfwgusafbi>
 - Mappa completa progetto (per AI e per chi vuole dettagli): [`CLAUDE.md`](CLAUDE.md)
 - Stato file SQL nella cartella `database/`: [`database/README.md`](database/README.md)
+- Revisione privacy tecnica e punti da validare: [`docs/PRIVACY_LEGAL_REVIEW_2026-07-26.md`](docs/PRIVACY_LEGAL_REVIEW_2026-07-26.md)
+- Audit XSS/infrastruttura e limite CSP residuo: [`docs/SECURITY_XSS_AUDIT_2026-07-26.md`](docs/SECURITY_XSS_AUDIT_2026-07-26.md)
 
 ## Note
 

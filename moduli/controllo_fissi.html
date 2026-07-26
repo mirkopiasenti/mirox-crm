@@ -205,9 +205,10 @@ body {
 .btn-action-success:hover { background: #15803d; }
 .btn-action:disabled { opacity:.55; cursor: not-allowed; }
 </style>
+<script src="../js/mirox-safe.js"></script>
 </head>
 <body>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
 <script src="../js/config.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/mirox-ui.js"></script>
@@ -336,8 +337,7 @@ const CFState = {
 };
 
 function escapeHtml(s) {
-  if (s === null || s === undefined) return '';
-  const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML;
+  return MiroxSafe.escapeHtml(s);
 }
 function fmtDate(iso) {
   if (!iso) return '-';

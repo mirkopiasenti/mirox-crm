@@ -662,9 +662,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/mirox-modules.css">
+<script src="../js/mirox-safe.js"></script>
 </head>
 <body>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
 <script src="../js/config.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/anagrafica-helper.js"></script>
@@ -1130,6 +1131,7 @@
 })();
 </script> <script> // ===== CONFIGURAZIONE - migrato su Supabase =====
  const sb = db;
+ const escapeHtml = (value) => window.MiroxSafe.escapeHtml(value);
  const APRI_CHIUDI_BUCKET = 'apri-chiudi-files';
 
  // Auto-fill operatore dal profilo loggato
@@ -1314,7 +1316,7 @@
      Array.from(fileInput.files).forEach((f, idx) => {
        const row = document.createElement('div');
        row.className = 'mx-file-row';
-       row.innerHTML = `<span class="mx-file-name">${f.name}</span><button type="button" class="mx-file-remove" title="Rimuovi" onclick="removeFile('${tipo}',${idx})">×</button>`;
+       row.innerHTML = `<span class="mx-file-name">${escapeHtml(f.name)}</span><button type="button" class="mx-file-remove" title="Rimuovi" onclick="removeFile('${tipo}',${idx})">×</button>`;
        list.appendChild(row);
      });
    } else {
@@ -1515,13 +1517,13 @@
  }
  } else {
  console.error('Errore nel risultato:', result.error);
- tbody.innerHTML = '<tr><td colspan="6"style="text-align: center;">Errore: ' + (result.error || 'Nessun dato trovato') + '</td></tr>';
+ tbody.innerHTML = '<tr><td colspan="6"style="text-align: center;">Errore: ' + escapeHtml(result.error || 'Nessun dato trovato') + '</td></tr>';
  }
 
  } catch (error) {
  console.error('ERRORE caricaDatiRiepilogo:', error);
  console.error('Stack:', error.stack);
- tbody.innerHTML = '<tr><td colspan="6"style="text-align: center; color: red;">Errore nel caricamento dati: ' + error.message + '</td></tr>';
+ tbody.innerHTML = '<tr><td colspan="6"style="text-align: center; color: red;">Errore nel caricamento dati: ' + escapeHtml(error.message) + '</td></tr>';
  }
  
  console.log('=== FINE caricaDatiRiepilogo ===');
@@ -1539,10 +1541,11 @@
  dati.forEach(d => {
  // Formatta data inserimento
  let dataInserimento = formatData(d.dataInserimento);
+ const safeRowId = window.MiroxSafe.isRecordId(d.rowIndex) ? String(d.rowIndex) : '';
  
  // Costruisci stringa vecchio intestatario (ragioneSociale + CF/PIVA)
- const vecchioDisplay = `${d.vecchioIntestatario.ragioneSociale || '-'}<br><small>${d.vecchioIntestatario.cfPiva || '-'}</small>`;
- const nuovoDisplay = `${d.nuovoIntestatario.ragioneSociale || '-'}<br><small>${d.nuovoIntestatario.cfPiva || '-'}</small>`;
+ const vecchioDisplay = `${escapeHtml(d.vecchioIntestatario.ragioneSociale || '-')}<br><small>${escapeHtml(d.vecchioIntestatario.cfPiva || '-')}</small>`;
+ const nuovoDisplay = `${escapeHtml(d.nuovoIntestatario.ragioneSociale || '-')}<br><small>${escapeHtml(d.nuovoIntestatario.cfPiva || '-')}</small>`;
  
  // Determina classe stato
  let statoClass = 'in-corso';
@@ -1551,14 +1554,14 @@
 
  // Bottoni azione
  let azioniHtml = `
-<button type="button" class="btn-action"style="background: #2196F3; margin-right: 5px;"onclick="apriModalDettagli(${d.rowIndex})"> Dettagli
+<button type="button" class="btn-action"style="background: #2196F3; margin-right: 5px;"onclick="apriModalDettagli(${safeRowId || 0})" ${safeRowId ? '' : 'disabled'}>Dettagli
 </button> `;
  
  html += `
 <tr>
-<td style="white-space: nowrap; text-align: center;">${dataInserimento}</td>
-<td style="text-align: center; font-weight: 600;">${d.operatore || '-'}</td>
-<td style="text-align: center;"><span class="status-badge ${statoClass}">${d.stato}</span></td>
+<td style="white-space: nowrap; text-align: center;">${escapeHtml(dataInserimento)}</td>
+<td style="text-align: center; font-weight: 600;">${escapeHtml(d.operatore || '-')}</td>
+<td style="text-align: center;"><span class="status-badge ${statoClass}">${escapeHtml(d.stato)}</span></td>
 <td style="font-size: 0.75rem; text-align: center;">${vecchioDisplay}</td>
 <td style="font-size: 0.75rem; text-align: center;">${nuovoDisplay}</td>
 <td style="text-align: center;">${azioniHtml}</td>
@@ -1652,13 +1655,17 @@
      container.innerHTML = files.map(f => {
        const fullPath = usedPath + '/' + f.name;
        const label = prettyLabel(f.name);
-       const clickAttr = `onclick="MiroxStorage.openAttachment('${APRI_CHIUDI_BUCKET}','${fullPath.replace(/'/g, "\\'")}');return false;"`;
        return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#fff;border:1px solid #E3E8EE;border-radius:8px;color:#0A2540;font-size:13px;">
          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF6600" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-         <a href="#" ${clickAttr} rel="noopener" style="flex:1;overflow:hidden;text-overflow:ellipsis;color:#0A2540;text-decoration:none;font-weight:500;" title="Apri anteprima in nuova scheda">${label}</a>
-         <a href="#" ${clickAttr} style="color:#FF6600;font-size:12px;font-weight:700;text-decoration:none;padding:4px 10px;border:1px solid #FFE0CC;border-radius:6px;" title="Scarica file">Scarica</a>
+         <button type="button" data-storage-path="${escapeHtml(fullPath)}" style="flex:1;overflow:hidden;text-overflow:ellipsis;color:#0A2540;text-decoration:none;font-weight:500;background:none;border:0;text-align:left;cursor:pointer;" title="Apri anteprima in nuova scheda">${escapeHtml(label)}</button>
+         <button type="button" data-storage-path="${escapeHtml(fullPath)}" style="color:#FF6600;font-size:12px;font-weight:700;background:#fff;padding:4px 10px;border:1px solid #FFE0CC;border-radius:6px;cursor:pointer;" title="Scarica file">Scarica</button>
        </div>`;
      }).join('');
+     container.querySelectorAll('[data-storage-path]').forEach((button) => {
+       button.addEventListener('click', () => {
+         MiroxStorage.openAttachment(APRI_CHIUDI_BUCKET, button.dataset.storagePath);
+       });
+     });
    } catch (e) {
      console.error('Errore caricamento allegati:', e);
      container.innerHTML = '<div style="color:#dc2626;font-size:13px;">Errore caricamento allegati</div>';
@@ -1676,6 +1683,7 @@
  let statoClass = 'in-corso';
  if (d.stato === 'CHIUSO') statoClass = 'chiuso';
  if (d.stato === 'KO') statoClass = 'ko';
+ const safeRowId = window.MiroxSafe.isRecordId(d.rowIndex) ? String(d.rowIndex) : '';
  
  body.innerHTML = `
 <div style="display: grid; gap: 15px;">
@@ -1683,56 +1691,56 @@
 <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
 <h4 style="margin: 0 0 10px 0; color: #FF6600;"> Informazioni Generali</h4>
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-<div><strong>Data:</strong> ${dataInserimento}</div>
-<div><strong>Operatore:</strong> ${d.operatore || '-'}</div>
-<div><strong>Stato:</strong><span class="status-badge ${statoClass}">${d.stato}</span></div>
-<div><strong>Cartella:</strong> ${d.folderUrl ? `<a href="${d.folderUrl}"target="_blank"style="color: #FF6600;"> Apri Drive</a>` : '-'}</div>
+<div><strong>Data:</strong> ${escapeHtml(dataInserimento)}</div>
+<div><strong>Operatore:</strong> ${escapeHtml(d.operatore || '-')}</div>
+<div><strong>Stato:</strong><span class="status-badge ${statoClass}">${escapeHtml(d.stato)}</span></div>
+<div><strong>Cartella:</strong> ${escapeHtml(d.folderUrl || '-')}</div>
 </div>
 </div> <!-- Vecchio Intestatario -->
 <div style="background: #fff3e0; padding: 15px; border-radius: 8px; border-left: 4px solid #FF6600;">
 <h4 style="margin: 0 0 10px 0; color: #58595B;"> Vecchio Intestatario</h4>
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-<div><strong>Cluster:</strong> ${d.vecchioIntestatario.cluster || '-'}</div>
-<div><strong>Ragione Sociale:</strong> ${d.vecchioIntestatario.ragioneSociale || '-'}</div>
-<div><strong>CF/P.IVA:</strong> ${d.vecchioIntestatario.cfPiva || '-'}</div>
+<div><strong>Cluster:</strong> ${escapeHtml(d.vecchioIntestatario.cluster || '-')}</div>
+<div><strong>Ragione Sociale:</strong> ${escapeHtml(d.vecchioIntestatario.ragioneSociale || '-')}</div>
+<div><strong>CF/P.IVA:</strong> ${escapeHtml(d.vecchioIntestatario.cfPiva || '-')}</div>
 </div>
 </div> <!-- Nuovo Intestatario -->
 <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; border-left: 4px solid #4CAF50;">
 <h4 style="margin: 0 0 10px 0; color: #58595B;"> Nuovo Intestatario</h4>
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-<div><strong>Cluster:</strong> ${d.nuovoIntestatario.cluster || '-'}</div>
-<div><strong>Ragione Sociale:</strong> ${d.nuovoIntestatario.ragioneSociale || '-'}</div>
-<div><strong>CF/P.IVA:</strong> ${d.nuovoIntestatario.cfPiva || '-'}</div>
+<div><strong>Cluster:</strong> ${escapeHtml(d.nuovoIntestatario.cluster || '-')}</div>
+<div><strong>Ragione Sociale:</strong> ${escapeHtml(d.nuovoIntestatario.ragioneSociale || '-')}</div>
+<div><strong>CF/P.IVA:</strong> ${escapeHtml(d.nuovoIntestatario.cfPiva || '-')}</div>
 </div>
 </div> <!-- Dettagli Pratica -->
 <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
 <h4 style="margin: 0 0 10px 0; color: #58595B;"> Dettagli Pratica</h4>
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
 <div><strong>SIM Disattivare:</strong> ${d.simDisattivare.toLowerCase() === 'si' ? 'Sì' : 'No'}</div>
-<div><strong>Numero SIM:</strong> ${d.numeroSim || '-'}</div>
+<div><strong>Numero SIM:</strong> ${escapeHtml(d.numeroSim || '-')}</div>
 <div><strong>Chiusura Linea:</strong> ${d.chiusuraLinea.toLowerCase() === 'immediata' ? 'Immediata' : 'Attendere'}</div>
-<div><strong>Note:</strong> ${d.note || '-'}</div>
+<div><strong>Note:</strong> ${escapeHtml(d.note || '-')}</div>
 </div>
 </div> <!-- Disdetta -->
 <div style="background: #e3f2fd; padding: 15px; border-radius: 8px;">
 <h4 style="margin: 0 0 10px 0; color: #58595B;">Disdetta</h4>
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-<div><strong>Data Invio:</strong> ${dataInvioDisdetta}</div>
-<div><strong>Numero ASK:</strong> ${d.numeroAsk || '-'}</div>
+<div><strong>Data Invio:</strong> ${escapeHtml(dataInvioDisdetta)}</div>
+<div><strong>Numero ASK:</strong> ${escapeHtml(d.numeroAsk || '-')}</div>
 </div>
 </div>
 
 <!-- Allegati -->
 <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
 <h4 style="margin: 0 0 10px 0; color: #58595B;">Allegati</h4>
-<div id="allegati-list-${d.rowIndex}" style="display:flex;flex-direction:column;gap:6px;">
+<div id="allegati-list-${safeRowId}" style="display:flex;flex-direction:column;gap:6px;">
 <div style="color:#9BA8B4;font-size:13px;">Caricamento allegati...</div>
 </div>
 </div>
 </div> `;
 
  // Carica allegati async
- caricaAllegatiPratica(d.rowIndex);
+ if (safeRowId) caricaAllegatiPratica(safeRowId);
  
  // Footer con azioni (centrate, no Chiudi - la X in alto a destra basta)
  let footerHtml = `
@@ -1740,8 +1748,8 @@
 
  if (d.stato === 'IN CORSO') {
  footerHtml += `
-<button type="button" class="btn btn-primary" style="background:#FF6600;" onclick="chiudiModalDettagli(); apriModalDisdetta(${d.rowIndex})">Disdetta</button>
-<button type="button" class="btn btn-primary" style="background:#dc2626;" onclick="chiudiModalDettagli(); apriModalKO(${d.rowIndex})">KO</button>`;
+<button type="button" class="btn btn-primary" style="background:#FF6600;" onclick="chiudiModalDettagli(); apriModalDisdetta(${safeRowId || 0})" ${safeRowId ? '' : 'disabled'}>Disdetta</button>
+<button type="button" class="btn btn-primary" style="background:#dc2626;" onclick="chiudiModalDettagli(); apriModalKO(${safeRowId || 0})" ${safeRowId ? '' : 'disabled'}>KO</button>`;
  }
 
  footer.innerHTML = footerHtml;
@@ -1783,11 +1791,11 @@
 </div>
 <div>
 <label style="font-weight: 600;">Ragione Sociale:</label>
-<input type="text"id="edit-vecchio-ragione"value="${d.vecchioIntestatario.ragioneSociale || ''}"style="width: 100%; padding: 8px; margin-top: 5px; text-transform: uppercase;">
+<input type="text"id="edit-vecchio-ragione"value="${escapeHtml(d.vecchioIntestatario.ragioneSociale || '')}"style="width: 100%; padding: 8px; margin-top: 5px; text-transform: uppercase;">
 </div>
 <div>
 <label style="font-weight: 600;">CF/P.IVA:</label>
-<input type="text"id="edit-vecchio-cfpiva"value="${d.vecchioIntestatario.cfPiva || ''}"style="width: 100%; padding: 8px; margin-top: 5px; text-transform: uppercase;">
+<input type="text"id="edit-vecchio-cfpiva"value="${escapeHtml(d.vecchioIntestatario.cfPiva || '')}"style="width: 100%; padding: 8px; margin-top: 5px; text-transform: uppercase;">
 </div>
 </div>
 </div> <!-- Nuovo Intestatario -->
@@ -1803,11 +1811,11 @@
 </div>
 <div>
 <label style="font-weight: 600;">Ragione Sociale:</label>
-<input type="text"id="edit-nuovo-ragione"value="${d.nuovoIntestatario.ragioneSociale || ''}"style="width: 100%; padding: 8px; margin-top: 5px; text-transform: uppercase;">
+<input type="text"id="edit-nuovo-ragione"value="${escapeHtml(d.nuovoIntestatario.ragioneSociale || '')}"style="width: 100%; padding: 8px; margin-top: 5px; text-transform: uppercase;">
 </div>
 <div>
 <label style="font-weight: 600;">CF/P.IVA:</label>
-<input type="text"id="edit-nuovo-cfpiva"value="${d.nuovoIntestatario.cfPiva || ''}"style="width: 100%; padding: 8px; margin-top: 5px; text-transform: uppercase;">
+<input type="text"id="edit-nuovo-cfpiva"value="${escapeHtml(d.nuovoIntestatario.cfPiva || '')}"style="width: 100%; padding: 8px; margin-top: 5px; text-transform: uppercase;">
 </div>
 </div>
 </div> <!-- Dettagli Pratica -->
@@ -1823,7 +1831,7 @@
 </div>
 <div>
 <label style="font-weight: 600;">Numero SIM:</label>
-<input type="text"id="edit-numero-sim"value="${d.numeroSim || ''}"style="width: 100%; padding: 8px; margin-top: 5px;">
+<input type="text"id="edit-numero-sim"value="${escapeHtml(d.numeroSim || '')}"style="width: 100%; padding: 8px; margin-top: 5px;">
 </div>
 <div>
 <label style="font-weight: 600;">Chiusura Linea:</label>
@@ -1834,7 +1842,7 @@
 </div>
 <div>
 <label style="font-weight: 600;">Note:</label>
-<input type="text"id="edit-note"value="${d.note || ''}"style="width: 100%; padding: 8px; margin-top: 5px;">
+<input type="text"id="edit-note"value="${escapeHtml(d.note || '')}"style="width: 100%; padding: 8px; margin-top: 5px;">
 </div>
 </div>
 </div>
@@ -1999,7 +2007,7 @@
      const sizeKB = (file.size / 1024).toFixed(1);
      const row = document.createElement('div');
      row.className = 'mx-file-row';
-     row.innerHTML = `<span class="mx-file-name">${file.name} <span style="color:#9BA8B4;font-size:11px;">(${sizeKB} KB)</span></span><button type="button" class="mx-file-remove" title="Rimuovi" onclick="removeFileDisdetta(${index})">×</button>`;
+    row.innerHTML = `<span class="mx-file-name">${escapeHtml(file.name)} <span style="color:#9BA8B4;font-size:11px;">(${sizeKB} KB)</span></span><button type="button" class="mx-file-remove" title="Rimuovi" onclick="removeFileDisdetta(${index})">×</button>`;
      container.appendChild(row);
    });
  }
