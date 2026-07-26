@@ -15,6 +15,7 @@ node_modules/
 
 # Netlify
 .netlify/
+dist/
 
 # Env locali (mai committare)
 .env

@@ -9,7 +9,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 - **Database**: Supabase Postgres (Auth + Storage + RLS + RPC + Trigger), 9 bucket Storage (`moduli-template` pubblico + 8 privati con signed URL on-demand)
 - **Email**: Gmail SMTP via nodemailer + template DB (`email_template` + `email_log`)
 - **SMS transactional**: Smshosting REST API (consensi privacy via OTP — vedi `docs/SMSHOSTING_SETUP.md`)
-- **Hosting**: Netlify (static + functions + cron schedules)
+- **Hosting**: Netlify (build statica a lista consentita in `dist/` + functions + cron schedules)
 
 ## Struttura cartelle
 
@@ -27,6 +27,8 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-safe` (escape HTML, URL/ID/colori sicuri), `mirox-storage`, `mirox-storage-upload`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `mirox-error-reporter`, `anagrafica-helper`, `vendita-storage-helper` |
 | `css/` | `style.css`, `mirox-modules.css` |
 | `assets/` | Logo, favicon |
+| `scripts/build-static.js` | Build Netlify: copia in `dist/` soltanto HTML root e le directory pubbliche `assets/`, `css/`, `js/`, `moduli/` |
+| `dist/` | Output locale della build, ignorato da Git. Non contiene backend, migration, test o documentazione |
 | `netlify/functions/` | Endpoint server-side (vedi sotto) |
 | `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`) |
 | `tests/` | Test automatici Node (`node:test`): regressioni vendita, sicurezza/XSS, PDF privacy, sintassi e link locali |
@@ -70,13 +72,14 @@ Tutte le functions, eccetto i due cron Netlify e l'endpoint anon intenzionale `p
 - **Identità e azioni admin**: `operatore_id` e `uploaded_by` derivano sempre dal JWT autenticato. Rimborso manuale e passaggio Apri/Chiudi a `KO` non chiedono una seconda password, ma sono disponibili soltanto agli account `admin`; il ruolo viene ricontrollato dalla Netlify Function e protetto anche nel database.
 - **Scritture protette**: il browser non ha policy INSERT/UPDATE/DELETE sui bucket dati e sui rimborsi, né INSERT/DELETE su `vendita_documenti` o UPDATE su `vendita_contratti`. Upload, rimborsi, rimozioni e verifica passano dalle Netlify Functions autenticate.
 - **Informativa CRM**: le versioni correnti sono `v6_2026_07_26` (cartacea, una pagina A4 in bianco e nero con corpo 10 pt e scelta marketing già marcata) e `v6_2026_07_26_dig` (digitale OTP, tre pagine con ACCONSENTO/NON ACCONSENTO esplicito). La ragione sociale del Titolare è riportata nella forma esatta `KONA TECH SRL`. La scelta binaria è obbligatoria prima del download cartaceo o dell'invio OTP, mentre il consenso marketing resta facoltativo. Finalità, basi giuridiche, conservazione e perimetro del consenso sono equivalenti; i ricontatti di servizio restano separati dal marketing. Le versioni precedenti rimangono evidenza storica ma non vengono riutilizzate.
-- **Sicurezza frontend**: tutti gli script CDN sono versionati e protetti da SRI; `MiroxSafe` codifica i dati dinamici; Netlify invia CSP, HSTS e Permissions-Policy. La CSP mantiene temporaneamente `'unsafe-inline'` perché le pagine statiche legacy contengono ancora script e handler inline.
+- **Sicurezza frontend**: tutti gli script CDN sono versionati e protetti da SRI; `MiroxSafe` codifica i dati dinamici; Netlify invia CSP, HSTS e Permissions-Policy. Il deploy pubblica esclusivamente la build `dist/`: sorgenti server, migration, test e documentazione non sono raggiungibili dal sito. La CSP mantiene temporaneamente `'unsafe-inline'` perché le pagine statiche legacy contengono ancora script e handler inline.
 
 ## Setup locale
 
 ```bash
 npm install
-npm test          # suite di regressione + sintassi JS/HTML + link locali
+npm run build     # genera dist/ con i soli file frontend pubblici
+npm test          # rigenera dist/ + suite regressione, sintassi e link locali
 npx netlify dev   # serve frontend + functions su http://localhost:8888
 ```
 
@@ -91,7 +94,7 @@ Per le functions in locale servono le env vars (vedi sotto). Mettile in un file 
 
 Setup:
 1. Repo già collegato su Netlify (site `mirox-crm`)
-2. Le build settings vengono lette da `netlify.toml` (base directory vuota, il contenuto sta in root del repo)
+2. Le build settings vengono lette da `netlify.toml`: `npm run build` genera `dist/`, unica publish directory. La root del repository non viene esposta
 3. Imposta le env vars nel pannello Netlify (sezione Site settings → Environment variables)
 4. Deploy automatico al `git push origin main`
 
@@ -233,6 +236,7 @@ Dettagli operativi: vedi [CLAUDE.md](CLAUDE.md) sezione "Sistema di error report
 
 ## Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
+- Sicurezza deploy 26/07/2026: Netlify non pubblica più la root del repository. La build a lista consentita include soltanto pagine e asset frontend; migration SQL, Functions, test, script, configurazioni e documentazione sono esclusi e coperti da test automatico.
 - Integrità dati 26/07/2026: consolidate 8 anagrafiche duplicate certe preservando pratiche/documenti e lasciando separate le omonimie con identificativi fiscali validi distinti. L'audit completo dei 247 contratti di luglio ha confermato che gli 8 totali a zero appartengono a offerte catalogo realmente a zero, corretto 3 Assicurazioni Annuali rimaste senza bonus 0,5 e ripristinato l'opzione Iliad su 7 contratti il cui punto era già corretto. Creazione e verifica contratto ora applicano controlli post-scrittura condivisi; Supabase impone anche CHECK di coerenza e audit permanente delle variazioni.
 - `moduli/dashboard_pezzi.html`: la griglia giornaliera usa larghezze fisse compatte per offerte e operatori, con colore pieno sulla cella come nel foglio originale. La tabella e' fissata a 622px totali (270px offerte + 4 colonne da 88px) per evitare espansioni a tutta pagina.
 - `moduli/upload-contratti-vendita.html`: dopo l'invio riuscito di una pratica, il wizard mostra il successo e torna automaticamente alla Home Vendita (`dashboard.html`).

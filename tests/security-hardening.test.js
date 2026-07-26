@@ -64,13 +64,54 @@ test('tutte le pagine caricano MiroxSafe e gli script CDN sono pinning + SRI', (
   assert.deepEqual(insecureScripts, []);
 });
 
-test('Netlify applica gli header di sicurezza principali', () => {
+test('Netlify pubblica solo la build statica e applica gli header di sicurezza principali', () => {
   const config = fs.readFileSync(path.join(ROOT, 'netlify.toml'), 'utf8');
+  const buildScript = fs.readFileSync(path.join(ROOT, 'scripts/build-static.js'), 'utf8');
+
+  assert.match(config, /command\s*=\s*"npm run build"/);
+  assert.match(config, /publish\s*=\s*"dist"/);
+  assert.doesNotMatch(config, /publish\s*=\s*"\."/);
   assert.match(config, /Content-Security-Policy/);
   assert.match(config, /Strict-Transport-Security/);
   assert.match(config, /Permissions-Policy/);
   assert.match(config, /frame-ancestors 'self'/);
   assert.match(config, /object-src 'none'/);
+  assert.match(buildScript, /PUBLIC_DIRECTORIES = \['assets', 'css', 'js', 'moduli'\]/);
+
+  for (const publicPath of [
+    'index.html',
+    'dashboard.html',
+    'assets',
+    'css',
+    'js',
+    'moduli'
+  ]) {
+    assert.equal(
+      fs.existsSync(path.join(ROOT, 'dist', publicPath)),
+      true,
+      `${publicPath} deve essere incluso nella build`
+    );
+  }
+
+  for (const privatePath of [
+    'database',
+    'docs',
+    'netlify',
+    'scripts',
+    'tests',
+    'AGENTS.md',
+    'CLAUDE.md',
+    'README.md',
+    'netlify.toml',
+    'package.json',
+    'package-lock.json'
+  ]) {
+    assert.equal(
+      fs.existsSync(path.join(ROOT, 'dist', privatePath)),
+      false,
+      `${privatePath} non deve essere pubblicato`
+    );
+  }
 });
 
 test('prenotazione pubblica valida data, motivo e input prima della RPC atomica', () => {
