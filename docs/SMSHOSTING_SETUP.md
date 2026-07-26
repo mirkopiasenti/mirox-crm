@@ -10,8 +10,8 @@ Il sistema consensi privacy (migration `034`) è già implementato lato codice. 
 
 1. Vai su **<https://www.smshosting.it/>**
 2. Clicca su **"Registrati"** in alto a destra
-3. Inserisci i dati aziendali di **Kona Tech S.r.l.**:
-   - Ragione sociale: `KONA TECH S.R.L.`
+3. Inserisci i dati aziendali di **KONA TECH SRL**:
+   - Ragione sociale: `KONA TECH SRL`
    - P.IVA: `05146970230`
    - Codice fiscale: `05146970230` (è lo stesso per le S.r.l.)
    - Email amministrativa: `info@konatech.it`
@@ -35,7 +35,7 @@ Smshosting risponde rapidamente. Chiama o scrivi:
 - **Chat live**: icona fumetto in basso a destra nel pannello
 
 Di':
-> "Buongiorno, sono di **Kona Tech S.r.l.** (P.IVA `05146970230`), ho creato l'account oggi. Vorrei richiedere un **mittente alfanumerico `MIROX`** per l'invio di **SMS OTP transactional** (consensi privacy GDPR). Come procedo?"
+> "Buongiorno, sono di **KONA TECH SRL** (P.IVA `05146970230`), ho creato l'account oggi. Vorrei richiedere un **mittente alfanumerico `MIROX`** per l'invio di **SMS OTP transactional** (consensi privacy GDPR). Come procedo?"
 
 Ti guidano nel form e ti dicono quali documenti caricare (di solito **visura camerale + carta d'identità del legale rappresentante**).
 

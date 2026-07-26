@@ -99,7 +99,7 @@ test('migration 055 applica 24 mesi, lock atomico e privilegi minimi', () => {
   assert.doesNotMatch(migration, /create\s+or\s+replace\s+function\s+public\.get_slot_disponibili/i);
 });
 
-test('informative privacy CRM v5 generano cartaceo su una pagina e digitale su tre pagine', async () => {
+test('informative privacy CRM v6 generano cartaceo su una pagina e digitale su tre pagine', async () => {
   const {
     generateConsensoPdf,
     INFORMATIVA_VERSIONE_CARTACEO,
@@ -152,8 +152,8 @@ test('informative privacy CRM v5 generano cartaceo su una pagina e digitale su t
   assert.equal(otp.informativaVersione, INFORMATIVA_VERSIONE_DIGITALE);
   assert.equal(paperYes.informativaVersione, INFORMATIVA_VERSIONE_CARTACEO);
   assert.equal(paperNo.informativaVersione, INFORMATIVA_VERSIONE_CARTACEO);
-  assert.equal(INFORMATIVA_VERSIONE_CARTACEO, 'v5_2026_07_26');
-  assert.equal(INFORMATIVA_VERSIONE_DIGITALE, 'v5_2026_07_26_dig');
+  assert.equal(INFORMATIVA_VERSIONE_CARTACEO, 'v6_2026_07_26');
+  assert.equal(INFORMATIVA_VERSIONE_DIGITALE, 'v6_2026_07_26_dig');
   await assert.rejects(
     generateConsensoPdf({
       ...base,
@@ -164,7 +164,7 @@ test('informative privacy CRM v5 generano cartaceo su una pagina e digitale su t
   );
 });
 
-test('informative v5 rendono obbligatoria e visibile la scelta marketing', () => {
+test('informative v6 usano la ragione sociale esatta e rendono visibile la scelta marketing', () => {
   const pdfSource = fs.readFileSync(
     path.join(ROOT, 'netlify/functions/_lib/pdf-consenso.js'),
     'utf8'
@@ -192,6 +192,10 @@ test('informative v5 rendono obbligatoria e visibile la scelta marketing', () =>
 
   assert.match(pdfSource, /const PAPER_BODY_FONT_SIZE = 10;/);
   assert.match(pdfSource, /const PAPER_MARGIN = 34;/);
+  assert.match(pdfSource, /ragioneSociale: 'KONA TECH SRL'/);
+  assert.match(pdfSource, /CONSENSO AI RICONTATTI — KONA TECH SRL/);
+  assert.doesNotMatch(pdfSource, /KONA TECH S\.r\.l\./);
+  assert.doesNotMatch(pdfSource, /Kona Tech/);
   assert.match(pdfSource, /\[X\] ACCONSENTO      \[ \] NON ACCONSENTO/);
   assert.match(pdfSource, /\[ \] ACCONSENTO      \[X\] NON ACCONSENTO/);
   assert.match(pdfSource, /Firma leggibile dell\\'interessato: ____________________/);

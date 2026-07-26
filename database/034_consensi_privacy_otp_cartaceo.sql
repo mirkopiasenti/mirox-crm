@@ -6,7 +6,7 @@
 -- documento d'identita') in un CRM separato da WindTre. Per
 -- essere conforme GDPR (art. 13 informativa + art. 7 consenso)
 -- serve raccogliere un consenso esplicito del cliente al
--- trattamento dei dati nel CRM di Kona Tech S.r.l., con un
+-- trattamento dei dati nel CRM di KONA TECH SRL, con un
 -- meccanismo probatorio robusto.
 --
 -- Flusso (2 modalita'):

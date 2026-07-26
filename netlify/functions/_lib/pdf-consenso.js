@@ -36,9 +36,9 @@ const {
     informativaVersionePerModalita
 } = require('./privacy-config');
 
-// Dati Titolare hardcoded (Kona Tech S.r.l.)
+// Dati Titolare hardcoded (KONA TECH SRL)
 const TITOLARE = {
-    ragioneSociale: 'KONA TECH S.r.l.',
+    ragioneSociale: 'KONA TECH SRL',
     piva: '05146970230',
     sedeLegale: 'Via Dossi, 7 - 37058 Sanguinetto (VR) - Italia',
     emailContatto: 'info@konatech.it',
@@ -106,11 +106,11 @@ const PAPER_BODY_FONT_SIZE = 10;
 const PAPER_LINE_GAP = 0;
 const PAPER_MARGIN = 34; // 12 mm
 
-const PAPER_TITLE = 'INFORMATIVA PRIVACY CRM MIROX E CONSENSO AI RICONTATTI — KONA TECH S.r.l.';
+const PAPER_TITLE = 'INFORMATIVA PRIVACY CRM MIROX E CONSENSO AI RICONTATTI — KONA TECH SRL';
 const PAPER_SECTIONS = [
     {
         title: '1. Titolare.',
-        body: 'KONA TECH S.r.l., Via Dossi 7 – 37058 Sanguinetto (VR), P.IVA 05146970230 — email info@konatech.it, PEC konatechsrl@pec.it. La presente informativa riguarda solo i trattamenti svolti da Kona Tech nel proprio CRM Mirox; non riguarda i trattamenti svolti dal fornitore presso cui la pratica è richiesta (es. Wind Tre S.p.A.), regolati dall\'informativa di tale soggetto.'
+        body: 'KONA TECH SRL, Via Dossi 7 – 37058 Sanguinetto (VR), P.IVA 05146970230 — email info@konatech.it, PEC konatechsrl@pec.it. La presente informativa riguarda solo i trattamenti svolti da KONA TECH SRL nel proprio CRM Mirox; non riguarda i trattamenti svolti dal fornitore presso cui la pratica è richiesta (es. Wind Tre S.p.A.), regolati dall\'informativa di tale soggetto.'
     },
     {
         title: '2. Dati trattati.',
@@ -126,7 +126,7 @@ const PAPER_SECTIONS = [
     },
     {
         title: '5. Destinatari.',
-        body: 'Personale autorizzato di Kona Tech e, nei limiti necessari, fornitori di hosting, database, email, SMS, assistenza informatica e intelligenza artificiale, nominati responsabili ex art. 28 GDPR ove trattino per conto del Titolare; consulenti, autorità e soggetti legittimati dalla legge. Dati e documenti possono essere trasmessi al fornitore presso cui la pratica è richiesta per inoltrarla o completarla. I dati non sono diffusi. Eventuali trasferimenti extra-SEE avvengono con le garanzie del Capo V GDPR (decisione di adeguatezza o clausole contrattuali standard); informazioni ai recapiti del punto 1.'
+        body: 'Personale autorizzato di KONA TECH SRL e, nei limiti necessari, fornitori di hosting, database, email, SMS, assistenza informatica e intelligenza artificiale, nominati responsabili ex art. 28 GDPR ove trattino per conto del Titolare; consulenti, autorità e soggetti legittimati dalla legge. Dati e documenti possono essere trasmessi al fornitore presso cui la pratica è richiesta per inoltrarla o completarla. I dati non sono diffusi. Eventuali trasferimenti extra-SEE avvengono con le garanzie del Capo V GDPR (decisione di adeguatezza o clausole contrattuali standard); informazioni ai recapiti del punto 1.'
     },
     {
         title: '6. Conservazione.',
@@ -138,14 +138,14 @@ const PAPER_SECTIONS = [
     },
     {
         title: '8. Conferimento.',
-        body: 'I dati necessari alla pratica sono richiesti per gestirla nel CRM e fornire assistenza; in mancanza, Kona Tech potrebbe non poter gestire la pratica. Il contratto con il fornitore resta soggetto alle condizioni di tale soggetto. Il consenso marketing è facoltativo: negarlo o revocarlo non impedisce l\'assistenza sulla pratica.'
+        body: 'I dati necessari alla pratica sono richiesti per gestirla nel CRM e fornire assistenza; in mancanza, KONA TECH SRL potrebbe non poter gestire la pratica. Il contratto con il fornitore resta soggetto alle condizioni di tale soggetto. Il consenso marketing è facoltativo: negarlo o revocarlo non impedisce l\'assistenza sulla pratica.'
     }
 ];
 
 const PAPER_PRESA_VISIONE_TITLE = 'PRESA VISIONE.';
-const PAPER_PRESA_VISIONE_BODY = 'Dichiaro di aver ricevuto e preso visione dell\'informativa (artt. 13–14 GDPR) e prendo atto che Kona Tech archivia nel CRM Mirox i miei dati e documenti relativi alla pratica e potrà contattarmi (chiamata, WhatsApp, email) per aggiornamenti e assistenza su di essa, senza necessità di consenso marketing.';
+const PAPER_PRESA_VISIONE_BODY = 'Dichiaro di aver ricevuto e preso visione dell\'informativa (artt. 13–14 GDPR) e prendo atto che KONA TECH SRL archivia nel CRM Mirox i miei dati e documenti relativi alla pratica e potrà contattarmi (chiamata, WhatsApp, email) per aggiornamenti e assistenza su di essa, senza necessità di consenso marketing.';
 const PAPER_MARKETING_TITLE = 'CONSENSO FACOLTATIVO MARKETING (durata 24 mesi, revocabile in ogni momento anche per singolo canale).';
-const PAPER_MARKETING_BODY = 'Acconsento a essere ricontattato da Kona Tech tramite chiamata con operatore, WhatsApp o email per nuove offerte, promozioni, servizi o contratti, anche diversi dalla pratica originaria (punto 3.d).';
+const PAPER_MARKETING_BODY = 'Acconsento a essere ricontattato da KONA TECH SRL tramite chiamata con operatore, WhatsApp o email per nuove offerte, promozioni, servizi o contratti, anche diversi dalla pratica originaria (punto 3.d).';
 
 function measurePaperSection(doc, section, width) {
     doc.font('Helvetica').fontSize(PAPER_BODY_FONT_SIZE);
@@ -533,7 +533,7 @@ async function generateConsensoPdfDigitale(opts) {
             // -------- Comunicazione a terzi --------
             drawSectionTitle(doc, '5. Comunicazione e destinatari dei dati');
             drawParagraph(doc,
-                'Nell\'ambito del CRM i dati sono accessibili al personale autorizzato di Kona Tech e, nei limiti ' +
+                'Nell\'ambito del CRM i dati sono accessibili al personale autorizzato di KONA TECH SRL e, nei limiti ' +
                 'necessari, ai fornitori di hosting, database, posta elettronica, SMS/OTP, assistenza informatica e ' +
                 'intelligenza artificiale, nominati responsabili del trattamento ai sensi dell\'art. 28 GDPR ove trattino dati per conto del Titolare; ' +
                 'possono inoltre essere comunicati a consulenti, autorità e soggetti legittimati dalla legge.');
@@ -575,7 +575,7 @@ async function generateConsensoPdfDigitale(opts) {
             drawSectionTitle(doc, '8. Natura del conferimento dei dati');
             drawParagraph(doc,
                 'Il conferimento dei dati e dei documenti necessari a registrare e gestire la specifica pratica nel CRM ' +
-                'è richiesto per le attività domandate a Kona Tech; in mancanza, il Titolare potrebbe non poter gestire ' +
+                'è richiesto per le attività domandate a KONA TECH SRL; in mancanza, il Titolare potrebbe non poter gestire ' +
                 'la pratica tramite il proprio CRM o fornire la relativa assistenza. Il contratto con il fornitore ' +
                 'resta soggetto alle condizioni e alle decisioni di tale soggetto. ' +
                 'La presa visione dell\'informativa documenta che l\'interessato ha ricevuto queste informazioni, ma ' +
@@ -622,7 +622,7 @@ async function generateConsensoPdfDigitale(opts) {
             let cy = doc.y + 2;
             drawCheckRow(doc, left, cy, consensoContratto,
                 'Dichiaro di aver ricevuto e preso visione dell\'informativa resa ai sensi degli artt. 13 e 14 GDPR. ' +
-                'Prendo atto che Kona Tech acquisisce e archivia nel proprio CRM Mirox i miei dati e i documenti ' +
+                'Prendo atto che KONA TECH SRL acquisisce e archivia nel proprio CRM Mirox i miei dati e i documenti ' +
                 'necessari alla specifica pratica e potrà contattarmi tramite chiamata, WhatsApp o email per aggiornamenti ' +
                 'e assistenza riferiti a tale pratica o al relativo contratto. Questi trattamenti si fondano sulle basi ' +
                 'giuridiche indicate al punto 3 e non sul consenso marketing. ' +
@@ -632,7 +632,7 @@ async function generateConsensoPdfDigitale(opts) {
             doc.y = cy;
 
             drawCheckRow(doc, left, cy, consensoMarketing,
-                'ACCONSENTO. Acconsento a essere ricontattato da Kona Tech, utilizzando i dati presenti nel CRM, tramite chiamata ' +
+                'ACCONSENTO. Acconsento a essere ricontattato da KONA TECH SRL, utilizzando i dati presenti nel CRM, tramite chiamata ' +
                 'telefonica con operatore, messaggio WhatsApp o email per ricevere proposte su nuove offerte, promozioni, ' +
                 'servizi o nuovi contratti, anche diversi e ulteriori rispetto alla pratica originaria (punto 3.d), ' +
                 'per un massimo di 24 mesi. Posso revocare il consenso in ogni momento, anche per singolo canale. ' +
