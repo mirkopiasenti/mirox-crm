@@ -1,6 +1,6 @@
 # /database/ — Migrazioni SQL storiche
 
-I 57 file `.sql` in questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via `.bin/supabase db query --linked --file ...`) durante lo sviluppo.
+I 58 file `.sql` in questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via `.bin/supabase db query --linked --file ...`) durante lo sviluppo.
 
 ## ⚠️ NON sono lo stato attuale del DB
 
@@ -60,6 +60,7 @@ Lo schema reale di Supabase contiene anche modifiche fatte:
 | `053_hardening_scritture_e_bonifica_storico.sql` | Revoca EXECUTE anon dalle RPC SECURITY DEFINER sensibili senza modificarne i body; aggiunge `applica_alias_backfill_v2(uuid)` SECURITY DEFINER con controllo admin; completa `vendita_pratiche.operatore_id` e `vendita_documenti.uploaded_by` storici; corregge a Cerea i 35 contratti del profilo Cerea; elimina 16 record documento duplicati e aggiunge UNIQUE `(storage_bucket, storage_path)`. È applicabile prima del deploy senza interrompere il frontend corrente. |
 | `054_post_deploy_chiudi_scritture_browser.sql` | Migration post-deploy: disabilita l'invocazione client di `applica_alias_backfill` v1 e rimuove le policy di scrittura browser su `vendita_contratti`, `vendita_documenti` e sui sette bucket dati ora serviti dalle Netlify Functions. Applicare solo dopo il deploy di `upload-documento-modulo`, `gestisci-vendita-contratto` e dei relativi refactor frontend. |
 | `055_privacy_24_mesi_prenotazioni_atomiche.sql` | Porta a 24 mesi la scadenza massima dei consensi/dichiarazioni privacy già confermati (la migration storica 034 nasceva con 48 mesi), chiarisce i commenti DB su presa visione e consenso marketing, crea il rate limit pubblico persistente `mirox_public_rate_limits` + RPC service-role `mirox_public_rate_limit_v1` e la RPC service-role `public_prenota_appuntamento_v1`. Quest'ultima serializza le richieste concorrenti con advisory lock e ricontrolla lo slot nella stessa transazione dell'INSERT senza modificare le RPC o le colonne condivise col Call Center legacy. |
+| `056_operazioni_sensibili_admin.sql` | Migration post-deploy: rende `post_vendita_gestione_rimborsi` scrivibile soltanto dalla service role, limita la relativa RPC di generazione codice al backend e aggiunge un trigger che consente di introdurre `vendita_apri_chiudi.stato='KO'` soltanto ad admin o service role. Completa la protezione delle action admin-only `create_rimborso_manuale` e `mark_apri_chiudi_ko`. |
 
 ## Linee guida
 
@@ -70,6 +71,7 @@ Lo schema reale di Supabase contiene anche modifiche fatte:
 
 ## Registro aggiornamenti
 
+- **2026-07-26**: migration `056` applicata su production dopo il deploy di `gestisci-operazioni-post-vendita`. Rimborso manuale e passaggio Apri/Chiudi a `KO` non richiedono più la password dell'account, ma sono esclusivamente admin; tutte le scritture ordinarie dei rimborsi passano dal backend autenticato.
 - **2026-07-26**: migration `055` applicata su production. Ha ridotto a 24 mesi la scadenza di 170 documenti privacy confermati (nessuna scadenza immediata), attivato il rate limit pubblico persistente e aggiunto la prenotazione appuntamenti atomica. È additiva sulle tabelle Call Center condivise: non modifica `get_slot_disponibili` né colonne/RPC esistenti.
 - **2026-07-26**: migrations `053` + `054` e refactor frontend/backend. La `053` contiene bonifica storico, indice anti-duplicati, hardening RPC e alias v2; la `054` è deliberatamente post-deploy e chiude le RLS di scrittura browser. Upload PDF dei moduli operativi via `upload-documento-modulo`/`MiroxStorageUpload`; Verifica Contratti via `gestisci-vendita-contratto`.
 - **2026-07-25**: hardening applicativo senza modifica schema. Il wizard propaga correttamente `codice_rivenditore` e i campi reinserimento; il backend valida il reinserimento nello stesso mese solare e stato post-vendita, deriva operatore/upload dal JWT e usa il ciclo pratica `bozza` → upload → `finalize` con rollback compensativo su errore. `upload-vendita-documento` verifica PDF e relazioni tra UUID. Nessuna migration Supabase richiesta.

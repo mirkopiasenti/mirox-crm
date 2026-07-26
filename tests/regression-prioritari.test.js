@@ -225,18 +225,67 @@ test('wizard propaga codice rivenditore e usa finalize/rollback compensativo', (
 });
 
 test('nessuna password operativa fissa resta nei moduli corretti', () => {
-  const files = [
-    'moduli/gestione_rimborsi.html',
-    'moduli/apri_chiudi.html'
-  ];
-  const source = files
-    .map((file) => fs.readFileSync(path.join(ROOT, file), 'utf8'))
-    .join('\n');
+  const rimborsi = fs.readFileSync(path.join(ROOT, 'moduli/gestione_rimborsi.html'), 'utf8');
+  const apriChiudi = fs.readFileSync(path.join(ROOT, 'moduli/apri_chiudi.html'), 'utf8');
+  const source = `${rimborsi}\n${apriChiudi}`;
 
   assert.doesNotMatch(source, /RIMBORSO_MANUALE_PASSWORD|PASSWORD_CORRETTA/);
   assert.doesNotMatch(source, /['"](?:1234|2013)['"]/);
   assert.doesNotMatch(source, /password-ko|btn-verifica-password-ko|error-password-ko/);
-  assert.match(source, /Auth\.riautentica/);
+  assert.doesNotMatch(source, /Auth\.riautentica/);
+  assert.match(rimborsi, /profilo\?\.ruolo !== 'admin'/);
+  assert.match(rimborsi, /action,\s*\.\.\.payload/);
+  assert.match(rimborsi, /create_rimborso_manuale/);
+  assert.match(apriChiudi, /apriChiudiAdmin = profilo\?\.ruolo === 'admin'/);
+  assert.match(apriChiudi, /mark_apri_chiudi_ko/);
+  assert.doesNotMatch(rimborsi, /\.from\(['"]post_vendita_gestione_rimborsi['"]\)\s*\.insert\(/);
+  assert.doesNotMatch(rimborsi, /\.from\(['"]post_vendita_gestione_rimborsi['"]\)\s*\.update\(/);
+  assert.doesNotMatch(apriChiudi, /\.from\(['"]vendita_apri_chiudi['"]\)\s*\.update\(\{\s*stato:\s*['"]KO['"]/);
+});
+
+test('le operazioni sensibili post-vendita sono protette lato server e database', () => {
+  const functionSource = fs.readFileSync(
+    path.join(ROOT, 'netlify/functions/gestisci-operazioni-post-vendita.js'),
+    'utf8'
+  );
+  const migration = fs.readFileSync(
+    path.join(ROOT, 'database/056_operazioni_sensibili_admin.sql'),
+    'utf8'
+  );
+
+  assert.match(functionSource, /ADMIN_ACTIONS = new Set\(\[\s*'create_rimborso_manuale',\s*'mark_apri_chiudi_ko'/);
+  assert.match(functionSource, /requireAuth\(event,\s*\{\s*adminOnly:\s*ADMIN_ACTIONS\.has\(action\)\s*\}\)/);
+  assert.match(functionSource, /stato:\s*'Aperto'/);
+  assert.match(functionSource, /stato:\s*'Consegnato'/);
+  assert.match(functionSource, /Rimborso manuale registrato da un amministratore/);
+
+  assert.match(migration, /REVOKE INSERT, UPDATE, DELETE[\s\S]*post_vendita_gestione_rimborsi[\s\S]*FROM anon, authenticated/);
+  assert.match(migration, /CREATE POLICY post_vendita_gestione_rimborsi_authenticated_select/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION public\.mirox_guard_apri_chiudi_ko_admin\(\)/);
+  assert.match(migration, /p\.ruolo = 'admin'/);
+  assert.match(migration, /BEFORE UPDATE OF stato/);
+});
+
+test('validazioni endpoint post-vendita rifiutano importi, date, ID e path non sicuri', () => {
+  const { _test } = require(path.join(
+    ROOT,
+    'netlify/functions/gestisci-operazioni-post-vendita.js'
+  ));
+
+  assert.equal(_test.positiveAmount('12.349'), 12.35);
+  assert.equal(_test.positiveId('42'), 42);
+  assert.equal(_test.validDate('2026-07-26'), '2026-07-26');
+  assert.equal(_test.validPdfPath('Mario_Rossi_1234/1720000000000_modulo.pdf'), 'Mario_Rossi_1234/1720000000000_modulo.pdf');
+  assert.deepEqual(_test.splitBeneficiary('Mario Rossi Bianchi'), {
+    nome: 'Mario',
+    cognome: 'Rossi Bianchi'
+  });
+
+  assert.throws(() => _test.positiveAmount(0), /Importo non valido/);
+  assert.throws(() => _test.positiveId('1.5'), /non valido/);
+  assert.throws(() => _test.validDate('2026-02-30'), /Data non valida/);
+  assert.throws(() => _test.validPdfPath('../segreto.pdf'), /Percorso PDF non valido/);
+  assert.throws(() => _test.validPdfPath('cartella/file.exe'), /Percorso PDF non valido/);
 });
 
 test('nessun modulo scrive direttamente nei bucket dati o nelle tabelle vendita protette', () => {

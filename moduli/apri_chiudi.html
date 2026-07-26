@@ -1133,11 +1133,27 @@
  const sb = db;
  const escapeHtml = (value) => window.MiroxSafe.escapeHtml(value);
  const APRI_CHIUDI_BUCKET = 'apri-chiudi-files';
+ const POST_VENDITA_FUNCTION = '/.netlify/functions/gestisci-operazioni-post-vendita';
+ let apriChiudiAdmin = false;
+
+ async function callPostVendita(action, payload = {}) {
+ const result = await window.MiroxApi.fetch(POST_VENDITA_FUNCTION, {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action, ...payload })
+ });
+ const data = await result.json().catch(() => ({}));
+ if (!result.ok || data.success === false) {
+ throw new Error(data.error || 'Operazione non riuscita');
+ }
+ return data;
+ }
 
  // Auto-fill operatore dal profilo loggato
  (async () => {
  const p = window.__profilo || await Auth.getSessione();
  if (p) {
+ apriChiudiAdmin = p.ruolo === 'admin';
  const el = document.getElementById('operatore');
  if (el) el.value = (p.nome || p.email || 'Operatore').toUpperCase();
  }
@@ -1288,6 +1304,10 @@
 
  // Validazione numero sim — solo quella resta utile (la validazione CF è nell'helper)
  document.addEventListener('DOMContentLoaded', function() {
+   (async () => {
+     const profilo = window.__profilo || await Auth.getSessione();
+     apriChiudiAdmin = profilo?.ruolo === 'admin';
+   })();
    const numeroSim = document.getElementById('numero-sim');
    if (!numeroSim) return;
    numeroSim.addEventListener('input', function() {
@@ -1748,8 +1768,11 @@
 
  if (d.stato === 'IN CORSO') {
  footerHtml += `
-<button type="button" class="btn btn-primary" style="background:#FF6600;" onclick="chiudiModalDettagli(); apriModalDisdetta(${safeRowId || 0})" ${safeRowId ? '' : 'disabled'}>Disdetta</button>
-<button type="button" class="btn btn-primary" style="background:#dc2626;" onclick="chiudiModalDettagli(); apriModalKO(${safeRowId || 0})" ${safeRowId ? '' : 'disabled'}>KO</button>`;
+<button type="button" class="btn btn-primary" style="background:#FF6600;" onclick="chiudiModalDettagli(); apriModalDisdetta(${safeRowId || 0})" ${safeRowId ? '' : 'disabled'}>Disdetta</button>`;
+ if (apriChiudiAdmin) {
+ footerHtml += `
+<button type="button" class="btn btn-primary" style="background:#dc2626;" onclick="chiudiModalDettagli(); apriModalKO(${safeRowId || 0})" title="Operazione riservata agli amministratori" ${safeRowId ? '' : 'disabled'}>KO</button>`;
+ }
  }
 
  footer.innerHTML = footerHtml;
@@ -2136,11 +2159,12 @@
 
  // ===== GESTIONE MODAL KO =====
  async function apriModalKO(rowIndex) {
- const identityConfirmed = await Auth.riautentica({
-   title: 'Conferma impostazione KO',
-   label: 'Inserisci la password del tuo account Mirox per continuare'
- });
- if (!identityConfirmed) return;
+ const profilo = window.__profilo || await Auth.getSessione();
+ apriChiudiAdmin = profilo?.ruolo === 'admin';
+ if (!apriChiudiAdmin) {
+   await mxAlert('Questa operazione è riservata agli amministratori.', 'err');
+   return;
+ }
  praticaSelezionata = rowIndex;
  document.getElementById('modal-ko').classList.add('active');
  }
@@ -2160,11 +2184,9 @@
    mostraLoading('Aggiornamento stato pratica a KO...', 'Aggiornamento Stato');
 
    try {
-     const { error } = await sb
-       .from('vendita_apri_chiudi')
-       .update({ stato: 'KO' })
-       .eq('id', praticaSelezionata);
-     if (error) throw error;
+     await callPostVendita('mark_apri_chiudi_ko', {
+       pratica_id: praticaSelezionata
+     });
 
      nascondiLoading();
      chiudiModalKO();

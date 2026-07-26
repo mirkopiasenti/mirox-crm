@@ -502,7 +502,7 @@
 <div id="alertContainer"></div>
 <!-- Pulsante per registrazione manuale rimborso (no firme, no PDF) -->
 <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
-<button type="button" id="btnRimborsoManuale" class="btn" style="background:#fff;color:#0A2540;border:1px solid #E3E8EE;padding:8px 16px;border-radius:10px;cursor:pointer;font-weight:600;font-size:13px;" onclick="apriRimborsoManuale()" title="Registra un rimborso senza generare PDF / senza firma cliente">+ Aggiungi rimborso manuale</button>
+<button type="button" id="btnRimborsoManuale" class="btn" hidden style="background:#fff;color:#0A2540;border:1px solid #E3E8EE;padding:8px 16px;border-radius:10px;cursor:pointer;font-weight:600;font-size:13px;" onclick="apriRimborsoManuale()" title="Operazione riservata agli amministratori">+ Aggiungi rimborso manuale</button>
 </div>
 <form id="rimborsoForm">
 <div class="form-section">
@@ -665,6 +665,21 @@
  const sb = db;
  const escapeHtml = window.MiroxSafe.escapeHtml;
  const RIMBORSI_BUCKET = 'rimborsi-files';
+ const POST_VENDITA_FUNCTION = '/.netlify/functions/gestisci-operazioni-post-vendita';
+
+ async function callPostVendita(action, payload = {}) {
+ const result = await window.MiroxApi.fetch(POST_VENDITA_FUNCTION, {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action, ...payload })
+ });
+ const data = await result.json().catch(() => ({}));
+ if (!result.ok || data.success === false) {
+ throw new Error(data.error || 'Operazione non riuscita');
+ }
+ return data;
+ }
+
  async function uploadRimborsoPdf(rimborsoId, base64, filename, ragioneSociale) {
  try {
  const bin = atob(base64);
@@ -700,8 +715,10 @@
  });
 
  // Inizializzazione
- document.addEventListener('DOMContentLoaded', function() {
- // Niente da inizializzare
+ document.addEventListener('DOMContentLoaded', async function() {
+ const profilo = window.__profilo || await Auth.getSessione();
+ const btnManuale = document.getElementById('btnRimborsoManuale');
+ if (btnManuale) btnManuale.hidden = profilo?.ruolo !== 'admin';
  });
 
  function switchTab(pageNum) {
@@ -976,11 +993,7 @@
  const datiAnag = anagSection.getDati(profilo?.id);
  const anagraficaId = await window.AnagraficaHelper.cercaOcrea(datiAnag);
 
- const { data: codiceRow } = await sb.rpc('genera_codice_rimborso');
- const { data: inserted, error: insErr } = await sb
- .from('post_vendita_gestione_rimborsi')
- .insert({
- codice: codiceRow || null,
+ const createResult = await callPostVendita('create_rimborso', {
  anagrafica_id: anagraficaId,
  nome: formData.nome,
  cognome: formData.cognome,
@@ -989,21 +1002,17 @@
  importo: parseFloat(formData.importo) || 0,
  id_contratto: formData.idContratto || null,
  motivazione: formData.motivazione,
- note_interne: formData.noteInterne || null,
- stato: 'Aperto',
- operatore_id: profilo?.id || null,
- operatore_nome: profilo?.nome || profilo?.email || null
- })
- .select()
- .single();
- if (insErr) throw insErr;
+ note_interne: formData.noteInterne || null
+ });
+ const inserted = createResult.rimborso;
 
  const ragsocRimborso = formData.ragioneSociale || `${formData.nome || ''} ${formData.cognome || ''}`.trim();
  const pdfUrl = await uploadRimborsoPdf(inserted.id, base64data, `Rimborso_${formData.nome}_${formData.cognome}.pdf`, ragsocRimborso);
  if (pdfUrl) {
- await sb.from('post_vendita_gestione_rimborsi')
- .update({ cartella_url: pdfUrl })
- .eq('id', inserted.id);
+ await callPostVendita('set_rimborso_cartella', {
+ rimborso_id: inserted.id,
+ cartella_url: pdfUrl
+ });
  }
 
  showAlert('Rimborso salvato con successo nel database!', 'success');
@@ -1259,16 +1268,12 @@ ${folderHtml}
  const base64data = reader.result.split(',')[1];
  try {
  const pdfUrl = await uploadRimborsoPdf(currentRimborsoData.rowId, base64data, file.name);
- const { error } = await sb
- .from('post_vendita_gestione_rimborsi')
- .update({
- stato: 'Consegnato',
+ await callPostVendita('complete_rimborso', {
+ rimborso_id: currentRimborsoData.rowId,
  data_consegna: document.getElementById('dataConsegna').value || null,
  note_aggiuntive: document.getElementById('noteAggiuntive').value || null,
  pdf_firmato_url: pdfUrl || null
- })
- .eq('id', currentRimborsoData.rowId);
- if (error) throw error;
+ });
  closeModal();
  showAlert('Rimborso completato con successo!', 'success');
  loadRimborsiAttesa();
@@ -1359,21 +1364,23 @@ ${folderHtml}
  }
 
  // =====================================================================
- // RIMBORSO MANUALE (richiesta Mirox §8 — riautenticazione account)
+ // RIMBORSO MANUALE (operazione riservata agli amministratori)
  // =====================================================================
  // Flusso:
- //   1. Operatore clicca "+ Aggiungi rimborso manuale"
- //   2. Supabase verifica la password dell'account Mirox corrente
- //   3. Se l'identita' e' confermata → popup importo + beneficiario
- //   4. Salvataggio diretto su post_vendita_gestione_rimborsi (stato 'Consegnato')
- //   5. Nessun PDF, nessuna firma, nessun documento aggiuntivo
+ //   1. Il pulsante è visibile soltanto agli account admin
+ //   2. Il backend ricontrolla ruolo e sessione tramite JWT
+ //   3. Salvataggio server-side con stato 'Consegnato'
+ //   4. Nessun PDF, nessuna firma, nessun documento aggiuntivo
  async function apriRimborsoManuale() {
    if (!window.MiroxUI) { console.error('MiroxUI non caricato'); return; }
-   const identityConfirmed = await Auth.riautentica({
-     title: 'Conferma rimborso manuale',
-     label: 'Inserisci la password del tuo account Mirox per continuare'
-   });
-   if (!identityConfirmed) return;
+   const profilo = window.__profilo || await Auth.getSessione();
+   if (profilo?.ruolo !== 'admin') {
+     await window.MiroxUI.alert('Questa operazione è riservata agli amministratori.', {
+       type: 'error',
+       title: 'Accesso negato'
+     });
+     return;
+   }
    await mostraFormRimborsoManuale();
  }
 
@@ -1413,26 +1420,11 @@ ${folderHtml}
      m.close();
      const loader = window.MiroxUI.loading.show('Salvataggio rimborso manuale', 'Sto registrando il rimborso...');
      try {
-       const profilo = window.__profilo || (Auth ? await Auth.getSessione() : null);
-       const codice = await sb.rpc('genera_codice_rimborso').then(r => r.data).catch(() => null);
-       const rec = {
-         codice: codice || null,
-         // Lo schema di post_vendita_gestione_rimborsi richiede nome + cognome (entrambi NOT NULL).
-         // Splittiamo il beneficiario sullo spazio. Se non c'è spazio, mettiamo tutto in nome
-         // e un placeholder in cognome (cognome NOT NULL).
-         nome: (function(){ const parts = beneficiario.split(/\s+/).filter(Boolean); return parts[0] || beneficiario; })(),
-         cognome: (function(){ const parts = beneficiario.split(/\s+/).filter(Boolean); return parts.slice(1).join(' ') || '-'; })(),
+       await callPostVendita('create_rimborso_manuale', {
+         beneficiario,
          importo,
-         motivazione: 'Rimborso manuale (senza contratto associato)',
-         note_interne: 'Rimborso manuale registrato a mano dall\'operatore' + (profilo?.nome ? ' (' + profilo.nome + ')' : ''),
-         note_aggiuntive: note || null,
-         // Stato consentito dal CHECK constraint: 'Aperto','In Lavorazione','Consegnato','Annullato'.
-         // Un rimborso manuale è considerato già evaso → 'Consegnato'.
-         stato: 'Consegnato',
-         data_consegna: new Date().toISOString().slice(0, 10)
-       };
-       const { error } = await sb.from('post_vendita_gestione_rimborsi').insert(rec);
-       if (error) throw error;
+         note: note || null
+       });
        loader.success('Rimborso registrato!');
        setTimeout(() => {
          // Aggiorna la tab "Completati" se disponibile, altrimenti la lista in attesa
