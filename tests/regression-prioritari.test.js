@@ -227,12 +227,14 @@ test('wizard propaga codice rivenditore e usa finalize/rollback compensativo', (
 test('nessuna password operativa fissa resta nei moduli corretti', () => {
   const rimborsi = fs.readFileSync(path.join(ROOT, 'moduli/gestione_rimborsi.html'), 'utf8');
   const apriChiudi = fs.readFileSync(path.join(ROOT, 'moduli/apri_chiudi.html'), 'utf8');
+  const auth = fs.readFileSync(path.join(ROOT, 'js/auth.js'), 'utf8');
   const source = `${rimborsi}\n${apriChiudi}`;
 
   assert.doesNotMatch(source, /RIMBORSO_MANUALE_PASSWORD|PASSWORD_CORRETTA/);
   assert.doesNotMatch(source, /['"](?:1234|2013)['"]/);
   assert.doesNotMatch(source, /password-ko|btn-verifica-password-ko|error-password-ko/);
   assert.doesNotMatch(source, /Auth\.riautentica/);
+  assert.doesNotMatch(auth, /riautentica|signInWithPassword|type:\s*['"]password['"]/);
   assert.match(rimborsi, /profilo\?\.ruolo !== 'admin'/);
   assert.match(rimborsi, /action,\s*\.\.\.payload/);
   assert.match(rimborsi, /create_rimborso_manuale/);

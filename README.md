@@ -199,15 +199,15 @@ Il CC prod su `mirox-crm.netlify.app` legge le stesse tabelle. Per non romperlo:
   - Nuova RPC `vendita_deriva_origine(p_anagrafica_id uuid)` ritorna jsonb `{origine_pratica, evento_tipo, evento_id, descrizione}`. Migration `026` (versione iniziale)
   - Wizard `upload-contratti-vendita.html`: dopo lookup anagrafica, chiama la RPC, pre-compila il dropdown `origine_pratica` e mostra un banner azzurro con la descrizione del match. L'operatore può overridare il valore: popup di conferma per evitare scollegamenti accidentali. Dropdown ora ha label umane
   - Bottone "💼 Inizia vendita" in `appuntamenti-oggi.html` accanto al badge "Presentato": click → sessionStorage `mirox_vendita_da_cc` + redirect al wizard
-- **Fase 4.1** (eseguita): rilassamento RPC + auto-chiusura eventi CC. Migration `027`
+- **Fase 4.1** (eseguita): rilassamento RPC + auto-chiusura eventi CC. Migration `027`, poi messa in sicurezza con migration `028`
   - RPC livello 1 ora copre anche appuntamenti FUTURI confermati fino a 30 giorni (cliente che arriva in anticipo)
   - RPC livello 2 rilassato: include chiamate `passa_in_negozio`/`passa_a_cerea` anche con `passaggio_stato='in_attesa'` (non solo `'passato'`)
-  - **Trigger `trg_vendita_pratica_auto_chiudi_cc`** su `vendita_pratiche AFTER INSERT`: quando si crea una nuova pratica per anagrafica, gli appuntamenti futuri non gestiti della stessa anagrafica vengono `annullati` automaticamente e le chiamate in rilavorazione vengono `completate/chiuse`. Così il cliente sparisce dalle code CC senza rischio di essere ricontattato dopo aver già firmato
+  - Il trigger iniziale `trg_vendita_pratica_auto_chiudi_cc` è stato rimosso dalla migration `028`: scattava troppo presto, quando la pratica non aveva ancora completato contratti e upload. Oggi l'action backend `finalize` chiama la RPC `vendita_chiudi_eventi_cc_per_pratica` solo dopo il completamento dell'intera pratica; un rollback degli upload non altera più le code CC
   - Wizard al submit valorizza `vendita_pratiche.appuntamento_id` / `chiamata_id` con l'evento auto-rilevato (FK esistenti da schema legacy ora riempite)
 
 ### Fasi successive previste
 
-- **Fase 5** (debito tecnico): refactor profondo pagine CC a `MiroxUI.*` / `AnagraficaHelper.cercaOcrea` (rimuovere `Utils.toast`, `alert/confirm` nativi, `db.from('anagrafica').insert(...)` diretto)
+- **Fase 5 facoltativa** (uniformità UI): le pagine CC conservano parte delle utility `Utils.*` del port storico. La creazione anagrafica è già migrata a `AnagraficaHelper.cercaOcrea` e non restano conferme native nei flussi controllati; l'eventuale sostituzione completa di `Utils.*` è un refactor architetturale, non un'attività correttiva aperta
 - **Estensioni Fase 4**: bottoni "Inizia vendita" anche in `registra-chiamata.html` (dopo passa-in-negozio), `esiti-appuntamenti.html` (prima di esitare), `rilavorazione.html` (tab Passa Negozio/Cerea) — da fare on-demand quando si ha bisogno
 
 ## Error reporting via email (dal 2026-06-25)
@@ -255,6 +255,7 @@ Dettagli operativi: vedi [CLAUDE.md](CLAUDE.md) sezione "Sistema di error report
 - Stato file SQL nella cartella `database/`: [`database/README.md`](database/README.md)
 - Revisione privacy tecnica e punti da validare: [`docs/PRIVACY_LEGAL_REVIEW_2026-07-26.md`](docs/PRIVACY_LEGAL_REVIEW_2026-07-26.md)
 - Audit XSS/infrastruttura e limite CSP residuo: [`docs/SECURITY_XSS_AUDIT_2026-07-26.md`](docs/SECURITY_XSS_AUDIT_2026-07-26.md)
+- Checklist definitiva dei 12 interventi correttivi: [`docs/REMEDIATION_CHECKLIST_2026-07-26.md`](docs/REMEDIATION_CHECKLIST_2026-07-26.md)
 
 ## Note
 

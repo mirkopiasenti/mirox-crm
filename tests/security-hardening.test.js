@@ -217,3 +217,31 @@ test('informative v6 usano la ragione sociale esatta e rendono visibile la scelt
   assert.match(checkSource, /\.in\('informativa_versione', INFORMATIVE_VERSIONI_CORRENTI\)/);
   assert.match(cartSource, /\.in\('informativa_versione', INFORMATIVE_VERSIONI_CORRENTI\)/);
 });
+
+test('il Call Center crea le anagrafiche con la RPC idempotente condivisa', () => {
+  const source = fs.readFileSync(
+    path.join(ROOT, 'moduli/call-center/registra-chiamata.html'),
+    'utf8'
+  );
+
+  assert.match(source, /src="\.\.\/\.\.\/js\/anagrafica-helper\.js"/);
+  assert.match(source, /window\.AnagraficaHelper\.cercaOcrea\(\{/);
+  assert.match(source, /window\.AnagraficaHelper\.cerca\(cfpiva\)/);
+  assert.doesNotMatch(
+    source,
+    /\.from\(['"]anagrafica['"]\)\s*\.insert\(/
+  );
+});
+
+test('Segnalazioni valida i link Drive legacy e codifica la cronologia note', () => {
+  const source = fs.readFileSync(
+    path.join(ROOT, 'moduli/segnalazioni.html'),
+    'utf8'
+  );
+
+  assert.match(source, /const legacyDriveHtml=driveLink\(r\.link_cartella_drive\)/);
+  assert.match(source, /\$\{fHtml\}\$\{legacyDriveHtml\}/);
+  assert.match(source, /\$\{esc\(m&&m\.timestamp\)\}/);
+  assert.match(source, /\$\{esc\(m&&m\.message\)\}/);
+  assert.doesNotMatch(source, /href="\$\{r\.link_cartella_drive\}"/);
+});

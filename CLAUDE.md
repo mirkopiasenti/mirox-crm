@@ -74,7 +74,7 @@ Sostituire sempre con testo descrittivo (es. `🔄 Aggiorna` → `Aggiorna`, `�
 
 - **Vendita / Post-Vendita** = focus storico, completato in larga parte
 - **Call Center integrato** = a partire dal 2026-06-20 le pagine CC sono integrate in `moduli/call-center/` (Fase 1: mount UI). Il CC prod su `mirox-crm.netlify.app` continua a girare in parallelo invariato — entrambi puntano allo stesso project Supabase
-- **Fasi successive previste** (non ancora fatte): estensione `storico_cliente`, backfill `chiamate.anagrafica_id`, convergenza Upload Contratti con `origine_pratica` automatica
+- **Integrazione CC completata nelle fasi 2–4**: `storico_cliente` esteso, backfill/auto-link di `chiamate.anagrafica_id` e convergenza Upload Contratti con `origine_pratica` automatica sono già applicati. Le eventuali estensioni successive sono nuove funzionalità, non attività arretrate.
 
 ### URL deploy
 - **Repo GitHub**: `git@github.com:mirkopiasenti/mirox-crm.git` (dal 2026-07-02, prima era `konahub-vendita-test` — redirect ancora attivo ma va usato il nome nuovo)
@@ -106,7 +106,7 @@ Pagine HTML statiche, no bundler. `/moduli/call-center/` contiene il modulo CC i
 | File JS | Espone | Uso |
 |---|---|---|
 | `js/config.js` | `window.db` (client Supabase) | URL + publishable/anon key |
-| `js/auth.js` | `window.Auth` | `richiediAuth()` guard, `logout()`, `getProfilo()`, `riautentica()` (utility disponibile per un'eventuale conferma dell'identità via Supabase; le operazioni operative correnti usano autorizzazioni di ruolo server-side e nessuna password nel codice) |
+| `js/auth.js` | `window.Auth` | `richiediAuth()` guard, `logout()`, `getProfilo()`. Le operazioni sensibili sono autorizzate per ruolo lato server; il frontend non richiede password operative o una seconda immissione della password account |
 | `js/mirox-safe.js` | `window.MiroxSafe` | `escapeHtml`, `safeUrl`, `isUuid`, `isRecordId`, `safeCssColor`. Caricato da tutte le pagine per impedire che dati DB/input diventino markup, URL o handler eseguibili |
 | `js/anagrafica-helper.js` | `window.AnagraficaHelper` | `detectKind`, `cerca`, `cercaOcrea`, `setupAnagraficaSection` |
 | `js/mirox-ui.js` | `window.MiroxUI` | `alert/confirm/prompt/loading/toast/allegati`. `allegati()` accetta sia `{url}` legacy sia `{bucket, path}` (genera signed URL on-click via MiroxStorage) |
@@ -585,14 +585,12 @@ Esposto globalmente come `window.CcHeader`. API: `CcHeader.render(paginaChiavePe
 - **Topbar**: bottone "Dashboard" arancione (a sinistra) + logo Mirox (centro) + user chip + bottone logout (a destra)
 - **Tab nav orizzontale**: 9 voci CC, filtrate per `profili.pagine_accessibili[perm]` (admin vede tutte). Tab corrente in evidenza arancione. La voce `configurazione` è stata rimossa il 2026-06-24 quando la pagina è migrata sotto Admin Mirox
 
-### Cosa NON è ancora unificato (debito tecnico)
+### Compatibilità UI ancora presente (debito tecnico non bloccante)
 
 Le pagine CC ancora usano:
 - `Utils.toast/openModal/closeModal/showLoading/...` (in `moduli/call-center/js/app.js`) invece di `MiroxUI.*`
-- `alert()` / `confirm()` nativi in alcuni punti (es. `blacklist.html` rimuovi conferma)
-- `db.from('anagrafica').insert(...)` diretto in `registra-chiamata.html` (riga ~651) invece di `AnagraficaHelper.cercaOcrea` — rischio basso di duplicati grazie al check precedente `cercaCliente()`, ma non rispetta lo standard Mirox
 
-→ refactor profondo da fare iterativamente in sessioni successive, una pagina per volta
+La creazione anagrafica in `registra-chiamata.html` passa da `AnagraficaHelper.cercaOcrea`, quindi è idempotente anche in caso di richieste concorrenti. Non restano `alert()`/`confirm()` nativi nei flussi CC controllati. La sostituzione integrale di `Utils.*` è un refactor estetico/architetturale facoltativo, non un difetto di sicurezza aperto.
 
 ### Accesso dalla dashboard Mirox
 

@@ -11,20 +11,23 @@ Interventi principali:
 - codificati dati cliente, errori backend, nomi file, badge e attributi dinamici nei moduli operativi;
 - form pubblico appuntamenti riscritto con nodi DOM, `textContent` e listener;
 - identità del profilo autenticato aggiunta ai metadati degli upload dei moduli;
+- link Drive legacy e cronologia note di Segnalazioni passano dagli helper `safeUrl`/`escapeHtml` senza interpolazioni dirette residue;
 - tutte le librerie CDN hanno versione esatta, hash SRI SHA384 e `crossorigin="anonymous"`;
 - Supabase JS aggiornato a `2.110.8` e Nodemailer a `9.0.3`; `npm audit --omit=dev` non rileva vulnerabilità note;
 - Netlify invia CSP, HSTS e Permissions-Policy.
 
-## Limite residuo consapevole
+## Limite architetturale consapevole
 
 Il frontend è HTML statico legacy e contiene ancora numerosi script e handler inline. Per compatibilità la CSP include temporaneamente `script-src 'unsafe-inline'` e `style-src 'unsafe-inline'`. La protezione attuale deriva quindi dalla codifica sistematica dei dati dinamici, dal blocco degli URL pericolosi, da SRI e dalle altre direttive CSP; non è ancora una CSP a nonce/hash senza inline.
 
-Per rimuovere il limite residuo serve un refactor separato:
+Per arrivare a una CSP rigorosa senza inline serve un refactor separato dell'architettura frontend:
 
 1. spostare tutti gli script inline in file JS locali;
 2. sostituire tutti gli attributi `onclick`/`onchange` con listener;
 3. spostare gli stili inline o adottare hash/nonce generati;
 4. eliminare `'unsafe-inline'` dalla CSP e verificare tutte le pagine in browser.
+
+Questo lavoro non è una correzione incompleta dei dodici difetti prioritari: l'audit XSS richiesto è concluso e gli output dinamici individuati sono protetti. È un possibile progetto futuro di modernizzazione del frontend statico.
 
 ## Verifiche automatiche
 
