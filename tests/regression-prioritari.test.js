@@ -6,6 +6,10 @@ const vm = require('node:vm');
 const crypto = require('node:crypto');
 
 const ROOT = path.resolve(__dirname, '..');
+const scoreIntegrity = require(path.join(
+  ROOT,
+  'netlify/functions/_lib/score-integrity.js'
+));
 
 function loadCommonJs(relativePath, stubs = {}) {
   const filename = path.join(ROOT, relativePath);
@@ -34,7 +38,8 @@ const carrelloModule = loadCommonJs('netlify/functions/crea-vendita-pratica-carr
   './_lib/require-auth': { requireAuth: async () => ({ ok: false }) },
   './_lib/privacy-config': {
     INFORMATIVE_VERSIONI_CORRENTI: ['v6_2026_07_26', 'v6_2026_07_26_dig']
-  }
+  },
+  './_lib/score-integrity': scoreIntegrity
 });
 
 const uploadModule = loadCommonJs('netlify/functions/upload-vendita-documento.js', {
@@ -56,7 +61,8 @@ const contractManager = loadCommonJs('netlify/functions/gestisci-vendita-contrat
   './_lib/require-auth': {
     requireAuth: async () => ({ ok: false }),
     getAdminClient() { return null; }
-  }
+  },
+  './_lib/score-integrity': scoreIntegrity
 });
 
 test('normalizzazione contratto conserva Cerea e reinserimento', () => {
@@ -200,6 +206,308 @@ test('gestione contratto scarta campi client riservati', () => {
     }),
     'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
   );
+});
+
+test('punteggi catalogo accettano zero reale ma rifiutano valori mancanti', () => {
+  assert.equal(scoreIntegrity.parseRequiredScore(0, 'test'), 0);
+  assert.equal(scoreIntegrity.parseRequiredScore('1.5', 'test'), 1.5);
+  assert.throws(
+    () => scoreIntegrity.parseRequiredScore(null, 'test'),
+    /mancante nel catalogo/
+  );
+  assert.throws(
+    () => scoreIntegrity.parseRequiredScore('', 'test'),
+    /mancante nel catalogo/
+  );
+  assert.throws(
+    () => scoreIntegrity.parseRequiredScore('non-numero', 'test'),
+    /non numerico/
+  );
+});
+
+test('integrità punteggi verifica componenti, totali e colonne legacy', () => {
+  const coherent = {
+    punteggio_gara_offerta: 1,
+    punteggio_gara_opzione: 0.5,
+    punteggio_gara_totale: 1.5,
+    punteggio_extra_gara_offerta: 0.25,
+    punteggio_extra_gara_opzione: 0.25,
+    punteggio_extra_gara_totale: 0.5,
+    punteggio_offerta: 1,
+    punteggio_opzione: 0.5,
+    punteggio_extra: 0,
+    punteggio_totale: 1.5
+  };
+
+  assert.doesNotThrow(() => scoreIntegrity.assertPersistedContractScores(coherent, {
+    context: 'test',
+    expectedComponents: {
+      punteggio_gara_offerta: 1,
+      punteggio_gara_opzione: 0.5,
+      punteggio_extra_gara_offerta: 0.25,
+      punteggio_extra_gara_opzione: 0.25
+    }
+  }));
+
+  assert.throws(
+    () => scoreIntegrity.assertPersistedContractScores({
+      ...coherent,
+      punteggio_gara_offerta: 0,
+      punteggio_gara_totale: 0.5,
+      punteggio_offerta: 0,
+      punteggio_totale: 0.5
+    }, {
+      context: 'test',
+      expectedComponents: {
+        punteggio_gara_offerta: 1,
+        punteggio_gara_opzione: 0.5,
+        punteggio_extra_gara_offerta: 0.25,
+        punteggio_extra_gara_opzione: 0.25
+      }
+    }),
+    /salvato=0, atteso=1/
+  );
+
+  assert.throws(
+    () => scoreIntegrity.assertPersistedContractScores({
+      ...coherent,
+      punteggio_gara_totale: 0
+    }),
+    /punteggio_gara_totale=0, atteso=1.5/
+  );
+});
+
+test('verifica contratto non ricalcola i punteggi se gli ID catalogo non cambiano', async () => {
+  const supabaseNotExpected = {
+    from() {
+      throw new Error('Il catalogo non deve essere interrogato');
+    }
+  };
+  const current = {
+    categoria_id: 'cat-1',
+    offerta_id: 'off-1',
+    opzione_id: 'opz-1',
+    reload_id: null
+  };
+
+  const snapshots = await contractManager._test.deriveCatalogSnapshots(
+    supabaseNotExpected,
+    current,
+    {
+      categoria_id: 'cat-1',
+      offerta_id: 'off-1',
+      opzione_id: 'opz-1',
+      reload_id: null
+    }
+  );
+
+  assert.deepEqual(JSON.parse(JSON.stringify(snapshots)), {});
+});
+
+test('verifica contratto blocca un punteggio catalogo nullo invece di trasformarlo in zero', async () => {
+  const supabase = {
+    from(table) {
+      assert.equal(table, 'vendita_offerte');
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                async maybeSingle() {
+                  return {
+                    data: {
+                      id: 'off-2',
+                      nome_offerta: 'Offerta incompleta',
+                      punteggio_gara: null,
+                      punteggio_extra_gara: 0
+                    },
+                    error: null
+                  };
+                }
+              };
+            }
+          };
+        }
+      };
+    }
+  };
+
+  await assert.rejects(
+    contractManager._test.deriveCatalogSnapshots(
+      supabase,
+      {
+        categoria_id: 'cat-1',
+        offerta_id: 'off-1',
+        opzione_id: null,
+        reload_id: null
+      },
+      { offerta_id: 'off-2' }
+    ),
+    /punteggio_gara offerta mancante nel catalogo/
+  );
+});
+
+test('verifica contratto riapplica il bonus Annuale quando cambia opzione', async () => {
+  const supabase = {
+    from(table) {
+      assert.equal(table, 'impostazioni');
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                async maybeSingle() {
+                  return { data: { valore: '0.5' }, error: null };
+                }
+              };
+            }
+          };
+        }
+      };
+    }
+  };
+
+  const snapshots = await contractManager._test.deriveCatalogSnapshots(
+    supabase,
+    {
+      categoria_id: 'cat-ass',
+      categoria_snapshot: 'Assicurazioni',
+      offerta_id: 'off-1',
+      opzione_id: 'opz-1',
+      reload_id: null,
+      ricorrenza_assicurazione: 'Annuale'
+    },
+    { opzione_id: null }
+  );
+
+  assert.equal(snapshots.punteggio_gara_opzione, 0.5);
+  assert.equal(snapshots.punteggio_extra_gara_opzione, 0);
+});
+
+test('lettura bonus Annuale fallisce chiusa se la configurazione manca', async () => {
+  const supabase = {
+    from() {
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                async maybeSingle() {
+                  return { data: null, error: null };
+                }
+              };
+            }
+          };
+        }
+      };
+    }
+  };
+
+  await assert.rejects(
+    scoreIntegrity.loadAnnualInsuranceBonus(supabase),
+    /bonus_assicurazione_annuale mancante nel catalogo/
+  );
+});
+
+test('migration deduplica solo i sette mapping certi e copre tutte le FK anagrafica', () => {
+  const sql = fs.readFileSync(
+    path.join(ROOT, 'database/057_deduplica_anagrafiche.sql'),
+    'utf8'
+  );
+  const loserIds = [
+    '067eb0a0-d032-4745-b652-4845fbf5e8a9',
+    '1d8bfe49-831a-4c79-80b9-7a64229ed94e',
+    'e4570cdd-2503-41d9-b229-f7333fc8dcf5',
+    '6eaa2c5a-3faf-446a-bf0f-ffd471e66939',
+    '13cfb945-be49-44e2-8151-ca9d56aea2b1',
+    '241ca62e-1e5b-4d3a-96b6-c76c0e875cb9',
+    'dfd71db9-1cb2-4b0b-bf81-19de1b3e8832'
+  ];
+  const fkTargets = [
+    'appuntamenti',
+    'chiamate',
+    'call_center_lead_outbound_chiamate',
+    'vendita_pratiche',
+    'vendita_contratti',
+    'vendita_documenti',
+    'vendita_consensi_privacy',
+    'vendita_consensi_privacy_v2',
+    'vendita_ordini_smartphone',
+    'vendita_apri_chiudi',
+    'vendita_switch_sim',
+    'post_vendita_controllo_fissi',
+    'post_vendita_controllo_lg',
+    'post_vendita_controllo_allarmi',
+    'post_vendita_controllo_assicurazioni',
+    'post_vendita_dispositivi_comodato',
+    'post_vendita_gestione_rimborsi'
+  ];
+
+  loserIds.forEach((id) => assert.match(sql, new RegExp(id)));
+  assert.equal((sql.match(/^\s*\('[0-9a-f-]{36}',\s*'[0-9a-f-]{36}'/gm) || []).length, 7);
+  fkTargets.forEach((table) => assert.match(sql, new RegExp(`UPDATE public\\.${table}\\b`)));
+  assert.match(sql, /azione,\s*\n\s*dati_precedenti/);
+  assert.match(sql, /'merge_duplicate'/);
+  assert.match(sql, /nessuna FK reale può ancora puntare ai loser/);
+});
+
+test('migration punteggi aggiunge vincoli validati e audit permanente', () => {
+  const sql = fs.readFileSync(
+    path.join(ROOT, 'database/058_integrita_e_audit_punteggi.sql'),
+    'utf8'
+  );
+
+  assert.equal((sql.match(/ADD CONSTRAINT vendita_contratti_punteggio_/g) || []).length, 3);
+  assert.equal((sql.match(/VALIDATE CONSTRAINT vendita_contratti_punteggio_/g) || []).length, 3);
+  assert.match(sql, /CREATE OR REPLACE FUNCTION public\.vendita_audit_punteggi\(\)/);
+  assert.match(sql, /AFTER INSERT OR UPDATE OF/);
+  assert.match(sql, /'punteggio_insert'/);
+  assert.match(sql, /'punteggio_update'/);
+});
+
+test('migration finale elimina il doppione tecnico TEST senza lasciare FK', () => {
+  const sql = fs.readFileSync(
+    path.join(ROOT, 'database/059_deduplica_anagrafica_test_case.sql'),
+    'utf8'
+  );
+
+  assert.match(sql, /03cf3323-3da0-45d5-9de3-87d64a651af2/);
+  assert.match(sql, /5a4c4708-dcbc-4609-8a03-f308ffaa651c/);
+  assert.match(sql, /v_survivor_row\.cf_piva IS DISTINCT FROM 'TEST'/);
+  assert.match(sql, /v_loser_row\.cf_piva IS DISTINCT FROM 'test'/);
+  assert.match(sql, /information_schema\.referential_constraints/);
+  assert.match(sql, /'merge_duplicate'/);
+});
+
+test('migration bonus annuale corregge soltanto i tre contratti verificati nel periodo del bug', () => {
+  const sql = fs.readFileSync(
+    path.join(ROOT, 'database/060_ripristina_bonus_assicurazioni_annuali.sql'),
+    'utf8'
+  );
+  const ids = [
+    '817fae6c-5e5a-4983-b611-81a3a0035e4b',
+    '7273d933-cfae-4c6a-89ab-2333b129a7c8',
+    'eb6b456b-985f-47b2-a80c-4df68b594e46'
+  ];
+
+  ids.forEach((id) => assert.match(sql, new RegExp(id)));
+  assert.match(sql, /punteggio_gara_opzione = 0\.5/);
+  assert.match(sql, /punteggio_gara_totale IS DISTINCT FROM 2::numeric/);
+  assert.match(sql, /060_ripristina_bonus_assicurazioni_annuali/);
+});
+
+test('migration opzione Iliad ripristina i 7 ID senza alterare il punto già corretto', () => {
+  const sql = fs.readFileSync(
+    path.join(ROOT, 'database/061_ripristina_opzione_iliad_snapshot.sql'),
+    'utf8'
+  );
+
+  assert.equal((sql.match(/^\s*'[0-9a-f-]{36}',?$/gm) || []).length >= 7, true);
+  assert.match(sql, /23057455-cfbe-457b-8f1c-0344f54e6ddf/);
+  assert.match(sql, /Operatore attuale Iliad Italia/);
+  assert.match(sql, /tipo_documento = 'copia_sim_mnp'/);
+  assert.match(sql, /punteggio_gara_opzione IS DISTINCT FROM 1::numeric/);
+  assert.doesNotMatch(sql, /SET\s+punteggio_gara_opzione\s*=/);
 });
 
 test('wizard propaga codice rivenditore e usa finalize/rollback compensativo', () => {

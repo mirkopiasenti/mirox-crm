@@ -1,6 +1,11 @@
 const { createClient } = require('@supabase/supabase-js');
 const { requireAuth } = require('./_lib/require-auth');
 const { INFORMATIVE_VERSIONI_CORRENTI } = require('./_lib/privacy-config');
+const {
+  assertPersistedContractScores,
+  loadAnnualInsuranceBonus,
+  parseRequiredScore
+} = require('./_lib/score-integrity');
 
 const ORIGINI_PRATICA_AMMESSE = new Set([
   'appuntamento_callcenter',
@@ -156,28 +161,6 @@ function buildStorageNames({ ragioneSociale, praticaId, now = new Date() }) {
   const storageBasePath = `${year}/${month}/${folderPathSegment}/`;
 
   return { nomeCartellaStorage, storageBasePath };
-}
-
-function parseRequiredScore(value, label) {
-  // Guardia difensiva: null/undefined/'' non sono punteggi validi. Number(null)
-  // e Number('') restituiscono 0 (finite) e finirebbero silenziosamente a DB —
-  // fenomeno visto in 14 contratti del 22-23/07/2026 salvati con snapshot 0
-  // nonostante il catalogo avesse valori > 0. Blocchiamo esplicitamente qui.
-  if (value === null || value === undefined || value === '') {
-    throw new Error(`Configurazione non valida: ${label} mancante nel catalogo (null/vuoto). Ricarica la pagina e riprova.`);
-  }
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    throw new Error(`Configurazione non valida: ${label} non numerico (${JSON.stringify(value)})`);
-  }
-  return parsed;
-}
-
-function parseOptionalScore(value, fallback = 0) {
-  if (value === undefined || value === null || value === '') return fallback;
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function readableError(error, fallback = 'Errore durante la creazione pratica carrello') {
@@ -618,7 +601,7 @@ function numeric(value, fallback = 0) {
 
 // Marker versione fix: aumenta ogni volta che cambi la diagnostica per capire
 // dai Netlify logs se la versione attiva contiene il fix atteso.
-const CARRELLO_FIX_VERSION = '2026-07-25-integrity-v1';
+const CARRELLO_FIX_VERSION = '2026-07-26-score-integrity-v2';
 
 exports.handler = async (event) => {
   // Debug trace id: correlare log della stessa richiesta nei Netlify Functions logs.
@@ -1141,18 +1124,18 @@ exports.handler = async (event) => {
     }
 
     // Migration 049 — bonus configurabile per Assicurazioni Annuale.
-    // Letto UNA volta prima del loop dei contratti per evitare N query.
-    // Se la chiave non esiste o il valore non parsa, bonus = 0 (no-op).
+    // Si legge una volta e solo se il carrello contiene almeno un contratto
+    // interessato. Un errore o valore mancante blocca la pratica: il fallback
+    // silenzioso a 0 nasconderebbe proprio l'anomalia che vogliamo evitare.
     let bonusAssicurazioneAnnuale = 0;
-    try {
-      const { data: setting } = await supabase
-        .from('impostazioni')
-        .select('valore')
-        .eq('chiave', 'bonus_assicurazione_annuale')
-        .maybeSingle();
-      const parsed = parseFloat(String(setting?.valore ?? '').replace(',', '.'));
-      if (Number.isFinite(parsed) && parsed >= 0) bonusAssicurazioneAnnuale = parsed;
-    } catch (_) { /* bonus resta 0 se qualcosa va storto */ }
+    const requiresAnnualInsuranceBonus = normalizedContracts.some((item) => {
+      const categoria = categorieById.get(item.categoria_id);
+      return normalizeCategoryName(categoria?.nome) === normalizeCategoryName('Assicurazioni')
+        && item.ricorrenza_assicurazione === 'Annuale';
+    });
+    if (requiresAnnualInsuranceBonus) {
+      bonusAssicurazioneAnnuale = await loadAnnualInsuranceBonus(supabase);
+    }
 
     const createdContracts = [];
 
@@ -1323,8 +1306,16 @@ exports.handler = async (event) => {
       ) {
         punteggioGaraOpzione = Number((punteggioGaraOpzione + bonusAssicurazioneAnnuale).toFixed(2));
       }
-      const punteggioExtraGaraOfferta = parseOptionalScore(offerta.punteggio_extra_gara, 0);
-      const punteggioExtraGaraOpzione = opzione ? parseOptionalScore(opzione.punteggio_extra_gara, 0) : 0;
+      const punteggioExtraGaraOfferta = parseRequiredScore(
+        offerta.punteggio_extra_gara,
+        `punteggio_extra_gara offerta (contratti[${index}])`
+      );
+      const punteggioExtraGaraOpzione = opzione
+        ? parseRequiredScore(
+          opzione.punteggio_extra_gara,
+          `punteggio_extra_gara opzione (contratti[${index}])`
+        )
+        : 0;
 
       const punteggioOfferta = punteggioGaraOfferta;
       const punteggioOpzione = punteggioGaraOpzione;
@@ -1447,6 +1438,20 @@ exports.handler = async (event) => {
         throw new Error(readableError(contractInsertError, `Errore creazione contratto indice ${index}`));
       }
 
+      // Il backend non si limita a calcolare correttamente il payload: verifica
+      // anche la riga restituita dal DB dopo trigger/default. Se un futuro
+      // cambio schema alterasse componenti o totali, il catch elimina l'intera
+      // pratica ancora in bozza tramite rollback compensativo.
+      assertPersistedContractScores(insertedContract, {
+        context: `contratti[${index}]`,
+        expectedComponents: {
+          punteggio_gara_offerta: punteggioGaraOfferta,
+          punteggio_gara_opzione: punteggioGaraOpzione,
+          punteggio_extra_gara_offerta: punteggioExtraGaraOfferta,
+          punteggio_extra_gara_opzione: punteggioExtraGaraOpzione
+        }
+      });
+
       createdContracts.push({
         temp_id: item.temp_id,
         contratto_id: insertedContract.id,
@@ -1519,7 +1524,10 @@ exports.handler = async (event) => {
 
 exports._test = {
   authenticatedOperatorId,
+  assertPersistedContractScores,
   getRomeYearMonth,
   isSameRomeCalendarMonth,
-  normalizeContractInput
+  loadAnnualInsuranceBonus,
+  normalizeContractInput,
+  parseRequiredScore
 };

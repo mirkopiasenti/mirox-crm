@@ -1,4 +1,9 @@
 const { requireAuth, getAdminClient } = require('./_lib/require-auth');
+const {
+  assertPersistedContractScores,
+  loadAnnualInsuranceBonus,
+  parseRequiredScore
+} = require('./_lib/score-integrity');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONTRACT_FIELDS = new Set([
@@ -84,11 +89,18 @@ async function loadCatalogRow(supabase, table, id, columns) {
 
 async function deriveCatalogSnapshots(supabase, current, patch) {
   const result = {};
+  const categoriaChanged =
+    Object.prototype.hasOwnProperty.call(patch, 'categoria_id')
+    && patch.categoria_id !== current.categoria_id;
+  const opzioneChanged =
+    Object.prototype.hasOwnProperty.call(patch, 'opzione_id')
+    && patch.opzione_id !== current.opzione_id;
+  let finalCategoriaNome = current.categoria_snapshot;
 
-  if (Object.prototype.hasOwnProperty.call(patch, 'categoria_id')
-      && patch.categoria_id !== current.categoria_id) {
+  if (categoriaChanged) {
     const categoria = await loadCatalogRow(supabase, 'vendita_categorie', patch.categoria_id, 'id, nome');
     result.categoria_snapshot = categoria?.nome || null;
+    finalCategoriaNome = result.categoria_snapshot;
   }
 
   if (Object.prototype.hasOwnProperty.call(patch, 'offerta_id')
@@ -100,21 +112,52 @@ async function deriveCatalogSnapshots(supabase, current, patch) {
       'id, nome_offerta, punteggio_gara, punteggio_extra_gara'
     );
     result.nome_offerta_snapshot = offerta?.nome_offerta || null;
-    result.punteggio_gara_offerta = Number(offerta?.punteggio_gara || 0);
-    result.punteggio_extra_gara_offerta = Number(offerta?.punteggio_extra_gara || 0);
+    result.punteggio_gara_offerta = parseRequiredScore(
+      offerta?.punteggio_gara,
+      'punteggio_gara offerta'
+    );
+    result.punteggio_extra_gara_offerta = parseRequiredScore(
+      offerta?.punteggio_extra_gara,
+      'punteggio_extra_gara offerta'
+    );
   }
 
-  if (Object.prototype.hasOwnProperty.call(patch, 'opzione_id')
-      && patch.opzione_id !== current.opzione_id) {
-    const opzione = await loadCatalogRow(
-      supabase,
-      'vendita_opzioni',
-      patch.opzione_id,
-      'id, nome_opzione, punteggio_gara, punteggio_extra_gara'
-    );
-    result.nome_opzione_snapshot = opzione?.nome_opzione || null;
-    result.punteggio_gara_opzione = Number(opzione?.punteggio_gara || 0);
-    result.punteggio_extra_gara_opzione = Number(opzione?.punteggio_extra_gara || 0);
+  // Il bonus Annuale vive nello snapshot opzione, non nel catalogo. Perciò
+  // si ricalcola il componente anche quando cambia soltanto la categoria:
+  // entrando/uscendo da Assicurazioni il bonus va aggiunto/rimosso.
+  if (opzioneChanged || categoriaChanged) {
+    const finalOpzioneId = opzioneChanged ? patch.opzione_id : current.opzione_id;
+    if (!finalOpzioneId) {
+      result.nome_opzione_snapshot = null;
+      result.punteggio_gara_opzione = 0;
+      result.punteggio_extra_gara_opzione = 0;
+    } else {
+      const opzione = await loadCatalogRow(
+        supabase,
+        'vendita_opzioni',
+        finalOpzioneId,
+        'id, nome_opzione, punteggio_gara, punteggio_extra_gara'
+      );
+      result.nome_opzione_snapshot = opzione?.nome_opzione || null;
+      result.punteggio_gara_opzione = parseRequiredScore(
+        opzione?.punteggio_gara,
+        'punteggio_gara opzione'
+      );
+      result.punteggio_extra_gara_opzione = parseRequiredScore(
+        opzione?.punteggio_extra_gara,
+        'punteggio_extra_gara opzione'
+      );
+    }
+
+    if (
+      String(finalCategoriaNome || '').trim().toLowerCase() === 'assicurazioni'
+      && current.ricorrenza_assicurazione === 'Annuale'
+    ) {
+      const bonus = await loadAnnualInsuranceBonus(supabase);
+      result.punteggio_gara_opzione = Number(
+        (result.punteggio_gara_opzione + bonus).toFixed(2)
+      );
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(patch, 'reload_id')
@@ -138,13 +181,20 @@ async function updateContract({ supabase, auth, body }) {
 
   const { data: current, error: loadError } = await supabase
     .from('vendita_contratti')
-    .select('id, anagrafica_id, pratica_id, stato_controllo, categoria_id, offerta_id, opzione_id, reload_id')
+    .select(`
+      id, anagrafica_id, pratica_id, stato_controllo,
+      categoria_id, categoria_snapshot, offerta_id, opzione_id, reload_id,
+      ricorrenza_assicurazione,
+      punteggio_gara_offerta, punteggio_gara_opzione,
+      punteggio_extra_gara_offerta, punteggio_extra_gara_opzione
+    `)
     .eq('id', contrattoId)
     .maybeSingle();
   if (loadError) throw loadError;
   if (!current) return response(404, { success: false, error: 'Contratto non trovato' });
 
   let patch = {};
+  let snapshotPatch = {};
   if (mode === 'reopen') {
     patch = {
       stato_controllo: 'da_controllare',
@@ -153,7 +203,7 @@ async function updateContract({ supabase, auth, body }) {
     };
   } else {
     patch = pickAllowed(body.contratto, CONTRACT_FIELDS);
-    const snapshotPatch = await deriveCatalogSnapshots(supabase, current, patch);
+    snapshotPatch = await deriveCatalogSnapshots(supabase, current, patch);
     patch = { ...patch, ...snapshotPatch };
 
     if (mode === 'verify') {
@@ -166,6 +216,12 @@ async function updateContract({ supabase, auth, body }) {
       patch.controllato_at = new Date().toISOString();
     }
   }
+
+  const updatedBy = canonicalProfileId(auth);
+  if (!updatedBy) {
+    return response(500, { success: false, error: 'Profilo autenticato privo di un identificativo valido' });
+  }
+  patch.updated_by = updatedBy;
 
   if (patch.codice_rivenditore
       && !['9001415852', '9000822241'].includes(patch.codice_rivenditore)) {
@@ -193,6 +249,20 @@ async function updateContract({ supabase, auth, body }) {
     .select('*')
     .single();
   if (updateError) throw updateError;
+
+  assertPersistedContractScores(contratto, {
+    context: `vendita_contratti.${contrattoId}`,
+    expectedComponents: {
+      punteggio_gara_offerta:
+        snapshotPatch.punteggio_gara_offerta ?? current.punteggio_gara_offerta,
+      punteggio_gara_opzione:
+        snapshotPatch.punteggio_gara_opzione ?? current.punteggio_gara_opzione,
+      punteggio_extra_gara_offerta:
+        snapshotPatch.punteggio_extra_gara_offerta ?? current.punteggio_extra_gara_offerta,
+      punteggio_extra_gara_opzione:
+        snapshotPatch.punteggio_extra_gara_opzione ?? current.punteggio_extra_gara_opzione
+    }
+  });
 
   return response(200, { success: true, contratto });
 }
@@ -279,7 +349,11 @@ exports.handler = async (event) => {
 };
 
 exports._test = {
+  assertPersistedContractScores,
   canonicalProfileId,
+  deriveCatalogSnapshots,
   isUuid,
+  loadAnnualInsuranceBonus,
+  parseRequiredScore,
   pickAllowed
 };

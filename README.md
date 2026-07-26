@@ -233,6 +233,7 @@ Dettagli operativi: vedi [CLAUDE.md](CLAUDE.md) sezione "Sistema di error report
 
 ## Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
+- Integrità dati 26/07/2026: consolidate 8 anagrafiche duplicate certe preservando pratiche/documenti e lasciando separate le omonimie con identificativi fiscali validi distinti. L'audit completo dei 247 contratti di luglio ha confermato che gli 8 totali a zero appartengono a offerte catalogo realmente a zero, corretto 3 Assicurazioni Annuali rimaste senza bonus 0,5 e ripristinato l'opzione Iliad su 7 contratti il cui punto era già corretto. Creazione e verifica contratto ora applicano controlli post-scrittura condivisi; Supabase impone anche CHECK di coerenza e audit permanente delle variazioni.
 - `moduli/dashboard_pezzi.html`: la griglia giornaliera usa larghezze fisse compatte per offerte e operatori, con colore pieno sulla cella come nel foglio originale. La tabella e' fissata a 622px totali (270px offerte + 4 colonne da 88px) per evitare espansioni a tutta pagina.
 - `moduli/upload-contratti-vendita.html`: dopo l'invio riuscito di una pratica, il wizard mostra il successo e torna automaticamente alla Home Vendita (`dashboard.html`).
 - `moduli/upload-contratti-vendita.html` + functions vendita: per cluster `Turista` il wizard nasconde email/provincia/comune/via/civico, forza categoria/offerta dedicate e non blocca piu' l'avanzamento chiedendo provincia, opzione o email; la pratica resta `Turista`, mentre l'anagrafica condivisa viene salvata come `Consumer`.
