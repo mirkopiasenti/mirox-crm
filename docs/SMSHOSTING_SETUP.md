@@ -127,9 +127,9 @@ Per iniziare:
 
 1. Su upload-contratti: scegli "Modulo cartaceo" al popup
 2. Clicca "Scarica modulo PDF" → ti scarica `Privacy_<RagSoc>_<CF>_<data>.pdf`
-3. Apri il PDF: deve avere tutti i dati cliente + riquadro firma vuoto + 2 checkbox (la marketing dipende da come l'hai compilata)
-4. Stampa, firma a mano (anche con scarabocchio per test), scansiona
-5. Carica la scansione nella drop-zone → "Carica e conferma"
+3. Apri il PDF: deve essere una sola pagina A4 in bianco e nero, con dati cliente, ACCONSENTO/NON ACCONSENTO entrambi vuoti e riga firma
+4. Stampa, barra una scelta, firma a mano (anche con scarabocchio per test) e scansiona
+5. Nella modale seleziona la stessa scelta presente sul foglio, carica la scansione e premi "Carica e conferma"
 6. Il PDF viene salvato in `consensi-privacy/<YYYY>/<MM>/` con stesso naming. Il flusso non richiede credito SMS.
 
 ---

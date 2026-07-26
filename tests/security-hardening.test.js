@@ -99,10 +99,11 @@ test('migration 055 applica 24 mesi, lock atomico e privilegi minimi', () => {
   assert.doesNotMatch(migration, /create\s+or\s+replace\s+function\s+public\.get_slot_disponibili/i);
 });
 
-test('informativa privacy CRM v3 genera PDF OTP e cartaceo a tre pagine', async () => {
+test('informative privacy CRM v4 generano cartaceo su una pagina e digitale su tre pagine', async () => {
   const {
     generateConsensoPdf,
-    INFORMATIVA_VERSIONE
+    INFORMATIVA_VERSIONE_CARTACEO,
+    INFORMATIVA_VERSIONE_DIGITALE
   } = require('../netlify/functions/_lib/pdf-consenso');
   const base = {
     anagrafica: {
@@ -134,15 +135,19 @@ test('informativa privacy CRM v3 genera PDF OTP e cartaceo a tre pagine', async 
   });
   const paper = await generateConsensoPdf({ ...base, modalita: 'cartaceo' });
 
-  for (const generated of [otp, paper]) {
-    assert.equal(generated.buffer.subarray(0, 5).toString('ascii'), '%PDF-');
-    assert.match(generated.hash, /^[0-9a-f]{64}$/);
-    assert.equal((generated.buffer.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length, 3);
-  }
-  assert.equal(INFORMATIVA_VERSIONE, 'v3_2026_07_26');
+  assert.equal(otp.buffer.subarray(0, 5).toString('ascii'), '%PDF-');
+  assert.equal(paper.buffer.subarray(0, 5).toString('ascii'), '%PDF-');
+  assert.match(otp.hash, /^[0-9a-f]{64}$/);
+  assert.match(paper.hash, /^[0-9a-f]{64}$/);
+  assert.equal((otp.buffer.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length, 3);
+  assert.equal((paper.buffer.toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length, 1);
+  assert.equal(otp.informativaVersione, INFORMATIVA_VERSIONE_DIGITALE);
+  assert.equal(paper.informativaVersione, INFORMATIVA_VERSIONE_CARTACEO);
+  assert.equal(INFORMATIVA_VERSIONE_CARTACEO, 'v4_2026_07_26');
+  assert.equal(INFORMATIVA_VERSIONE_DIGITALE, 'v4_2026_07_26_dig');
 });
 
-test('informativa v3 limita il perimetro al CRM e richiede la versione corrente per il riuso', () => {
+test('informative v4 rispettano testi, layout cartaceo e riuso di entrambe le modalita', () => {
   const pdfSource = fs.readFileSync(
     path.join(ROOT, 'netlify/functions/_lib/pdf-consenso.js'),
     'utf8'
@@ -156,11 +161,16 @@ test('informativa v3 limita il perimetro al CRM e richiede la versione corrente 
     'utf8'
   );
 
-  assert.match(pdfSource, /sistema gestionale di proprietà e sotto la gestione/);
-  assert.match(pdfSource, /Non disciplina il contratto stipulato con Wind Tre/);
-  assert.match(pdfSource, /chiamata telefonica con operatore, messaggio WhatsApp o email/);
-  assert.match(pdfSource, /Questi contatti di servizio non dipendono dal consenso marketing/);
-  assert.doesNotMatch(pdfSource, /comunicazioni commerciali via SMS/);
-  assert.match(checkSource, /\.eq\('informativa_versione', INFORMATIVA_VERSIONE\)/);
-  assert.match(cartSource, /\.eq\('informativa_versione', INFORMATIVA_VERSIONE\)/);
+  assert.match(pdfSource, /const PAPER_BODY_FONT_SIZE = 8;/);
+  assert.match(pdfSource, /const PAPER_MARGIN = 34;/);
+  assert.match(pdfSource, /\[ \] ACCONSENTO      \[ \] NON ACCONSENTO/);
+  assert.match(pdfSource, /Firma leggibile dell\\'interessato: ____________________/);
+  assert.match(pdfSource, /Versione \$\{INFORMATIVA_VERSIONE_CARTACEO\}/);
+  assert.doesNotMatch(pdfSource, /Qualora venga designato/);
+  assert.match(pdfSource, /Non riguarda i trattamenti svolti dal fornitore presso il quale la pratica è richiesta/);
+  assert.match(pdfSource, /nominati responsabili del trattamento ai sensi dell\\'art\. 28 GDPR ove trattino dati per conto del Titolare/);
+  assert.match(pdfSource, /codice OTP di 6 cifre inviato via SMS/);
+  assert.match(pdfSource, /esito e tentativi dell\\'OTP, indirizzo IP, user agent e hash SHA-256 del documento/);
+  assert.match(checkSource, /\.in\('informativa_versione', INFORMATIVE_VERSIONI_CORRENTI\)/);
+  assert.match(cartSource, /\.in\('informativa_versione', INFORMATIVE_VERSIONI_CORRENTI\)/);
 });

@@ -6766,19 +6766,25 @@ Reload Forever
        <div class="cp-info">
          <strong>Ricontatti di servizio.</strong> Kona Tech potra' usare chiamate, WhatsApp o email per aggiornamenti e assistenza riferiti alla pratica specifica. Questi contatti non sono promozionali e non dipendono dal flag seguente.
        </div>
-       <label class="cp-checkbox">
-         <input type="checkbox" id="cpCartMarketing" />
-         <span class="cp-checkbox-text">
-           <strong>Consenso ai ricontatti promozionali (facoltativo, 24 mesi).</strong> Acconsento a essere ricontattato da Kona Tech tramite chiamata telefonica, messaggio WhatsApp o email per nuove offerte, promozioni, servizi o nuovi contratti, anche diversi dalla pratica attuale. Posso revocare il consenso in qualsiasi momento, anche per singolo canale. Gli aggiornamenti di servizio sulla pratica specifica restano separati.
-         </span>
-       </label>
        <div class="cp-info">
          <strong>Procedura:</strong>
          <ol style="margin:6px 0 0;padding-left:20px;line-height:1.7;">
            <li>Scarica il PDF dell'informativa precompilato con i dati del cliente.</li>
-           <li>Stampalo e fallo firmare a mano dal cliente.</li>
+           <li>Stampalo, fai barrare al cliente ACCONSENTO oppure NON ACCONSENTO e raccogli la firma.</li>
            <li>Scansiona il modulo firmato e caricalo qui sotto in formato PDF.</li>
+           <li>Indica qui sotto la scelta riportata sul modulo, così il dato registrato coincide con la scansione.</li>
          </ol>
+       </div>
+       <div class="cp-section">
+         <h4>Scelta marketing riportata sul modulo firmato</h4>
+         <label class="cp-checkbox">
+           <input type="radio" name="cpCartMarketing" value="true" />
+           <span class="cp-checkbox-text"><strong>ACCONSENTO</strong></span>
+         </label>
+         <label class="cp-checkbox">
+           <input type="radio" name="cpCartMarketing" value="false" />
+           <span class="cp-checkbox-text"><strong>NON ACCONSENTO</strong></span>
+         </label>
        </div>
        <div style="display:flex;gap:10px;align-items:center;">
          <button type="button" class="mx-btn mx-btn-primary" id="cpCartDownload">Scarica modulo PDF</button>
@@ -6802,7 +6808,7 @@ Reload Forever
      // per evitare chiusure accidentali mentre si carica il PDF firmato.
      const m = MiroxUI._build({ title: 'Informativa privacy - Modulo cartaceo', bodyHtml: html, footerHtml: footer, large: true, closable: false, onClose: () => resolve(null) });
 
-     const marketingChk = m.body.querySelector('#cpCartMarketing');
+     const marketingChoices = Array.from(m.body.querySelectorAll('input[name="cpCartMarketing"]'));
      const dlBtn = m.body.querySelector('#cpCartDownload');
      const dlInfo = m.body.querySelector('#cpCartDownloadInfo');
      const drop = m.body.querySelector('#cpCartDrop');
@@ -6819,15 +6825,20 @@ Reload Forever
      }
 
      function refreshConfirmEnabled() {
-       confirmBtn.disabled = !(downloaded && scannedFile);
+       confirmBtn.disabled = !(downloaded && scannedFile && marketingChoice() !== null);
+     }
+
+     function marketingChoice() {
+       const selected = marketingChoices.find((input) => input.checked);
+       if (!selected) return null;
+       return selected.value === 'true';
      }
 
      dlBtn.addEventListener('click', async () => {
        dlBtn.disabled = true;
        dlBtn.textContent = 'Generazione in corso...';
        try {
-         const url = '/.netlify/functions/genera-pdf-consenso-cartaceo?anagrafica_id=' + encodeURIComponent(anagraficaId)
-           + '&consenso_marketing=' + (marketingChk.checked ? 'true' : 'false');
+         const url = '/.netlify/functions/genera-pdf-consenso-cartaceo?anagrafica_id=' + encodeURIComponent(anagraficaId);
          const res = await MiroxApi.fetch(url);
          if (!res.ok) {
            const j = await res.json().catch(() => ({}));
@@ -6846,7 +6857,6 @@ Reload Forever
          dlInfo.textContent = 'Scaricato: ' + filename;
          dlBtn.disabled = false;
          dlBtn.textContent = 'Scarica di nuovo';
-         marketingChk.disabled = true;
          refreshConfirmEnabled();
        } catch (e) {
          dlBtn.disabled = false;
@@ -6879,6 +6889,7 @@ Reload Forever
      }
 
      drop.addEventListener('click', () => fileInput.click());
+     marketingChoices.forEach((input) => input.addEventListener('change', refreshConfirmEnabled));
      fileInput.addEventListener('change', () => handleFile(fileInput.files && fileInput.files[0]));
      drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('is-over'); });
      drop.addEventListener('dragleave', () => drop.classList.remove('is-over'));
@@ -6896,13 +6907,18 @@ Reload Forever
 
      confirmBtn.addEventListener('click', async () => {
        if (!scannedFile) return;
+       const consensoMarketing = marketingChoice();
+       if (consensoMarketing === null) {
+         setStatus('Indica se sul modulo firmato il cliente ha barrato ACCONSENTO o NON ACCONSENTO.', 'err');
+         return;
+       }
        confirmBtn.disabled = true;
        confirmBtn.textContent = 'Caricamento...';
        try {
          const fd = new FormData();
          fd.append('file', scannedFile);
          fd.append('anagrafica_id', anagraficaId);
-         fd.append('consenso_marketing', marketingChk.checked ? 'true' : 'false');
+         fd.append('consenso_marketing', consensoMarketing ? 'true' : 'false');
          if (praticaId) fd.append('pratica_id', praticaId);
          const res = await MiroxApi.fetch('/.netlify/functions/upload-consenso-cartaceo', { method: 'POST', body: fd });
          const json = await res.json().catch(() => ({}));
@@ -6912,7 +6928,7 @@ Reload Forever
            setStatus(json.error || ('HTTP ' + res.status), 'err');
            return;
          }
-         setStatus('Consenso cartaceo archiviato. Valido fino al ' + cpFormatItalianDate(json.valido_fino_al) + '. Procedo con l\'invio pratica.', 'ok');
+         setStatus('Dichiarazione cartacea archiviata. Valida fino al ' + cpFormatItalianDate(json.valido_fino_al) + '. Procedo con l\'invio pratica.', 'ok');
          setTimeout(() => {
            resolve({ consenso_id: json.consenso_id, valido_fino_al: json.valido_fino_al });
            m.close();

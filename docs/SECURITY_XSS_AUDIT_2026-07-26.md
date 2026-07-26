@@ -35,4 +35,4 @@ La suite `tests/security-hardening.test.js` controlla:
 - SRI/crossorigin su ogni script CDN;
 - header CSP/HSTS/Permissions-Policy;
 - validazioni dell'endpoint pubblico;
-- generazione a tre pagine dei PDF privacy OTP e cartaceo.
+- generazione del PDF privacy digitale OTP su tre pagine e del modulo cartaceo monocromatico su una pagina.

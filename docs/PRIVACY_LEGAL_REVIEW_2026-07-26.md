@@ -4,32 +4,32 @@
 
 Questa revisione migliora il testo e il flusso del CRM sulla base del GDPR e delle fonti ufficiali disponibili. È una revisione tecnico-documentale, non un parere legale e non sostituisce la validazione di un avvocato o consulente privacy che conosca i rapporti contrattuali effettivi di Kona Tech.
 
-La versione PDF corrente è `v3_2026_07_26`.
+Le versioni PDF correnti sono `v4_2026_07_26` per il modulo cartaceo e `v4_2026_07_26_dig` per la dichiarazione digitale via OTP.
 
 ## Correzioni implementate
 
 - La durata massima del riutilizzo è ridotta da 48 a **24 mesi** sia per OTP sia per cartaceo. La migration `055`, applicata su production il 26 luglio 2026, ha accorciato anche i 170 record già confermati che eccedevano il nuovo termine; nessuno è scaduto immediatamente.
-- Il perimetro della versione v3 è esclusivamente il trattamento svolto da **KONA TECH S.r.l. nel CRM Mirox**: acquisizione e archiviazione di dati e documenti della pratica, storico operativo, assistenza e ricontatti.
+- Il perimetro delle versioni v4 è esclusivamente il trattamento svolto da **KONA TECH S.r.l. nel CRM Mirox**: acquisizione e archiviazione di dati e documenti della pratica, storico operativo, assistenza e ricontatti.
 - Il documento dichiara espressamente che non disciplina il contratto WindTre/altro fornitore e non sostituisce l'informativa privacy del soggetto che gestisce il contratto.
 - La presa visione dell'informativa non viene descritta come un “consenso obbligatorio”. L'inserimento nel CRM, l'assistenza richiesta, gli obblighi legali e la sicurezza hanno basi giuridiche proprie.
 - I ricontatti tramite chiamata, WhatsApp o email sono distinti in due gruppi: aggiornamenti/assistenza sulla pratica specifica e comunicazioni promozionali. Se un contatto di servizio contiene anche una nuova proposta commerciale, la componente promozionale richiede il flag marketing.
 - Il consenso promozionale facoltativo copre in modo espresso chiamate con operatore, messaggi WhatsApp ed email per nuove offerte, promozioni, servizi o nuovi contratti, anche diversi dalla pratica originaria. Dura al massimo 24 mesi ed è revocabile anche per singolo canale.
 - Sono state distinte le categorie di dati, le finalità e le basi giuridiche; sono descritti destinatari, possibili trasferimenti extra SEE, tempi di conservazione e diritti dell'interessato.
 - L'OCR tramite Anthropic è dichiarato come supporto alla trascrizione con verifica umana e senza decisione esclusivamente automatizzata con effetti significativi.
-- Il flusso OTP è descritto come registrazione elettronica della dichiarazione e delle relative evidenze. Non è qualificato come firma elettronica qualificata né come automaticamente equivalente alla firma autografa.
-- Il PDF contiene tre pagine numerate, versione dell'informativa, dati cliente, scelta marketing e metadati probatori o spazio per la firma cartacea.
-- I documenti v1/v2 restano validi come evidenza storica, ma non sono ampliati retroattivamente al canale WhatsApp. Il backend riusa soltanto una dichiarazione della versione corrente: alla successiva pratica un cliente con una versione precedente dovrà ricevere la v3 e scegliere nuovamente il flag promozionale. Alla verifica production del 26 luglio 2026 risultavano 170 documenti v1 confermati: 168 con `consenso_marketing=true` e 2 con `false`; nessuno è stato riscritto o riclassificato.
+- Il PDF digitale resta su tre pagine e descrive il flusso reale: OTP di 6 cifre inviato via SMS e conservazione di invio/conferma, identificativo SMS, esito/tentativi, IP, user agent e hash SHA256 del documento.
+- Il modulo cartaceo è una sola pagina A4 monocromatica, corpo 8 pt, con informativa su due colonne e dati cliente, dichiarazioni, doppia scelta marketing e riga della firma a larghezza piena.
+- I documenti v1/v2/v3 restano validi come evidenza storica ma non vengono riutilizzati dal backend: alla successiva pratica il cliente deve ricevere una delle due versioni v4 e scegliere nuovamente il flag promozionale. Alla verifica production del 26 luglio 2026 risultavano 170 documenti v1 confermati: 168 con `consenso_marketing=true` e 2 con `false`; nessuno è stato riscritto o riclassificato.
 
 ## Decisioni da far validare prima di considerare il testo definitivo
 
 1. **Titolare e confine con i fornitori**: confermare che `KONA TECH S.r.l.` sia titolare per le attività svolte nel CRM e formalizzare il confine con WindTre e gli altri fornitori quando dati/documenti vengono loro trasmessi.
-2. **DPO/RPD**: verificare se ne sia stato formalmente designato uno. Il testo attuale non attribuisce il ruolo a nessuna persona e rinvia alla pubblicazione dei recapiti in caso di designazione.
+2. **DPO/RPD**: verificare se ne sia stato formalmente designato uno. Le versioni v4 non indicano un DPO; i recapiti dovranno essere inseriti solo in caso di designazione effettiva.
 3. **Responsabili e sub-responsabili**: verificare contratti ex art. 28 GDPR con Supabase, Netlify, Anthropic, Smshosting, Google/SMTP e gli eventuali fornitori di assistenza.
 4. **Trasferimenti internazionali**: verificare regioni effettive, Data Processing Addendum, clausole contrattuali standard, misure supplementari e informative dei fornitori. Il testo usa una formula generale perché la configurazione contrattuale effettiva non è deducibile dal codice.
 5. **Conservazione e cancellazione**: approvare i termini indicati (di regola fino a 10 anni dalla chiusura dell'ultima pratica per dati/documenti CRM, massimo 24 mesi marketing, di regola 12 mesi per log tecnici e fino a 10 anni per evidenze) e tradurli in una policy operativa di cancellazione/anomizzazione. Il CRM non dispone ancora di una cancellazione automatica completa dei documenti privacy a fine retention.
 6. **Revoca**: indicare all'interessato canali realmente presidiati e garantire che la revoca marketing sia registrata ed eseguita su tutti i sistemi. Oggi esistono colonne DB di revoca ma manca una UI amministrativa dedicata.
 7. **Art. 14 GDPR**: verificare per quali dati provenienti da partner anziché direttamente dall'interessato servano informazioni aggiuntive e con quali tempi.
-8. **Evidenza OTP**: validare il processo operativo (identificazione del cliente, consegna dell'OTP, log, integrità, accessi e contestazioni). L'art. 25(1) eIDAS impedisce di negare effetti alla forma elettronica solo per tale forma, ma il valore probatorio concreto resta valutato in base al processo e alle circostanze.
+8. **Evidenza OTP**: validare il processo operativo effettivo (identificazione del cliente, consegna del codice, log di invio/conferma, identificativo SMS, esito/tentativi, IP, user agent, hash, integrità, accessi e contestazioni). Il valore probatorio concreto dipende dal processo e dalle circostanze.
 9. **Legittimo interesse CRM**: documentare una valutazione di bilanciamento per organizzazione, tracciabilità, sicurezza e assistenza nel CRM, applicando minimizzazione e tempi di conservazione coerenti.
 10. **Ricontatti di servizio**: mantenere chiamate, WhatsApp ed email strettamente riferiti alla pratica specifica quando manca il consenso marketing. Qualunque proposta nuova o ulteriore deve essere trattata come promozionale; verificare inoltre configurazione e condizioni d'uso del canale WhatsApp effettivamente impiegato.
 

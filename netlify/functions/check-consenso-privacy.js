@@ -2,7 +2,7 @@
  * GET /.netlify/functions/check-consenso-privacy?anagrafica_id=<uuid>
  *
  * Verifica se per l'anagrafica esiste una dichiarazione privacy gia' attiva
- * (versione corrente, stato='confermato', non scaduta, non revocata). Usato dal wizard
+ * (una delle versioni correnti, stato='confermato', non scaduta, non revocata). Usato dal wizard
  * upload-contratti-vendita per fare dedupe sulla finestra di validita'
  * di 24 mesi: se il documento e' ancora valido, il wizard salta il flusso
  * OTP/cartaceo e procede direttamente all'upload pratica.
@@ -23,7 +23,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { requireAuth } = require('./_lib/require-auth');
-const { INFORMATIVA_VERSIONE } = require('./_lib/privacy-config');
+const { INFORMATIVE_VERSIONI_CORRENTI } = require('./_lib/privacy-config');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -71,7 +71,7 @@ exports.handler = async (event) => {
             .select('id, modalita, valido_fino_al, otp_confermato_at, created_at, informativa_versione, consenso_marketing, pdf_storage_path, pdf_filename')
             .eq('anagrafica_id', anagraficaId)
             .eq('stato', 'confermato')
-            .eq('informativa_versione', INFORMATIVA_VERSIONE)
+            .in('informativa_versione', INFORMATIVE_VERSIONI_CORRENTI)
             .is('revocato_at', null)
             .gt('valido_fino_al', new Date().toISOString())
             .order('valido_fino_al', { ascending: false })

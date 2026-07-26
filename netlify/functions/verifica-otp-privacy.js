@@ -29,7 +29,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const { requireAuth } = require('./_lib/require-auth');
-const { generateConsensoPdf, INFORMATIVA_VERSIONE } = require('./_lib/pdf-consenso');
+const { generateConsensoPdf, INFORMATIVA_VERSIONE_DIGITALE } = require('./_lib/pdf-consenso');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_TENTATIVI = 3;
@@ -269,7 +269,7 @@ exports.handler = async (event) => {
                 pdf_storage_path: attemptPath,
                 pdf_filename: attemptFileName,
                 informativa_hash: pdfHash,
-                informativa_versione: INFORMATIVA_VERSIONE
+                informativa_versione: INFORMATIVA_VERSIONE_DIGITALE
             })
             .eq('id', consensoId);
         if (updateErr) {
@@ -285,7 +285,7 @@ exports.handler = async (event) => {
             pdf_filename: attemptFileName,
             pdf_storage_path: attemptPath,
             informativa_hash: pdfHash,
-            informativa_versione: INFORMATIVA_VERSIONE
+            informativa_versione: INFORMATIVA_VERSIONE_DIGITALE
         });
     } catch (e) {
         return response(500, { success: false, error: 'Errore inatteso: ' + (e?.message || String(e)) });

@@ -1,20 +1,14 @@
 /**
  * Generatore PDF informativa privacy GDPR per Mirox.
  *
- * Produce un documento A4 con:
- *  - Intestazione + titolare del trattamento (Kona Tech S.r.l.)
- *  - Sezioni informativa GDPR art. 13 (finalita', base giuridica, conservazione,
- *    diritti dell'interessato, reclamo Garante, ecc.)
- *  - Dati dell'interessato (ragione sociale, CF/PIVA, indirizzo, contatti)
- *  - Presa visione dell'informativa + consenso marketing opzionale
- *  - Box firma:
- *      * modalita='otp_sms': metadata trascritti (numero, timestamp, hash,
- *        sms_id, IP operatore)
- *      * modalita='cartaceo': riquadro vuoto da firmare a mano
- *  - Footer con versione informativa + hash documento
+ * Produce due varianti:
+ *  - modalita='otp_sms': informativa digitale estesa su 3 pagine, con metadata
+ *    probatori del flusso OTP;
+ *  - modalita='cartaceo': modulo essenziale monocromatico su una sola pagina A4,
+ *    da stampare, compilare, firmare e acquisire come scansione PDF.
  *
  * Uso:
- *   const { generateConsensoPdf, INFORMATIVA_VERSIONE } = require('./_lib/pdf-consenso');
+ *   const { generateConsensoPdf } = require('./_lib/pdf-consenso');
  *   const buffer = await generateConsensoPdf({
  *     modalita: 'otp_sms',
  *     anagrafica: { ragione_sociale, cf_piva, cluster, indirizzo, email, cellulare },
@@ -36,7 +30,11 @@
 
 const PDFDocument = require('pdfkit');
 const crypto = require('crypto');
-const { INFORMATIVA_VERSIONE } = require('./privacy-config');
+const {
+    INFORMATIVA_VERSIONE_CARTACEO,
+    INFORMATIVA_VERSIONE_DIGITALE,
+    informativaVersionePerModalita
+} = require('./privacy-config');
 
 // Dati Titolare hardcoded (Kona Tech S.r.l.)
 const TITOLARE = {
@@ -102,6 +100,255 @@ function buildIndirizzo(a) {
     let line2 = line2parts.join(' ').trim();
     const composed = [line1, line2].filter(Boolean).join(', ');
     return composed || '-';
+}
+
+const PAPER_BODY_FONT_SIZE = 8;
+const PAPER_LINE_GAP = -0.5;
+const PAPER_MARGIN = 34; // 12 mm
+
+const PAPER_TITLE = 'INFORMATIVA PRIVACY CRM MIROX E CONSENSO AI RICONTATTI — KONA TECH S.r.l.';
+const PAPER_SECTIONS = [
+    {
+        title: '1. Titolare.',
+        body: 'KONA TECH S.r.l., Via Dossi 7 – 37058 Sanguinetto (VR), P.IVA 05146970230 — email info@konatech.it, PEC konatechsrl@pec.it. La presente informativa riguarda solo i trattamenti svolti da Kona Tech nel proprio CRM Mirox; non riguarda i trattamenti svolti dal fornitore presso cui la pratica è richiesta (es. Wind Tre S.p.A.), regolati dall\'informativa di tale soggetto.'
+    },
+    {
+        title: '2. Dati trattati.',
+        body: 'Dati anagrafici e identificativi (nome, cognome/ragione sociale, CF o P.IVA), dati di contatto (indirizzo, cellulare utilizzabile anche per WhatsApp, email), copia del documento d\'identità ove acquisita, documenti e identificativi tecnici necessari alla specifica pratica (es. proposta, dati di portabilità, bolletta), storico CRM di appuntamenti, interazioni, note e assistenza. I dati sono raccolti presso l\'interessato in negozio; gli aggiornamenti sullo stato della pratica possono provenire dal fornitore e sono registrati nel CRM.'
+    },
+    {
+        title: '3. Finalità e basi giuridiche.',
+        body: 'a) Registrare e archiviare nel CRM Mirox dati e documenti della pratica, con relativo storico (art. 6.1.b e f GDPR); b) ricontattare il cliente (chiamata, WhatsApp, email) solo per aggiornamenti e assistenza sulla pratica o sul relativo contratto: questi contatti di servizio non dipendono dal consenso marketing (art. 6.1.b e f); c) adempiere obblighi di legge, proteggere il CRM, garantire tracciabilità, esercitare o difendere diritti (art. 6.1.c e f); d) solo con consenso facoltativo, ricontattare il cliente (chiamata con operatore, WhatsApp, email) per proporre nuove offerte, promozioni o contratti anche diversi dalla pratica originaria (art. 6.1.a GDPR e art. 130 Codice Privacy). Le comunicazioni sulla pratica contengono componenti promozionali solo se è stato prestato il consenso di cui alla lettera d).'
+    },
+    {
+        title: '4. Modalità.',
+        body: 'Trattamento con strumenti elettronici (CRM Mirox e servizi cloud) con misure di sicurezza adeguate; accesso limitato al personale e ai fornitori autorizzati. Per inserire nel CRM i dati dei documenti consegnati può essere usato un servizio di intelligenza artificiale (Anthropic) che estrae i campi; il risultato è verificato dall\'operatore e non comporta decisioni automatizzate con effetti giuridici sull\'interessato.'
+    },
+    {
+        title: '5. Destinatari.',
+        body: 'Personale autorizzato di Kona Tech e, nei limiti necessari, fornitori di hosting, database, email, SMS, assistenza informatica e intelligenza artificiale, nominati responsabili ex art. 28 GDPR ove trattino per conto del Titolare; consulenti, autorità e soggetti legittimati dalla legge. Dati e documenti possono essere trasmessi al fornitore presso cui la pratica è richiesta per inoltrarla o completarla. I dati non sono diffusi. Eventuali trasferimenti extra-SEE avvengono con le garanzie del Capo V GDPR (decisione di adeguatezza o clausole contrattuali standard); informazioni ai recapiti del punto 1.'
+    },
+    {
+        title: '6. Conservazione.',
+        body: 'Dati, documenti e storico pratica: di regola non oltre 10 anni dalla chiusura dell\'ultima pratica, salvo obblighi di legge o contenzioso. Dati usati per marketing: 24 mesi dal consenso, salvo revoca. Prove di informativa, consenso e revoca: di regola non oltre 10 anni. Log tecnici di sicurezza: di regola non oltre 12 mesi.'
+    },
+    {
+        title: '7. Diritti.',
+        body: 'Scrivendo ai recapiti del punto 1 l\'interessato può esercitare i diritti di cui agli artt. 15–22 GDPR: accesso, rettifica, cancellazione, limitazione, portabilità, opposizione (anche al marketing diretto, in ogni momento) e revoca del consenso in qualsiasi momento, anche per singolo canale, con la stessa facilità con cui è stato prestato, senza pregiudicare la liceità del trattamento precedente. È possibile proporre reclamo al Garante per la Protezione dei Dati Personali (www.garanteprivacy.it).'
+    },
+    {
+        title: '8. Conferimento.',
+        body: 'I dati necessari alla pratica sono richiesti per gestirla nel CRM e fornire assistenza; in mancanza, Kona Tech potrebbe non poter gestire la pratica. Il contratto con il fornitore resta soggetto alle condizioni di tale soggetto. Il consenso marketing è facoltativo: negarlo o revocarlo non impedisce l\'assistenza sulla pratica.'
+    }
+];
+
+const PAPER_PRESA_VISIONE_TITLE = 'PRESA VISIONE.';
+const PAPER_PRESA_VISIONE_BODY = 'Dichiaro di aver ricevuto e preso visione dell\'informativa (artt. 13–14 GDPR) e prendo atto che Kona Tech archivia nel CRM Mirox i miei dati e documenti relativi alla pratica e potrà contattarmi (chiamata, WhatsApp, email) per aggiornamenti e assistenza su di essa, senza necessità di consenso marketing.';
+const PAPER_MARKETING_TITLE = 'CONSENSO FACOLTATIVO MARKETING (durata 24 mesi, revocabile in ogni momento anche per singolo canale).';
+const PAPER_MARKETING_BODY = 'Acconsento a essere ricontattato da Kona Tech tramite chiamata con operatore, WhatsApp o email per nuove offerte, promozioni, servizi o contratti, anche diversi dalla pratica originaria (punto 3.d).';
+
+function measurePaperSection(doc, section, width) {
+    doc.font('Helvetica').fontSize(PAPER_BODY_FONT_SIZE);
+    return doc.heightOfString(`${section.title} ${section.body}`, {
+        width,
+        align: 'justify',
+        lineGap: PAPER_LINE_GAP
+    }) + 1;
+}
+
+function findPaperColumnSplit(doc, width) {
+    const heights = PAPER_SECTIONS.map((section) => measurePaperSection(doc, section, width));
+    let best = { index: 1, delta: Number.POSITIVE_INFINITY };
+    for (let index = 1; index < PAPER_SECTIONS.length; index += 1) {
+        const left = heights.slice(0, index).reduce((sum, value) => sum + value, 0);
+        const right = heights.slice(index).reduce((sum, value) => sum + value, 0);
+        const delta = Math.abs(left - right);
+        if (delta < best.delta) best = { index, delta };
+    }
+    return best.index;
+}
+
+function drawPaperSection(doc, section, x, y, width) {
+    doc.fillColor('#000000').font('Helvetica-Bold').fontSize(PAPER_BODY_FONT_SIZE);
+    doc.text(`${section.title} `, x, y, {
+        width,
+        align: 'justify',
+        lineGap: PAPER_LINE_GAP,
+        continued: true
+    });
+    doc.font('Helvetica').text(section.body, {
+        width,
+        align: 'justify',
+        lineGap: PAPER_LINE_GAP
+    });
+    return doc.y + 1;
+}
+
+function drawPaperInlineBlock(doc, title, body, x, y, width) {
+    doc.fillColor('#000000').font('Helvetica-Bold').fontSize(PAPER_BODY_FONT_SIZE);
+    doc.text(`${title} `, x, y, {
+        width,
+        lineGap: PAPER_LINE_GAP,
+        continued: true
+    });
+    doc.font('Helvetica').text(body, {
+        width,
+        lineGap: PAPER_LINE_GAP
+    });
+    return doc.y;
+}
+
+async function generateConsensoPdfCartaceo(opts) {
+    const a = opts.anagrafica || {};
+    const dataCompilazione = opts.dataCompilazione || new Date().toISOString();
+
+    return new Promise((resolve, reject) => {
+        try {
+            const chunks = [];
+            const doc = new PDFDocument({
+                size: 'A4',
+                bufferPages: true,
+                margins: {
+                    top: PAPER_MARGIN,
+                    right: PAPER_MARGIN,
+                    bottom: PAPER_MARGIN,
+                    left: PAPER_MARGIN
+                },
+                info: {
+                    Title: `Informativa privacy CRM Mirox ${safeText(a.ragione_sociale, 'cliente')}`,
+                    Author: TITOLARE.ragioneSociale,
+                    Subject: 'Modulo cartaceo privacy CRM e consenso facoltativo ai ricontatti',
+                    Keywords: 'GDPR, privacy, CRM, ricontatto, marketing, cartaceo, ' + safeText(a.cf_piva)
+                }
+            });
+
+            doc.on('data', (chunk) => chunks.push(chunk));
+            doc.on('end', () => {
+                const buffer = Buffer.concat(chunks);
+                const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+                resolve({
+                    buffer,
+                    hash,
+                    informativaVersione: INFORMATIVA_VERSIONE_CARTACEO
+                });
+            });
+            doc.on('error', reject);
+
+            const left = PAPER_MARGIN;
+            const contentWidth = doc.page.width - (PAPER_MARGIN * 2);
+            const columnGap = 12;
+            const columnWidth = (contentWidth - columnGap) / 2;
+
+            doc.fillColor('#000000').font('Helvetica-Bold').fontSize(10.5);
+            doc.text(PAPER_TITLE, left, PAPER_MARGIN, {
+                width: contentWidth,
+                align: 'left',
+                lineBreak: false
+            });
+
+            const informativeTop = doc.y + 6;
+            const splitIndex = findPaperColumnSplit(doc, columnWidth);
+
+            let leftY = informativeTop;
+            PAPER_SECTIONS.slice(0, splitIndex).forEach((section) => {
+                leftY = drawPaperSection(doc, section, left, leftY, columnWidth);
+            });
+
+            let rightY = informativeTop;
+            const rightX = left + columnWidth + columnGap;
+            PAPER_SECTIONS.slice(splitIndex).forEach((section) => {
+                rightY = drawPaperSection(doc, section, rightX, rightY, columnWidth);
+            });
+
+            let currentY = Math.max(leftY, rightY) + 5;
+            doc.fillColor('#000000').font('Helvetica-Bold').fontSize(8.5);
+            doc.text('DATI DELL\'INTERESSATO', left, currentY, {
+                width: contentWidth,
+                lineGap: PAPER_LINE_GAP
+            });
+            currentY = doc.y + 1;
+
+            const nome = safeText(a.ragione_sociale, '-');
+            const cfPiva = safeText(a.cf_piva, '-');
+            const tipologia = safeText(a.cluster, '-');
+            const indirizzo = buildIndirizzo(a);
+            const cellulare = safeText(a.cellulare, '-');
+            const email = safeText(a.email, '-');
+            const data = formatItalianDate(dataCompilazione);
+
+            doc.font('Helvetica').fontSize(PAPER_BODY_FONT_SIZE);
+            doc.text(
+                `Nome e cognome: ${nome} — CF/P.IVA: ${cfPiva} — Tipologia cliente: ${tipologia}`,
+                left,
+                currentY,
+                { width: contentWidth, lineGap: PAPER_LINE_GAP }
+            );
+            doc.text(
+                `Indirizzo: ${indirizzo} — Cellulare: ${cellulare} — Email: ${email} — Data: ${data}`,
+                { width: contentWidth, lineGap: PAPER_LINE_GAP }
+            );
+            currentY = doc.y + 4;
+
+            currentY = drawPaperInlineBlock(
+                doc,
+                PAPER_PRESA_VISIONE_TITLE,
+                PAPER_PRESA_VISIONE_BODY,
+                left,
+                currentY,
+                contentWidth
+            ) + 3;
+
+            currentY = drawPaperInlineBlock(
+                doc,
+                PAPER_MARKETING_TITLE,
+                PAPER_MARKETING_BODY,
+                left,
+                currentY,
+                contentWidth
+            ) + 3;
+
+            doc.fillColor('#000000').font('Helvetica-Bold').fontSize(PAPER_BODY_FONT_SIZE);
+            doc.text('[ ] ACCONSENTO      [ ] NON ACCONSENTO', left, currentY, {
+                width: contentWidth,
+                lineGap: PAPER_LINE_GAP
+            });
+            currentY = doc.y + 7;
+
+            doc.font('Helvetica').fontSize(PAPER_BODY_FONT_SIZE);
+            doc.text(
+                'Luogo e data: ____________________  Firma leggibile dell\'interessato: ____________________',
+                left,
+                currentY,
+                { width: contentWidth, lineGap: PAPER_LINE_GAP }
+            );
+            const signatureBottom = doc.y;
+            const versionY = doc.page.height - PAPER_MARGIN - 12;
+
+            doc.font('Helvetica').fontSize(7.5);
+            doc.text(
+                `Versione ${INFORMATIVA_VERSIONE_CARTACEO}`,
+                left,
+                versionY,
+                { width: contentWidth, lineBreak: false }
+            );
+
+            const pageRange = doc.bufferedPageRange();
+            if (pageRange.count !== 1) {
+                throw new Error(
+                    `Il modulo cartaceo deve occupare una sola pagina A4; pagine generate: ${pageRange.count}; ` +
+                    `split=${splitIndex}; colonne=${leftY.toFixed(1)}/${rightY.toFixed(1)}; ` +
+                    `firma=${signatureBottom.toFixed(1)}; versione=${versionY.toFixed(1)}`
+                );
+            }
+            if (signatureBottom >= versionY - 4) {
+                throw new Error('La riga della firma del modulo cartaceo non rientra nell’area stampabile della prima pagina');
+            }
+
+            doc.end();
+        } catch (error) {
+            reject(error);
+        }
+    });
 }
 
 /**
@@ -181,14 +428,13 @@ function drawFooter(doc, opts) {
 /**
  * Genera il PDF e ritorna { buffer, hash } dove hash e' SHA256 del PDF.
  */
-async function generateConsensoPdf(opts) {
-    const modalita = opts.modalita === 'cartaceo' ? 'cartaceo' : 'otp_sms';
+async function generateConsensoPdfDigitale(opts) {
     const a = opts.anagrafica || {};
     const consensoContratto = opts.consensoContratto !== false;
     const consensoMarketing = !!opts.consensoMarketing;
     const dataCompilazione = opts.dataCompilazione || new Date().toISOString();
     const otpMd = opts.otpMetadata || {};
-    const informativaVersione = INFORMATIVA_VERSIONE;
+    const informativaVersione = INFORMATIVA_VERSIONE_DIGITALE;
 
     return new Promise((resolve, reject) => {
         try {
@@ -209,7 +455,11 @@ async function generateConsensoPdf(opts) {
             doc.on('end', () => {
                 const buffer = Buffer.concat(chunks);
                 const hash = crypto.createHash('sha256').update(buffer).digest('hex');
-                resolve({ buffer, hash });
+                resolve({
+                    buffer,
+                    hash,
+                    informativaVersione: INFORMATIVA_VERSIONE_DIGITALE
+                });
             });
             doc.on('error', reject);
 
@@ -226,14 +476,10 @@ async function generateConsensoPdf(opts) {
                 `Recapiti per esercitare i propri diritti o ricevere chiarimenti sul trattamento dei dati: ` +
                 `email ${TITOLARE.emailContatto} - PEC ${TITOLARE.pec}.`);
             drawParagraph(doc,
-                `Le richieste in materia di protezione dei dati possono essere inviate agli stessi recapiti. Qualora venga designato ` +
-                `un Responsabile della Protezione dei Dati, i relativi recapiti saranno pubblicati e comunicati ` +
-                `agli interessati secondo la normativa applicabile.`);
-            drawParagraph(doc,
                 `La presente informativa riguarda esclusivamente l'acquisizione, l'archiviazione e l'utilizzo dei dati ` +
                 `nel CRM Mirox, sistema gestionale di proprietà e sotto la gestione di ${TITOLARE.ragioneSociale}. ` +
-                `Non disciplina il contratto stipulato con Wind Tre S.p.A. o con un altro fornitore, né sostituisce ` +
-                `l'informativa privacy resa da tale soggetto per i trattamenti di propria competenza.`);
+                `Non riguarda i trattamenti svolti dal fornitore presso il quale la pratica è richiesta ` +
+                `(es. Wind Tre S.p.A.), regolati dall'informativa privacy di tale soggetto.`);
 
             // -------- Dati raccolti --------
             drawSectionTitle(doc, '2. Categorie di dati personali trattati');
@@ -282,12 +528,11 @@ async function generateConsensoPdf(opts) {
             drawParagraph(doc,
                 'Nell\'ambito del CRM i dati sono accessibili al personale autorizzato di Kona Tech e, nei limiti ' +
                 'necessari, ai fornitori di hosting, database, posta elettronica, SMS/OTP, assistenza informatica e ' +
-                'intelligenza artificiale, normalmente nominati responsabili del trattamento ai sensi dell\'art. 28 GDPR; ' +
+                'intelligenza artificiale, nominati responsabili del trattamento ai sensi dell\'art. 28 GDPR ove trattino dati per conto del Titolare; ' +
                 'possono inoltre essere comunicati a consulenti, autorità e soggetti legittimati dalla legge.');
             drawParagraph(doc,
                 'Quando necessario per inoltrare o completare la richiesta del cliente, dati e documenti possono essere ' +
-                'trasmessi a Wind Tre S.p.A. o al diverso fornitore scelto. I trattamenti successivamente svolti da tale ' +
-                'soggetto secondo il proprio ruolo non rientrano nella presente informativa e sono regolati dalla relativa informativa privacy.');
+                'trasmessi al fornitore presso il quale la pratica è richiesta.');
             drawParagraph(doc,
                 'I dati non sono diffusi. Alcuni fornitori tecnologici possono trattare dati anche fuori dallo Spazio ' +
                 'Economico Europeo. In tali casi il trasferimento avviene nel rispetto del Capo V GDPR, sulla base di ' +
@@ -324,8 +569,8 @@ async function generateConsensoPdf(opts) {
             drawParagraph(doc,
                 'Il conferimento dei dati e dei documenti necessari a registrare e gestire la specifica pratica nel CRM ' +
                 'è richiesto per le attività domandate a Kona Tech; in mancanza, il Titolare potrebbe non poter gestire ' +
-                'la pratica tramite il proprio CRM o fornire la relativa assistenza. Il contratto con Wind Tre S.p.A. o ' +
-                'con altro fornitore resta soggetto alle condizioni e alle decisioni di tale soggetto. ' +
+                'la pratica tramite il proprio CRM o fornire la relativa assistenza. Il contratto con il fornitore ' +
+                'resta soggetto alle condizioni e alle decisioni di tale soggetto. ' +
                 'La presa visione dell\'informativa documenta che l\'interessato ha ricevuto queste informazioni, ma ' +
                 'non trasforma il consenso nella base giuridica dei trattamenti CRM necessari. Il consenso marketing è ' +
                 'facoltativo: negarlo o revocarlo non impedisce l\'assistenza sulla pratica specifica.');
@@ -392,60 +637,39 @@ async function generateConsensoPdf(opts) {
             // -------- Firma --------
             drawSectionTitle(doc, '11. Modalità di registrazione della dichiarazione');
 
-            if (modalita === 'otp_sms') {
-                const firmaBoxY = doc.y;
-                const firmaBoxH = 142;
-                doc.lineWidth(1).strokeColor(COL_GREEN);
-                doc.rect(left, firmaBoxY, right - left, firmaBoxH).stroke();
-                doc.fillColor(COL_GREEN).font('Helvetica-Bold').fontSize(10);
-                doc.text('Dichiarazione registrata elettronicamente tramite OTP via SMS', left + 12, firmaBoxY + 10, { width: right - left - 24 });
-                doc.fillColor(COL_TEXT).font('Helvetica').fontSize(8.5);
+            const firmaBoxY = doc.y;
+            const firmaBoxH = 142;
+            doc.lineWidth(1).strokeColor(COL_GREEN);
+            doc.rect(left, firmaBoxY, right - left, firmaBoxH).stroke();
+            doc.fillColor(COL_GREEN).font('Helvetica-Bold').fontSize(10);
+            doc.text('Dichiarazione registrata elettronicamente tramite OTP via SMS', left + 12, firmaBoxY + 10, { width: right - left - 24 });
+            doc.fillColor(COL_TEXT).font('Helvetica').fontSize(8.5);
 
-                const metaY = firmaBoxY + 28;
-                const linesL = [
-                    'Cellulare destinatario OTP:  ' + safeText(otpMd.cellulareInviato, '-'),
-                    'Data e ora conferma OTP:    ' + formatItalianDateTime(otpMd.confermatoAt),
-                    'ID messaggio SMS:           ' + safeText(otpMd.smsProviderId, '-')
-                ];
-                const linesR = [
-                    'Operatore Mirox:    ' + safeText(otpMd.operatoreNome, '-'),
-                    'IP operatore:       ' + safeText(otpMd.ipOperatore, '-'),
-                    'ID consenso:        ' + safeText(otpMd.consensoId, '-')
-                ];
-                let ly = metaY;
-                linesL.forEach((t) => { doc.text(t, left + 12, ly, { width: (right - left) / 2 - 12 }); ly += 14; });
-                ly = metaY;
-                linesR.forEach((t) => { doc.text(t, left + (right - left) / 2 + 4, ly, { width: (right - left) / 2 - 12 }); ly += 14; });
+            const metaY = firmaBoxY + 28;
+            const linesL = [
+                'Cellulare destinatario OTP:  ' + safeText(otpMd.cellulareInviato, '-'),
+                'Data e ora conferma OTP:    ' + formatItalianDateTime(otpMd.confermatoAt),
+                'ID messaggio SMS:           ' + safeText(otpMd.smsProviderId, '-')
+            ];
+            const linesR = [
+                'Operatore Mirox:    ' + safeText(otpMd.operatoreNome, '-'),
+                'IP operatore:       ' + safeText(otpMd.ipOperatore, '-'),
+                'ID consenso:        ' + safeText(otpMd.consensoId, '-')
+            ];
+            let ly = metaY;
+            linesL.forEach((t) => { doc.text(t, left + 12, ly, { width: (right - left) / 2 - 12 }); ly += 14; });
+            ly = metaY;
+            linesR.forEach((t) => { doc.text(t, left + (right - left) / 2 + 4, ly, { width: (right - left) / 2 - 12 }); ly += 14; });
 
-                doc.fillColor(COL_MUTED).fontSize(8);
-                doc.text(
-                    'Il codice OTP, inviato al recapito indicato e verificato nel CRM, registra la dichiarazione e i ' +
-                    'relativi dati probatori. Ai sensi dell\'art. 25, par. 1, del Regolamento (UE) n. 910/2014 (eIDAS), ' +
-                    'una firma elettronica non può essere privata di effetti giuridici o ammissibilità come prova per ' +
-                    'il solo fatto della forma elettronica. Questa procedura non è una firma elettronica qualificata ' +
-                    'e non equivale automaticamente a una firma autografa.',
-                    left + 12, firmaBoxY + firmaBoxH - 50,
-                    { width: right - left - 24, align: 'justify' });
-                doc.y = firmaBoxY + firmaBoxH + 14;
-            } else {
-                // Cartaceo: riquadro vuoto + istruzioni
-                doc.fillColor(COL_TEXT).font('Helvetica').fontSize(9.5);
-                doc.text(
-                    'Il presente modulo viene sottoscritto in forma cartacea. L\'interessato appone la propria firma ' +
-                    'autografa nello spazio sottostante. Il documento firmato viene successivamente acquisito in formato ' +
-                    'elettronico (scansione PDF) e archiviato nel sistema gestionale del Titolare.',
-                    { align: 'justify', lineGap: 1.5 });
-                doc.moveDown(0.5);
-
-                const firmaBoxY = doc.y;
-                const firmaBoxH = 110;
-                doc.lineWidth(0.8).strokeColor(COL_BORDER);
-                doc.rect(left, firmaBoxY, right - left, firmaBoxH).stroke();
-                doc.fillColor(COL_MUTED).font('Helvetica').fontSize(8);
-                doc.text('Firma leggibile dell\'interessato', left + 12, firmaBoxY + 8);
-                doc.text('Luogo e data: ____________________________________', left + 12, firmaBoxY + firmaBoxH - 24);
-                doc.y = firmaBoxY + firmaBoxH + 14;
-            }
+            doc.fillColor(COL_MUTED).fontSize(8);
+            doc.text(
+                'La presente dichiarazione è resa in modalità elettronica. La presa visione e l\'eventuale consenso sono ' +
+                'registrati tramite codice OTP di 6 cifre inviato via SMS al numero di cellulare indicato dall\'interessato, ' +
+                'con memorizzazione a fini probatori di data e ora di invio e conferma, identificativo del messaggio SMS, ' +
+                'esito e tentativi dell\'OTP, indirizzo IP, user agent e hash SHA-256 del documento.',
+                left + 12, firmaBoxY + firmaBoxH - 50,
+                { width: right - left - 24, align: 'justify' });
+            doc.y = firmaBoxY + firmaBoxH + 14;
 
             // -------- Footer su tutte le pagine --------
             // Calcoliamo l'hash del documento "preliminare" basato sui dati invariati;
@@ -464,8 +688,22 @@ async function generateConsensoPdf(opts) {
     });
 }
 
+async function generateConsensoPdf(opts = {}) {
+    const modalita = opts.modalita === 'cartaceo' ? 'cartaceo' : 'otp_sms';
+    const expectedVersion = informativaVersionePerModalita(modalita);
+    const generated = modalita === 'cartaceo'
+        ? await generateConsensoPdfCartaceo(opts)
+        : await generateConsensoPdfDigitale(opts);
+
+    if (generated.informativaVersione !== expectedVersion) {
+        throw new Error(`Versione informativa incoerente per la modalita' ${modalita}`);
+    }
+    return generated;
+}
+
 module.exports = {
     generateConsensoPdf,
-    INFORMATIVA_VERSIONE,
+    INFORMATIVA_VERSIONE_CARTACEO,
+    INFORMATIVA_VERSIONE_DIGITALE,
     TITOLARE
 };

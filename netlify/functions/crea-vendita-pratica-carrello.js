@@ -1,6 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const { requireAuth } = require('./_lib/require-auth');
-const { INFORMATIVA_VERSIONE } = require('./_lib/privacy-config');
+const { INFORMATIVE_VERSIONI_CORRENTI } = require('./_lib/privacy-config');
 
 const ORIGINI_PRATICA_AMMESSE = new Set([
   'appuntamento_callcenter',
@@ -960,7 +960,7 @@ exports.handler = async (event) => {
     // GUARD CONSENSO PRIVACY (migration 034).
     // La pratica non puo' essere creata se per l'anagrafica non esiste
     // una dichiarazione 'confermata', non scaduta, non revocata e riferita
-    // alla versione informativa corrente. Il wizard
+    // a una delle due versioni informative correnti. Il wizard
     // dovrebbe averlo raccolto (modale OTP o cartaceo) prima del submit
     // oppure trovato nel riuso massimo di 24 mesi. Il client puo' passare
     // pratica.consenso_id per evitare race su consensi multipli; se
@@ -972,7 +972,7 @@ exports.handler = async (event) => {
       .select('id, anagrafica_id, stato, modalita, informativa_versione, valido_fino_al, revocato_at')
       .eq('anagrafica_id', anagraficaId)
       .eq('stato', 'confermato')
-      .eq('informativa_versione', INFORMATIVA_VERSIONE)
+      .in('informativa_versione', INFORMATIVE_VERSIONI_CORRENTI)
       .is('revocato_at', null)
       .gt('valido_fino_al', new Date().toISOString())
       .order('valido_fino_al', { ascending: false })

@@ -1,10 +1,10 @@
 /**
  * GET /.netlify/functions/genera-pdf-consenso-cartaceo
  *   ?anagrafica_id=<uuid>
- *   &consenso_marketing=true|false   (default false)
  *
  * Genera al volo il PDF dell'informativa privacy in modalita' "cartacea"
- * (riquadro firma vuoto, da firmare a mano dal cliente). Il client lo
+ * su una pagina A4, con entrambe le scelte marketing non preselezionate
+ * e riga della firma. Il client lo
  * scarica, lo stampa, lo fa firmare, poi lo ricarica via
  * upload-consenso-cartaceo.
  *
@@ -67,8 +67,6 @@ exports.handler = async (event) => {
     if (!anagraficaId || !UUID_REGEX.test(anagraficaId)) {
         return jsonResponse(400, { success: false, error: 'anagrafica_id mancante o non valido' });
     }
-    const consensoMarketing = ['1', 'true', 'yes', 'si'].includes(String(qs.consenso_marketing || '').toLowerCase());
-
     const SUPABASE_URL = process.env.SUPABASE_URL;
     const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!SUPABASE_URL || !SERVICE) {
@@ -96,7 +94,6 @@ exports.handler = async (event) => {
             modalita: 'cartaceo',
             anagrafica,
             consensoContratto: true,
-            consensoMarketing,
             dataCompilazione: new Date().toISOString()
         });
 

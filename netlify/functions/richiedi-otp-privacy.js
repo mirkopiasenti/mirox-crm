@@ -38,7 +38,7 @@ const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const { requireAuth } = require('./_lib/require-auth');
 const { sendOtpSms, normalizeMobileNumber, generateOtp } = require('./_lib/smshosting');
-const { INFORMATIVA_VERSIONE } = require('./_lib/privacy-config');
+const { INFORMATIVA_VERSIONE_DIGITALE } = require('./_lib/privacy-config');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OTP_SCADENZA_MIN = 10;
@@ -198,7 +198,7 @@ exports.handler = async (event) => {
                 otp_tentativi: 0,
                 otp_reinvii: 0,
                 stato: 'pending',
-                informativa_versione: INFORMATIVA_VERSIONE,
+                informativa_versione: INFORMATIVA_VERSIONE_DIGITALE,
                 consenso_contratto: true,
                 consenso_marketing: consensoMarketing,
                 operatore_id: operatoreId,

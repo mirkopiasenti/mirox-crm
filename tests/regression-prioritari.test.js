@@ -32,7 +32,9 @@ function loadCommonJs(relativePath, stubs = {}) {
 const carrelloModule = loadCommonJs('netlify/functions/crea-vendita-pratica-carrello.js', {
   '@supabase/supabase-js': { createClient() { return {}; } },
   './_lib/require-auth': { requireAuth: async () => ({ ok: false }) },
-  './_lib/privacy-config': { INFORMATIVA_VERSIONE: 'v3_2026_07_26' }
+  './_lib/privacy-config': {
+    INFORMATIVE_VERSIONI_CORRENTI: ['v4_2026_07_26', 'v4_2026_07_26_dig']
+  }
 });
 
 const uploadModule = loadCommonJs('netlify/functions/upload-vendita-documento.js', {

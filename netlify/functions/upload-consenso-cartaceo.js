@@ -29,7 +29,7 @@ const Busboy = require('busboy');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const { requireAuth } = require('./_lib/require-auth');
-const { INFORMATIVA_VERSIONE } = require('./_lib/privacy-config');
+const { INFORMATIVA_VERSIONE_CARTACEO } = require('./_lib/privacy-config');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
@@ -143,7 +143,15 @@ exports.handler = async (event) => {
     if (!anagraficaId || !UUID_REGEX.test(anagraficaId)) {
         return response(400, { success: false, error: 'anagrafica_id mancante o non valido' });
     }
-    const consensoMarketing = ['1', 'true', 'yes', 'si'].includes(String(fields.consenso_marketing || '').toLowerCase());
+    const consensoMarketingRaw = String(fields.consenso_marketing || '').trim().toLowerCase();
+    const consensoMarketingValues = new Set(['1', 'true', 'yes', 'si', '0', 'false', 'no']);
+    if (!consensoMarketingValues.has(consensoMarketingRaw)) {
+        return response(400, {
+            success: false,
+            error: 'Indicare la scelta marketing riportata sul modulo firmato: true oppure false'
+        });
+    }
+    const consensoMarketing = ['1', 'true', 'yes', 'si'].includes(consensoMarketingRaw);
     const praticaId = (fields.pratica_id && UUID_REGEX.test(String(fields.pratica_id))) ? String(fields.pratica_id).toLowerCase() : null;
 
     const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -228,7 +236,7 @@ exports.handler = async (event) => {
                 modalita: 'cartaceo',
                 cellulare_usato: null,
                 stato: 'confermato',
-                informativa_versione: INFORMATIVA_VERSIONE,
+                informativa_versione: INFORMATIVA_VERSIONE_CARTACEO,
                 informativa_hash: informativaHash,
                 consenso_contratto: true,
                 consenso_marketing: consensoMarketing,
@@ -254,7 +262,7 @@ exports.handler = async (event) => {
             pdf_storage_path: attemptPath,
             pdf_filename: attemptFileName,
             valido_fino_al: inserted.valido_fino_al,
-            informativa_versione: INFORMATIVA_VERSIONE
+            informativa_versione: INFORMATIVA_VERSIONE_CARTACEO
         });
     } catch (e) {
         if (uploadedPath) {
