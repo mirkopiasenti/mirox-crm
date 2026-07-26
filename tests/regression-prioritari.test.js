@@ -259,7 +259,8 @@ test('le operazioni sensibili post-vendita sono protette lato server e database'
   assert.match(functionSource, /stato:\s*'Consegnato'/);
   assert.match(functionSource, /Rimborso manuale registrato da un amministratore/);
 
-  assert.match(migration, /REVOKE INSERT, UPDATE, DELETE[\s\S]*post_vendita_gestione_rimborsi[\s\S]*FROM anon, authenticated/);
+  assert.match(migration, /REVOKE ALL PRIVILEGES[\s\S]*post_vendita_gestione_rimborsi[\s\S]*FROM anon, authenticated/);
+  assert.match(migration, /REVOKE ALL PRIVILEGES[\s\S]*post_vendita_rimborsi_seq[\s\S]*FROM anon, authenticated/);
   assert.match(migration, /CREATE POLICY post_vendita_gestione_rimborsi_authenticated_select/);
   assert.match(migration, /CREATE OR REPLACE FUNCTION public\.mirox_guard_apri_chiudi_ko_admin\(\)/);
   assert.match(migration, /p\.ruolo = 'admin'/);

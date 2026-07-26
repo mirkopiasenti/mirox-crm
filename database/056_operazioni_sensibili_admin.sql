@@ -39,7 +39,7 @@ CREATE POLICY post_vendita_gestione_rimborsi_authenticated_select
   TO authenticated
   USING (true);
 
-REVOKE INSERT, UPDATE, DELETE
+REVOKE ALL PRIVILEGES
   ON TABLE public.post_vendita_gestione_rimborsi
   FROM anon, authenticated;
 GRANT SELECT
@@ -47,6 +47,13 @@ GRANT SELECT
   TO authenticated;
 GRANT ALL
   ON TABLE public.post_vendita_gestione_rimborsi
+  TO service_role;
+
+REVOKE ALL PRIVILEGES
+  ON SEQUENCE public.post_vendita_rimborsi_seq
+  FROM anon, authenticated;
+GRANT ALL
+  ON SEQUENCE public.post_vendita_rimborsi_seq
   TO service_role;
 
 -- Anche la generazione dei codici rimborso è ora soltanto server-side.
