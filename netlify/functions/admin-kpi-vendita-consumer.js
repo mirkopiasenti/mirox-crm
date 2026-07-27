@@ -19,6 +19,7 @@ const STORE_LABELS = {
 const SELECTED_MNP_LABEL = 'MNP da seguenti operatori: Iliad - Coop - Poste - Tiscali';
 const PROFILE_SELECT = 'id, nome, alias_di';
 const PAGE_SIZE = 1000;
+const ID_CHUNK_SIZE = 100;
 const UNASSIGNED_OPERATOR = '__unassigned__';
 
 function response(statusCode, payload) {
@@ -98,6 +99,24 @@ function emptyMetrics() {
   };
 }
 
+function emptyFixedMetrics() {
+  return {
+    acquisitions: emptySeries(),
+    technology_fttc: emptySeries(),
+    technology_ftth: emptySeries(),
+    technology_fwa_outdoor: emptySeries(),
+    technology_fwa_indoor: emptySeries(),
+    technology_fwa_voice: emptySeries(),
+    technology_unclassified: emptySeries(),
+    outcome_activated: emptySeries(),
+    outcome_ko: emptySeries(),
+    outcome_in_activation: emptySeries(),
+    activated: emptySeries(),
+    apri_chiudi_ftth: emptySeries(),
+    apri_chiudi_fwa: emptySeries()
+  };
+}
+
 function addContractToMetrics(metrics, contract) {
   const monthIndex = romeMonthIndex(contract?.data_contratto);
   if (monthIndex < 0) return;
@@ -109,6 +128,54 @@ function addContractToMetrics(metrics, contract) {
 
   if (contract?.dispositivo_associato === true) {
     metrics.smartphone[monthIndex] += 1;
+  }
+}
+
+function classifyFixedTechnology(value) {
+  const technology = normalizeLabel(value).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+  if (!technology) return null;
+  if (technology.startsWith('fttc')) return 'technology_fttc';
+  if (technology.startsWith('ftth')) return 'technology_ftth';
+  if (!technology.startsWith('fwa')) return null;
+  if (technology.includes('voce')) return 'technology_fwa_voice';
+  if (technology.includes('indoor') || /\bfwa in\b/.test(technology)) return 'technology_fwa_indoor';
+  if (technology.includes('outdoor') || /\bfwa out\b/.test(technology)) return 'technology_fwa_outdoor';
+  return null;
+}
+
+function fixedOutcomeKey(value) {
+  const status = normalizeLabel(value);
+  if (status === 'attivo' || status === 'attivato') return 'outcome_activated';
+  if (status === 'ko') return 'outcome_ko';
+  return 'outcome_in_activation';
+}
+
+function isApriChiudiEnabled(value) {
+  return normalizeLabel(value) === 'si';
+}
+
+function addFixedAcquisitionMetrics(metrics, contract, followUp) {
+  const monthIndex = romeMonthIndex(contract?.data_contratto);
+  if (monthIndex < 0) return;
+
+  metrics.acquisitions[monthIndex] += 1;
+  const technologyKey = classifyFixedTechnology(followUp?.tecnologia);
+  metrics[technologyKey || 'technology_unclassified'][monthIndex] += 1;
+  metrics[fixedOutcomeKey(followUp?.stato)][monthIndex] += 1;
+}
+
+function addFixedActivationMetrics(metrics, contract, followUp) {
+  const monthIndex = romeMonthIndex(followUp?.data_attivazione);
+  if (monthIndex < 0 || normalizeLabel(followUp?.stato) !== 'attivo') return;
+
+  metrics.activated[monthIndex] += 1;
+  if (!isApriChiudiEnabled(contract?.apri_chiudi)) return;
+
+  const technologyKey = classifyFixedTechnology(followUp?.tecnologia);
+  if (technologyKey === 'technology_ftth') {
+    metrics.apri_chiudi_ftth[monthIndex] += 1;
+  } else if (technologyKey?.startsWith('technology_fwa_')) {
+    metrics.apri_chiudi_fwa[monthIndex] += 1;
   }
 }
 
@@ -155,7 +222,7 @@ function buildProfileResolver(profiles) {
   return { canonicalId, label };
 }
 
-async function fetchAllContracts(supabase, year, store) {
+async function fetchContractsByInsertion(supabase, year, store, category, selectFields) {
   const startIso = `${year}-01-01T00:00:00+01:00`;
   const endIso = `${year + 1}-01-01T00:00:00+01:00`;
   const rows = [];
@@ -163,10 +230,8 @@ async function fetchAllContracts(supabase, year, store) {
   for (let from = 0; ; from += PAGE_SIZE) {
     let query = supabase
       .from('vendita_contratti')
-      .select(
-        'id, data_contratto, operatore_id, nome_opzione_snapshot, dispositivo_associato, codice_rivenditore'
-      )
-      .eq('categoria_snapshot', 'Mobile')
+      .select(selectFields)
+      .eq('categoria_snapshot', category)
       .eq('cluster_cliente', 'Consumer')
       .gte('data_contratto', startIso)
       .lt('data_contratto', endIso)
@@ -176,7 +241,7 @@ async function fetchAllContracts(supabase, year, store) {
     if (store !== 'all') query = query.eq('codice_rivenditore', store);
 
     const { data, error } = await query;
-    if (error) throw new Error(error.message || 'Errore lettura contratti Mobile Consumer');
+    if (error) throw new Error(error.message || `Errore lettura contratti ${category} Consumer`);
 
     const batch = data || [];
     rows.push(...batch);
@@ -186,9 +251,90 @@ async function fetchAllContracts(supabase, year, store) {
   return rows;
 }
 
+async function fetchFixedFollowUpsByContractIds(supabase, contractIds) {
+  const rows = [];
+  for (let index = 0; index < contractIds.length; index += ID_CHUNK_SIZE) {
+    const ids = contractIds.slice(index, index + ID_CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from('post_vendita_controllo_fissi')
+      .select('contratto_id, stato, tecnologia, data_attivazione')
+      .in('contratto_id', ids);
+    if (error) throw new Error(error.message || 'Errore lettura esiti contratti Fisso');
+    rows.push(...(data || []));
+  }
+  return rows;
+}
+
+async function fetchFixedActivations(supabase, year) {
+  const startDate = `${year}-01-01`;
+  const endDate = `${year + 1}-01-01`;
+  const rows = [];
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('post_vendita_controllo_fissi')
+      .select('contratto_id, stato, tecnologia, data_attivazione')
+      .eq('stato', 'Attivo')
+      .gte('data_attivazione', startDate)
+      .lt('data_attivazione', endDate)
+      .order('data_attivazione', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(error.message || 'Errore lettura attivazioni Fisso');
+
+    const batch = data || [];
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+  }
+
+  return rows;
+}
+
+async function fetchContractsByIds(supabase, contractIds) {
+  const rows = [];
+  for (let index = 0; index < contractIds.length; index += ID_CHUNK_SIZE) {
+    const ids = contractIds.slice(index, index + ID_CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from('vendita_contratti')
+      .select('id, data_contratto, operatore_id, apri_chiudi, codice_rivenditore, categoria_snapshot, cluster_cliente')
+      .in('id', ids);
+    if (error) throw new Error(error.message || 'Errore lettura contratti Fisso attivati');
+    rows.push(...(data || []));
+  }
+  return rows;
+}
+
+function ensureOperatorMetrics(map, operatorId, factory) {
+  if (!map.has(operatorId)) map.set(operatorId, factory());
+  return map.get(operatorId);
+}
+
+function serializeOperators(operatorMetrics, resolver) {
+  return Array.from(operatorMetrics.entries())
+    .map(([id, metrics]) => ({
+      id,
+      nome: resolver.label(id),
+      metrics: serializeMetrics(metrics)
+    }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'it', { sensitivity: 'base' }));
+}
+
 async function buildKpiPayload(supabase, year, store) {
-  const [contracts, profilesResult] = await Promise.all([
-    fetchAllContracts(supabase, year, store),
+  const [mobileContracts, fixedAcquisitions, fixedActivations, profilesResult] = await Promise.all([
+    fetchContractsByInsertion(
+      supabase,
+      year,
+      store,
+      'Mobile',
+      'id, data_contratto, operatore_id, nome_opzione_snapshot, dispositivo_associato, codice_rivenditore'
+    ),
+    fetchContractsByInsertion(
+      supabase,
+      year,
+      store,
+      'Fisso',
+      'id, data_contratto, operatore_id, apri_chiudi, codice_rivenditore'
+    ),
+    fetchFixedActivations(supabase, year),
     supabase.from('profili').select(PROFILE_SELECT)
   ]);
 
@@ -197,24 +343,70 @@ async function buildKpiPayload(supabase, year, store) {
   }
 
   const resolver = buildProfileResolver(profilesResult.data || []);
-  const totals = emptyMetrics();
-  const operatorMetrics = new Map();
+  const mobileTotals = emptyMetrics();
+  const mobileOperatorMetrics = new Map();
 
-  contracts.forEach((contract) => {
-    addContractToMetrics(totals, contract);
+  mobileContracts.forEach((contract) => {
+    addContractToMetrics(mobileTotals, contract);
 
     const operatorId = resolver.canonicalId(contract.operatore_id);
-    if (!operatorMetrics.has(operatorId)) operatorMetrics.set(operatorId, emptyMetrics());
-    addContractToMetrics(operatorMetrics.get(operatorId), contract);
+    addContractToMetrics(
+      ensureOperatorMetrics(mobileOperatorMetrics, operatorId, emptyMetrics),
+      contract
+    );
   });
 
-  const operators = Array.from(operatorMetrics.entries())
-    .map(([id, metrics]) => ({
-      id,
-      nome: resolver.label(id),
-      metrics: serializeMetrics(metrics)
-    }))
-    .sort((a, b) => a.nome.localeCompare(b.nome, 'it', { sensitivity: 'base' }));
+  const fixedFollowUps = await fetchFixedFollowUpsByContractIds(
+    supabase,
+    fixedAcquisitions.map((contract) => contract.id)
+  );
+  const fixedFollowUpByContract = new Map(
+    fixedFollowUps.map((followUp) => [followUp.contratto_id, followUp])
+  );
+  const activationContracts = await fetchContractsByIds(
+    supabase,
+    Array.from(new Set(fixedActivations.map((followUp) => followUp.contratto_id)))
+  );
+  const activationContractById = new Map(
+    activationContracts
+      .filter((contract) => (
+        contract.categoria_snapshot === 'Fisso' &&
+        contract.cluster_cliente === 'Consumer' &&
+        (store === 'all' || contract.codice_rivenditore === store)
+      ))
+      .map((contract) => [contract.id, contract])
+  );
+
+  const fixedTotals = emptyFixedMetrics();
+  const fixedOperatorMetrics = new Map();
+
+  fixedAcquisitions.forEach((contract) => {
+    const followUp = fixedFollowUpByContract.get(contract.id);
+    addFixedAcquisitionMetrics(fixedTotals, contract, followUp);
+
+    const operatorId = resolver.canonicalId(contract.operatore_id);
+    addFixedAcquisitionMetrics(
+      ensureOperatorMetrics(fixedOperatorMetrics, operatorId, emptyFixedMetrics),
+      contract,
+      followUp
+    );
+  });
+
+  fixedActivations.forEach((followUp) => {
+    const contract = activationContractById.get(followUp.contratto_id);
+    if (!contract) return;
+    addFixedActivationMetrics(fixedTotals, contract, followUp);
+
+    const operatorId = resolver.canonicalId(contract.operatore_id);
+    addFixedActivationMetrics(
+      ensureOperatorMetrics(fixedOperatorMetrics, operatorId, emptyFixedMetrics),
+      contract,
+      followUp
+    );
+  });
+
+  const serializedMobileTotals = serializeMetrics(mobileTotals);
+  const serializedMobileOperators = serializeOperators(mobileOperatorMetrics, resolver);
 
   return {
     success: true,
@@ -224,8 +416,16 @@ async function buildKpiPayload(supabase, year, store) {
       store_label: STORE_LABELS[store]
     },
     generated_at: new Date().toISOString(),
-    totals: serializeMetrics(totals),
-    operators
+    totals: serializedMobileTotals,
+    operators: serializedMobileOperators,
+    mobile: {
+      totals: serializedMobileTotals,
+      operators: serializedMobileOperators
+    },
+    fixed: {
+      totals: serializeMetrics(fixedTotals),
+      operators: serializeOperators(fixedOperatorMetrics, resolver)
+    }
   };
 }
 
@@ -248,7 +448,7 @@ exports.handler = async (event) => {
 
     return response(200, await buildKpiPayload(supabase, year, store));
   } catch (error) {
-    const message = error?.message || 'Errore caricamento KPI Mobile Consumer';
+    const message = error?.message || 'Errore caricamento KPI Vendita Consumer';
     const validationError = message.startsWith('Anno non valido') || message === 'Punto vendita non valido';
     return response(validationError ? 400 : 500, { success: false, error: message });
   }
@@ -257,10 +457,16 @@ exports.handler = async (event) => {
 exports._test = {
   PROFILE_SELECT,
   SELECTED_MNP_LABEL,
+  addFixedAcquisitionMetrics,
+  addFixedActivationMetrics,
   addContractToMetrics,
   buildProfileResolver,
+  classifyFixedTechnology,
   classifyMnp,
+  emptyFixedMetrics,
   emptyMetrics,
+  fixedOutcomeKey,
+  isApriChiudiEnabled,
   parseStore,
   parseYear,
   romeMonthIndex,

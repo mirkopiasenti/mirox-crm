@@ -5,10 +5,16 @@ const kpiModule = require('../netlify/functions/admin-kpi-vendita-consumer.js');
 const {
   PROFILE_SELECT,
   SELECTED_MNP_LABEL,
+  addFixedAcquisitionMetrics,
+  addFixedActivationMetrics,
   addContractToMetrics,
   buildProfileResolver,
+  classifyFixedTechnology,
   classifyMnp,
+  emptyFixedMetrics,
   emptyMetrics,
+  fixedOutcomeKey,
+  isApriChiudiEnabled,
   parseStore,
   parseYear,
   romeMonthIndex,
@@ -48,6 +54,71 @@ test('i conteggi Mobile usano il mese Europe/Rome e il flag smartphone', () => {
   assert.equal(serialized.mnp_standard.months[1], 1);
   assert.equal(serialized.mnp_selected.months[1], 1);
   assert.equal(serialized.smartphone.months[1], 2);
+});
+
+test('le tecnologie Fisso seguono i valori del controllo post-vendita', () => {
+  assert.equal(classifyFixedTechnology('FTTC'), 'technology_fttc');
+  assert.equal(classifyFixedTechnology('FTTH_OF'), 'technology_ftth');
+  assert.equal(classifyFixedTechnology('FTTH_FWCOP'), 'technology_ftth');
+  assert.equal(classifyFixedTechnology('FWA OUT'), 'technology_fwa_outdoor');
+  assert.equal(classifyFixedTechnology('FWA - INDOOR'), 'technology_fwa_indoor');
+  assert.equal(classifyFixedTechnology('FWA VOCE'), 'technology_fwa_voice');
+  assert.equal(classifyFixedTechnology(null), null);
+});
+
+test('acquisizioni ed esiti Fisso restano nel mese di inserimento', () => {
+  const metrics = emptyFixedMetrics();
+
+  addFixedAcquisitionMetrics(metrics, {
+    data_contratto: '2026-05-10T10:00:00.000Z'
+  }, {
+    tecnologia: 'FTTH_FWCOP',
+    stato: 'Attivo'
+  });
+  addFixedAcquisitionMetrics(metrics, {
+    data_contratto: '2026-05-20T10:00:00.000Z'
+  }, {
+    tecnologia: 'FWA IN',
+    stato: 'KO'
+  });
+  addFixedAcquisitionMetrics(metrics, {
+    data_contratto: '2026-05-25T10:00:00.000Z'
+  }, null);
+
+  assert.equal(metrics.acquisitions[4], 3);
+  assert.equal(metrics.technology_ftth[4], 1);
+  assert.equal(metrics.technology_fwa_indoor[4], 1);
+  assert.equal(metrics.technology_unclassified[4], 1);
+  assert.equal(metrics.outcome_activated[4], 1);
+  assert.equal(metrics.outcome_ko[4], 1);
+  assert.equal(metrics.outcome_in_activation[4], 1);
+  assert.equal(fixedOutcomeKey('Da completare'), 'outcome_in_activation');
+});
+
+test('attivati e Apri Chiudi Fisso seguono il mese di attivazione', () => {
+  const metrics = emptyFixedMetrics();
+
+  addFixedActivationMetrics(metrics, { apri_chiudi: 'Si' }, {
+    data_attivazione: '2026-08-04',
+    stato: 'Attivo',
+    tecnologia: 'FTTH_OF'
+  });
+  addFixedActivationMetrics(metrics, { apri_chiudi: 'Sì' }, {
+    data_attivazione: '2026-08-11',
+    stato: 'Attivo',
+    tecnologia: 'FWA VOCE'
+  });
+  addFixedActivationMetrics(metrics, { apri_chiudi: 'No' }, {
+    data_attivazione: '2026-08-18',
+    stato: 'Attivo',
+    tecnologia: 'FTTC'
+  });
+
+  assert.equal(metrics.activated[7], 3);
+  assert.equal(metrics.apri_chiudi_ftth[7], 1);
+  assert.equal(metrics.apri_chiudi_fwa[7], 1);
+  assert.equal(isApriChiudiEnabled('Sì'), true);
+  assert.equal(isApriChiudiEnabled('No'), false);
 });
 
 test('il confronto operatori consolida i profili alias sul canonico', () => {

@@ -40,8 +40,8 @@
     </section>
 
     <div class="kpi-category-tabs" role="tablist" aria-label="Categorie Vendita Consumer">
-      <button class="kpi-category-tab" type="button" role="tab" aria-selected="true">Mobile</button>
-      <button class="kpi-category-tab is-coming" type="button" role="tab" aria-selected="false" disabled>Fisso</button>
+      <button class="kpi-category-tab" type="button" role="tab" aria-selected="true" data-kpi-category="mobile">Mobile</button>
+      <button class="kpi-category-tab" type="button" role="tab" aria-selected="false" data-kpi-category="fixed">Fisso</button>
       <button class="kpi-category-tab is-coming" type="button" role="tab" aria-selected="false" disabled>Costumer Energy</button>
       <button class="kpi-category-tab is-coming" type="button" role="tab" aria-selected="false" disabled>Allarmi</button>
       <button class="kpi-category-tab is-coming" type="button" role="tab" aria-selected="false" disabled>Assicurazioni</button>
@@ -51,41 +51,97 @@
     <div class="kpi-error" id="kpiError"></div>
 
     <div class="kpi-content is-loading" id="kpiContent">
-      <section class="kpi-section">
-        <header class="kpi-section-header">
-          <div>
-            <h2 class="kpi-section-title">Acquisizioni</h2>
-            <p class="kpi-section-description">Tutte le righe Mobile Consumer inserite nel mese.</p>
-          </div>
-        </header>
-        <div class="kpi-table-wrap" id="acquisitionsTable"></div>
-      </section>
+      <div class="kpi-category-content" id="mobileKpiContent">
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Acquisizioni</h2>
+              <p class="kpi-section-description">Tutte le righe Mobile Consumer inserite nel mese.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="acquisitionsTable"></div>
+        </section>
 
-      <section class="kpi-section">
-        <header class="kpi-section-header">
-          <div>
-            <h2 class="kpi-section-title">Dettaglio MNP</h2>
-            <p class="kpi-section-description">Totale MNP con dettaglio Standard e gestori selezionati.</p>
-          </div>
-        </header>
-        <div class="kpi-table-wrap" id="mnpTable"></div>
-      </section>
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Dettaglio MNP</h2>
+              <p class="kpi-section-description">Totale MNP con dettaglio Standard e gestori selezionati.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="mnpTable"></div>
+        </section>
 
-      <section class="kpi-section">
-        <header class="kpi-section-header">
-          <div>
-            <h2 class="kpi-section-title">Dettaglio Smartphone</h2>
-            <p class="kpi-section-description">Contratti Mobile Consumer con dispositivo associato.</p>
-          </div>
-        </header>
-        <div class="kpi-table-wrap" id="smartphoneTable"></div>
-      </section>
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Dettaglio Smartphone</h2>
+              <p class="kpi-section-description">Contratti Mobile Consumer con dispositivo associato.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="smartphoneTable"></div>
+        </section>
+      </div>
+
+      <div class="kpi-category-content is-hidden" id="fixedKpiContent">
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Acquisizioni Fisso</h2>
+              <p class="kpi-section-description">Contratti Fisso Consumer distribuiti per tecnologia e mese di inserimento.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="fixedAcquisitionsTable"></div>
+          <p class="kpi-data-note" id="fixedTechnologyNote"></p>
+        </section>
+
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Esiti Inserimenti</h2>
+              <p class="kpi-section-description">Esito attuale dei contratti, mantenuto nel mese originale di inserimento.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="fixedOutcomesTable"></div>
+        </section>
+
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Fissi Mensili Attivati</h2>
+              <p class="kpi-section-description">Attivazioni conteggiate nel mese della data di attivazione, indipendentemente dall’inserimento.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="fixedActivatedTable"></div>
+        </section>
+
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Apri/Chiudi</h2>
+              <p class="kpi-section-description">Contratti con richiesta Apri/Chiudi, conteggiati nel mese di attivazione.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="fixedApriChiudiTable"></div>
+        </section>
+
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">% Tecnologia</h2>
+              <p class="kpi-section-description">Ripartizione percentuale delle acquisizioni mensili tra FTTH, FTTC e FWA.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="fixedTechnologyMixTable"></div>
+          <p class="kpi-data-note" id="fixedTechnologyMixNote"></p>
+        </section>
+      </div>
 
       <section class="kpi-section">
         <header class="kpi-section-header">
           <div>
             <h2 class="kpi-section-title">Confronto operatori</h2>
-            <p class="kpi-section-description">Confronto compatto degli stessi KPI per operatore canonico.</p>
+            <p class="kpi-section-description" id="operatorDescription">Confronto compatto degli stessi KPI per operatore canonico.</p>
           </div>
           <div class="kpi-operator-controls">
             <label for="operatorPeriod">Periodo</label>
@@ -95,14 +151,7 @@
         <div class="kpi-table-wrap">
           <table class="kpi-table kpi-operator-table">
             <thead>
-              <tr>
-                <th>Operatore</th>
-                <th>Acquisizioni</th>
-                <th>MNP totali</th>
-                <th>MNP Standard</th>
-                <th>MNP selezionati</th>
-                <th>Smartphone</th>
-              </tr>
+              <tr id="operatorHead"></tr>
             </thead>
             <tbody id="operatorBody"></tbody>
           </table>
