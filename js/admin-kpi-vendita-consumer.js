@@ -132,12 +132,6 @@
   function render() {
     const metrics = state.totals;
     const mnpTotal = mnpTotalSeries(metrics);
-    const year = Number(state.filters.year);
-
-    refs.summaryAcquisitions.textContent = visibleTotal(metrics.acquisitions.months, year);
-    refs.summaryMnp.textContent = visibleTotal(mnpTotal, year);
-    refs.summarySmartphone.textContent = visibleTotal(metrics.smartphone.months, year);
-    refs.summaryScope.textContent = `${state.filters.year} · ${state.filters.store_label}`;
 
     renderMonthlyTable(refs.acquisitionsTable, [
       { label: 'Totale acquisizioni', series: metrics.acquisitions.months, total: true }
@@ -244,10 +238,6 @@
     refs.loading = document.getElementById('kpiLoading');
     refs.error = document.getElementById('kpiError');
     refs.content = document.getElementById('kpiContent');
-    refs.summaryAcquisitions = document.getElementById('summaryAcquisitions');
-    refs.summaryMnp = document.getElementById('summaryMnp');
-    refs.summarySmartphone = document.getElementById('summarySmartphone');
-    refs.summaryScope = document.getElementById('summaryScope');
     refs.acquisitionsTable = document.getElementById('acquisitionsTable');
     refs.mnpTable = document.getElementById('mnpTable');
     refs.smartphoneTable = document.getElementById('smartphoneTable');

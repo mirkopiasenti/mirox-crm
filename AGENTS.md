@@ -511,6 +511,7 @@ Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile
 - `Dettaglio Smartphone` usa il flag del singolo contratto `dispositivo_associato=true`, non la capacità dell'offerta di supportare dispositivi.
 - Il filtro punto vendita accetta `all`, `9001415852` (Legnago) e `9000822241` (Cerea), con default `all`.
 - Il confronto operatori aggrega sul profilo canonico seguendo `profili.alias_di`; una riga senza operatore resta esplicitamente non assegnata per mantenere la riconciliazione con il totale negozio.
+- La pagina evita card riepilogative duplicate: i totali restano nella prima colonna delle tabelle e le quattro sezioni sono separate da spazio bianco, mantenendo il layout più compatto e leggibile.
 
 ### Guard pattern (riusato in tutte le pagine admin*)
 
