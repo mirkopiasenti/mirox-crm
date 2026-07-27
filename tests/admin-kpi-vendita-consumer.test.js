@@ -3,6 +3,7 @@ const test = require('node:test');
 
 const kpiModule = require('../netlify/functions/admin-kpi-vendita-consumer.js');
 const {
+  PROFILE_SELECT,
   SELECTED_MNP_LABEL,
   addContractToMetrics,
   buildProfileResolver,
@@ -51,14 +52,15 @@ test('i conteggi Mobile usano il mese Europe/Rome e il flag smartphone', () => {
 
 test('il confronto operatori consolida i profili alias sul canonico', () => {
   const resolver = buildProfileResolver([
-    { id: 'matteo', nome: 'Matteo', email: null, alias_di: null },
-    { id: 'matteo-vecchio', nome: 'Matteo storico', email: null, alias_di: 'matteo' },
-    { id: 'francesca', nome: null, email: 'francesca@example.com', alias_di: null }
+    { id: 'matteo', nome: 'Matteo', alias_di: null },
+    { id: 'matteo-vecchio', nome: 'Matteo storico', alias_di: 'matteo' },
+    { id: 'francesca', nome: null, alias_di: null }
   ]);
 
+  assert.equal(PROFILE_SELECT, 'id, nome, alias_di');
   assert.equal(resolver.canonicalId('matteo-vecchio'), 'matteo');
   assert.equal(resolver.label(resolver.canonicalId('matteo-vecchio')), 'Matteo');
-  assert.equal(resolver.label('francesca'), 'francesca@example.com');
+  assert.equal(resolver.label('francesca'), 'Operatore');
   assert.equal(resolver.label('__unassigned__'), 'Operatore non assegnato');
 });
 

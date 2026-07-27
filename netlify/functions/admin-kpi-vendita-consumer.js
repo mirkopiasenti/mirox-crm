@@ -17,6 +17,7 @@ const STORE_LABELS = {
 };
 
 const SELECTED_MNP_LABEL = 'MNP da seguenti operatori: Iliad - Coop - Poste - Tiscali';
+const PROFILE_SELECT = 'id, nome, alias_di';
 const PAGE_SIZE = 1000;
 const UNASSIGNED_OPERATOR = '__unassigned__';
 
@@ -148,7 +149,7 @@ function buildProfileResolver(profiles) {
   function label(id) {
     if (id === UNASSIGNED_OPERATOR) return 'Operatore non assegnato';
     const profile = byId.get(id);
-    return profile?.nome || profile?.email || 'Operatore';
+    return profile?.nome || 'Operatore';
   }
 
   return { canonicalId, label };
@@ -188,7 +189,7 @@ async function fetchAllContracts(supabase, year, store) {
 async function buildKpiPayload(supabase, year, store) {
   const [contracts, profilesResult] = await Promise.all([
     fetchAllContracts(supabase, year, store),
-    supabase.from('profili').select('id, nome, email, alias_di')
+    supabase.from('profili').select(PROFILE_SELECT)
   ]);
 
   if (profilesResult.error) {
@@ -254,6 +255,7 @@ exports.handler = async (event) => {
 };
 
 exports._test = {
+  PROFILE_SELECT,
   SELECTED_MNP_LABEL,
   addContractToMetrics,
   buildProfileResolver,
