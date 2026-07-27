@@ -117,6 +117,30 @@ function emptyFixedMetrics() {
   };
 }
 
+function emptyEnergyMetrics() {
+  return {
+    acquisitions: emptySeries(),
+    activated: emptySeries()
+  };
+}
+
+function emptyAlarmMetrics() {
+  return {
+    acquisitions: emptySeries(),
+    payment_advance: emptySeries(),
+    payment_financing: emptySeries(),
+    payment_unclassified: emptySeries(),
+    activated: emptySeries()
+  };
+}
+
+function emptyInsuranceMetrics() {
+  return {
+    pieces: emptySeries(),
+    points: emptySeries()
+  };
+}
+
 function addContractToMetrics(metrics, contract) {
   const monthIndex = romeMonthIndex(contract?.data_contratto);
   if (monthIndex < 0) return;
@@ -177,6 +201,44 @@ function addFixedActivationMetrics(metrics, contract, followUp) {
   } else if (technologyKey?.startsWith('technology_fwa_')) {
     metrics.apri_chiudi_fwa[monthIndex] += 1;
   }
+}
+
+function addEnergyMetrics(metrics, contract, followUp) {
+  const monthIndex = romeMonthIndex(contract?.data_contratto);
+  if (monthIndex < 0) return;
+
+  metrics.acquisitions[monthIndex] += 1;
+  if (normalizeLabel(followUp?.stato) === 'attivato') {
+    metrics.activated[monthIndex] += 1;
+  }
+}
+
+function addAlarmMetrics(metrics, contract, followUp) {
+  const monthIndex = romeMonthIndex(contract?.data_contratto);
+  if (monthIndex < 0) return;
+
+  metrics.acquisitions[monthIndex] += 1;
+  const payment = normalizeLabel(contract?.modalita_pagamento);
+  if (payment === 'anticipo') {
+    metrics.payment_advance[monthIndex] += 1;
+  } else if (payment === 'finanziamento' || payment === 'finanziato') {
+    metrics.payment_financing[monthIndex] += 1;
+  } else {
+    metrics.payment_unclassified[monthIndex] += 1;
+  }
+
+  if (normalizeLabel(followUp?.stato) === 'ok') {
+    metrics.activated[monthIndex] += 1;
+  }
+}
+
+function addInsuranceMetrics(metrics, contract) {
+  const monthIndex = romeMonthIndex(contract?.data_contratto);
+  if (monthIndex < 0) return;
+
+  metrics.pieces[monthIndex] += 1;
+  const points = Number(contract?.punteggio_gara_totale);
+  if (Number.isFinite(points)) metrics.points[monthIndex] += points;
 }
 
 function sumSeries(series) {
@@ -265,6 +327,20 @@ async function fetchFixedFollowUpsByContractIds(supabase, contractIds) {
   return rows;
 }
 
+async function fetchFollowUpsByContractIds(supabase, table, contractIds, errorMessage) {
+  const rows = [];
+  for (let index = 0; index < contractIds.length; index += ID_CHUNK_SIZE) {
+    const ids = contractIds.slice(index, index + ID_CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from(table)
+      .select('contratto_id, stato')
+      .in('contratto_id', ids);
+    if (error) throw new Error(error.message || errorMessage);
+    rows.push(...(data || []));
+  }
+  return rows;
+}
+
 async function fetchFixedActivations(supabase, year) {
   const startDate = `${year}-01-01`;
   const endDate = `${year + 1}-01-01`;
@@ -319,7 +395,15 @@ function serializeOperators(operatorMetrics, resolver) {
 }
 
 async function buildKpiPayload(supabase, year, store) {
-  const [mobileContracts, fixedAcquisitions, fixedActivations, profilesResult] = await Promise.all([
+  const [
+    mobileContracts,
+    fixedAcquisitions,
+    fixedActivations,
+    energyContracts,
+    alarmContracts,
+    insuranceContracts,
+    profilesResult
+  ] = await Promise.all([
     fetchContractsByInsertion(
       supabase,
       year,
@@ -335,6 +419,27 @@ async function buildKpiPayload(supabase, year, store) {
       'id, data_contratto, operatore_id, apri_chiudi, codice_rivenditore'
     ),
     fetchFixedActivations(supabase, year),
+    fetchContractsByInsertion(
+      supabase,
+      year,
+      store,
+      'Energia',
+      'id, data_contratto, operatore_id, codice_rivenditore'
+    ),
+    fetchContractsByInsertion(
+      supabase,
+      year,
+      store,
+      'Allarmi',
+      'id, data_contratto, operatore_id, modalita_pagamento, codice_rivenditore'
+    ),
+    fetchContractsByInsertion(
+      supabase,
+      year,
+      store,
+      'Assicurazioni',
+      'id, data_contratto, operatore_id, punteggio_gara_totale, codice_rivenditore'
+    ),
     supabase.from('profili').select(PROFILE_SELECT)
   ]);
 
@@ -405,6 +510,64 @@ async function buildKpiPayload(supabase, year, store) {
     );
   });
 
+  const [energyFollowUps, alarmFollowUps] = await Promise.all([
+    fetchFollowUpsByContractIds(
+      supabase,
+      'post_vendita_controllo_lg',
+      energyContracts.map((contract) => contract.id),
+      'Errore lettura esiti Luce & Gas'
+    ),
+    fetchFollowUpsByContractIds(
+      supabase,
+      'post_vendita_controllo_allarmi',
+      alarmContracts.map((contract) => contract.id),
+      'Errore lettura esiti Allarmi'
+    )
+  ]);
+  const energyFollowUpByContract = new Map(
+    energyFollowUps.map((followUp) => [followUp.contratto_id, followUp])
+  );
+  const alarmFollowUpByContract = new Map(
+    alarmFollowUps.map((followUp) => [followUp.contratto_id, followUp])
+  );
+
+  const energyTotals = emptyEnergyMetrics();
+  const energyOperatorMetrics = new Map();
+  energyContracts.forEach((contract) => {
+    const followUp = energyFollowUpByContract.get(contract.id);
+    addEnergyMetrics(energyTotals, contract, followUp);
+    const operatorId = resolver.canonicalId(contract.operatore_id);
+    addEnergyMetrics(
+      ensureOperatorMetrics(energyOperatorMetrics, operatorId, emptyEnergyMetrics),
+      contract,
+      followUp
+    );
+  });
+
+  const alarmTotals = emptyAlarmMetrics();
+  const alarmOperatorMetrics = new Map();
+  alarmContracts.forEach((contract) => {
+    const followUp = alarmFollowUpByContract.get(contract.id);
+    addAlarmMetrics(alarmTotals, contract, followUp);
+    const operatorId = resolver.canonicalId(contract.operatore_id);
+    addAlarmMetrics(
+      ensureOperatorMetrics(alarmOperatorMetrics, operatorId, emptyAlarmMetrics),
+      contract,
+      followUp
+    );
+  });
+
+  const insuranceTotals = emptyInsuranceMetrics();
+  const insuranceOperatorMetrics = new Map();
+  insuranceContracts.forEach((contract) => {
+    addInsuranceMetrics(insuranceTotals, contract);
+    const operatorId = resolver.canonicalId(contract.operatore_id);
+    addInsuranceMetrics(
+      ensureOperatorMetrics(insuranceOperatorMetrics, operatorId, emptyInsuranceMetrics),
+      contract
+    );
+  });
+
   const serializedMobileTotals = serializeMetrics(mobileTotals);
   const serializedMobileOperators = serializeOperators(mobileOperatorMetrics, resolver);
 
@@ -425,6 +588,18 @@ async function buildKpiPayload(supabase, year, store) {
     fixed: {
       totals: serializeMetrics(fixedTotals),
       operators: serializeOperators(fixedOperatorMetrics, resolver)
+    },
+    energy: {
+      totals: serializeMetrics(energyTotals),
+      operators: serializeOperators(energyOperatorMetrics, resolver)
+    },
+    alarms: {
+      totals: serializeMetrics(alarmTotals),
+      operators: serializeOperators(alarmOperatorMetrics, resolver)
+    },
+    insurance: {
+      totals: serializeMetrics(insuranceTotals),
+      operators: serializeOperators(insuranceOperatorMetrics, resolver)
     }
   };
 }
@@ -457,13 +632,19 @@ exports.handler = async (event) => {
 exports._test = {
   PROFILE_SELECT,
   SELECTED_MNP_LABEL,
+  addAlarmMetrics,
+  addEnergyMetrics,
   addFixedAcquisitionMetrics,
   addFixedActivationMetrics,
+  addInsuranceMetrics,
   addContractToMetrics,
   buildProfileResolver,
   classifyFixedTechnology,
   classifyMnp,
+  emptyAlarmMetrics,
+  emptyEnergyMetrics,
   emptyFixedMetrics,
+  emptyInsuranceMetrics,
   emptyMetrics,
   fixedOutcomeKey,
   isApriChiudiEnabled,

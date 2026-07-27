@@ -42,16 +42,16 @@
     <div class="kpi-category-tabs" role="tablist" aria-label="Categorie Vendita Consumer">
       <button class="kpi-category-tab" type="button" role="tab" aria-selected="true" data-kpi-category="mobile">Mobile</button>
       <button class="kpi-category-tab" type="button" role="tab" aria-selected="false" data-kpi-category="fixed">Fisso</button>
-      <button class="kpi-category-tab is-coming" type="button" role="tab" aria-selected="false" disabled>Costumer Energy</button>
-      <button class="kpi-category-tab is-coming" type="button" role="tab" aria-selected="false" disabled>Allarmi</button>
-      <button class="kpi-category-tab is-coming" type="button" role="tab" aria-selected="false" disabled>Assicurazioni</button>
+      <button class="kpi-category-tab" type="button" role="tab" aria-selected="false" data-kpi-category="energy">Luce &amp; Gas</button>
+      <button class="kpi-category-tab" type="button" role="tab" aria-selected="false" data-kpi-category="alarms">Allarmi</button>
+      <button class="kpi-category-tab" type="button" role="tab" aria-selected="false" data-kpi-category="insurance">Assicurazioni</button>
     </div>
 
-    <div class="kpi-loading is-visible" id="kpiLoading">Caricamento KPI Mobile Consumer...</div>
+    <div class="kpi-loading is-visible" id="kpiLoading">Caricamento KPI Vendita Consumer...</div>
     <div class="kpi-error" id="kpiError"></div>
 
     <div class="kpi-content is-loading" id="kpiContent">
-      <div class="kpi-category-content" id="mobileKpiContent">
+      <div class="kpi-category-content" id="mobileKpiContent" data-kpi-content="mobile">
         <section class="kpi-section">
           <header class="kpi-section-header">
             <div>
@@ -83,7 +83,7 @@
         </section>
       </div>
 
-      <div class="kpi-category-content is-hidden" id="fixedKpiContent">
+      <div class="kpi-category-content is-hidden" id="fixedKpiContent" data-kpi-content="fixed">
         <section class="kpi-section">
           <header class="kpi-section-header">
             <div>
@@ -134,6 +134,63 @@
           </header>
           <div class="kpi-table-wrap" id="fixedTechnologyMixTable"></div>
           <p class="kpi-data-note" id="fixedTechnologyMixNote"></p>
+        </section>
+      </div>
+
+      <div class="kpi-category-content is-hidden" id="energyKpiContent" data-kpi-content="energy">
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Acquisito Luce &amp; Gas</h2>
+              <p class="kpi-section-description">Totale dei contratti Luce &amp; Gas inseriti in ogni mese.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="energyAcquisitionsTable"></div>
+        </section>
+
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Attivato Luce &amp; Gas</h2>
+              <p class="kpi-section-description">Contratti con stato Attivato, mantenuti nel mese originale di inserimento.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="energyActivatedTable"></div>
+        </section>
+      </div>
+
+      <div class="kpi-category-content is-hidden" id="alarmsKpiContent" data-kpi-content="alarms">
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Acquisizioni Allarmi</h2>
+              <p class="kpi-section-description">Pezzi inseriti con dettaglio del metodo di pagamento.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="alarmAcquisitionsTable"></div>
+          <p class="kpi-data-note" id="alarmPaymentNote"></p>
+        </section>
+
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Allarmi Attivati</h2>
+              <p class="kpi-section-description">Allarmi con stato OK, conteggiati nel mese originale di inserimento.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="alarmActivatedTable"></div>
+        </section>
+      </div>
+
+      <div class="kpi-category-content is-hidden" id="insuranceKpiContent" data-kpi-content="insurance">
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Assicurazioni</h2>
+              <p class="kpi-section-description">Pezzi inseriti e punteggio gara totale salvato sui contratti.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="insuranceTable"></div>
         </section>
       </div>
 

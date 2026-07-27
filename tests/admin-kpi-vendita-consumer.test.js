@@ -5,13 +5,19 @@ const kpiModule = require('../netlify/functions/admin-kpi-vendita-consumer.js');
 const {
   PROFILE_SELECT,
   SELECTED_MNP_LABEL,
+  addAlarmMetrics,
+  addEnergyMetrics,
   addFixedAcquisitionMetrics,
   addFixedActivationMetrics,
+  addInsuranceMetrics,
   addContractToMetrics,
   buildProfileResolver,
   classifyFixedTechnology,
   classifyMnp,
+  emptyAlarmMetrics,
+  emptyEnergyMetrics,
   emptyFixedMetrics,
+  emptyInsuranceMetrics,
   emptyMetrics,
   fixedOutcomeKey,
   isApriChiudiEnabled,
@@ -119,6 +125,69 @@ test('attivati e Apri Chiudi Fisso seguono il mese di attivazione', () => {
   assert.equal(metrics.apri_chiudi_fwa[7], 1);
   assert.equal(isApriChiudiEnabled('Sì'), true);
   assert.equal(isApriChiudiEnabled('No'), false);
+});
+
+test('Luce e Gas conta acquisiti e attivati nel mese di inserimento', () => {
+  const metrics = emptyEnergyMetrics();
+
+  addEnergyMetrics(metrics, {
+    data_contratto: '2026-04-05T10:00:00.000Z'
+  }, {
+    stato: 'Attivato'
+  });
+  addEnergyMetrics(metrics, {
+    data_contratto: '2026-04-18T10:00:00.000Z'
+  }, {
+    stato: 'In attivazione'
+  });
+
+  assert.equal(metrics.acquisitions[3], 2);
+  assert.equal(metrics.activated[3], 1);
+});
+
+test('Allarmi divide i pagamenti e mantiene gli attivati nel mese di inserimento', () => {
+  const metrics = emptyAlarmMetrics();
+
+  addAlarmMetrics(metrics, {
+    data_contratto: '2026-06-08T10:00:00.000Z',
+    modalita_pagamento: 'Anticipo'
+  }, {
+    stato: 'OK',
+    stato_cambiato_at: '2026-08-12T10:00:00.000Z'
+  });
+  addAlarmMetrics(metrics, {
+    data_contratto: '2026-06-20T10:00:00.000Z',
+    modalita_pagamento: 'Finanziamento'
+  }, {
+    stato: 'In Attivazione'
+  });
+  addAlarmMetrics(metrics, {
+    data_contratto: '2026-06-28T10:00:00.000Z',
+    modalita_pagamento: null
+  }, null);
+
+  assert.equal(metrics.acquisitions[5], 3);
+  assert.equal(metrics.payment_advance[5], 1);
+  assert.equal(metrics.payment_financing[5], 1);
+  assert.equal(metrics.payment_unclassified[5], 1);
+  assert.equal(metrics.activated[5], 1);
+  assert.equal(metrics.activated[7], 0);
+});
+
+test('Assicurazioni somma i pezzi e il punteggio gara salvato', () => {
+  const metrics = emptyInsuranceMetrics();
+
+  addInsuranceMetrics(metrics, {
+    data_contratto: '2026-07-03T10:00:00.000Z',
+    punteggio_gara_totale: '1.5'
+  });
+  addInsuranceMetrics(metrics, {
+    data_contratto: '2026-07-14T10:00:00.000Z',
+    punteggio_gara_totale: 2
+  });
+
+  assert.equal(metrics.pieces[6], 2);
+  assert.equal(metrics.points[6], 3.5);
 });
 
 test('il confronto operatori consolida i profili alias sul canonico', () => {

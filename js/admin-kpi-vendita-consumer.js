@@ -8,6 +8,7 @@
     '9001415852': 'Legnago',
     '9000822241': 'Cerea'
   };
+  const CATEGORIES = ['mobile', 'fixed', 'energy', 'alarms', 'insurance'];
 
   const refs = {};
   let state = null;
@@ -49,6 +50,9 @@
     if (format === 'percent') {
       return `${new Intl.NumberFormat('it-IT', { maximumFractionDigits: 1 }).format(Number(value))}%`;
     }
+    if (format === 'points') {
+      return new Intl.NumberFormat('it-IT', { maximumFractionDigits: 2 }).format(Number(value));
+    }
     return String(Number(value || 0));
   }
 
@@ -89,7 +93,8 @@
     return rows.map((row) => {
       const classes = [
         row.total ? 'kpi-total-row' : '',
-        row.format === 'percent' ? 'kpi-percentage-row' : ''
+        row.format === 'percent' ? 'kpi-percentage-row' : '',
+        row.format === 'points' ? 'kpi-points-row' : ''
       ].filter(Boolean).join(' ');
       const rowClass = classes ? ` class="${classes}"` : '';
       const total = Object.prototype.hasOwnProperty.call(row, 'totalValue')
@@ -138,8 +143,8 @@
   }
 
   function operatorConfig() {
-    if (activeCategory === 'fixed') {
-      return {
+    const configs = {
+      fixed: {
         description: 'Confronto Fisso per operatore: inserimenti, esiti, attivazioni e Apri/Chiudi.',
         columns: [
           { key: 'acquisitions', label: 'Acquisizioni' },
@@ -148,25 +153,47 @@
           { key: 'outcome_in_activation', label: 'In Attivazione' },
           { key: 'apri_chiudi_total', label: 'Apri/Chiudi' }
         ]
-      };
-    }
-
-    return {
-      description: 'Confronto Mobile per operatore sugli stessi KPI della categoria.',
-      columns: [
-        { key: 'acquisitions', label: 'Acquisizioni' },
-        { key: 'mnp_total', label: 'MNP totali' },
-        { key: 'mnp_standard', label: 'MNP Standard' },
-        { key: 'mnp_selected', label: 'MNP selezionati' },
-        { key: 'smartphone', label: 'Smartphone' }
-      ]
+      },
+      energy: {
+        description: 'Confronto Luce & Gas per operatore, mantenuto nel mese di inserimento.',
+        columns: [
+          { key: 'acquisitions', label: 'Acquisiti' },
+          { key: 'activated', label: 'Attivati' }
+        ]
+      },
+      alarms: {
+        description: 'Confronto Allarmi per operatore: pezzi, pagamenti e attivati.',
+        columns: [
+          { key: 'acquisitions', label: 'Pezzi' },
+          { key: 'payment_advance', label: 'Anticipo' },
+          { key: 'payment_financing', label: 'Finanziati' },
+          { key: 'activated', label: 'Attivati' }
+        ]
+      },
+      insurance: {
+        description: 'Confronto Assicurazioni per operatore: pezzi inseriti e punti.',
+        columns: [
+          { key: 'pieces', label: 'Pezzi' },
+          { key: 'points', label: 'Punti', format: 'points' }
+        ]
+      },
+      mobile: {
+        description: 'Confronto Mobile per operatore sugli stessi KPI della categoria.',
+        columns: [
+          { key: 'acquisitions', label: 'Acquisizioni' },
+          { key: 'mnp_total', label: 'MNP totali' },
+          { key: 'mnp_standard', label: 'MNP Standard' },
+          { key: 'mnp_selected', label: 'MNP selezionati' },
+          { key: 'smartphone', label: 'Smartphone' }
+        ]
+      }
     };
+
+    return configs[activeCategory] || configs.mobile;
   }
 
   function renderOperators() {
-    const categoryState = activeCategory === 'fixed'
-      ? state.fixed
-      : (state.mobile || { operators: state.operators });
+    const categoryState = state[activeCategory] || (state.mobile || { operators: state.operators });
     const operators = categoryState?.operators || [];
     const period = refs.operatorPeriod.value;
     const config = operatorConfig();
@@ -186,7 +213,7 @@
       <tr>
         <td>${escapeHtml(operator.nome)}</td>
         ${config.columns.map((column) => (
-          `<td>${operatorMetricValue(operator, column.key, period)}</td>`
+          `<td>${formatValue(operatorMetricValue(operator, column.key, period), column.format)}</td>`
         )).join('')}
       </tr>
     `).join('');
@@ -309,19 +336,61 @@
       : '';
   }
 
+  function renderEnergy() {
+    const metrics = state.energy.totals;
+    renderMonthlyTable(refs.energyAcquisitionsTable, [
+      { label: 'Totale acquisizioni', series: metrics.acquisitions.months, total: true }
+    ]);
+    renderMonthlyTable(refs.energyActivatedTable, [
+      { label: 'Contratti attivati', series: metrics.activated.months, total: true }
+    ]);
+  }
+
+  function renderAlarms() {
+    const metrics = state.alarms.totals;
+    renderMonthlyTable(refs.alarmAcquisitionsTable, [
+      { label: 'Totale pezzi inseriti', series: metrics.acquisitions.months, total: true },
+      { label: 'Pagamento con anticipo', series: metrics.payment_advance.months },
+      { label: 'Pagamento finanziato', series: metrics.payment_financing.months }
+    ]);
+    renderMonthlyTable(refs.alarmActivatedTable, [
+      { label: 'Allarmi attivati', series: metrics.activated.months, total: true }
+    ]);
+
+    const unclassified = visibleTotal(
+      metrics.payment_unclassified.months,
+      Number(state.filters.year)
+    );
+    refs.alarmPaymentNote.textContent = unclassified > 0
+      ? `${unclassified === 1 ? '1 allarme ha' : `${unclassified} allarmi hanno`} il metodo di pagamento ancora da completare.`
+      : '';
+  }
+
+  function renderInsurance() {
+    const metrics = state.insurance.totals;
+    renderMonthlyTable(refs.insuranceTable, [
+      { label: 'Totale pezzi inseriti', series: metrics.pieces.months, total: true },
+      { label: 'Punti totali', series: metrics.points.months, format: 'points' }
+    ]);
+  }
+
   function switchCategory(category) {
-    activeCategory = category === 'fixed' ? 'fixed' : 'mobile';
+    activeCategory = CATEGORIES.includes(category) ? category : 'mobile';
     refs.categoryTabs.forEach((button) => {
       button.setAttribute('aria-selected', String(button.dataset.kpiCategory === activeCategory));
     });
-    refs.mobileContent.classList.toggle('is-hidden', activeCategory !== 'mobile');
-    refs.fixedContent.classList.toggle('is-hidden', activeCategory !== 'fixed');
+    refs.categoryContents.forEach((content) => {
+      content.classList.toggle('is-hidden', content.dataset.kpiContent !== activeCategory);
+    });
     if (state) renderOperators();
   }
 
   function render() {
     renderMobile();
     renderFixed();
+    renderEnergy();
+    renderAlarms();
+    renderInsurance();
 
     switchCategory(activeCategory);
     refs.updatedAt.textContent = `Aggiornato il ${formatUpdatedAt(state.generated_at)}`;
@@ -412,8 +481,7 @@
     refs.error = document.getElementById('kpiError');
     refs.content = document.getElementById('kpiContent');
     refs.categoryTabs = Array.from(document.querySelectorAll('[data-kpi-category]'));
-    refs.mobileContent = document.getElementById('mobileKpiContent');
-    refs.fixedContent = document.getElementById('fixedKpiContent');
+    refs.categoryContents = Array.from(document.querySelectorAll('[data-kpi-content]'));
     refs.acquisitionsTable = document.getElementById('acquisitionsTable');
     refs.mnpTable = document.getElementById('mnpTable');
     refs.smartphoneTable = document.getElementById('smartphoneTable');
@@ -424,6 +492,12 @@
     refs.fixedApriChiudiTable = document.getElementById('fixedApriChiudiTable');
     refs.fixedTechnologyMixTable = document.getElementById('fixedTechnologyMixTable');
     refs.fixedTechnologyMixNote = document.getElementById('fixedTechnologyMixNote');
+    refs.energyAcquisitionsTable = document.getElementById('energyAcquisitionsTable');
+    refs.energyActivatedTable = document.getElementById('energyActivatedTable');
+    refs.alarmAcquisitionsTable = document.getElementById('alarmAcquisitionsTable');
+    refs.alarmPaymentNote = document.getElementById('alarmPaymentNote');
+    refs.alarmActivatedTable = document.getElementById('alarmActivatedTable');
+    refs.insuranceTable = document.getElementById('insuranceTable');
     refs.operatorPeriod = document.getElementById('operatorPeriod');
     refs.operatorDescription = document.getElementById('operatorDescription');
     refs.operatorHead = document.getElementById('operatorHead');
