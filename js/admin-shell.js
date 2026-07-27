@@ -19,11 +19,13 @@
     'admin-utenti.html': { title: 'Gestione Utenti', key: 'utenti' },
     'admin-call-center-config.html': { title: 'Configurazione Call Center', key: 'call-center' },
     'admin-vendita-config.html': { title: 'Catalogo Vendita', key: 'vendita' },
-    'admin-gare.html': { title: 'Gare & Avanzamento', key: 'gare' }
+    'admin-gare.html': { title: 'Gare & Avanzamento', key: 'gare' },
+    'admin-kpi-vendita-consumer.html': { title: 'Vendita - Consumer', key: 'kpi-vendita-consumer' }
   };
 
   const currentFile = window.location.pathname.split('/').pop() || 'admin.html';
   const currentPage = pages[currentFile] || pages['admin.html'];
+  const isKpiPage = currentPage.key.startsWith('kpi-');
 
   function navLink(href, key, label, icon) {
     const active = currentPage.key === key;
@@ -44,12 +46,12 @@
         '<nav class="mx-admin-nav">',
           '<div class="mx-admin-nav-label">Reparti</div>',
           '<section class="mx-admin-nav-group">',
-            '<button class="mx-admin-group-toggle" type="button" data-admin-group="configurazioni" aria-expanded="true" aria-controls="mxAdminConfigNav">',
+            '<button class="mx-admin-group-toggle" type="button" data-admin-group="configurazioni" aria-expanded="', String(!isKpiPage), '" aria-controls="mxAdminConfigNav">',
               '<span class="mx-admin-group-icon">', icons.settings, '</span>',
               '<span class="mx-admin-group-text">Configurazioni</span>',
               '<svg class="mx-admin-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"/></svg>',
             '</button>',
-            '<div class="mx-admin-subnav is-open" id="mxAdminConfigNav" aria-hidden="false">',
+            '<div class="mx-admin-subnav', isKpiPage ? '' : ' is-open', '" id="mxAdminConfigNav" aria-hidden="', String(isKpiPage), '">',
               '<div class="mx-admin-subnav-inner"><div class="mx-admin-subnav-list">',
                 navLink('admin-utenti.html', 'utenti', 'Gestione Utenti', icons.users),
                 navLink('admin-call-center-config.html', 'call-center', 'Configurazione Call Center', icons.phone),
@@ -59,16 +61,15 @@
             '</div>',
           '</section>',
           '<section class="mx-admin-nav-group">',
-            '<button class="mx-admin-group-toggle" type="button" data-admin-group="kpi" aria-expanded="false" aria-controls="mxAdminKpiNav">',
+            '<button class="mx-admin-group-toggle" type="button" data-admin-group="kpi" aria-expanded="', String(isKpiPage), '" aria-controls="mxAdminKpiNav">',
               '<span class="mx-admin-group-icon">', icons.chart, '</span>',
               '<span class="mx-admin-group-text">KPI</span>',
-              '<span class="mx-admin-group-badge">Presto</span>',
               '<svg class="mx-admin-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"/></svg>',
             '</button>',
-            '<div class="mx-admin-subnav" id="mxAdminKpiNav" aria-hidden="true">',
-              '<div class="mx-admin-subnav-inner">',
-                '<div class="mx-admin-empty-group">Nessun modulo disponibile al momento.</div>',
-              '</div>',
+            '<div class="mx-admin-subnav', isKpiPage ? ' is-open' : '', '" id="mxAdminKpiNav" aria-hidden="', String(!isKpiPage), '">',
+              '<div class="mx-admin-subnav-inner"><div class="mx-admin-subnav-list">',
+                navLink('admin-kpi-vendita-consumer.html', 'kpi-vendita-consumer', 'Vendita - Consumer', icons.chart),
+              '</div></div>',
             '</div>',
           '</section>',
         '</nav>',

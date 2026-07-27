@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vendita - Consumer | KPI Mirox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/admin-shell.css">
+  <link rel="stylesheet" href="css/admin-kpi.css">
+  <script src="js/mirox-safe.js"></script>
+  <script src="js/admin-shell.js" defer></script>
+</head>
+<body class="mx-admin-shell">
+  <main class="admin-container kpi-page">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Vendita - Consumer</h1>
+        <p class="page-subtitle">KPI mensili del negozio e confronto tra operatori</p>
+      </div>
+    </div>
+
+    <section class="kpi-filter-bar" aria-label="Filtri KPI">
+      <div class="kpi-filter-field">
+        <label for="kpiYear">Anno</label>
+        <select id="kpiYear"></select>
+      </div>
+      <div class="kpi-filter-field">
+        <label for="kpiStore">Punto vendita</label>
+        <select id="kpiStore">
+          <option value="all">Tutti</option>
+          <option value="9001415852">Legnago</option>
+          <option value="9000822241">Cerea</option>
+        </select>
+      </div>
+      <button class="kpi-filter-button" id="kpiRefresh" type="button">Aggiorna dati</button>
+      <div class="kpi-update-meta" id="kpiUpdatedAt">In attesa dei dati</div>
+    </section>
+
+    <div class="kpi-category-tabs" role="tablist" aria-label="Categorie Vendita Consumer">
+      <button class="kpi-category-tab" type="button" role="tab" aria-selected="true">Mobile</button>
+      <button class="kpi-category-tab is-coming" type="button" role="tab" aria-selected="false" disabled>Fisso</button>
+      <button class="kpi-category-tab is-coming" type="button" role="tab" aria-selected="false" disabled>Costumer Energy</button>
+      <button class="kpi-category-tab is-coming" type="button" role="tab" aria-selected="false" disabled>Allarmi</button>
+      <button class="kpi-category-tab is-coming" type="button" role="tab" aria-selected="false" disabled>Assicurazioni</button>
+    </div>
+
+    <div class="kpi-loading is-visible" id="kpiLoading">Caricamento KPI Mobile Consumer...</div>
+    <div class="kpi-error" id="kpiError"></div>
+
+    <div class="kpi-content is-loading" id="kpiContent">
+      <section class="kpi-summary-grid" aria-label="Riepilogo Mobile Consumer">
+        <article class="kpi-summary-card">
+          <div class="kpi-summary-label">Acquisizioni</div>
+          <div class="kpi-summary-value" id="summaryAcquisitions">0</div>
+          <div class="kpi-summary-note" id="summaryScope">Anno selezionato</div>
+        </article>
+        <article class="kpi-summary-card">
+          <div class="kpi-summary-label">MNP totali</div>
+          <div class="kpi-summary-value" id="summaryMnp">0</div>
+          <div class="kpi-summary-note">Standard e gestori selezionati</div>
+        </article>
+        <article class="kpi-summary-card">
+          <div class="kpi-summary-label">Smartphone associati</div>
+          <div class="kpi-summary-value" id="summarySmartphone">0</div>
+          <div class="kpi-summary-note">Contratti con flag dispositivo attivo</div>
+        </article>
+      </section>
+
+      <section class="kpi-section">
+        <header class="kpi-section-header">
+          <div>
+            <h2 class="kpi-section-title">Acquisizioni</h2>
+            <p class="kpi-section-description">Tutte le righe Mobile Consumer inserite nel mese.</p>
+          </div>
+        </header>
+        <div class="kpi-table-wrap" id="acquisitionsTable"></div>
+      </section>
+
+      <section class="kpi-section">
+        <header class="kpi-section-header">
+          <div>
+            <h2 class="kpi-section-title">Dettaglio MNP</h2>
+            <p class="kpi-section-description">Totale MNP con dettaglio Standard e gestori selezionati.</p>
+          </div>
+        </header>
+        <div class="kpi-table-wrap" id="mnpTable"></div>
+      </section>
+
+      <section class="kpi-section">
+        <header class="kpi-section-header">
+          <div>
+            <h2 class="kpi-section-title">Dettaglio Smartphone</h2>
+            <p class="kpi-section-description">Contratti Mobile Consumer con dispositivo associato.</p>
+          </div>
+        </header>
+        <div class="kpi-table-wrap" id="smartphoneTable"></div>
+      </section>
+
+      <section class="kpi-section">
+        <header class="kpi-section-header">
+          <div>
+            <h2 class="kpi-section-title">Confronto operatori</h2>
+            <p class="kpi-section-description">Confronto compatto degli stessi KPI per operatore canonico.</p>
+          </div>
+          <div class="kpi-operator-controls">
+            <label for="operatorPeriod">Periodo</label>
+            <select id="operatorPeriod"></select>
+          </div>
+        </header>
+        <div class="kpi-table-wrap">
+          <table class="kpi-table kpi-operator-table">
+            <thead>
+              <tr>
+                <th>Operatore</th>
+                <th>Acquisizioni</th>
+                <th>MNP totali</th>
+                <th>MNP Standard</th>
+                <th>MNP selezionati</th>
+                <th>Smartphone</th>
+              </tr>
+            </thead>
+            <tbody id="operatorBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/mirox-ui.js"></script>
+  <script src="js/mirox-api.js"></script>
+  <script src="js/mirox-error-reporter.js"></script>
+  <script src="js/admin-kpi-vendita-consumer.js"></script>
+  <script>
+    if (window.MiroxErrorReporter) {
+      window.MiroxErrorReporter.install({ source: 'admin-kpi-vendita-consumer' });
+    }
+
+    (async () => {
+      const profilo = await Auth.richiediAuth();
+      if (!profilo) return;
+      if (profilo.ruolo !== 'admin') {
+        await MiroxUI.alert('Accesso riservato agli amministratori.', {
+          type: 'error',
+          title: 'Accesso negato'
+        });
+        window.location.href = 'dashboard.html';
+        return;
+      }
+
+      await MiroxAdminKpiVenditaConsumer.init();
+    })();
+  </script>
+</body>
+</html>

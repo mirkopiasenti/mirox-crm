@@ -101,7 +101,7 @@ Modifiche a schema / RLS / RPC / trigger su queste tabelle hanno rischio di **ro
 
 ### 1. Frontend (`/`, `/moduli/`, `/moduli/call-center/`, `/js/`, `/css/`)
 
-Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pubblica esclusivamente `dist/`, generata copiando gli HTML root e le directory `assets/`, `css/`, `js/`, `moduli/`; `dist/` è ignorata da Git. Backend, migration, test, script, file Markdown e configurazioni non devono mai essere aggiunti alla lista pubblica. `/moduli/call-center/` contiene il modulo CC integrato (Fase 1, vedi sezione dedicata). Le pagine `admin*.html` alla root costituiscono il **Pannello Admin Mirox** (`admin.html` hub + `admin-utenti.html` + `admin-call-center-config.html` + `admin-vendita-config.html` + `admin-gare.html`), tutte gated da `profili.ruolo='admin'`. La shell condivisa dell'area Admin è generata da `js/admin-shell.js` e stilizzata da `css/admin-shell.css`: sidebar sinistra persistente su desktop, drawer su mobile e area operativa a destra. JS condiviso Mirox esposto su `window`:
+Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pubblica esclusivamente `dist/`, generata copiando gli HTML root e le directory `assets/`, `css/`, `js/`, `moduli/`; `dist/` è ignorata da Git. Backend, migration, test, script, file Markdown e configurazioni non devono mai essere aggiunti alla lista pubblica. `/moduli/call-center/` contiene il modulo CC integrato (Fase 1, vedi sezione dedicata). Le pagine `admin*.html` alla root costituiscono il **Pannello Admin Mirox** (`admin.html` hub + `admin-utenti.html` + `admin-call-center-config.html` + `admin-vendita-config.html` + `admin-gare.html` + `admin-kpi-vendita-consumer.html`), tutte gated da `profili.ruolo='admin'`. La shell condivisa dell'area Admin è generata da `js/admin-shell.js` e stilizzata da `css/admin-shell.css`: sidebar sinistra persistente su desktop, drawer su mobile e area operativa a destra. `admin-kpi-vendita-consumer.html` aggiunge `css/admin-kpi.css` e `js/admin-kpi-vendita-consumer.js` per la visualizzazione KPI. JS condiviso Mirox esposto su `window`:
 
 | File JS | Espone | Uso |
 |---|---|---|
@@ -117,15 +117,16 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 | `js/mirox-folder.js` | `window.MiroxFolder` | `build(oldName, newName, date)` per nomi cartella Storage |
 | `js/mirox-mailer.js` | `window.MiroxMailer` | `send({to, template, vars})` |
 | `js/mirox-error-reporter.js` | `window.MiroxErrorReporter` | `now()` timestamp Europe/Rome; `report({source, level, title, message, technical, context, silent})` invia mail di notifica al proprietario via `mirox-send-email` con throttling 60s per fingerprint; `install({source, ownerEmail})` aggancia handler globali `window.error` + `unhandledrejection`. Destinatario default `mirko.piasenti@gmail.com`. Vedi sezione "Sistema di error reporting via email" |
-| `js/admin-shell.js` | `window.MiroxAdminShell` | Shell comune delle pagine `admin*.html`: genera sidebar a reparti, evidenzia il modulo corrente, gestisce accordion, drawer mobile, profilo e logout. `Configurazioni` contiene i 4 moduli correnti; `KPI` è predisposto senza sottovoci |
+| `js/admin-shell.js` | `window.MiroxAdminShell` | Shell comune delle pagine `admin*.html`: genera sidebar a reparti, evidenzia il modulo corrente, gestisce accordion, drawer mobile, profilo e logout. `Configurazioni` contiene i 4 moduli correnti; `KPI` contiene `Vendita - Consumer` |
 | `js/vendita-storage-helper.js` | `uploadVenditaDocumento(...)` | wrapper upload PDF via Netlify function |
 
 ### 2. Server (`/netlify/functions/`, Node >=22)
 
-Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i due cron Netlify e `public-prenota`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `admin-vendita-config`, `elimina-vendita-contratto` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. 20 functions + 6 lib condivise (`_lib/mailer.js`, `_lib/require-auth.js`, `_lib/smshosting.js`, `_lib/privacy-config.js`, `_lib/pdf-consenso.js`, `_lib/score-integrity.js`):
+Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i due cron Netlify e `public-prenota`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `admin-vendita-config`, `admin-kpi-vendita-consumer`, `elimina-vendita-contratto` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. 21 functions + 6 lib condivise (`_lib/mailer.js`, `_lib/require-auth.js`, `_lib/smshosting.js`, `_lib/privacy-config.js`, `_lib/pdf-consenso.js`, `_lib/score-integrity.js`):
 
 - `vendita-config.js` (GET) — catalogo per wizard
 - `admin-vendita-config.js` (GET/POST action-based) — CRUD admin offerte/opzioni/reload + replace regole documentali
+- `admin-kpi-vendita-consumer.js` (GET) — endpoint admin-only per KPI Vendita Consumer. Legge `vendita_contratti` Mobile/Consumer per anno e punto vendita, aggrega acquisizioni, MNP standard/selezionata e smartphone per mese, poi produce lo stesso confronto sugli operatori canonici risolvendo `profili.alias_di`.
 - `crea-vendita-pratica-carrello.js` (POST action-based) — `create`: anagrafica upsert → pratica `bozza` → N contratti, PDA e validazioni; l'operatore è derivato dal JWT e non dal payload. I quattro componenti punteggio sono letti dal catalogo con parser stretto, poi confrontati con la riga realmente restituita dal DB: una divergenza attiva il rollback della pratica in bozza. `finalize`: dopo tutti gli upload passa la pratica a `inviata` e chiude gli eventi CC. `rollback_upload_failure`: elimina in modo compensativo pratica `bozza`, contratti, record documento e file già caricati. Le action sono idempotenti e consentite solo all'operatore proprietario o a un admin. Il reinserimento è validato anche server-side su stessa anagrafica, categoria, mese solare Europe/Rome e stato post-vendita. Cellulare obbligatorio; email obbligatoria per Consumer/Business e facoltativa per Turista.
 - `upload-vendita-documento.js` (POST multipart busboy, max 20MB) — accetta solo file con MIME e firma `%PDF-`, verifica proprietà operatore/admin per le bozze e consente agli operatori attivi la gestione delle pratiche `inviata` da Verifica Contratti. Valida relazioni pratica/anagrafica/contratto, deriva il path dalla pratica a DB e usa come `uploaded_by` il profilo autenticato. Rollback del file se l'INSERT DB fallisce. In staging con `temp_session_id` salva in `temp/<sess>/` senza record DB.
 - `upload-documento-modulo.js` (POST multipart busboy, max 20MB) — upload server-side autenticato per `apri-chiudi-files`, `switch-sim-files`, `comodato-files`, `rimborsi-files`, `protecta-files`, `segnalazioni-files`. Verifica firma `%PDF-`, bucket e struttura path tramite allowlist; usa `upsert:false`, genera un suffisso anti-collisione e registra `uploaded_by` dal JWT nei metadati Storage.
@@ -489,7 +490,7 @@ Form esterno per prenotazioni dal sito/social. **NON in dashboard** (non ha auth
 
 ## Pannello Admin Mirox (dal 2026-06-24, shell condivisa dal 2026-07-27)
 
-Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile dalla dashboard come bottone topbar "Admin" (disabilitato per operatori). Tutte le pagine riusano `css/admin-shell.css` + `js/admin-shell.js`: a sinistra compare la navigazione per reparti, a destra il contenuto della pagina. `Configurazioni` è aperto di default e contiene i quattro moduli correnti; `KPI` è visibile ma vuoto. Sotto gli 860 px la sidebar diventa un drawer. La shell deve mantenere continuità con il design system esistente: logo ufficiale `assets/logo.png`, palette chiara, arancione Mirox, variabili colore condivise, radius e ombre di `css/style.css`; non introdurre marchi o simboli sostitutivi.
+Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile dalla dashboard come bottone topbar "Admin" (disabilitato per operatori). Tutte le pagine riusano `css/admin-shell.css` + `js/admin-shell.js`: a sinistra compare la navigazione per reparti, a destra il contenuto della pagina. `Configurazioni` è aperto di default e contiene i quattro moduli correnti; `KPI` contiene il modulo `Vendita - Consumer` e si apre automaticamente nelle relative pagine. Sotto gli 860 px la sidebar diventa un drawer. La shell deve mantenere continuità con il design system esistente: logo ufficiale `assets/logo.png`, palette chiara, arancione Mirox, variabili colore condivise, radius e ombre di `css/style.css`; non introdurre marchi o simboli sostitutivi.
 
 ### Pagine
 
@@ -500,6 +501,16 @@ Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile
 | `admin-call-center-config.html` | Configurazione CC (orari settimanali, blocchi/chiusure, parametri sistema). Spostata da `moduli/call-center/configurazione.html` (eliminata). NON dipende da `CcHeader` o dai JS del CC: usa solo `js/config.js` + `js/auth.js` + `js/mirox-ui.js` Mirox |
 | `admin-vendita-config.html` | CRUD cataloghi vendita. Check `ruolo='admin'`; la navigazione verso gli altri moduli passa dalla shell condivisa |
 | `admin-gare.html` | Configurazione metriche, obiettivi mensili, compensi e operatori in gara |
+| `admin-kpi-vendita-consumer.html` | Reparto KPI, modulo Vendita - Consumer. Tab nell'ordine Mobile, Fisso, Costumer Energy, Allarmi, Assicurazioni; Mobile è attiva, le altre sono predisposte. Filtri anno/negozio, tre tabelle KPI mensili e confronto operatori |
+
+### Regole KPI Vendita - Consumer
+
+- Il tab Mobile conta esclusivamente `vendita_contratti` con `categoria_snapshot='Mobile'` e `cluster_cliente='Consumer'`; ogni riga vale una acquisizione.
+- Il mese deriva da `data_contratto` nel fuso `Europe/Rome`. Nell'anno corrente il totale mostrato è YTD e i mesi futuri restano vuoti.
+- `Dettaglio MNP` mostra prima il totale, poi `MNP Standard` e `MNP da seguenti operatori: Iliad - Coop - Poste - Tiscali`; lo snapshot dell'opzione è la fonte del conteggio.
+- `Dettaglio Smartphone` usa il flag del singolo contratto `dispositivo_associato=true`, non la capacità dell'offerta di supportare dispositivi.
+- Il filtro punto vendita accetta `all`, `9001415852` (Legnago) e `9000822241` (Cerea), con default `all`.
+- Il confronto operatori aggrega sul profilo canonico seguendo `profili.alias_di`; una riga senza operatore resta esplicitamente non assegnata per mantenere la riconciliazione con il totale negozio.
 
 ### Guard pattern (riusato in tutte le pagine admin*)
 
@@ -552,18 +563,17 @@ Ogni errore tecnico nel CRM (rete, OCR, submit, JS non gestiti...) viene notific
 3. Negli `catch` di errori tecnici (rete, 5xx, eccezioni inattese): chiamare `MiroxErrorReporter.report({source, level, title, message, technical, context, silent:true})` oppure passare un quarto parametro `reportInfo` alle funzioni `showErrorOverlay`-style se la pagina ne ha una (il wizard upload-contratti-vendita ha integrato il pattern: vedi `showErrorOverlay(title, text, technicalText, reportInfo)` con `reportInfo = {level, errorCode, context}`)
 4. NON usare per errori di validazione utente ("compila il campo Email") — solo per problemi tecnici e di sistema. Il throttling 60s previene comunque flood
 
-### Implementato dove (al 2026-06-25)
+### Implementato dove (al 2026-07-27)
 
-**Integrazione globale (31 pagine, ogni pagina ha `install({source:'<nome>'})` al boot per catturare errori JS non gestiti):**
+**Integrazione globale (34 pagine, ogni pagina ha `install({source:'<nome>'})` al boot per catturare errori JS non gestiti):**
 
-- **Root** (6): `dashboard`, `admin`, `admin-utenti`, `admin-vendita-config`, `admin-call-center-config`, `admin-gare`
-- **Vendita/Post-Vendita** (15): `upload-contratti-vendita` (integrazione completa con `reportInfo` sui 5 catch tecnici principali + branching OCR credito esaurito), `apri_chiudi`, `switch_sim`, `ordini_smartphone`, `simulatore_protecta`, `dashboard_pezzi`, `storico_cliente`, `dispositivi_comodato`, `gestione_rimborsi`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `ticket`
+- **Root** (7): `dashboard`, `admin`, `admin-utenti`, `admin-vendita-config`, `admin-call-center-config`, `admin-gare`, `admin-kpi-vendita-consumer`
+- **Vendita/Post-Vendita** (16): `upload-contratti-vendita` (integrazione completa con `reportInfo` sui 5 catch tecnici principali + branching OCR credito esaurito), `apri_chiudi`, `switch_sim`, `ordini_smartphone`, `simulatore_protecta`, `dashboard_pezzi`, `storico_cliente`, `dispositivi_comodato`, `gestione_rimborsi`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `ticket`, `segnalazioni`
 - **Call Center** (11): `appuntamenti`, `appuntamenti-oggi`, `blacklist`, `call-center-lead-outbound`, `elenco-chiamate`, `esiti-appuntamenti`, `prenota-interno`, `prenota-interno-outbound`, `registra-chiamata`, `registra-chiamata-outbound`, `rilavorazione`
 
 **Pagine escluse (volutamente)**:
 
 - `index.html` — schermata di login, prima dell'autenticazione (nessun JWT da iniettare)
-- `moduli/segnalazioni.html` — esclusa per scelta operativa (da integrare in seconda battuta)
 - `moduli/call-center/prenota.html` — form pubblico anon (nessuna auth, `mirox-send-email` ritornerebbe 401)
 
 **Tipo di integrazione applicato sulle 30 pagine batch** (dal 2026-06-25):

@@ -17,20 +17,21 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 |---|---|
 | `index.html` | Login Supabase Auth |
 | `dashboard.html` | Home con tabs Vendita / Post-Vendita + topbar con bottoni Ticket / Call Center / **Admin** (visibile solo se `ruolo='admin'`) + badge ticket aperti |
-| `admin.html` | **Hub Admin Mirox** — shell a due aree con sidebar dei reparti e area di lavoro. `Configurazioni` contiene i 4 moduli esistenti; `KPI` è predisposto ma ancora vuoto. Accesso ristretto a `ruolo='admin'` |
+| `admin.html` | **Hub Admin Mirox** — shell a due aree con sidebar dei reparti e area di lavoro. `Configurazioni` contiene i 4 moduli esistenti; `KPI` raccoglie i moduli di analisi. Accesso ristretto a `ruolo='admin'` |
 | `admin-utenti.html` | Gestione utenti: ruoli admin/operatore, abilita/disabilita, permessi granulari Call Center, flag `in_gara`, colonna **Alias di** (unifica due account della stessa persona con backfill guidato del pregresso). Solo admin |
 | `admin-call-center-config.html` | Orari, blocchi e parametri di sistema del Call Center (spostata da `moduli/call-center/configurazione.html`). Solo admin |
 | `admin-vendita-config.html` | CRUD cataloghi (categorie, offerte, opzioni, reload, regole documenti). Solo admin |
 | `admin-gare.html` | Configurazione **Gare & Avanzamento** — metriche, obiettivi mensili per operatore, editor compenso a scaglioni + bonus, duplica dal mese precedente, flag operatori "in gara". Solo admin |
+| `admin-kpi-vendita-consumer.html` | KPI **Vendita - Consumer**. Tab Mobile attiva con Acquisizioni, Dettaglio MNP, Dettaglio Smartphone e confronto operatori; filtri anno e punto vendita. Solo admin |
 | `moduli/` | 16 pagine funzionali Vendita / Post-Vendita (`apri_chiudi`, `switch_sim`, `ordini_smartphone`, `dispositivi_comodato`, `gestione_rimborsi`, `segnalazioni`, `simulatore_protecta`, `storico_cliente`, `ticket`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `dashboard_pezzi` (3 tab: Day by Day + Gare Individuali + Avanzamento Mensile), `upload-contratti-vendita`) |
 | `moduli/call-center/` | **Modulo Call Center integrato (Fase 1)** — 11 pagine (`registra-chiamata`, `elenco-chiamate`, `rilavorazione`, `appuntamenti`, `appuntamenti-oggi`, `prenota-interno`, `esiti-appuntamenti`, `blacklist`, `call-center-lead-outbound`, `prenota-interno-outbound`, `registra-chiamata-outbound`) + `prenota.html` (form pubblico). La pagina `configurazione` è stata spostata sotto Admin Mirox (`admin-call-center-config.html`). Vedi sezione "Modulo Call Center" sotto e [CLAUDE.md](CLAUDE.md) per i dettagli di coordinamento col CC prod |
-| `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-safe` (escape HTML, URL/ID/colori sicuri), `mirox-storage`, `mirox-storage-upload`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `mirox-error-reporter`, `anagrafica-helper`, `vendita-storage-helper`, `admin-shell` |
-| `css/` | `style.css`, `mirox-modules.css`, `admin-shell.css` |
+| `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-safe` (escape HTML, URL/ID/colori sicuri), `mirox-storage`, `mirox-storage-upload`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `mirox-error-reporter`, `anagrafica-helper`, `vendita-storage-helper`, `admin-shell`; logica pagina KPI in `admin-kpi-vendita-consumer.js` |
+| `css/` | `style.css`, `mirox-modules.css`, `admin-shell.css`, `admin-kpi.css` |
 | `assets/` | Logo, favicon |
 | `scripts/build-static.js` | Build Netlify: copia in `dist/` soltanto HTML root e le directory pubbliche `assets/`, `css/`, `js/`, `moduli/` |
 | `dist/` | Output locale della build, ignorato da Git. Non contiene backend, migration, test o documentazione |
 | `netlify/functions/` | Endpoint server-side (vedi sotto) |
-| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`) |
+| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`, `score-integrity`) |
 | `tests/` | Test automatici Node (`node:test`): regressioni vendita, sicurezza/XSS, PDF privacy, sintassi e link locali |
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |
 | `netlify.toml` | Config Netlify, header di sicurezza (CSP/HSTS/Permissions-Policy) e cron |
@@ -45,6 +46,7 @@ Tutte le functions, eccetto i due cron Netlify e l'endpoint anon intenzionale `p
 |---|---|---|---|
 | `vendita-config` | GET | authenticated | Carica catalogo per il wizard contratti |
 | `admin-vendita-config` | GET / POST | **admin** | CRUD admin del catalogo |
+| `admin-kpi-vendita-consumer` | GET | **admin** | Aggrega i KPI Mobile Consumer per anno e punto vendita: acquisizioni, due tipologie MNP, smartphone e confronto per operatore canonico |
 | `crea-vendita-pratica-carrello` | POST | authenticated | Crea pratica + N contratti in stato provvisorio `bozza`, promuove i PDA e supporta le action idempotenti `finalize` / `rollback_upload_failure`. L'operatore viene sempre ricavato dal JWT. Per cluster `Turista` salva `cluster_cliente='Turista'` sui contratti, usa `Consumer` su `anagrafica` e non richiede email |
 | `upload-vendita-documento` | POST multipart | authenticated | Upload di PDF reali su `contratti-vendita` (anche staging `temp/<sess>/`). Verifica proprietà operatore/admin sulle bozze; sulle pratiche inviate consente la gestione da Verifica Contratti. Valida coerenza pratica/anagrafica/contratto, deriva il path dalla pratica e attribuisce l'upload all'utente autenticato |
 | `upload-documento-modulo` | POST multipart | authenticated | Upload server-side per i bucket operativi Apri/Chiudi, Switch SIM, Comodato, Rimborsi, Protecta e Segnalazioni. Accetta solo PDF reali max 20 MB, valida bucket/path tramite allowlist e registra l'operatore JWT nei metadati Storage |
@@ -181,7 +183,9 @@ Dal 2026-06-24 il bottone **Admin** della topbar dashboard è attivo per gli ute
 - **Catalogo Vendita** ([`admin-vendita-config.html`](admin-vendita-config.html)) — CRUD categorie/offerte/opzioni/reload. Ora gated dal ruolo `admin` (prima era protetto da una password client-side `1234`, rimossa)
 - **Gare & Avanzamento** ([`admin-gare.html`](admin-gare.html)) — configura metriche + obiettivi mensili per operatore + regole compenso a scaglioni + bonus una tantum. Bottone "Duplica dal mese precedente" per ripartire velocemente ad ogni cambio gara. Alimenta le tab "Gare Individuali" e "Avanzamento Mensile" del modulo `dashboard_pezzi`
 
-Il secondo reparto **KPI** è già visibile nella sidebar, ma non contiene ancora moduli. Su viewport mobili la sidebar diventa un menu richiudibile. Navigazione, stato attivo, profilo e logout sono generati da `js/admin-shell.js`; aspetto e adattamento responsive sono centralizzati in `css/admin-shell.css`. La shell riusa il logo ufficiale `assets/logo.png`, la palette chiara, l'arancione, i bordi e le ombre già adottati dal resto di Mirox.
+Il secondo reparto **KPI** contiene **Vendita - Consumer** ([`admin-kpi-vendita-consumer.html`](admin-kpi-vendita-consumer.html)). Le categorie sono ordinate `Mobile`, `Fisso`, `Costumer Energy`, `Allarmi`, `Assicurazioni`; per ora è attivo Mobile e le altre tab restano predisposte. Mobile mostra Acquisizioni, Dettaglio MNP, Dettaglio Smartphone e un confronto per operatore, con filtri anno e punto vendita. Su viewport mobili la sidebar diventa un menu richiudibile. Navigazione, stato attivo, profilo e logout sono generati da `js/admin-shell.js`; aspetto e adattamento responsive sono centralizzati in `css/admin-shell.css` e `css/admin-kpi.css`. La shell riusa il logo ufficiale `assets/logo.png`, la palette chiara, l'arancione, i bordi e le ombre già adottati dal resto di Mirox.
+
+Per i KPI Mobile Consumer si contano le righe di `vendita_contratti` con `categoria_snapshot='Mobile'` e `cluster_cliente='Consumer'`, assegnate al mese di `data_contratto` in `Europe/Rome`. Le MNP sono separate fra opzione standard e opzione gestori selezionati; lo Smartphone usa il flag reale `dispositivo_associato`. Il confronto consolida gli account storici tramite `profili.alias_di`, mentre il filtro negozio usa i codici Legnago/Cerea già presenti sui contratti.
 
 Il vecchio bottone "Admin" nel wizard `upload-contratti-vendita.html` è stato rimosso: il pannello Admin si raggiunge esclusivamente dal bottone topbar della dashboard.
 
@@ -226,10 +230,10 @@ Componente: `js/mirox-error-reporter.js` → `window.MiroxErrorReporter`. Traspo
 
 **OCR — gestione credito esaurito**: `ocr-pda.js` ritorna `error_code='ocr_credit_exhausted'` quando Anthropic risponde con "credit balance is too low". Il wizard upload contratti mostra un popup esplicito "OCR non disponibile — Credito API esaurito. Procedi con l'inserimento manuale" + invia mail livello `critical`. Stessa logica per rate limit (429), 5xx, auth error.
 
-**Pagine integrate al 2026-06-25** (31 pagine: tutte tranne `index.html`, `moduli/segnalazioni.html` e `moduli/call-center/prenota.html`):
+**Pagine integrate al 2026-07-27** (34 pagine: tutte tranne `index.html` e `moduli/call-center/prenota.html`):
 
-- Root: `dashboard`, `admin`, `admin-utenti`, `admin-vendita-config`, `admin-call-center-config`, `admin-gare`
-- Vendita / Post-Vendita: `upload-contratti-vendita` (integrazione completa con popup OCR mirato per credito esaurito), `apri_chiudi`, `switch_sim`, `ordini_smartphone`, `simulatore_protecta`, `dashboard_pezzi`, `storico_cliente`, `dispositivi_comodato`, `gestione_rimborsi`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `ticket`
+- Root: `dashboard`, `admin`, `admin-utenti`, `admin-vendita-config`, `admin-call-center-config`, `admin-gare`, `admin-kpi-vendita-consumer`
+- Vendita / Post-Vendita: `upload-contratti-vendita` (integrazione completa con popup OCR mirato per credito esaurito), `apri_chiudi`, `switch_sim`, `ordini_smartphone`, `simulatore_protecta`, `dashboard_pezzi`, `storico_cliente`, `dispositivi_comodato`, `gestione_rimborsi`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `ticket`, `segnalazioni`
 - Call Center: tutte tranne `prenota.html` (anon pubblica)
 
 Sulle 30 pagine batch è installato solo l'handler globale (`window.error` + `unhandledrejection`), che cattura tutti gli errori JS non gestiti. Per mail mirate su catch specifici si segue il pattern del wizard upload-contratti (vedi `CLAUDE.md` per dettagli).
