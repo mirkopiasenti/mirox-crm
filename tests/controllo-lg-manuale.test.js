@@ -25,6 +25,16 @@ test('esito manuale L&G accetta solo stati canonici e motivazione significativa'
     note: 'PDR assente nel file WindTre'
   });
 
+  assert.deepEqual(_test.parseManualOutcome({
+    id: UUID_1,
+    stato: 'NON TROVATO',
+    note: 'Pratica non presente nel file WindTre'
+  }), {
+    id: UUID_1,
+    stato: 'NON TROVATO',
+    note: 'Pratica non presente nel file WindTre'
+  });
+
   assert.throws(
     () => _test.parseManualOutcome({ id: UUID_1, stato: 'rifiutato', note: 'Motivo valido' }),
     /Stato manuale non valido/
@@ -98,6 +108,8 @@ test('frontend L&G usa il backend e rende visibile la protezione manuale', () =>
   assert.match(htmlSource, /Manuale protetto/);
   assert.match(htmlSource, /Esiti manuali protetti/);
   assert.match(htmlSource, /Riattiva aggiornamenti CSV/);
+  assert.match(htmlSource, /MANUAL_STATUS_OPTIONS = \[\.\.\.Object\.keys\(STATO_PRIORITY\), 'NON TROVATO'\]/);
+  assert.match(htmlSource, /\.stato-pill\.non-trovato\s*\{\s*background:\s*#FAE8FF;\s*color:\s*#C026D3;/);
 });
 
 test('migration L&G aggiunge audit, coerenza e guardia database', () => {

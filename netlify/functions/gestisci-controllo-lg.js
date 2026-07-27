@@ -16,7 +16,8 @@ const MANUAL_STATUSES = new Set([
   'In attivazione',
   'Attivato',
   'Annullato',
-  'Rifiutato'
+  'Rifiutato',
+  'NON TROVATO'
 ]);
 const ADMIN_ACTIONS = new Set(['set_manual_outcome', 'unlock_manual_outcome']);
 const AUTHENTICATED_ACTIONS = new Set(['csv_update_batch', ...ADMIN_ACTIONS]);

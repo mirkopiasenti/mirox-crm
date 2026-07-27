@@ -131,6 +131,7 @@ body {
 .stato-pill.attivato         { background: var(--success-bg); color: var(--success); }
 .stato-pill.annullato        { background: #FEF3C7; color: #92400E; }
 .stato-pill.rifiutato        { background: var(--danger-bg); color: var(--danger); }
+.stato-pill.non-trovato      { background: #FAE8FF; color: #C026D3; }
 
 .origin-pill {
   display: inline-flex;
@@ -677,7 +678,7 @@ function apriEsitoManuale(rigaId) {
   if (!r) { MiroxUI.toast('Riga non trovata', 'error'); return; }
   const ana = r.anagrafica || {};
   const c = r.contratto || {};
-  const options = Object.keys(STATO_PRIORITY).map(stato =>
+  const options = MANUAL_STATUS_OPTIONS.map(stato =>
     `<option value="${escapeHtml(stato)}" ${r.stato === stato ? 'selected' : ''}>${escapeHtml(stato)}</option>`
   ).join('');
   const manualInfo = r.stato_origine === 'manuale'
@@ -804,6 +805,10 @@ const STATO_PRIORITY = {
   'Nuovo': 2,
   'Attivato': 1
 };
+
+// Elenco riservato al popup admin: NON TROVATO e' un esito esclusivamente
+// manuale e non partecipa alla gerarchia degli stati ricevuti dal CSV.
+const MANUAL_STATUS_OPTIONS = [...Object.keys(STATO_PRIORITY), 'NON TROVATO'];
 
 function normPiva(raw) {
   if (raw === null || raw === undefined) return '';
