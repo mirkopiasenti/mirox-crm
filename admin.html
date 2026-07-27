@@ -181,9 +181,11 @@
     .admin-card { padding: 22px 18px 18px; min-height: 180px; }
   }
 </style>
+<link rel="stylesheet" href="css/admin-shell.css">
 <script src="js/mirox-safe.js"></script>
+<script src="js/admin-shell.js" defer></script>
 </head>
-<body>
+<body class="mx-admin-shell">
 <div class="topbar">
   <div class="topbar-left">
     <a href="dashboard.html" class="back-button" title="Torna alla dashboard">
@@ -207,50 +209,26 @@
 </div>
 
 <div id="adminContent" style="display:none">
-  <div class="hero">
-    <div class="hero-greeting">Pannello <span>Amministratore</span></div>
-    <div class="hero-sub">Gestione utenti, impostazioni e cataloghi</div>
-  </div>
-
-  <div class="content">
-    <div class="admin-grid">
-      <a class="admin-card" href="admin-utenti.html">
-        <div class="admin-card-icon">
-          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        </div>
-        <div class="admin-card-title">Gestione Utenti</div>
-        <div class="admin-card-sub">Aggiungi, abilita o disabilita operatori, assegna il ruolo Admin / Operatore e gestisci i permessi del Call Center.</div>
-        <div class="admin-card-arrow">→</div>
-      </a>
-
-      <a class="admin-card" href="admin-call-center-config.html">
-        <div class="admin-card-icon">
-          <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-        </div>
-        <div class="admin-card-title">Configurazione Call Center</div>
-        <div class="admin-card-sub">Orari di apertura, blocchi e chiusure straordinarie, parametri sistema (durata slot, anticipo, scadenze).</div>
-        <div class="admin-card-arrow">→</div>
-      </a>
-
-      <a class="admin-card" href="admin-vendita-config.html">
-        <div class="admin-card-icon">
-          <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-        </div>
-        <div class="admin-card-title">Catalogo Vendita</div>
-        <div class="admin-card-sub">Categorie, offerte, opzioni e reload usati nel wizard Upload Contratti. Configurazione punteggi, documenti e associazioni.</div>
-        <div class="admin-card-arrow">→</div>
-      </a>
-
-      <a class="admin-card" href="admin-gare.html">
-        <div class="admin-card-icon">
-          <svg viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-        </div>
-        <div class="admin-card-title">Gare & Avanzamento</div>
-        <div class="admin-card-sub">Metriche gara individuali, obiettivi mensili, regole compenso a scaglioni e operatori "in gara". Configurazione mese per mese.</div>
-        <div class="admin-card-arrow">→</div>
-      </a>
+  <main class="mx-admin-home">
+    <div>
+      <p class="mx-admin-home-kicker">Pannello Admin</p>
+      <h1>Gestisci Mirox da un unico spazio.</h1>
+      <p class="mx-admin-home-intro">Usa i reparti nella barra laterale per aprire configurazioni e strumenti amministrativi. Il modulo selezionato rimane sempre visibile nell’area di lavoro.</p>
     </div>
-  </div>
+    <div class="mx-admin-home-panels">
+      <section class="mx-admin-home-panel">
+        <span class="mx-admin-home-panel-label">Reparto attivo</span>
+        <h2>Configurazioni</h2>
+        <p>Utenti, Call Center, catalogo Vendita e Gare &amp; Avanzamento sono raccolti nello stesso gruppo.</p>
+        <span class="mx-admin-home-count">4 moduli disponibili</span>
+      </section>
+      <section class="mx-admin-home-panel is-muted">
+        <span class="mx-admin-home-panel-label">In preparazione</span>
+        <h2>KPI</h2>
+        <p>Il reparto è già predisposto e accoglierà i prossimi moduli di analisi.</p>
+      </section>
+    </div>
+  </main>
 </div>
 
 <div id="accessDenied" class="access-denied" style="display:none">
