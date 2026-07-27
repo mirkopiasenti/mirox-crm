@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vendita - Consumer | KPI Mirox</title>
+  <title>Vendita - Business | KPI Mirox</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
@@ -13,11 +13,11 @@
   <script src="js/mirox-safe.js"></script>
   <script src="js/admin-shell.js" defer></script>
 </head>
-<body class="mx-admin-shell" data-kpi-cluster="Consumer">
+<body class="mx-admin-shell" data-kpi-cluster="Business">
   <main class="admin-container kpi-page">
     <div class="page-header">
       <div>
-        <h1 class="page-title">Vendita - Consumer</h1>
+        <h1 class="page-title">Vendita - Business</h1>
         <p class="page-subtitle">KPI mensili del negozio e confronto tra operatori</p>
       </div>
     </div>
@@ -39,7 +39,7 @@
       <div class="kpi-update-meta" id="kpiUpdatedAt">In attesa dei dati</div>
     </section>
 
-    <div class="kpi-category-tabs" role="tablist" aria-label="Categorie Vendita Consumer">
+    <div class="kpi-category-tabs" role="tablist" aria-label="Categorie Vendita Business">
       <button class="kpi-category-tab" type="button" role="tab" aria-selected="true" data-kpi-category="mobile">Mobile</button>
       <button class="kpi-category-tab" type="button" role="tab" aria-selected="false" data-kpi-category="fixed">Fisso</button>
       <button class="kpi-category-tab" type="button" role="tab" aria-selected="false" data-kpi-category="energy">Luce &amp; Gas</button>
@@ -47,7 +47,7 @@
       <button class="kpi-category-tab" type="button" role="tab" aria-selected="false" data-kpi-category="insurance">Assicurazioni</button>
     </div>
 
-    <div class="kpi-loading is-visible" id="kpiLoading">Caricamento KPI Vendita Consumer...</div>
+    <div class="kpi-loading is-visible" id="kpiLoading">Caricamento KPI Vendita Business...</div>
     <div class="kpi-error" id="kpiError"></div>
 
     <div class="kpi-content is-loading" id="kpiContent">
@@ -56,7 +56,7 @@
           <header class="kpi-section-header">
             <div>
               <h2 class="kpi-section-title">Acquisizioni</h2>
-              <p class="kpi-section-description">Tutte le righe Mobile Consumer inserite nel mese.</p>
+              <p class="kpi-section-description">Tutte le righe Mobile Business inserite nel mese.</p>
             </div>
           </header>
           <div class="kpi-table-wrap" id="acquisitionsTable"></div>
@@ -76,7 +76,7 @@
           <header class="kpi-section-header">
             <div>
               <h2 class="kpi-section-title">Dettaglio Smartphone</h2>
-              <p class="kpi-section-description">Contratti Mobile Consumer con dispositivo associato.</p>
+              <p class="kpi-section-description">Contratti Mobile Business con dispositivo associato.</p>
             </div>
           </header>
           <div class="kpi-table-wrap" id="smartphoneTable"></div>
@@ -88,7 +88,7 @@
           <header class="kpi-section-header">
             <div>
               <h2 class="kpi-section-title">Acquisizioni Fisso</h2>
-              <p class="kpi-section-description">Contratti Fisso Consumer distribuiti per tecnologia e mese di inserimento.</p>
+              <p class="kpi-section-description">Contratti Fisso Business distribuiti per tecnologia e mese di inserimento.</p>
             </div>
           </header>
           <div class="kpi-table-wrap" id="fixedAcquisitionsTable"></div>
@@ -226,7 +226,7 @@
   <script src="js/admin-kpi-vendita-consumer.js"></script>
   <script>
     if (window.MiroxErrorReporter) {
-      window.MiroxErrorReporter.install({ source: 'admin-kpi-vendita-consumer' });
+      window.MiroxErrorReporter.install({ source: 'admin-kpi-vendita-business' });
     }
 
     (async () => {

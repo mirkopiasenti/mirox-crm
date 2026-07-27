@@ -47,6 +47,14 @@ function parseStore(rawStore) {
   return store;
 }
 
+function parseCluster(rawCluster) {
+  const cluster = String(rawCluster || 'Consumer').trim();
+  if (!['Consumer', 'Business'].includes(cluster)) {
+    throw new Error('Cluster cliente non valido');
+  }
+  return cluster;
+}
+
 function normalizeLabel(value) {
   return String(value || '')
     .normalize('NFD')
@@ -284,7 +292,7 @@ function buildProfileResolver(profiles) {
   return { canonicalId, label };
 }
 
-async function fetchContractsByInsertion(supabase, year, store, category, selectFields) {
+async function fetchContractsByInsertion(supabase, year, store, cluster, category, selectFields) {
   const startIso = `${year}-01-01T00:00:00+01:00`;
   const endIso = `${year + 1}-01-01T00:00:00+01:00`;
   const rows = [];
@@ -294,7 +302,7 @@ async function fetchContractsByInsertion(supabase, year, store, category, select
       .from('vendita_contratti')
       .select(selectFields)
       .eq('categoria_snapshot', category)
-      .eq('cluster_cliente', 'Consumer')
+      .eq('cluster_cliente', cluster)
       .gte('data_contratto', startIso)
       .lt('data_contratto', endIso)
       .order('data_contratto', { ascending: true })
@@ -303,7 +311,7 @@ async function fetchContractsByInsertion(supabase, year, store, category, select
     if (store !== 'all') query = query.eq('codice_rivenditore', store);
 
     const { data, error } = await query;
-    if (error) throw new Error(error.message || `Errore lettura contratti ${category} Consumer`);
+    if (error) throw new Error(error.message || `Errore lettura contratti ${category} ${cluster}`);
 
     const batch = data || [];
     rows.push(...batch);
@@ -394,7 +402,7 @@ function serializeOperators(operatorMetrics, resolver) {
     .sort((a, b) => a.nome.localeCompare(b.nome, 'it', { sensitivity: 'base' }));
 }
 
-async function buildKpiPayload(supabase, year, store) {
+async function buildKpiPayload(supabase, year, store, cluster = 'Consumer') {
   const [
     mobileContracts,
     fixedAcquisitions,
@@ -408,6 +416,7 @@ async function buildKpiPayload(supabase, year, store) {
       supabase,
       year,
       store,
+      cluster,
       'Mobile',
       'id, data_contratto, operatore_id, nome_opzione_snapshot, dispositivo_associato, codice_rivenditore'
     ),
@@ -415,6 +424,7 @@ async function buildKpiPayload(supabase, year, store) {
       supabase,
       year,
       store,
+      cluster,
       'Fisso',
       'id, data_contratto, operatore_id, apri_chiudi, codice_rivenditore'
     ),
@@ -423,6 +433,7 @@ async function buildKpiPayload(supabase, year, store) {
       supabase,
       year,
       store,
+      cluster,
       'Energia',
       'id, data_contratto, operatore_id, codice_rivenditore'
     ),
@@ -430,6 +441,7 @@ async function buildKpiPayload(supabase, year, store) {
       supabase,
       year,
       store,
+      cluster,
       'Allarmi',
       'id, data_contratto, operatore_id, modalita_pagamento, codice_rivenditore'
     ),
@@ -437,6 +449,7 @@ async function buildKpiPayload(supabase, year, store) {
       supabase,
       year,
       store,
+      cluster,
       'Assicurazioni',
       'id, data_contratto, operatore_id, punteggio_gara_totale, codice_rivenditore'
     ),
@@ -476,7 +489,7 @@ async function buildKpiPayload(supabase, year, store) {
     activationContracts
       .filter((contract) => (
         contract.categoria_snapshot === 'Fisso' &&
-        contract.cluster_cliente === 'Consumer' &&
+        contract.cluster_cliente === cluster &&
         (store === 'all' || contract.codice_rivenditore === store)
       ))
       .map((contract) => [contract.id, contract])
@@ -576,7 +589,8 @@ async function buildKpiPayload(supabase, year, store) {
     filters: {
       year,
       store,
-      store_label: STORE_LABELS[store]
+      store_label: STORE_LABELS[store],
+      cluster
     },
     generated_at: new Date().toISOString(),
     totals: serializedMobileTotals,
@@ -614,6 +628,7 @@ exports.handler = async (event) => {
   try {
     const year = parseYear(event.queryStringParameters?.year);
     const store = parseStore(event.queryStringParameters?.store);
+    const cluster = parseCluster(event.queryStringParameters?.cluster);
 
     const supabase = createClient(
       process.env.SUPABASE_URL,
@@ -621,10 +636,12 @@ exports.handler = async (event) => {
       { auth: { persistSession: false, autoRefreshToken: false } }
     );
 
-    return response(200, await buildKpiPayload(supabase, year, store));
+    return response(200, await buildKpiPayload(supabase, year, store, cluster));
   } catch (error) {
-    const message = error?.message || 'Errore caricamento KPI Vendita Consumer';
-    const validationError = message.startsWith('Anno non valido') || message === 'Punto vendita non valido';
+    const message = error?.message || 'Errore caricamento KPI Vendita';
+    const validationError = message.startsWith('Anno non valido') ||
+      message === 'Punto vendita non valido' ||
+      message === 'Cluster cliente non valido';
     return response(validationError ? 400 : 500, { success: false, error: message });
   }
 };
@@ -649,6 +666,7 @@ exports._test = {
   fixedOutcomeKey,
   isApriChiudiEnabled,
   parseStore,
+  parseCluster,
   parseYear,
   romeMonthIndex,
   serializeMetrics

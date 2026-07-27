@@ -20,7 +20,8 @@
     'admin-call-center-config.html': { title: 'Configurazione Call Center', key: 'call-center' },
     'admin-vendita-config.html': { title: 'Catalogo Vendita', key: 'vendita' },
     'admin-gare.html': { title: 'Gare & Avanzamento', key: 'gare' },
-    'admin-kpi-vendita-consumer.html': { title: 'Vendita - Consumer', key: 'kpi-vendita-consumer' }
+    'admin-kpi-vendita-consumer.html': { title: 'Vendita - Consumer', key: 'kpi-vendita-consumer' },
+    'admin-kpi-vendita-business.html': { title: 'Vendita - Business', key: 'kpi-vendita-business' }
   };
 
   const currentFile = window.location.pathname.split('/').pop() || 'admin.html';
@@ -69,6 +70,7 @@
             '<div class="mx-admin-subnav', isKpiPage ? ' is-open' : '', '" id="mxAdminKpiNav" aria-hidden="', String(!isKpiPage), '">',
               '<div class="mx-admin-subnav-inner"><div class="mx-admin-subnav-list">',
                 navLink('admin-kpi-vendita-consumer.html', 'kpi-vendita-consumer', 'Vendita - Consumer', icons.chart),
+                navLink('admin-kpi-vendita-business.html', 'kpi-vendita-business', 'Vendita - Business', icons.chart),
               '</div></div>',
             '</div>',
           '</section>',

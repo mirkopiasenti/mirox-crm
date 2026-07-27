@@ -1,4 +1,6 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 
 const kpiModule = require('../netlify/functions/admin-kpi-vendita-consumer.js');
@@ -21,6 +23,7 @@ const {
   emptyMetrics,
   fixedOutcomeKey,
   isApriChiudiEnabled,
+  parseCluster,
   parseStore,
   parseYear,
   romeMonthIndex,
@@ -211,4 +214,23 @@ test('anno e punto vendita accettano soltanto i filtri previsti', () => {
   assert.equal(parseStore('9000822241'), '9000822241');
   assert.throws(() => parseYear('2019'), /Anno non valido/);
   assert.throws(() => parseStore('altro'), /Punto vendita non valido/);
+});
+
+test('il cluster KPI accetta soltanto Consumer e Business', () => {
+  assert.equal(parseCluster(undefined), 'Consumer');
+  assert.equal(parseCluster('Consumer'), 'Consumer');
+  assert.equal(parseCluster('Business'), 'Business');
+  assert.throws(() => parseCluster('Turista'), /Cluster cliente non valido/);
+});
+
+test('le pagine KPI dichiarano il cluster corretto e condividono la stessa logica', () => {
+  const root = path.resolve(__dirname, '..');
+  const consumer = fs.readFileSync(path.join(root, 'admin-kpi-vendita-consumer.html'), 'utf8');
+  const business = fs.readFileSync(path.join(root, 'admin-kpi-vendita-business.html'), 'utf8');
+  const client = fs.readFileSync(path.join(root, 'js/admin-kpi-vendita-consumer.js'), 'utf8');
+
+  assert.match(consumer, /data-kpi-cluster="Consumer"/);
+  assert.match(business, /data-kpi-cluster="Business"/);
+  assert.match(business, /Vendita - Business/);
+  assert.match(client, /cluster:\s*PAGE_CLUSTER/);
 });

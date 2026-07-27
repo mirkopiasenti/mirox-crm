@@ -2,6 +2,7 @@
   'use strict';
 
   const API_URL = '/.netlify/functions/admin-kpi-vendita-consumer';
+  const PAGE_CLUSTER = document.body.dataset.kpiCluster === 'Business' ? 'Business' : 'Consumer';
   const MONTHS = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
   const STORE_NAMES = {
     all: 'Tutti i punti vendita',
@@ -413,7 +414,8 @@
     try {
       const query = new URLSearchParams({
         year: refs.year.value,
-        store: refs.store.value
+        store: refs.store.value,
+        cluster: PAGE_CLUSTER
       });
       const response = await MiroxApi.fetch(`${API_URL}?${query.toString()}`);
       const payload = await response.json().catch(() => ({}));
@@ -433,14 +435,15 @@
 
       if (window.MiroxErrorReporter) {
         window.MiroxErrorReporter.report({
-          source: 'admin-kpi-vendita-consumer',
+          source: `admin-kpi-vendita-${PAGE_CLUSTER.toLowerCase()}`,
           level: 'error',
-          title: 'Errore caricamento KPI Vendita Consumer',
-          message: error?.message || 'Impossibile caricare i KPI Vendita Consumer',
+          title: `Errore caricamento KPI Vendita ${PAGE_CLUSTER}`,
+          message: error?.message || `Impossibile caricare i KPI Vendita ${PAGE_CLUSTER}`,
           technical: error?.stack || String(error),
           context: {
             year: refs.year.value,
-            store: refs.store.value
+            store: refs.store.value,
+            cluster: PAGE_CLUSTER
           },
           silent: true
         });
