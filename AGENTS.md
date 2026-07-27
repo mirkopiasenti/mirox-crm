@@ -489,7 +489,7 @@ Form esterno per prenotazioni dal sito/social. **NON in dashboard** (non ha auth
 
 ## Pannello Admin Mirox (dal 2026-06-24, shell condivisa dal 2026-07-27)
 
-Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile dalla dashboard come bottone topbar "Admin" (disabilitato per operatori). Tutte le pagine riusano `css/admin-shell.css` + `js/admin-shell.js`: a sinistra compare la navigazione per reparti, a destra il contenuto della pagina. `Configurazioni` è aperto di default e contiene i quattro moduli correnti; `KPI` è visibile ma vuoto. Sotto gli 860 px la sidebar diventa un drawer.
+Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile dalla dashboard come bottone topbar "Admin" (disabilitato per operatori). Tutte le pagine riusano `css/admin-shell.css` + `js/admin-shell.js`: a sinistra compare la navigazione per reparti, a destra il contenuto della pagina. `Configurazioni` è aperto di default e contiene i quattro moduli correnti; `KPI` è visibile ma vuoto. Sotto gli 860 px la sidebar diventa un drawer. La shell deve mantenere continuità con il design system esistente: logo ufficiale `assets/logo.png`, palette chiara, arancione Mirox, variabili colore condivise, radius e ombre di `css/style.css`; non introdurre marchi o simboli sostitutivi.
 
 ### Pagine
 

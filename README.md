@@ -181,7 +181,7 @@ Dal 2026-06-24 il bottone **Admin** della topbar dashboard è attivo per gli ute
 - **Catalogo Vendita** ([`admin-vendita-config.html`](admin-vendita-config.html)) — CRUD categorie/offerte/opzioni/reload. Ora gated dal ruolo `admin` (prima era protetto da una password client-side `1234`, rimossa)
 - **Gare & Avanzamento** ([`admin-gare.html`](admin-gare.html)) — configura metriche + obiettivi mensili per operatore + regole compenso a scaglioni + bonus una tantum. Bottone "Duplica dal mese precedente" per ripartire velocemente ad ogni cambio gara. Alimenta le tab "Gare Individuali" e "Avanzamento Mensile" del modulo `dashboard_pezzi`
 
-Il secondo reparto **KPI** è già visibile nella sidebar, ma non contiene ancora moduli. Su viewport mobili la sidebar diventa un menu richiudibile. Navigazione, stato attivo, profilo e logout sono generati da `js/admin-shell.js`; aspetto e adattamento responsive sono centralizzati in `css/admin-shell.css`.
+Il secondo reparto **KPI** è già visibile nella sidebar, ma non contiene ancora moduli. Su viewport mobili la sidebar diventa un menu richiudibile. Navigazione, stato attivo, profilo e logout sono generati da `js/admin-shell.js`; aspetto e adattamento responsive sono centralizzati in `css/admin-shell.css`. La shell riusa il logo ufficiale `assets/logo.png`, la palette chiara, l'arancione, i bordi e le ombre già adottati dal resto di Mirox.
 
 Il vecchio bottone "Admin" nel wizard `upload-contratti-vendita.html` è stato rimosso: il pannello Admin si raggiunge esclusivamente dal bottone topbar della dashboard.
 

@@ -39,11 +39,7 @@
     return [
       '<aside class="mx-admin-sidebar" id="mxAdminSidebar" aria-label="Navigazione amministrazione">',
         '<a class="mx-admin-brand" href="admin.html">',
-          '<span class="mx-admin-brand-mark" aria-hidden="true"></span>',
-          '<span class="mx-admin-brand-copy">',
-            '<span class="mx-admin-brand-name">Mirox</span>',
-            '<span class="mx-admin-brand-subtitle">Amministrazione</span>',
-          '</span>',
+          '<span class="mx-admin-brand-logo"><img src="assets/logo.png" alt="Mirox CRM"></span>',
         '</a>',
         '<nav class="mx-admin-nav">',
           '<div class="mx-admin-nav-label">Reparti</div>',
