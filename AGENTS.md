@@ -415,12 +415,13 @@ Quando una pratica va in KO post-vendita (o `Rifiutata`/`Annullata`/`In lavorazi
 - **`stato`**: text NULLABLE senza CHECK constraint (l'utente vuole flessibilita' nel caso il portale WindTre aggiunga stati nuovi). UI mostra "—" se NULL. Pillola colorata in base al valore (Attivato verde, Rifiutato rosso, ecc.).
 - **Upload CSV WindTre** (bottone "📥 Carica CSV WindTre" nella tab Elenco):
   - Parser via PapaParse (CDN), separatore `;`, header riga 1.
-  - **Match primario**: colonna `Proposta di Contratto` (CSV) ↔ `vendita_contratti.numero_contratto_energia` (exact match, trim).
+  - **Match primario composito**: `Proposta di Contratto` + POD/PDR (CSV) ↔ `vendita_contratti.numero_contratto_energia` + `vendita_contratti.pod_pdr`. Gli header punto riconosciuti coprono sia una colonna combinata (`POD/PDR`, `POD o PDR`, `Codice POD/PDR`, `Punto di fornitura`) sia colonne separate `POD`/`PDR` e relative varianti `Codice`/`Numero`. PC uguali con punti differenti restano record indipendenti e aggiornano ciascun contatore.
+  - **Fallback storico sicuro**: se il CSV non espone il POD/PDR, il match per sola PC e' ammesso esclusivamente quando quella PC identifica una sola riga Mirox. Una PC multipla senza punto, un punto CSV non presente tra i contratti della PC o un POD/PDR duplicato a DB non vengono aggiornati e finiscono rispettivamente nel report `Abbinamenti ambigui` / `POD/PDR non trovati`.
   - **Double check**: per cluster `Consumer` confronta `Codice Fiscale` (col E) con `anagrafica.cf_piva`. Per `Business` confronta `Partita Iva` (col F) **normalizzata con padding zeri a sinistra fino a 11 cifre** (il portale rimuove gli zeri iniziali).
   - **Sovrascrittura sempre**: se il match passa, lo `stato` viene aggiornato anche se gia' valorizzato (es. da `Nuovo` a `Rifiutato` dopo qualche giorno).
-  - **Aggregazione duplicati LUCE/GAS**: stesso `Proposta di Contratto` con 2 righe (1 LUCE + 1 GAS) → vince lo stato a priorita' maggiore (Rifiutato > Annullato > In lavorazione > In attivazione > Nuovo > Attivato), cosi' l'operatore vede sempre l'eventuale problema.
+  - **Aggregazione dei soli duplicati reali**: la priorita' `Rifiutato > Annullato > In lavorazione > In attivazione > Nuovo > Attivato` si applica soltanto a righe con la stessa coppia PC + POD/PDR. Non viene mai usata per comprimere punti di fornitura differenti sotto la stessa PC.
   - **Colonne dettaglio rifiuto** (`causale_stato_pratica`, `messaggio_esito_sap`, `causa_annullamento`) valorizzate **solo** se stato='Rifiutato' (azzerate altrimenti).
-  - **Report finale**: popup con 5 stat-card (Righe CSV, Pratiche uniche, Aggiornati, Double check KO, Non trovati DB) + tabelle dettagliate delle incongruenze.
+  - **Report finale**: popup con 5 stat-card (Righe CSV, PC/Punti unici, Aggiornati, Double check KO, Non aggiornati) + tabelle dettagliate per PC assenti, POD/PDR non trovati, abbinamenti ambigui, CF/P.IVA discordanti, stati invariati ed errori di salvataggio.
 - **Icona occhio 👁️** in fondo alle righe con stato='Rifiutato': apre popup con i 3 campi dettaglio (causale/messaggio/causa). Per gli altri stati nessuna icona.
 
 ### Storage folder naming

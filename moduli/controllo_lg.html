@@ -583,7 +583,8 @@ function apriDettaglioRifiutato(rigaId) {
 // Colonne del CSV (header riga 1):
 //   E = "Codice Fiscale"      (per cluster Consumer)
 //   F = "Partita Iva"         (per cluster Business, da normalizzare con padding 0)
-//   H = "Proposta di Contratto" (chiave di match: vendita_contratti.numero_contratto_energia)
+//   H = "Proposta di Contratto" (prima parte chiave di match)
+//   POD/PDR = header variabile nel portale (seconda parte chiave di match, se presente)
 //   N = "Causale stato pratica" (solo se W='Rifiutato')
 //   O = "Messaggio esito da SAP" (solo se W='Rifiutato')
 //   P = "Causa Annullamento"    (solo se W='Rifiutato')
@@ -599,8 +600,19 @@ const CSV_HEADERS = {
   stato:            'Stato'
 };
 
-// Gerarchia stati: se il CSV ha più righe per lo stesso numero_contratto (es. LUCE + GAS),
-// vince lo stato "più critico" - così l'operatore vede subito eventuali problemi.
+// Il portale ha usato nomi diversi per la colonna del punto di fornitura.
+// Se POD e PDR sono colonne separate, viene letto il primo valore non vuoto.
+const CSV_POINT_HEADER_ALIASES = {
+  combined: [
+    'POD/PDR', 'POD / PDR', 'POD o PDR', 'Codice POD/PDR', 'Codice POD / PDR',
+    'Codice POD o PDR', 'Punto di fornitura', 'Codice punto di fornitura'
+  ],
+  pod: ['POD', 'Codice POD', 'Numero POD'],
+  pdr: ['PDR', 'Codice PDR', 'Numero PDR']
+};
+
+// Gerarchia stati: viene usata soltanto per righe realmente duplicate,
+// cioe' con la stessa PC e lo stesso POD/PDR.
 const STATO_PRIORITY = {
   'Rifiutato': 6,
   'Annullato': 5,
@@ -629,8 +641,104 @@ function normNumContratto(raw) {
   return String(raw).replace(/^﻿/, '').replace(/[​-‍﻿]/g, '').trim().toUpperCase();
 }
 
+function normPuntoFornitura(raw) {
+  if (raw === null || raw === undefined) return '';
+  // POD e PDR vanno trattati come stringhe: gli zeri iniziali dei PDR sono significativi.
+  return String(raw)
+    .replace(/^﻿/, '')
+    .replace(/[​-‍﻿]/g, '')
+    .replace(/\s+/g, '')
+    .trim()
+    .toUpperCase();
+}
+
+function normHeaderCsv(raw) {
+  return String(raw || '')
+    .replace(/^﻿/, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9]/g, '')
+    .toUpperCase();
+}
+
+function resolveCsvPointHeaders(headers) {
+  const byNorm = new Map();
+  (headers || []).forEach(header => {
+    const normalized = normHeaderCsv(header);
+    if (normalized && !byNorm.has(normalized)) byNorm.set(normalized, header);
+  });
+  const findAlias = aliases => {
+    for (const alias of aliases) {
+      const found = byNorm.get(normHeaderCsv(alias));
+      if (found) return found;
+    }
+    return null;
+  };
+  return {
+    combined: findAlias(CSV_POINT_HEADER_ALIASES.combined),
+    pod: findAlias(CSV_POINT_HEADER_ALIASES.pod),
+    pdr: findAlias(CSV_POINT_HEADER_ALIASES.pdr)
+  };
+}
+
+function getCsvPointValue(row, pointHeaders) {
+  const candidates = [
+    pointHeaders && pointHeaders.combined,
+    pointHeaders && pointHeaders.pod,
+    pointHeaders && pointHeaders.pdr
+  ];
+  for (const header of candidates) {
+    if (!header) continue;
+    const value = String(row[header] || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
 function isPivaLike(s) {
   return /^\d{11}$/.test(String(s || '').trim());
+}
+
+function buildDbPcIndex(righe) {
+  const index = new Map();
+  for (const r of righe || []) {
+    const num = r.contratto && r.contratto.numero_contratto_energia;
+    const key = normNumContratto(num);
+    if (!key) continue;
+    if (!index.has(key)) index.set(key, []);
+    index.get(key).push(r);
+  }
+  return index;
+}
+
+function resolveDbRowForCsv(candidates, puntoCsvNorm) {
+  if (!candidates || candidates.length === 0) {
+    return { row: null, reason: 'pc_not_found', dbPoints: [] };
+  }
+  const dbPoints = candidates.map(r => {
+    const raw = r.contratto && r.contratto.pod_pdr;
+    return String(raw || '').trim();
+  }).filter(Boolean);
+
+  if (puntoCsvNorm) {
+    const pointMatches = candidates.filter(r =>
+      normPuntoFornitura(r.contratto && r.contratto.pod_pdr) === puntoCsvNorm
+    );
+    if (pointMatches.length === 1) {
+      return { row: pointMatches[0], reason: null, dbPoints };
+    }
+    return {
+      row: null,
+      reason: pointMatches.length > 1 ? 'multiple_point_matches' : 'point_not_found',
+      dbPoints
+    };
+  }
+
+  // Compatibilita' con i CSV storici senza POD/PDR: PC-only solo se non ambiguo.
+  if (candidates.length === 1) {
+    return { row: candidates[0], reason: null, dbPoints };
+  }
+  return { row: null, reason: 'missing_point_ambiguous', dbPoints };
 }
 
 // chunk(array, size) → split in batch
@@ -706,19 +814,28 @@ async function processaCsv(file) {
       );
       return;
     }
+    const pointHeaders = resolveCsvPointHeaders(headersTrovati);
+    const hasPointHeaders = !!(pointHeaders.combined || pointHeaders.pod || pointHeaders.pdr);
 
-    // Aggrega per Proposta di Contratto (case-insensitive), scegliendo lo stato a priorita' maggiore
-    const aggregato = new Map(); // numContrattoNorm -> { numContrattoOriginal, stato, ... }
+    // Aggrega solo i duplicati reali: stessa PC + stesso POD/PDR.
+    // PC uguali con punti diversi restano righe indipendenti.
+    const aggregato = new Map(); // pc|punto -> { numContrattoOriginal, puntoOriginal, stato, ... }
     for (const row of righe) {
       const numContrattoNorm = normNumContratto(row[CSV_HEADERS.propostaContratto]);
+      const puntoOriginal = getCsvPointValue(row, pointHeaders);
+      const puntoNorm = normPuntoFornitura(puntoOriginal);
       const stato = String(row[CSV_HEADERS.stato] || '').trim();
       if (!numContrattoNorm || !stato) continue;
-      const cur = aggregato.get(numContrattoNorm);
+      const compositeKey = `${numContrattoNorm}\u0000${puntoNorm}`;
+      const cur = aggregato.get(compositeKey);
       const newPri = STATO_PRIORITY[stato] || 0;
       const curPri = cur ? (STATO_PRIORITY[cur.stato] || 0) : -1;
       if (!cur || newPri > curPri) {
-        aggregato.set(numContrattoNorm, {
+        aggregato.set(compositeKey, {
+          numContrattoNorm,
           numContrattoOriginal: String(row[CSV_HEADERS.propostaContratto] || '').trim(),
+          puntoOriginal,
+          puntoNorm,
           stato,
           causale: String(row[CSV_HEADERS.causaleStato] || '').trim() || null,
           messaggio: String(row[CSV_HEADERS.messaggioEsito] || '').trim() || null,
@@ -735,34 +852,56 @@ async function processaCsv(file) {
     // Refresh dati DB (fa anche il lookup profili)
     await loadAll();
 
-    // Indice DB: numero_contratto_energia (case-insensitive) -> riga
-    // Skippo le righe DB con numero_contratto_energia vuoto/null (non possono matchare).
-    const indiceDb = new Map();
-    for (const r of LGState.righe) {
-      const num = r.contratto && r.contratto.numero_contratto_energia;
-      if (!num) continue;
-      const key = normNumContratto(num);
-      if (!key) continue;
-      if (!indiceDb.has(key)) indiceDb.set(key, r);
-    }
+    // Indice DB: una PC puo' avere piu' contratti, distinti dal POD/PDR.
+    const indiceDb = buildDbPcIndex(LGState.righe);
 
     // Calcolo le incongruenze
-    const aggiornati = [];      // {numContratto, oldStato, newStato, ragSoc}
-    const stateInvariati = [];  // numContratto matchato ma stato gia' uguale
-    const noMatchDb = [];       // numContratto del CSV ma non presente nel DB
-    const doubleCheckKo = [];   // numContratto matchato ma CF/PIVA non corrispondente
-    const updateBuilders = [];  // {id, payload} per batch UPDATE
+    const aggiornati = [];          // PC+punto matchati con stato cambiato
+    const stateInvariati = [];      // PC+punto matchati con stato gia' uguale
+    const noMatchDb = [];           // PC del CSV non presente nel DB
+    const puntiNonTrovati = [];     // PC presente, POD/PDR CSV non presente nel DB
+    const matchAmbigui = [];        // PC multipla senza punto o punto duplicato nel DB
+    const doubleCheckKo = [];       // PC+punto matchati ma CF/PIVA non corrispondente
+    const updateBuilders = [];      // {id, payload} per batch UPDATE
 
     const profilo = window.__profilo || {};
     const nowIso = new Date().toISOString();
 
-    for (const [numContrattoNorm, csvData] of aggregato.entries()) {
+    for (const csvData of aggregato.values()) {
+      const numContrattoNorm = csvData.numContrattoNorm;
       const numContrattoDisplay = csvData.numContrattoOriginal;
-      const rigaDb = indiceDb.get(numContrattoNorm);
-      if (!rigaDb) {
-        noMatchDb.push({ numContratto: numContrattoDisplay, stato: csvData.stato });
+      const puntoDisplay = csvData.puntoOriginal || '(non presente nel CSV)';
+      const match = resolveDbRowForCsv(indiceDb.get(numContrattoNorm), csvData.puntoNorm);
+      if (match.reason === 'pc_not_found') {
+        noMatchDb.push({
+          numContratto: numContrattoDisplay,
+          punto: puntoDisplay,
+          stato: csvData.stato
+        });
         continue;
       }
+      if (match.reason === 'point_not_found') {
+        puntiNonTrovati.push({
+          numContratto: numContrattoDisplay,
+          puntoCsv: puntoDisplay,
+          puntiDb: match.dbPoints.join(', ') || '(nessun POD/PDR in Mirox)',
+          stato: csvData.stato
+        });
+        continue;
+      }
+      if (match.reason === 'multiple_point_matches' || match.reason === 'missing_point_ambiguous') {
+        matchAmbigui.push({
+          numContratto: numContrattoDisplay,
+          puntoCsv: puntoDisplay,
+          puntiDb: match.dbPoints.join(', ') || '(punti non compilati)',
+          motivo: match.reason === 'multiple_point_matches'
+            ? 'POD/PDR duplicato in Mirox'
+            : 'POD/PDR assente nel CSV con PC multipla',
+          stato: csvData.stato
+        });
+        continue;
+      }
+      const rigaDb = match.row;
 
       // Double check CF/PIVA
       const ana = rigaDb.anagrafica || {};
@@ -772,6 +911,7 @@ async function processaCsv(file) {
       if (!cfDbNorm) {
         doubleCheckKo.push({
           numContratto: numContrattoDisplay,
+          punto: puntoDisplay,
           ragSoc: ana.ragione_sociale || '-',
           campo: 'Anagrafica',
           dbValue: '(CF/PIVA mancante nel DB)',
@@ -802,6 +942,7 @@ async function processaCsv(file) {
       if (!checkOk) {
         doubleCheckKo.push({
           numContratto: numContrattoDisplay,
+          punto: puntoDisplay,
           ragSoc: ana.ragione_sociale || '-',
           campo: expectedField,
           dbValue: ana.cf_piva || '-',
@@ -815,9 +956,20 @@ async function processaCsv(file) {
       const newStato = csvData.stato;
 
       if (oldStato === newStato) {
-        stateInvariati.push({ numContratto: numContrattoDisplay, ragSoc: ana.ragione_sociale || '-', stato: newStato });
+        stateInvariati.push({
+          numContratto: numContrattoDisplay,
+          punto: puntoDisplay,
+          ragSoc: ana.ragione_sociale || '-',
+          stato: newStato
+        });
       } else {
-        aggiornati.push({ numContratto: numContrattoDisplay, oldStato: oldStato || '(vuoto)', newStato, ragSoc: ana.ragione_sociale || '-' });
+        aggiornati.push({
+          numContratto: numContrattoDisplay,
+          punto: puntoDisplay,
+          oldStato: oldStato || '(vuoto)',
+          newStato,
+          ragSoc: ana.ragione_sociale || '-'
+        });
       }
 
       const isRifiutato = newStato === 'Rifiutato';
@@ -852,10 +1004,13 @@ async function processaCsv(file) {
     setTimeout(() => {
       mostraReportImport({
         totaleRigheCsv: righe.length,
-        pratichePcUniche: aggregato.size,
+        recordPcPuntoUnici: aggregato.size,
+        hasPointHeaders,
         aggiornati,
         stateInvariati,
         noMatchDb,
+        puntiNonTrovati,
+        matchAmbigui,
         doubleCheckKo,
         updateErrors: updateErrorsCount
       });
@@ -871,8 +1026,9 @@ async function processaCsv(file) {
 
 function mostraReportImport(report) {
   const {
-    totaleRigheCsv, pratichePcUniche,
-    aggiornati, stateInvariati, noMatchDb, doubleCheckKo, updateErrors
+    totaleRigheCsv, recordPcPuntoUnici, hasPointHeaders,
+    aggiornati, stateInvariati, noMatchDb, puntiNonTrovati, matchAmbigui,
+    doubleCheckKo, updateErrors
   } = report;
 
   const renderTable = (rows, cols) => {
@@ -888,6 +1044,7 @@ function mostraReportImport(report) {
         <h4>Stati aggiornati (${aggiornati.length})</h4>
         <div class="report-list">${renderTable(aggiornati, [
           { label: 'Num. Contratto', get: r => r.numContratto },
+          { label: 'POD/PDR', get: r => r.punto },
           { label: 'Ragione Sociale', get: r => r.ragSoc },
           { label: 'Stato precedente', get: r => r.oldStato },
           { label: 'Nuovo stato', get: r => r.newStato }
@@ -899,6 +1056,7 @@ function mostraReportImport(report) {
         <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Numero contratto trovato, ma il codice fiscale / partita IVA del CSV non corrisponde a quello in anagrafica. <strong>Non aggiornati.</strong></p>
         <div class="report-list">${renderTable(doubleCheckKo, [
           { label: 'Num. Contratto', get: r => r.numContratto },
+          { label: 'POD/PDR', get: r => r.punto },
           { label: 'Ragione Sociale', get: r => r.ragSoc },
           { label: 'Campo', get: r => r.campo },
           { label: 'Valore DB', get: r => r.dbValue },
@@ -912,6 +1070,30 @@ function mostraReportImport(report) {
         <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Numero contratto presente nel CSV ma non corrisponde a nessuna riga del modulo Controllo L&G (es. pratica non ancora caricata in Mirox).</p>
         <div class="report-list">${renderTable(noMatchDb, [
           { label: 'Num. Contratto', get: r => r.numContratto },
+          { label: 'POD/PDR', get: r => r.punto },
+          { label: 'Stato CSV', get: r => r.stato }
+        ])}</div>
+      </div>` : '',
+    puntiNonTrovati.length > 0 ? `
+      <div class="report-section">
+        <h4>POD/PDR non trovati (${puntiNonTrovati.length})</h4>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">La PC esiste in Mirox, ma nessun contratto della stessa PC ha il POD/PDR indicato nel CSV. <strong>Non aggiornati.</strong></p>
+        <div class="report-list">${renderTable(puntiNonTrovati, [
+          { label: 'Num. Contratto', get: r => r.numContratto },
+          { label: 'POD/PDR CSV', get: r => r.puntoCsv },
+          { label: 'POD/PDR in Mirox', get: r => r.puntiDb },
+          { label: 'Stato CSV', get: r => r.stato }
+        ])}</div>
+      </div>` : '',
+    matchAmbigui.length > 0 ? `
+      <div class="report-section">
+        <h4>Abbinamenti ambigui (${matchAmbigui.length})</h4>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Il sistema non puo' scegliere in sicurezza quale punto aggiornare. <strong>Non aggiornati.</strong></p>
+        <div class="report-list">${renderTable(matchAmbigui, [
+          { label: 'Num. Contratto', get: r => r.numContratto },
+          { label: 'POD/PDR CSV', get: r => r.puntoCsv },
+          { label: 'POD/PDR in Mirox', get: r => r.puntiDb },
+          { label: 'Motivo', get: r => r.motivo },
           { label: 'Stato CSV', get: r => r.stato }
         ])}</div>
       </div>` : '',
@@ -921,13 +1103,20 @@ function mostraReportImport(report) {
         <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Lo stato del DB era gi&agrave; uguale a quello del CSV. Nessun cambiamento.</p>
         <div class="report-list">${renderTable(stateInvariati.slice(0, 50), [
           { label: 'Num. Contratto', get: r => r.numContratto },
+          { label: 'POD/PDR', get: r => r.punto },
           { label: 'Ragione Sociale', get: r => r.ragSoc },
           { label: 'Stato', get: r => r.stato }
         ])}${stateInvariati.length > 50 ? `<div style="padding:8px;text-align:center;font-size:11.5px;color:var(--text-light);">... e altre ${stateInvariati.length - 50} righe</div>` : ''}</div>
       </div>` : '',
+    !hasPointHeaders ? `
+      <div class="report-section">
+        <h4>Colonna POD/PDR non rilevata</h4>
+        <p style="font-size:12px;color:var(--text-secondary);">Il file non contiene una colonna POD/PDR riconosciuta. Le PC presenti una sola volta in Mirox sono state gestite con il matching storico; le PC multiple sono rimaste negli abbinamenti ambigui.</p>
+      </div>` : '',
     updateErrors > 0 ? `<div class="report-section"><h4 style="color:var(--danger);">Errori salvataggio (${updateErrors})</h4><p style="font-size:12px;color:var(--text-secondary);">Alcuni UPDATE sono falliti. Controlla la console browser per i dettagli.</p></div>` : ''
   ].join('');
 
+  const nonAggiornati = noMatchDb.length + puntiNonTrovati.length + matchAmbigui.length + doubleCheckKo.length;
   const body = `
     <div class="report-grid">
       <div class="report-card info">
@@ -935,8 +1124,8 @@ function mostraReportImport(report) {
         <div class="rc-value">${totaleRigheCsv}</div>
       </div>
       <div class="report-card info">
-        <div class="rc-label">Pratiche uniche</div>
-        <div class="rc-value">${pratichePcUniche}</div>
+        <div class="rc-label">PC/Punti unici</div>
+        <div class="rc-value">${recordPcPuntoUnici}</div>
       </div>
       <div class="report-card ok">
         <div class="rc-label">Aggiornati</div>
@@ -947,8 +1136,8 @@ function mostraReportImport(report) {
         <div class="rc-value">${doubleCheckKo.length}</div>
       </div>
       <div class="report-card danger">
-        <div class="rc-label">Non trovati DB</div>
-        <div class="rc-value">${noMatchDb.length}</div>
+        <div class="rc-label">Non aggiornati</div>
+        <div class="rc-value">${nonAggiornati}</div>
       </div>
     </div>
     ${sectionsHtml}
