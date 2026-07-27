@@ -132,12 +132,29 @@ body {
 .stato-pill.annullato        { background: #FEF3C7; color: #92400E; }
 .stato-pill.rifiutato        { background: var(--danger-bg); color: var(--danger); }
 
+.origin-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 5px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.origin-pill.manual-locked { background: #F3E8FF; color: #7E22CE; }
+.origin-pill.manual-unlocked { background: #F1F5F9; color: #475569; }
+.row-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
+
 .eye-btn {
   border: 1px solid var(--border); background: #fff; cursor: pointer;
-  padding: 5px 9px; border-radius: 8px; font-size: 14px; line-height: 1;
+  padding: 5px 9px; border-radius: 8px; font-size: 11.5px; line-height: 1.2;
   transition: all .15s ease;
 }
 .eye-btn:hover { background: var(--danger-bg); border-color: var(--danger); }
+.manual-btn:hover { background: #F3E8FF; border-color: #9333EA; color: #7E22CE; }
 
 .btn-csv {
   display: inline-flex; align-items: center; gap: 6px;
@@ -217,7 +234,12 @@ body {
 <script src="../js/mirox-api.js"></script>
 <script src="../js/mirox-error-reporter.js"></script>
 <script>if (window.MiroxErrorReporter) window.MiroxErrorReporter.install({ source: 'controllo-lg' });</script>
-<script>(async () => { window.__profilo = await Auth.richiediAuth(); })();</script>
+<script>
+window.__profiloPromise = (async () => {
+  window.__profilo = await Auth.richiediAuth();
+  return window.__profilo;
+})();
+</script>
 
 <!-- Header uniforme Mirox -->
 <div class="header">
@@ -330,7 +352,8 @@ const LGState = {
   filtroStato: '',
   filtroMese: '',
   filtroAnno: '',
-  profiliMap: new Map()
+  profiliMap: new Map(),
+  isAdmin: false
 };
 
 function escapeHtml(s) {
@@ -341,11 +364,20 @@ function fmtDate(iso) {
   const d = new Date(iso); if (isNaN(d)) return iso;
   return d.toLocaleDateString('it-IT', { day:'2-digit', month:'2-digit', year:'numeric' });
 }
+function fmtDateTime(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso); if (isNaN(d)) return iso;
+  return d.toLocaleString('it-IT', {
+    day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'
+  });
+}
 
 async function loadAll() {
   const wrap = document.getElementById('listaLG');
   wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div><h3>Caricamento...</h3></div>';
   try {
+    const profiloCorrente = window.__profilo || await window.__profiloPromise;
+    LGState.isAdmin = profiloCorrente && profiloCorrente.ruolo === 'admin';
     // Stessa strategia di controllo_fissi: leggo operatore_id, pod_pdr, numero_contratto_energia,
     // ex_fornitore direttamente dal contratto (RLS-safe rispetto a vendita_pratiche).
     const { data, error } = await sb
@@ -354,6 +386,9 @@ async function loadAll() {
         id, contratto_id, pratica_id, anagrafica_id, stato,
         causale_stato_pratica, messaggio_esito_sap, causa_annullamento,
         ultimo_csv_upload_at, ultimo_csv_upload_da,
+        stato_origine, esito_manuale_bloccato,
+        esito_manuale_note, esito_manuale_at, esito_manuale_da,
+        esito_manuale_sbloccato_at, esito_manuale_sbloccato_da,
         created_at, updated_at,
         anagrafica:anagrafica_id ( id, cf_piva, ragione_sociale, cluster, cellulare, email ),
         contratto:contratto_id (
@@ -368,7 +403,11 @@ async function loadAll() {
 
     // Lookup nomi operatori (FK assente verso profili nello schema, faccio query separata)
     const profIds = new Set();
-    righe.forEach(r => { if (r.contratto && r.contratto.operatore_id) profIds.add(r.contratto.operatore_id); });
+    righe.forEach(r => {
+      if (r.contratto && r.contratto.operatore_id) profIds.add(r.contratto.operatore_id);
+      if (r.esito_manuale_da) profIds.add(r.esito_manuale_da);
+      if (r.esito_manuale_sbloccato_da) profIds.add(r.esito_manuale_sbloccato_da);
+    });
     if (profIds.size > 0) {
       const { data: profili, error: profErr } = await sb
         .from('profili')
@@ -392,6 +431,12 @@ function operatoreNome(r) {
   const opId = r.contratto && r.contratto.operatore_id;
   if (!opId) return '-';
   const p = LGState.profiliMap.get(opId);
+  return p && p.nome ? p.nome : '-';
+}
+
+function profiloNome(id) {
+  if (!id) return '-';
+  const p = LGState.profiliMap.get(id);
   return p && p.nome ? p.nome : '-';
 }
 
@@ -430,10 +475,12 @@ function aggiornaContatori() {
       const d = new Date(dIns);
       if (!isNaN(d) && d.getFullYear() === annoCorr && d.getMonth() === meseCorr) inseritiMese++;
     }
-    // KO nel mese: stato='Rifiutato' AND ultimo_csv_upload_at del mese corrente
-    // (fallback su updated_at se l'aggiornamento e' avvenuto senza CSV).
+    // KO nel mese: per stato manuale usa la data dell'esito, altrimenti
+    // l'ultimo upload CSV (fallback updated_at per lo storico).
     if (r.stato === 'Rifiutato') {
-      const ref = r.ultimo_csv_upload_at || r.updated_at;
+      const ref = r.stato_origine === 'manuale'
+        ? (r.esito_manuale_at || r.updated_at)
+        : (r.ultimo_csv_upload_at || r.updated_at);
       if (ref) {
         const d = new Date(ref);
         if (!isNaN(d) && d.getFullYear() === annoCorr && d.getMonth() === meseCorr) koMese++;
@@ -454,7 +501,8 @@ function matchSearch(r, q) {
   const haystack = [
     ana.ragione_sociale, ana.cf_piva, ana.cluster, ana.cellulare, ana.email,
     c.numero_contratto_energia, c.pod_pdr, c.ex_fornitore,
-    r.stato, operatoreNome(r)
+    r.stato, r.stato_origine, r.esito_manuale_note,
+    operatoreNome(r), profiloNome(r.esito_manuale_da)
   ].filter(Boolean).join(' ').toLowerCase();
   return haystack.includes(q);
 }
@@ -515,6 +563,20 @@ function render() {
     const ana = r.anagrafica || {};
     const c = r.contratto || {};
     const isRifiutato = r.stato === 'Rifiutato';
+    const isManuale = r.stato_origine === 'manuale';
+    const sourceBadge = isManuale
+      ? `<div><span class="origin-pill ${r.esito_manuale_bloccato ? 'manual-locked' : 'manual-unlocked'}">${
+          r.esito_manuale_bloccato ? 'Manuale protetto' : 'Manuale - CSV attivo'
+        }</span></div>`
+      : '';
+    const detailButton = isRifiutato
+      ? `<button type="button" class="eye-btn" title="Vedi dettagli esito" onclick="apriDettaglioRifiutato('${r.id}')">Dettagli</button>`
+      : '';
+    const manualButton = LGState.isAdmin
+      ? `<button type="button" class="eye-btn manual-btn" title="Gestisci esito manuale" onclick="apriEsitoManuale('${r.id}')">${
+          isManuale ? 'Gestisci manuale' : 'Esita manualmente'
+        }</button>`
+      : '';
     return `<tr>
       <td>${fmtDate(dataInserimento(r))}</td>
       <td class="cell-cliente">${escapeHtml(ana.ragione_sociale || '-')}</td>
@@ -524,8 +586,8 @@ function render() {
       <td class="cell-fornitore">${escapeHtml(c.ex_fornitore || '—')}</td>
       <td class="cell-mono">${escapeHtml(ana.cellulare || '—')}</td>
       <td>${escapeHtml(operatoreNome(r))}</td>
-      <td>${r.stato ? `<span class="stato-pill ${statoSlug(r.stato)}">${escapeHtml(r.stato)}</span>` : '<span style="color:var(--text-light);">—</span>'}</td>
-      <td style="text-align:right;">${isRifiutato ? `<button type="button" class="eye-btn" title="Vedi dettagli rifiuto" onclick="apriDettaglioRifiutato('${r.id}')">Dettagli</button>` : ''}</td>
+      <td>${r.stato ? `<span class="stato-pill ${statoSlug(r.stato)}">${escapeHtml(r.stato)}</span>` : '<span style="color:var(--text-light);">—</span>'}${sourceBadge}</td>
+      <td style="text-align:right;"><div class="row-actions">${detailButton}${manualButton}</div></td>
     </tr>`;
   }).join('');
 
@@ -544,6 +606,7 @@ function apriDettaglioRifiutato(rigaId) {
   if (!r) { MiroxUI.toast('Riga non trovata', 'error'); return; }
   const ana = r.anagrafica || {};
   const c = r.contratto || {};
+  const isManuale = r.stato_origine === 'manuale';
 
   const body = `
     <div style="margin-bottom:16px;padding:12px 14px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
@@ -554,7 +617,21 @@ function apriDettaglioRifiutato(rigaId) {
         &nbsp;·&nbsp; Num. Contratto: <span class="cell-mono">${escapeHtml(c.numero_contratto_energia || '-')}</span>
       </div>
     </div>
-    <div class="detail-rifiutato">
+    ${isManuale ? `
+      <div class="detail-rifiutato">
+        <div class="dr-field" style="border-left-color:#9333EA;">
+          <div class="dr-label" style="color:#7E22CE;">Esito manuale</div>
+          <div class="dr-value">${escapeHtml(r.esito_manuale_note || 'Motivazione non disponibile')}</div>
+        </div>
+        <div class="dr-field" style="border-left-color:#9333EA;">
+          <div class="dr-label" style="color:#7E22CE;">Audit</div>
+          <div class="dr-value">
+            Inserito da ${escapeHtml(profiloNome(r.esito_manuale_da))} il ${escapeHtml(fmtDateTime(r.esito_manuale_at))}.<br>
+            Aggiornamenti CSV: <strong>${r.esito_manuale_bloccato ? 'bloccati' : 'riattivati'}</strong>.
+          </div>
+        </div>
+      </div>
+    ` : `<div class="detail-rifiutato">
       <div class="dr-field">
         <div class="dr-label">Causale stato pratica</div>
         <div class="dr-value ${r.causale_stato_pratica ? '' : 'empty'}">${r.causale_stato_pratica ? escapeHtml(r.causale_stato_pratica) : 'Non specificata'}</div>
@@ -567,7 +644,7 @@ function apriDettaglioRifiutato(rigaId) {
         <div class="dr-label">Causa annullamento</div>
         <div class="dr-value ${r.causa_annullamento ? '' : 'empty'}">${r.causa_annullamento ? escapeHtml(r.causa_annullamento) : 'Non specificata'}</div>
       </div>
-    </div>
+    </div>`}
   `;
   const footer = `<button type="button" class="mx-btn mx-btn-secondary" data-mx-close>Chiudi</button>`;
   const m = MiroxUI._build({
@@ -576,6 +653,112 @@ function apriDettaglioRifiutato(rigaId) {
   });
   m.foot.querySelector('[data-mx-close]').addEventListener('click', m.close);
 }
+
+async function callGestisciControlloLg(payload) {
+  const res = await MiroxApi.fetch('/.netlify/functions/gestisci-controllo-lg', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  let data = {};
+  try { data = await res.json(); } catch (_) {}
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || `Errore server (${res.status})`);
+  }
+  return data;
+}
+
+function apriEsitoManuale(rigaId) {
+  if (!LGState.isAdmin) {
+    MiroxUI.alert('Operazione riservata agli amministratori.', { type: 'warning' });
+    return;
+  }
+  const r = LGState.righe.find(x => x.id === rigaId);
+  if (!r) { MiroxUI.toast('Riga non trovata', 'error'); return; }
+  const ana = r.anagrafica || {};
+  const c = r.contratto || {};
+  const options = Object.keys(STATO_PRIORITY).map(stato =>
+    `<option value="${escapeHtml(stato)}" ${r.stato === stato ? 'selected' : ''}>${escapeHtml(stato)}</option>`
+  ).join('');
+  const manualInfo = r.stato_origine === 'manuale'
+    ? `<div style="padding:10px 12px;background:#F3E8FF;border:1px solid #D8B4FE;border-radius:8px;font-size:12px;color:#6B21A8;line-height:1.5;">
+         Ultimo esito manuale: ${escapeHtml(profiloNome(r.esito_manuale_da))}, ${escapeHtml(fmtDateTime(r.esito_manuale_at))}.<br>
+         Aggiornamenti CSV: <strong>${r.esito_manuale_bloccato ? 'bloccati' : 'riattivati'}</strong>.
+       </div>`
+    : '';
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
+        <div style="font-size:14px;font-weight:700;">${escapeHtml(ana.ragione_sociale || '-')}</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">
+          PC: <span class="cell-mono">${escapeHtml(c.numero_contratto_energia || '-')}</span>
+          &nbsp;·&nbsp; POD/PDR: <span class="cell-mono">${escapeHtml(c.pod_pdr || '-')}</span>
+        </div>
+      </div>
+      ${manualInfo}
+      <div>
+        <label for="lg_manual_stato" style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-secondary);margin-bottom:5px;">Stato manuale</label>
+        <select id="lg_manual_stato" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;background:#fff;">
+          ${options}
+        </select>
+      </div>
+      <div>
+        <label for="lg_manual_note" style="display:block;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-secondary);margin-bottom:5px;">Motivazione obbligatoria</label>
+        <textarea id="lg_manual_note" maxlength="2000" rows="4" placeholder="Es. PDR assente nell'estrazione WindTre; esito verificato manualmente sul portale." style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;resize:vertical;">${escapeHtml(r.esito_manuale_note || '')}</textarea>
+        <div style="font-size:11px;color:var(--text-light);margin-top:5px;">Il salvataggio protegge lo stato da tutti i futuri upload CSV.</div>
+      </div>
+    </div>
+  `;
+  const unlockButton = r.esito_manuale_bloccato
+    ? '<button type="button" class="mx-btn mx-btn-secondary" data-lg-unlock>Riattiva aggiornamenti CSV</button>'
+    : '';
+  const footer = `
+    <button type="button" class="mx-btn mx-btn-secondary" data-lg-close>Annulla</button>
+    ${unlockButton}
+    <button type="button" class="mx-btn mx-btn-primary" data-lg-save>Salva esito manuale</button>
+  `;
+  const m = MiroxUI._build({ title: 'Esito manuale Controllo L&G', bodyHtml: body, footerHtml: footer });
+  m.foot.querySelector('[data-lg-close]').addEventListener('click', m.close);
+  m.foot.querySelector('[data-lg-save]').addEventListener('click', async () => {
+    const stato = m.body.querySelector('#lg_manual_stato').value;
+    const note = m.body.querySelector('#lg_manual_note').value.trim();
+    if (note.length < 5) {
+      await MiroxUI.alert('Inserisci una motivazione di almeno 5 caratteri.', { type: 'warning' });
+      return;
+    }
+    const loader = MiroxUI.loading.show('Salvataggio esito manuale...');
+    try {
+      await callGestisciControlloLg({ action: 'set_manual_outcome', id: r.id, stato, note });
+      loader.success('Esito manuale salvato e protetto');
+      m.close();
+      await loadAll();
+    } catch (error) {
+      loader.error('Errore salvataggio');
+      setTimeout(() => MiroxUI.alert(error.message, { type: 'error' }), 200);
+    }
+  });
+  const unlock = m.foot.querySelector('[data-lg-unlock]');
+  if (unlock) {
+    unlock.addEventListener('click', async () => {
+      const ok = await MiroxUI.confirm(
+        'Riattivare gli aggiornamenti CSV per questa riga?<br><br>Lo stato manuale attuale resterà visibile fino al prossimo CSV valido, che potrà poi sovrascriverlo.',
+        { title: 'Riattiva aggiornamenti CSV', okText: 'Sì, riattiva', cancelText: 'Annulla', html: true }
+      );
+      if (!ok) return;
+      const loader = MiroxUI.loading.show('Riattivazione aggiornamenti CSV...');
+      try {
+        await callGestisciControlloLg({ action: 'unlock_manual_outcome', id: r.id });
+        loader.success('Aggiornamenti CSV riattivati');
+        m.close();
+        await loadAll();
+      } catch (error) {
+        loader.error('Errore riattivazione');
+        setTimeout(() => MiroxUI.alert(error.message, { type: 'error' }), 200);
+      }
+    });
+  }
+}
+window.apriEsitoManuale = apriEsitoManuale;
 
 // ============================================================
 // CSV IMPORT — WindTre portal export
@@ -862,10 +1045,8 @@ async function processaCsv(file) {
     const puntiNonTrovati = [];     // PC presente, POD/PDR CSV non presente nel DB
     const matchAmbigui = [];        // PC multipla senza punto o punto duplicato nel DB
     const doubleCheckKo = [];       // PC+punto matchati ma CF/PIVA non corrispondente
-    const updateBuilders = [];      // {id, payload} per batch UPDATE
-
-    const profilo = window.__profilo || {};
-    const nowIso = new Date().toISOString();
+    const manualProtected = [];     // righe con esito manuale non sovrascrivibile
+    const updateBuilders = [];      // candidati inviati alla function in batch
 
     for (const csvData of aggregato.values()) {
       const numContrattoNorm = csvData.numContrattoNorm;
@@ -902,6 +1083,17 @@ async function processaCsv(file) {
         continue;
       }
       const rigaDb = match.row;
+      if (rigaDb.esito_manuale_bloccato) {
+        manualProtected.push({
+          numContratto: numContrattoDisplay,
+          punto: puntoDisplay,
+          ragSoc: (rigaDb.anagrafica && rigaDb.anagrafica.ragione_sociale) || '-',
+          statoManuale: rigaDb.stato || '-',
+          statoCsv: csvData.stato,
+          motivo: rigaDb.esito_manuale_note || '-'
+        });
+        continue;
+      }
 
       // Double check CF/PIVA
       const ana = rigaDb.anagrafica || {};
@@ -954,50 +1146,59 @@ async function processaCsv(file) {
 
       const oldStato = rigaDb.stato || null;
       const newStato = csvData.stato;
-
-      if (oldStato === newStato) {
-        stateInvariati.push({
-          numContratto: numContrattoDisplay,
-          punto: puntoDisplay,
-          ragSoc: ana.ragione_sociale || '-',
-          stato: newStato
-        });
-      } else {
-        aggiornati.push({
-          numContratto: numContrattoDisplay,
-          punto: puntoDisplay,
-          oldStato: oldStato || '(vuoto)',
-          newStato,
-          ragSoc: ana.ragione_sociale || '-'
-        });
-      }
-
       const isRifiutato = newStato === 'Rifiutato';
       updateBuilders.push({
         id: rigaDb.id,
         payload: {
+          id: rigaDb.id,
           stato: newStato,
           causale_stato_pratica: isRifiutato ? csvData.causale : null,
           messaggio_esito_sap: isRifiutato ? csvData.messaggio : null,
-          causa_annullamento: isRifiutato ? csvData.causa : null,
-          ultimo_csv_upload_at: nowIso,
-          ultimo_csv_upload_da: profilo.id || null
+          causa_annullamento: isRifiutato ? csvData.causa : null
+        },
+        changed: oldStato !== newStato,
+        reportItem: {
+          numContratto: numContrattoDisplay,
+          punto: puntoDisplay,
+          ragSoc: ana.ragione_sociale || '-',
+          oldStato: oldStato || '(vuoto)',
+          newStato,
+          stato: newStato,
+          statoCsv: newStato,
+          motivo: rigaDb.esito_manuale_note || '-'
         }
       });
     }
 
-    // Batch UPDATE: chunk per evitare di saturare Supabase con N promesse in parallelo.
+    // Gli UPDATE passano dalla function autenticata, che ricontrolla il blocco
+    // manuale per evitare race condition tra caricamento pagina e salvataggio.
     let updateErrorsCount = 0;
     const totalUpdates = updateBuilders.length;
     const batches = chunk(updateBuilders, UPDATE_BATCH_SIZE);
+    const buildersById = new Map(updateBuilders.map(builder => [builder.id, builder]));
     for (let i = 0; i < batches.length; i++) {
       loader.setText(`Aggiornamento DB ${Math.min((i+1) * UPDATE_BATCH_SIZE, totalUpdates)}/${totalUpdates}...`);
       const batch = batches[i];
-      const results = await Promise.all(batch.map(b =>
-        sb.from('post_vendita_controllo_lg').update(b.payload).eq('id', b.id)
-      ));
-      updateErrorsCount += results.filter(r => r.error).length;
-      results.filter(r => r.error).forEach(r => console.error('UPDATE error:', r.error));
+      const result = await callGestisciControlloLg({
+        action: 'csv_update_batch',
+        updates: batch.map(builder => builder.payload)
+      });
+      for (const id of result.updated_ids || []) {
+        const builder = buildersById.get(id);
+        if (!builder) continue;
+        if (builder.changed) aggiornati.push(builder.reportItem);
+        else stateInvariati.push(builder.reportItem);
+      }
+      for (const id of result.manual_protected_ids || []) {
+        const builder = buildersById.get(id);
+        if (!builder) continue;
+        manualProtected.push({
+          ...builder.reportItem,
+          statoManuale: builder.reportItem.oldStato
+        });
+      }
+      updateErrorsCount += (result.errors || []).length;
+      (result.errors || []).forEach(item => console.error('CSV UPDATE error:', item));
     }
     loader.success(`Import completato`);
 
@@ -1012,6 +1213,7 @@ async function processaCsv(file) {
         puntiNonTrovati,
         matchAmbigui,
         doubleCheckKo,
+        manualProtected,
         updateErrors: updateErrorsCount
       });
       // Refresh dati per mostrare nuovi stati
@@ -1028,7 +1230,7 @@ function mostraReportImport(report) {
   const {
     totaleRigheCsv, recordPcPuntoUnici, hasPointHeaders,
     aggiornati, stateInvariati, noMatchDb, puntiNonTrovati, matchAmbigui,
-    doubleCheckKo, updateErrors
+    doubleCheckKo, manualProtected, updateErrors
   } = report;
 
   const renderTable = (rows, cols) => {
@@ -1097,6 +1299,19 @@ function mostraReportImport(report) {
           { label: 'Stato CSV', get: r => r.stato }
         ])}</div>
       </div>` : '',
+    manualProtected.length > 0 ? `
+      <div class="report-section">
+        <h4>Esiti manuali protetti (${manualProtected.length})</h4>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Queste righe hanno un esito manuale protetto. Il CSV e' stato letto ma non ha modificato lo stato.</p>
+        <div class="report-list">${renderTable(manualProtected, [
+          { label: 'Num. Contratto', get: r => r.numContratto },
+          { label: 'POD/PDR', get: r => r.punto },
+          { label: 'Ragione Sociale', get: r => r.ragSoc },
+          { label: 'Stato manuale', get: r => r.statoManuale },
+          { label: 'Stato CSV', get: r => r.statoCsv },
+          { label: 'Motivazione', get: r => r.motivo }
+        ])}</div>
+      </div>` : '',
     stateInvariati.length > 0 ? `
       <div class="report-section">
         <h4>Stato gi&agrave; aggiornato (${stateInvariati.length})</h4>
@@ -1116,7 +1331,8 @@ function mostraReportImport(report) {
     updateErrors > 0 ? `<div class="report-section"><h4 style="color:var(--danger);">Errori salvataggio (${updateErrors})</h4><p style="font-size:12px;color:var(--text-secondary);">Alcuni UPDATE sono falliti. Controlla la console browser per i dettagli.</p></div>` : ''
   ].join('');
 
-  const nonAggiornati = noMatchDb.length + puntiNonTrovati.length + matchAmbigui.length + doubleCheckKo.length;
+  const nonAggiornati = noMatchDb.length + puntiNonTrovati.length + matchAmbigui.length
+    + doubleCheckKo.length + manualProtected.length;
   const body = `
     <div class="report-grid">
       <div class="report-card info">
@@ -1134,6 +1350,10 @@ function mostraReportImport(report) {
       <div class="report-card warn">
         <div class="rc-label">Double check KO</div>
         <div class="rc-value">${doubleCheckKo.length}</div>
+      </div>
+      <div class="report-card warn">
+        <div class="rc-label">Protetti manuali</div>
+        <div class="rc-value">${manualProtected.length}</div>
       </div>
       <div class="report-card danger">
         <div class="rc-label">Non aggiornati</div>

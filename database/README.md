@@ -66,6 +66,7 @@ Lo schema reale di Supabase contiene anche modifiche fatte:
 | `059_deduplica_anagrafica_test_case.sql` | Consolida l'ultimo doppione tecnico case-insensitive `TEST`/`test`, due righe di collaudo prive di riferimenti operativi. Conserva la riga più vecchia, aggiorna dinamicamente ogni FK reale e audita integralmente il loser prima della cancellazione. |
 | `060_ripristina_bonus_assicurazioni_annuali.sql` | Ripristina 0,5 punti su 3 Assicurazioni Annuali di luglio: il vecchio bug di verifica aveva azzerato il bonus e il riallineamento successivo al solo catalogo base non poteva ricostruirlo. Guardie su ID/stato/bonus, ricalcolo totali via trigger e marcatura dei 3 audit generati dalla migration 058. |
 | `061_ripristina_opzione_iliad_snapshot.sql` | Ripristina ID e nome dell'opzione MNP Iliad da 1 punto su 7 contratti Mobile: il punteggio era già corretto, ma il vecchio flusso di verifica aveva perso i metadati opzione. Evidenza verificata sui 7 PDA (`Operatore attuale: Iliad Italia`), copia SIM presente, associazione offerta-opzione valida e audit esplicito per ogni riga. |
+| `062_controllo_lg_esiti_manuali.sql` | Aggiunge a `post_vendita_controllo_lg` origine dello stato, blocco CSV, motivazione/autore/data dell'esito manuale e audit dello sblocco. CHECK di coerenza, indice parziale e trigger DB consentono la gestione manuale soltanto ad admin/service role e impediscono agli operatori di sovrascrivere una riga protetta. |
 
 ## Linee guida
 
@@ -76,6 +77,7 @@ Lo schema reale di Supabase contiene anche modifiche fatte:
 
 ## Registro aggiornamenti
 
+- **2026-07-27**: migration `062` applicata su production. Controllo L&G distingue gli stati CSV dagli esiti manuali admin-only, conserva motivazione/autore/data e impedisce agli upload successivi di sovrascrivere una riga protetta finche' un admin non riattiva esplicitamente l'automatismo.
 - **2026-07-26**: migrations `057`–`061` applicate su production. Otto duplicazioni anagrafiche certe consolidate (8.477 → 8.469 record), incluse le due righe di collaudo `TEST`/`test`; tutte le FK spostate e loser auditati, nessuna omonimia con identificativi validi distinti è stata unita. L'audit di 247 contratti luglio ha confermato gli 8 totali zero legittimi, corretto 3 Assicurazioni Annuali rimaste senza bonus 0,5 e ripristinato l'opzione Iliad su 7 contratti il cui punto era già corretto. Attivati CHECK e audit permanente dei punteggi.
 - **2026-07-26**: migration `056` applicata su production dopo il deploy di `gestisci-operazioni-post-vendita`. Rimborso manuale e passaggio Apri/Chiudi a `KO` non richiedono più la password dell'account, ma sono esclusivamente admin; tutte le scritture ordinarie dei rimborsi passano dal backend autenticato.
 - **2026-07-26**: migration `055` applicata su production. Ha ridotto a 24 mesi la scadenza di 170 documenti privacy confermati (nessuna scadenza immediata), attivato il rate limit pubblico persistente e aggiunto la prenotazione appuntamenti atomica. È additiva sulle tabelle Call Center condivise: non modifica `get_slot_disponibili` né colonne/RPC esistenti.
