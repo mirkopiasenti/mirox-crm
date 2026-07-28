@@ -85,7 +85,7 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 14px;
-  overflow: hidden;
+  overflow: auto;
 }
 .contracts-table { width:100%;border-collapse:separate;border-spacing:0; }
 .contracts-table thead th {
@@ -541,7 +541,10 @@ function renderDaCompletare(wrap) {
       <td>${escapeHtml(operatoreNome(r))}</td>
       <td><span class="stato-pill ${statoSlug(r.stato)}">${escapeHtml(r.stato)}</span></td>
       <td>${escapeHtml(r.tecnologia || '—')}</td>
-      <td style="text-align:right;"><button type="button" class="btn-mini btn-primary" onclick="openDettaglio('${r.id}')">Dettagli</button></td>
+      <td style="text-align:right;white-space:nowrap;">
+        <button type="button" class="btn-mini btn-primary" onclick="openDettaglio('${r.id}')">Dettagli</button>
+        <a class="btn-mini" href="verifica_contratti.html?contratto_id=${encodeURIComponent(r.contratto_id)}">Vai alla pratica</a>
+      </td>
     </tr>`;
   }).join('');
   wrap.innerHTML = `<table class="contracts-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
@@ -583,7 +586,10 @@ function renderElenco(wrap) {
       <td>${escapeHtml(operatoreNome(r))}</td>
       <td><span class="stato-pill ${statoSlug(r.stato)}">${escapeHtml(r.stato)}</span></td>
       <td>${escapeHtml(r.tecnologia || '—')}</td>
-      <td style="text-align:right;"><button type="button" class="btn-mini btn-primary" onclick="openDettaglio('${r.id}')">Dettagli</button></td>
+      <td style="text-align:right;white-space:nowrap;">
+        <button type="button" class="btn-mini btn-primary" onclick="openDettaglio('${r.id}')">Dettagli</button>
+        <a class="btn-mini" href="verifica_contratti.html?contratto_id=${encodeURIComponent(r.contratto_id)}">Vai alla pratica</a>
+      </td>
     </tr>`;
   }).join('');
   wrap.innerHTML = `<table class="contracts-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;

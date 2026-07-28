@@ -578,6 +578,7 @@ function render() {
           isManuale ? 'Gestisci manuale' : 'Esita manualmente'
         }</button>`
       : '';
+    const practiceButton = `<a class="btn-mini" href="verifica_contratti.html?contratto_id=${encodeURIComponent(r.contratto_id)}">Vai alla pratica</a>`;
     return `<tr>
       <td>${fmtDate(dataInserimento(r))}</td>
       <td class="cell-cliente">${escapeHtml(ana.ragione_sociale || '-')}</td>
@@ -588,7 +589,7 @@ function render() {
       <td class="cell-mono">${escapeHtml(ana.cellulare || '—')}</td>
       <td>${escapeHtml(operatoreNome(r))}</td>
       <td>${r.stato ? `<span class="stato-pill ${statoSlug(r.stato)}">${escapeHtml(r.stato)}</span>` : '<span style="color:var(--text-light);">—</span>'}${sourceBadge}</td>
-      <td style="text-align:right;"><div class="row-actions">${detailButton}${manualButton}</div></td>
+      <td style="text-align:right;"><div class="row-actions">${practiceButton}${detailButton}${manualButton}</div></td>
     </tr>`;
   }).join('');
 

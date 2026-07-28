@@ -376,6 +376,34 @@ function bottoneEliminaContrattoHtml(id) {
   return '<button type="button" class="mx-btn mx-btn-danger" disabled title="Solo gli amministratori possono eliminare definitivamente un contratto">Elimina definitivamente</button>';
 }
 
+function getContrattoIdRichiesto() {
+  const id = new URLSearchParams(window.location.search).get('contratto_id');
+  if (!id) return null;
+  return MiroxSafe.isUuid(id) ? id : '';
+}
+
+async function apriPraticaRichiesta() {
+  const id = getContrattoIdRichiesto();
+  if (id === null) return;
+  if (!id) {
+    await MiroxUI.alert('Il collegamento alla pratica non è valido.', { type: 'error' });
+    return;
+  }
+
+  let stateKey = null;
+  if (VCState.daVerificare.some(c => c.id === id)) stateKey = 'daVerificare';
+  if (VCState.verificati.some(c => c.id === id)) stateKey = 'verificati';
+  if (!stateKey) {
+    await MiroxUI.alert('La pratica richiesta non è stata trovata in Verifica Contratti.', { type: 'error' });
+    return;
+  }
+
+  const tabName = stateKey === 'verificati' ? 'verificati' : 'da-verificare';
+  const tabButton = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
+  switchTabVC(tabName, tabButton);
+  await apriDettaglioContratto(id, stateKey);
+}
+
 // ============================================================
 // TAB SWITCH
 // ============================================================
@@ -1542,6 +1570,7 @@ document.getElementById('filterDataVerificati').addEventListener('input', (e) =>
 (async () => {
   await caricaCategorie();
   await Promise.all([caricaContratti('da_controllare'), caricaContratti('controllato')]);
+  await apriPraticaRichiesta();
 })();
 </script>
 </body>

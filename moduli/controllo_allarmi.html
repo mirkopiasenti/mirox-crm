@@ -241,7 +241,8 @@ function render() {
     <th>Offerta scelta</th>
     <th>Operatore</th>
     <th>Modalità di pagamento</th>
-    <th>Stato</th>`;
+    <th>Stato</th>
+    <th style="text-align:right;">Azioni</th>`;
 
   const STATI_ALR = ['In Attivazione','OK','KO'];
   const statoClass = (s) => s ? slug(s) : 'vuoto';
@@ -262,6 +263,9 @@ function render() {
       <td>${modPag ? `<span class="pill ${slug(modPag)}">${escapeHtml(modPag)}</span>` : '<span style="color:var(--text-light);">—</span>'}</td>
       <td>
         <select class="stato-select ${statoClass(stato)}" data-row-id="${r.id}" data-prev="${escapeHtml(stato)}" onchange="onCambiaStato(this)">${options}</select>
+      </td>
+      <td style="text-align:right;white-space:nowrap;">
+        <a class="btn-mini" href="verifica_contratti.html?contratto_id=${encodeURIComponent(r.contratto_id)}">Vai alla pratica</a>
       </td>
     </tr>`;
   }).join('');
