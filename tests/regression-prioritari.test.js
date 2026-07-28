@@ -90,6 +90,31 @@ test('normalizzazione contratto rifiuta un path PDA fuori staging', () => {
   }, 0), /pda_temp_path non valido/);
 });
 
+test('nuovo contratto azzera categoria, PDA e stato visivo precedente', () => {
+  const wizard = fs.readFileSync(
+    path.join(ROOT, 'moduli/upload-contratti-vendita.html'),
+    'utf8'
+  );
+  const resetStart = wizard.indexOf('function resetPendingContractSelection()');
+  const resetEnd = wizard.indexOf('function resetContractFields()', resetStart);
+  const resetBlock = wizard.slice(resetStart, resetEnd);
+  const addStart = wizard.indexOf('async function addContrattoToCart');
+  const addEnd = wizard.indexOf('function loadCartContractInForm', addStart);
+  const addBlock = wizard.slice(addStart, addEnd);
+
+  assert.ok(resetStart > 0);
+  assert.match(resetBlock, /refs\.categoria\.value = '';/);
+  assert.match(resetBlock, /resetPendingPdaSelection\(\);/);
+  assert.match(resetBlock, /renderCategorieCards\(\);/);
+  assert.match(wizard, /function resetPendingPdaSelection\(\)[\s\S]*clearInputFile\(refs\.filePda\);/);
+  assert.match(wizard, /function resetPendingPdaSelection\(\)[\s\S]*updatePdaDropZoneVisual\(\);/);
+  assert.match(addBlock, /resetPendingContractSelection\(\);/);
+  assert.match(
+    wizard,
+    /refs\.btnBackToStep2\.addEventListener\('click', \(\) => \{\s*resetPendingContractSelection\(\);\s*resetContractFields\(\);/
+  );
+});
+
 test('mese solare Europe/Rome non oltrepassa il confine mensile', () => {
   const sameMonth = carrelloModule._test.isSameRomeCalendarMonth(
     '2026-07-31T21:59:59.000Z',

@@ -3169,6 +3169,33 @@ Reload Forever
  };
  }
 
+ // Azzera ogni riferimento al PDA e alla firma del contratto in compilazione.
+ // clearInputFile pulisce sia l'input nativo sia runtimeState.fileFallback;
+ // l'aggiornamento esplicito della drop-zone evita che nome e stato verde del
+ // PDF precedente restino visibili quando si avvia il contratto successivo.
+ function resetPendingPdaSelection() {
+ runtimeState.pendingPda = null;
+ runtimeState.pendingTipoFirma = null;
+ if (refs.filePda) clearInputFile(refs.filePda);
+ if (refs.fileContrattoFirmato) clearInputFile(refs.fileContrattoFirmato);
+ if (refs.pdaSelectedInfo) refs.pdaSelectedInfo.textContent = 'Nessun file selezionato';
+ if (refs.pdaOcrStatus) {
+ refs.pdaOcrStatus.textContent = '';
+ refs.pdaOcrStatus.style.display = 'none';
+ }
+ updatePdaDropZoneVisual();
+ renderFirmaSelection();
+ }
+
+ // Nuovo contratto nello stesso carrello: nessuna categoria o PDA puo'
+ // essere ereditata dal contratto appena salvato.
+ function resetPendingContractSelection() {
+ refs.categoria.value = '';
+ resetPendingPdaSelection();
+ renderCategorieCards();
+ renderCategoriaActions();
+ }
+
  function resetContractFields() {
  refs.offerta.value = '';
  refs.opzione.value = '';
@@ -4347,13 +4374,9 @@ Reload Forever
  // (il prossimo contratto saltera' lo step 2).
  runtimeState.anagraficaCompleted = true;
  runtimeState.editingTempId = null;
- // Pulisci il PDA pending + scelta firma + upload contratto firmato per il prossimo contratto
- runtimeState.pendingPda = null;
- runtimeState.pendingTipoFirma = null;
- if (refs.filePda) clearInputFile(refs.filePda);
- if (refs.pdaSelectedInfo) refs.pdaSelectedInfo.textContent = 'Nessun file selezionato';
- if (refs.pdaOcrStatus) refs.pdaOcrStatus.style.display = 'none';
- if (refs.fileContrattoFirmato) clearInputFile(refs.fileContrattoFirmato);
+ // Il contratto successivo deve ripartire senza categoria, PDA o firma
+ // ereditati dal contratto appena salvato.
+ resetPendingContractSelection();
 
  updateCartClienteSnapshot();
  renderCarrello();
@@ -4369,7 +4392,6 @@ Reload Forever
  } else {
  // Multi-contratto: torna allo step 1 (Categoria + PDA) per il prossimo contratto.
  // L'anagrafica e' gia' completata, quindi goToStep gestira' lo skip automatico dello step 2.
- refs.categoria.value = '';
  renderOfferte();
  renderOpzioni();
  renderReload();
@@ -5046,10 +5068,7 @@ Reload Forever
  // Cambio categoria allo step 1: l'eventuale PDA gia' caricato non e' piu' valido se
  // si cambia da categoria PDA -> non PDA (o viceversa). Anche la scelta firma viene resettata
  // perche' non e' piu' applicabile, e l'eventuale upload contratto firmato pure.
- if (refs.filePda) refs.filePda.value = '';
- runtimeState.pendingPda = null;
- runtimeState.pendingTipoFirma = null;
- if (refs.fileContrattoFirmato) clearInputFile(refs.fileContrattoFirmato);
+ resetPendingPdaSelection();
  renderOfferte();
  renderOpzioni();
  renderReload();
@@ -6178,13 +6197,13 @@ Reload Forever
  refs.btnOpenCarrelloTop.addEventListener('click', openCartView);
  // Da carrello: "Aggiungi altro contratto" -> torna allo step 1 per il prossimo contratto
  refs.btnBackToStep2.addEventListener('click', () => {
- refs.categoria.value = '';
- if (refs.filePda) refs.filePda.value = '';
- runtimeState.pendingPda = null;
+ resetPendingContractSelection();
+ resetContractFields();
  renderOfferte();
  renderOpzioni();
  renderReload();
  renderDynamicSections();
+ renderCategoriaActions();
  goToStep(1);
  });
  refs.btnNuovaPratica.addEventListener('click', startNuovaPraticaFromCart);

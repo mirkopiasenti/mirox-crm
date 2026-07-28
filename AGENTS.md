@@ -269,6 +269,7 @@ L'eccezione anon temporanea di `segnalazioni-files` introdotta dalla migration `
    3. **Dati contratto**: offerta/opzione/reload + campi specifici per categoria (Fisso/Energia/Allarmi/dispositivo).
    4. **Firma** (solo per categorie PDA): scelta tra `elettronica` o `cartacea`. Skippato per Energia/Allarmi/Assicurazioni. Il valore finisce in `vendita_contratti.tipo_firma`.
    5. **Documenti cliente**: documento_identita + eventuali copia_bolletta/copia_sim_mnp. Se `tipo_firma='cartacea'` appare anche il campo upload **"Contratto firmato"** (PDF della scansione del PDA firmato a mano dal cliente). **Niente upload contratto PDF originale qui** — quello e' gia' in staging dallo step 1.
+   - **Regola multi-contratto**: dopo "Aggiungi un altro contratto" il wizard conserva solo anagrafica e documenti condivisi della pratica; categoria, PDA/input file/cache, stato visivo della drop-zone, firma e campi specifici vengono azzerati. Anche "Aggiungi altro contratto" dal carrello applica lo stesso reset. Non preselezionare mai categoria o PDF dal contratto precedente.
 4. Submit "Invia pratica" → **prima del fetch al backend**, il wizard esegue il pre-step **consenso privacy GDPR** (vedi sezione "Sistema consensi privacy GDPR"):
    1. `POST garantisci-anagrafica` con i dati cliente → `anagrafica_id`
    2. `GET check-consenso-privacy?anagrafica_id=...` → se valido, entro 24 mesi e appartenente alle versioni informative v6 correnti, riusa `consenso_id` e procede senza modale
