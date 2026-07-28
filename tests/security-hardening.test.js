@@ -259,6 +259,49 @@ test('informative v6 usano la ragione sociale esatta e rendono visibile la scelt
   assert.match(cartSource, /\.in\('informativa_versione', INFORMATIVE_VERSIONI_CORRENTI\)/);
 });
 
+test('Storico Cliente legge esito e modulo privacy tramite la function autenticata', () => {
+  const storicoSource = fs.readFileSync(
+    path.join(ROOT, 'moduli/storico_cliente.html'),
+    'utf8'
+  );
+  const checkSource = fs.readFileSync(
+    path.join(ROOT, 'netlify/functions/check-consenso-privacy.js'),
+    'utf8'
+  );
+
+  assert.match(storicoSource, /id="privacyDownloadButton"/);
+  assert.match(storicoSource, /MiroxApi\.fetch\(\s*'\/\.netlify\/functions\/check-consenso-privacy/);
+  assert.match(storicoSource, /include_history=true/);
+  assert.match(storicoSource, /MiroxStorage\.signedUrl\(\s*'consensi-privacy'/);
+  assert.doesNotMatch(storicoSource, /\.select\('stato, valido_fino_al, revocato_at, confermato_at'\)/);
+  assert.match(checkSource, /esito: deriveEsito\(consensoValido, ultimoConsenso\)/);
+  assert.match(checkSource, /documento: documentoSerializzato/);
+  assert.match(checkSource, /\.not\('pdf_storage_path', 'is', null\)/);
+  assert.match(checkSource, /if \(!includeHistory\)/);
+});
+
+test('esito privacy distingue validità, revoca, rinnovo e tentativi OTP', () => {
+  const { deriveEsito } = require(
+    path.join(ROOT, 'netlify/functions/check-consenso-privacy.js')
+  )._test;
+  const base = {
+    created_at: '2026-07-28T08:00:00.000Z',
+    otp_confermato_at: '2026-07-28T08:10:00.000Z',
+    valido_fino_al: '2028-07-28T08:10:00.000Z',
+    informativa_versione: 'v6_2026_07_26',
+    stato: 'confermato'
+  };
+
+  assert.equal(deriveEsito(base, base).codice, 'valido');
+  assert.equal(deriveEsito(null, null).codice, 'non_firmato');
+  assert.equal(deriveEsito(null, { ...base, revocato_at: '2026-07-29T09:00:00.000Z' }).codice, 'revocato');
+  assert.equal(deriveEsito(null, { ...base, informativa_versione: 'v5_storica' }).codice, 'da_rinnovare');
+  assert.equal(deriveEsito(null, base).codice, 'scaduto');
+  assert.equal(deriveEsito(null, { ...base, stato: 'pending', otp_scade_at: '2099-01-01T00:00:00.000Z' }).codice, 'in_attesa');
+  assert.equal(deriveEsito(null, { ...base, stato: 'pending', otp_scade_at: '2020-01-01T00:00:00.000Z' }).codice, 'scaduto');
+  assert.equal(deriveEsito(null, { ...base, stato: 'fallito' }).codice, 'fallito');
+});
+
 test('il Call Center crea le anagrafiche con la RPC idempotente condivisa', () => {
   const source = fs.readFileSync(
     path.join(ROOT, 'moduli/call-center/registra-chiamata.html'),

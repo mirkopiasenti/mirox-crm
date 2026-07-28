@@ -368,6 +368,7 @@ body {
 const sb = db;
 let currentCliente = null;
 let currentStorico = [];
+let currentPrivacyDocument = null;
 
 // =============================================================================
 // CONFIG: mappa fra "tipo" della view storico_cliente e tabella sorgente / bucket
@@ -581,6 +582,7 @@ function tornaAllaRicerca() {
   document.getElementById('searchView').style.display = 'block';
   currentCliente = null;
   currentStorico = [];
+  currentPrivacyDocument = null;
   window.scrollTo({ top: 0, behavior: 'smooth' });
   // Re-focus sul campo ricerca per riprendere subito
   setTimeout(() => { const i = document.getElementById('searchInput'); if (i) i.focus(); }, 50);
@@ -628,58 +630,106 @@ function renderClienteCard(c) {
       </div>
       <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-light);display:flex;gap:10px;flex-wrap:wrap;">
         <button type="button" onclick="scaricaDocumentoIdentita('${escapeHtml(c.id)}')" style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:#FF6600;color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;font-family:inherit;">Download documento identità</button>
-        <span id="docHelpText" style="font-size:12px;color:var(--text-light);align-self:center;">Scarica sempre l'ultimo documento d'identità caricato per questo cliente</span>
+        <button type="button" id="privacyDownloadButton" onclick="scaricaModuloPrivacy()" disabled style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:#fff;color:#0A2540;border:1px solid #E3E8EE;border-radius:10px;cursor:not-allowed;font-weight:700;font-size:13px;font-family:inherit;opacity:.55;">Download modulo privacy</button>
+        <span id="docHelpText" style="font-size:12px;color:var(--text-light);align-self:center;">I pulsanti scaricano l'ultimo documento disponibile per il cliente</span>
       </div>
     </div>
   `;
 }
 
-// Legge da vendita_consensi_privacy il consenso piu' recente per l'anagrafica
-// e aggiorna il badge nella card cliente. Best-effort: non blocca il render.
+function setPrivacyBadgeStyle(el, background, color, text) {
+  el.style.background = background;
+  el.style.color = color;
+  el.textContent = text;
+}
+
+function setPrivacyDownload(documento) {
+  currentPrivacyDocument = documento && documento.pdf_storage_path ? documento : null;
+  const button = document.getElementById('privacyDownloadButton');
+  if (!button) return;
+  button.disabled = !currentPrivacyDocument;
+  button.style.cursor = currentPrivacyDocument ? 'pointer' : 'not-allowed';
+  button.style.opacity = currentPrivacyDocument ? '1' : '.55';
+}
+
+// Usa la function autenticata condivisa col wizard per applicare le stesse
+// regole di validita' (24 mesi + versione informativa corrente) e recuperare
+// l'ultimo PDF privacy archiviato. Best-effort: non blocca la timeline.
 // Stato badge:
-//   verde  = consenso valido (stato='confermato', non revocato, non scaduto)
-//   rosso  = consenso scaduto o revocato
-//   grigio = nessun consenso mai firmato / errore query
+//   verde   = consenso valido
+//   giallo  = assente, in attesa o da rinnovare
+//   rosso   = scaduto, revocato o fallito
+//   grigio  = verifica tecnica non disponibile
 async function loadPrivacyBadge(anagraficaId) {
   const el = document.getElementById('privacyBadge');
   if (!el) return;
+  setPrivacyDownload(null);
   try {
-    const { data, error } = await sb
-      .from('vendita_consensi_privacy')
-      .select('stato, valido_fino_al, revocato_at, confermato_at')
-      .eq('anagrafica_id', anagraficaId)
-      .eq('stato', 'confermato')
-      .order('confermato_at', { ascending: false })
-      .limit(1);
-    if (error) throw error;
-    const c = Array.isArray(data) ? data[0] : null;
-    if (!c) {
-      el.style.background = '#fef3c7';
-      el.style.color = '#92400e';
-      el.textContent = 'Privacy: non firmata';
-      return;
+    const response = await window.MiroxApi.fetch(
+      '/.netlify/functions/check-consenso-privacy?anagrafica_id=' + encodeURIComponent(anagraficaId) + '&include_history=true'
+    );
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.error || 'Verifica privacy non riuscita');
     }
-    const now = Date.now();
-    const validoFino = c.valido_fino_al ? new Date(c.valido_fino_al).getTime() : 0;
-    const revocato = !!c.revocato_at;
-    const dataScad = c.valido_fino_al ? fmtDate(c.valido_fino_al) : '-';
-    if (revocato) {
-      el.style.background = '#fee2e2';
-      el.style.color = '#991b1b';
-      el.textContent = 'Privacy: revocata';
-    } else if (validoFino && validoFino < now) {
-      el.style.background = '#fee2e2';
-      el.style.color = '#991b1b';
-      el.textContent = 'Privacy scaduta il ' + dataScad;
+    if (!currentCliente || currentCliente.id !== anagraficaId) return;
+    setPrivacyDownload(payload.documento);
+    const esito = payload.esito || { codice: payload.valido ? 'valido' : 'non_firmato' };
+    const dataScadenza = esito.valido_fino_al || esito.otp_scade_at;
+    if (esito.codice === 'valido') {
+      setPrivacyBadgeStyle(el, '#dcfce7', '#166534', 'Privacy OK - scade ' + fmtDate(esito.valido_fino_al));
+    } else if (esito.codice === 'revocato') {
+      setPrivacyBadgeStyle(el, '#fee2e2', '#991b1b', 'Privacy: revocata');
+    } else if (esito.codice === 'scaduto') {
+      setPrivacyBadgeStyle(el, '#fee2e2', '#991b1b', dataScadenza ? 'Privacy: scaduta il ' + fmtDate(dataScadenza) : 'Privacy: scaduta');
+    } else if (esito.codice === 'fallito') {
+      setPrivacyBadgeStyle(el, '#fee2e2', '#991b1b', 'Privacy: conferma fallita');
+    } else if (esito.codice === 'da_rinnovare') {
+      setPrivacyBadgeStyle(el, '#fef3c7', '#92400e', 'Privacy: da rinnovare');
+    } else if (esito.codice === 'in_attesa') {
+      setPrivacyBadgeStyle(el, '#fef3c7', '#92400e', 'Privacy: conferma in attesa');
     } else {
-      el.style.background = '#dcfce7';
-      el.style.color = '#166534';
-      el.textContent = 'Privacy OK - scade ' + dataScad;
+      setPrivacyBadgeStyle(el, '#fef3c7', '#92400e', 'Privacy: non firmata');
     }
   } catch (_) {
-    el.style.background = '#eef2f7';
-    el.style.color = '#697386';
-    el.textContent = 'Privacy: verifica non disponibile';
+    if (!currentCliente || currentCliente.id !== anagraficaId) return;
+    setPrivacyDownload(null);
+    setPrivacyBadgeStyle(el, '#eef2f7', '#697386', 'Privacy: verifica non disponibile');
+  }
+}
+
+async function scaricaModuloPrivacy() {
+  if (!window.MiroxUI) { console.error('MiroxUI non caricato'); return; }
+  if (!currentPrivacyDocument) {
+    await window.MiroxUI.alert(
+      'Non è presente un modulo privacy archiviato per questo cliente.',
+      { type: 'warning', title: 'Modulo non disponibile' }
+    );
+    return;
+  }
+  const loader = window.MiroxUI.loading.show('Download modulo privacy', 'Sto preparando il documento...');
+  try {
+    const signed = await window.MiroxStorage.signedUrl(
+      'consensi-privacy',
+      currentPrivacyDocument.pdf_storage_path
+    );
+    if (!signed) throw new Error('Impossibile generare il link al documento');
+    loader.success('Modulo privacy pronto');
+    const a = document.createElement('a');
+    a.href = signed;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.download = currentPrivacyDocument.pdf_filename || 'modulo_privacy.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (e) {
+    loader.error('Download non riuscito');
+    console.error('Errore download modulo privacy:', e);
+    setTimeout(() => window.MiroxUI.alert(
+      'Impossibile scaricare il modulo privacy: ' + e.message,
+      { type: 'error', title: 'Errore' }
+    ), 200);
   }
 }
 
@@ -986,6 +1036,7 @@ async function scaricaDocumentoIdentita(uuid) {
   }
 }
 window.scaricaDocumentoIdentita = scaricaDocumentoIdentita;
+window.scaricaModuloPrivacy = scaricaModuloPrivacy;
 window.apriDettaglioOperazione = apriDettaglioOperazione;
 window.apriAllegatiOperazione = apriAllegatiOperazione;
 window.apriPaginaCliente = apriPaginaCliente;
