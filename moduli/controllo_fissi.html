@@ -352,6 +352,9 @@ function fmtDateTime(iso) {
 function statoSlug(s) {
   return String(s||'').toLowerCase().replace(/\s+/g,'-');
 }
+function isControlloFissiAdmin() {
+  return window.__profilo && window.__profilo.ruolo === 'admin';
+}
 function setCount(id, n) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -755,12 +758,15 @@ function openDettaglio(id) {
         </div>
       </div>`;
   } else {
+    const reopenButton = stato === 'Attivo' && isControlloFissiAdmin()
+      ? '<button type="button" class="btn-action btn-action-primary" onclick="ripristinaInAttivazione()">Rimetti in attivazione</button>'
+      : '';
     footer = `
       <div class="foot-actions" style="width:100%;">
         <div class="left">
           <button type="button" class="btn-action btn-action-secondary" data-mx-close>Chiudi</button>
         </div>
-        <div class="right"></div>
+        <div class="right">${reopenButton}</div>
       </div>`;
   }
 
@@ -986,6 +992,54 @@ async function transizioneKO() {
     await loadAll();
   } catch (e) {
     MiroxUI.toast('Errore: ' + e.message, 'error');
+  }
+}
+
+async function ripristinaInAttivazione() {
+  const id = CFState.editingId;
+  const r = CFState.righe.find(x => x.id === id);
+  if (!id || !r) return;
+  if (!isControlloFissiAdmin()) {
+    MiroxUI.toast('Azione riservata agli amministratori', 'error');
+    return;
+  }
+  if (r.stato !== 'Attivo') {
+    MiroxUI.toast('La pratica non è più nello stato Attivo', 'warning');
+    return;
+  }
+
+  const ok = await MiroxUI.confirm(
+    'Vuoi rimettere questa pratica in <strong>"In Attivazione"</strong>?<br><br>La data di attivazione effettiva verrà azzerata.',
+    {
+      title: 'Ripristina pratica Fisso',
+      okText: 'Rimetti in attivazione',
+      cancelText: 'Annulla',
+      html: true
+    }
+  );
+  if (!ok) return;
+
+  const loader = MiroxUI.loading.show(
+    'Ripristino in corso',
+    'Riporto la pratica allo stato In Attivazione...'
+  );
+  try {
+    const response = await MiroxApi.fetch('/.netlify/functions/gestisci-controllo-fissi', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reopen_activation', id })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.error || 'Ripristino non riuscito');
+    }
+
+    if (CFState._modalClose) CFState._modalClose();
+    await loadAll();
+    loader.success('Pratica rimessa in attivazione');
+  } catch (e) {
+    loader.error('Errore durante il ripristino');
+    setTimeout(() => MiroxUI.toast('Errore: ' + e.message, 'error'), 200);
   }
 }
 
