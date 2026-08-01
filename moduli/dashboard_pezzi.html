@@ -83,6 +83,14 @@ body > .container.dp-page.dp-page {
 .toolbar .info-pill { padding: 3px 9px; font-size: 11px; display: inline-flex; align-items: center; gap: 8px; background: var(--primary-bg); color: var(--primary-dark); border-radius: 999px; font-weight: 600; }
 .toolbar .date-block { display: flex; align-items: center; gap: 8px; }
 .toolbar .spacer { flex: 1; }
+.btn-download-png {
+  border: 1px solid var(--primary); background: #fff; color: var(--primary-dark);
+  border-radius: 8px; padding: 5px 10px; font-family: inherit;
+  font-size: 11px; font-weight: 700; line-height: 1.2;
+  cursor: pointer; white-space: nowrap; transition: background .18s, color .18s, opacity .18s;
+}
+.btn-download-png:hover:not(:disabled) { background: var(--primary); color: #fff; }
+.btn-download-png:disabled { cursor: wait; opacity: .6; }
 
 .grid-wrap {
   background: var(--bg-card);
@@ -169,7 +177,14 @@ table.pezzi tbody tr.gruppo-header td {
   font-size: 13px; font-weight: 800; letter-spacing: .04em;
   text-transform: uppercase; color: var(--text);
   border-bottom: 1px solid var(--border);
+  position: relative; min-height: 35px;
 }
+.gara-card-head .btn-download-png {
+  position: absolute; top: 5px; right: 6px; padding: 4px 8px;
+  border-color: #86C79B; color: #166534; background: rgba(255,255,255,.82);
+  text-transform: none; letter-spacing: 0; font-size: 10px;
+}
+.gara-card-head .btn-download-png:hover:not(:disabled) { background: #166534; color: #fff; }
 table.gara-tab { width: 100%; border-collapse: collapse; font-size: 12px; }
 table.gara-tab thead th {
   background: var(--bg); font-size: 10.5px; font-weight: 700; text-transform: uppercase;
@@ -201,6 +216,7 @@ table.gara-tab tbody tr.clickable:hover td.metrica { filter: brightness(0.96); }
 .mx-info-dot { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 10px; font-weight: 800; font-style: normal; margin-left: 6px; vertical-align: middle; font-family: Georgia, serif; }
 
 /* Avanzamento Mensile */
+.avanzamento-export { display: inline-block; background: #fff; padding: 0 10px 4px; }
 .av-section { margin-bottom: 20px; }
 .av-section h3 {
   font-size: 12px; font-weight: 800; text-transform: uppercase;
@@ -253,6 +269,7 @@ table.avanz thead th.empty-obanec { background: #ffffff !important; border: none
 <script src="../js/mirox-api.js"></script>
 <script src="../js/mirox-error-reporter.js"></script>
 <script>if (window.MiroxErrorReporter) window.MiroxErrorReporter.install({ source: 'dashboard-pezzi' });</script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
 <script>(async () => { window.__profilo = await Auth.richiediAuth(); })();</script>
 
 <div class="header">
@@ -284,6 +301,7 @@ table.avanz thead th.empty-obanec { background: #ffffff !important; border: none
       <select id="selAnno"></select>
     </div>
     <div class="spacer"></div>
+    <button type="button" class="btn-download-png" id="downloadAvanzamento" style="display:none">Scarica entrambe le tabelle in PNG</button>
     <span class="info-pill" id="infoRiepilogo">Totale pezzi: 0</span>
   </div>
 
@@ -349,6 +367,71 @@ function fmtDataLabel(iso) {
   return d.getDate() + ' ' + mesi[d.getMonth()];
 }
 function fmtEur(n) { if (n === null || n === undefined || isNaN(n)) return '-'; return '€ ' + Number(n).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+
+function nomeFilePng(prefisso, dettaglio) {
+  const parte = String(dettaglio || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const periodo = `${DPState.anno}-${String(DPState.mese).padStart(2, '0')}`;
+  return [prefisso, parte, periodo].filter(Boolean).join('-') + '.png';
+}
+
+async function scaricaNodoPng(target, filename, button) {
+  if (!target) {
+    await MiroxUI.alert('La tabella da scaricare non è disponibile.', { title: 'Download PNG' });
+    return;
+  }
+  if (typeof html2canvas === 'undefined') {
+    await MiroxUI.alert('Il generatore PNG non è disponibile. Verifica la connessione e ricarica la pagina.', { title: 'Download PNG' });
+    return;
+  }
+
+  const testoOriginale = button?.textContent || '';
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Creazione PNG...';
+  }
+
+  try {
+    if (document.fonts?.ready) await document.fonts.ready;
+    const rect = target.getBoundingClientRect();
+    const width = Math.ceil(Math.max(target.scrollWidth, rect.width));
+    const height = Math.ceil(Math.max(target.scrollHeight, rect.height));
+    const canvas = await html2canvas(target, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      width,
+      height,
+      windowWidth: Math.max(document.documentElement.clientWidth, width),
+      windowHeight: Math.max(document.documentElement.clientHeight, height)
+    });
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob(result => result ? resolve(result) : reject(new Error('Impossibile creare il file PNG.')), 'image/png');
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    MiroxUI.toast('PNG scaricato.', 'success');
+  } catch (e) {
+    console.error('Errore download PNG:', e);
+    await MiroxUI.alert('Non è stato possibile creare il PNG. Riprova tra qualche istante.', { title: 'Download PNG' });
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = testoOriginale;
+    }
+  }
+}
 
 // ============================================================
 // CALENDARIO — giorni lavorativi mese e giorni passati (per Andamento)
@@ -879,8 +962,10 @@ function renderGare() {
         </tr>`;
       }
     });
-    html += `<div class="gara-card">
-      <div class="gara-card-head">Gara ${escapeHtml(op.nome)}</div>
+    html += `<div class="gara-card" data-operatore-nome="${escapeHtml(op.nome)}">
+      <div class="gara-card-head">Gara ${escapeHtml(op.nome)}
+        <button type="button" class="btn-download-png gara-download-png" data-html2canvas-ignore="true">Scarica PNG</button>
+      </div>
       <table class="gara-tab">
         <thead><tr><th></th><th>Attuale</th><th>Obiettivo</th><th>Compenso</th></tr></thead>
         <tbody>${bodyHtml}
@@ -891,6 +976,13 @@ function renderGare() {
   });
   html += '</div>';
   wrap.innerHTML = html;
+  wrap.querySelectorAll('.gara-download-png').forEach(button => {
+    button.addEventListener('click', () => {
+      const card = button.closest('.gara-card');
+      const operatore = card?.dataset.operatoreNome || 'operatore';
+      scaricaNodoPng(card, nomeFilePng('gara-individuale', operatore), button);
+    });
+  });
   // Click su riga metrica → popup descrizione
   wrap.querySelectorAll('tr.clickable[data-metrica-id]').forEach(tr => {
     tr.addEventListener('click', () => {
@@ -925,7 +1017,7 @@ function renderAvanzamento() {
     { key: 'standard', titolo: 'Avanzamento', metriche: DPState.metricheGara.filter(m => m.tabella === 'avanzamento_standard') },
     { key: 'piva',     titolo: 'Avanzamento P.IVA', metriche: metrichePiva }
   ];
-  let html = '';
+  let html = '<div class="avanzamento-export" id="avanzamentoExport">';
   let totaleContratti = 0;
   sezioni.forEach(sez => {
     const metriche = sez.metriche;
@@ -1064,6 +1156,7 @@ function renderAvanzamento() {
     });
     html += '</tbody></table></div>';
   });
+  html += '</div>';
   wrap.innerHTML = html;
   document.getElementById('infoRiepilogo').textContent = `${MESI[DPState.mese-1]} ${DPState.anno} · ${totaleContratti} pezzi`;
 }
@@ -1079,6 +1172,7 @@ async function switchTab(name) {
   document.getElementById('tabContentAvanzamento').style.display = name === 'avanzamento' ? 'block' : 'none';
   document.getElementById('dayToolbar').style.display = name === 'day' ? 'flex' : 'none';
   document.getElementById('monthToolbar').style.display = name === 'day' ? 'none' : 'flex';
+  document.getElementById('downloadAvanzamento').style.display = name === 'avanzamento' ? 'inline-flex' : 'none';
 
   if (name === 'day') {
     await caricaDay();
@@ -1128,6 +1222,14 @@ async function switchTab(name) {
 
   document.querySelectorAll('#tabBar .tab').forEach(b => {
     b.addEventListener('click', () => switchTab(b.dataset.tab));
+  });
+
+  document.getElementById('downloadAvanzamento').addEventListener('click', (e) => {
+    scaricaNodoPng(
+      document.getElementById('avanzamentoExport'),
+      nomeFilePng('avanzamento-mensile'),
+      e.currentTarget
+    );
   });
 
   switchTab('day');
