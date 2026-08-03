@@ -90,6 +90,33 @@ test('normalizzazione contratto rifiuta un path PDA fuori staging', () => {
   }, 0), /pda_temp_path non valido/);
 });
 
+test('carrello multi-contratto usa nomi progressivi per PDA e contratti firmati della stessa categoria', () => {
+  assert.equal(
+    carrelloModule._test.buildPdaFinalFileName('Mobile', 1),
+    'contratto_mobile.pdf'
+  );
+  assert.equal(
+    carrelloModule._test.buildPdaFinalFileName('Mobile', 2),
+    'contratto_mobile_2.pdf'
+  );
+
+  const backend = fs.readFileSync(
+    path.join(ROOT, 'netlify/functions/crea-vendita-pratica-carrello.js'),
+    'utf8'
+  );
+  assert.match(backend, /const pdaProgressiveByCategory = new Map\(\);/);
+  assert.match(backend, /progressive: pdaProgressive/);
+
+  const wizard = fs.readFileSync(
+    path.join(ROOT, 'moduli/upload-contratti-vendita.html'),
+    'utf8'
+  );
+  assert.match(
+    wizard,
+    /const firmatoFileName = getProgressiveContractFileName\(cartItem, state\.cart\.contratti\)\.replace\('contratto_', 'contratto_firmato_'\);/
+  );
+});
+
 test('nuovo contratto azzera categoria, PDA e stato visivo precedente', () => {
   const wizard = fs.readFileSync(
     path.join(ROOT, 'moduli/upload-contratti-vendita.html'),

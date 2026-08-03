@@ -4626,7 +4626,8 @@ Reload Forever
 	 codice_rivenditore: CODICI_RIVENDITORE.includes(item.codice_rivenditore)
 	   ? item.codice_rivenditore
 	   : CODICE_RIVENDITORE_DEFAULT,
-	 // PDA in staging: il backend promuovera' temp/<sess>/<file> a <cartella_pratica>/contratto_<categoria>.pdf
+	 // PDA in staging: il backend promuovera' temp/<sess>/<file> con nome progressivo
+	 // per evitare collisioni fra piu' contratti della stessa categoria.
  pda_temp_path: item.pda_temp_path || null,
  // Tipo firma (per categorie PDA): 'elettronica' | 'cartacea' | null
  tipo_firma: item.tipo_firma || null,
@@ -4781,7 +4782,7 @@ Reload Forever
  : null;
  if (contrattoFirmatoFile) {
  assertValidFile(contrattoFirmatoFile, `Contratto firmato ${idx + 1}`);
- const firmatoFileName = `contratto_firmato_${normalizeForFileName(categoriaSnapshot) || 'generico'}.pdf`;
+ const firmatoFileName = getProgressiveContractFileName(cartItem, state.cart.contratti).replace('contratto_', 'contratto_firmato_');
  setMessage(`Upload contratto firmato ${idx + 1}/${state.cart.contratti.length}...`, 'info');
  updateLoadingOverlay('Caricamento in corso', `Upload contratto firmato ${idx + 1}...`);
  const firmatoDebug = {

@@ -302,16 +302,21 @@ function isCategoriaPda(categoryName) {
   return CATEGORIE_PDA.has(normalizeCategoryName(categoryName));
 }
 
+function buildPdaFinalFileName(categoryName, progressive = 1) {
+  const categoriaSlug = sanitizeSegment(categoryName || 'generico', 'generico').toLowerCase();
+  const suffix = Number.isInteger(progressive) && progressive > 1 ? `_${progressive}` : '';
+  return `contratto_${categoriaSlug}${suffix}.pdf`;
+}
+
 /**
  * Promuove un PDA caricato in temp/<session>/<file> alla cartella definitiva
  * della pratica creata, e crea il record vendita_documenti corrispondente.
  * Se l'INSERT del record documento fallisce, rimuove il file appena spostato
  * per non lasciare oggetti orfani nello Storage.
  */
-async function promoteTempPda({ supabase, tempPath, basePath, categoriaName, praticaId, contrattoId, anagraficaId, uploadedBy }) {
+async function promoteTempPda({ supabase, tempPath, basePath, categoriaName, progressive, praticaId, contrattoId, anagraficaId, uploadedBy }) {
   try {
-    const categoriaSlug = sanitizeSegment(categoriaName || 'generico', 'generico').toLowerCase();
-    const finalFileName = `contratto_${categoriaSlug}.pdf`;
+    const finalFileName = buildPdaFinalFileName(categoriaName, progressive);
     const cleanBase = String(basePath || '').replace(/\/+$/, '');
     const newPath = `${cleanBase}/${finalFileName}`;
 
@@ -1138,6 +1143,7 @@ exports.handler = async (event) => {
     }
 
     const createdContracts = [];
+    const pdaProgressiveByCategory = new Map();
 
     for (let index = 0; index < normalizedContracts.length; index += 1) {
       const item = normalizedContracts[index];
@@ -1473,11 +1479,15 @@ exports.handler = async (event) => {
       // Un errore fa fallire l'intera creazione: il catch esegue il rollback
       // di pratica, contratti, record documenti e file gia' promossi.
       if (item.pda_temp_path) {
+        const pdaCategoryKey = normalizeCategoryName(categoria.nome) || 'generico';
+        const pdaProgressive = (pdaProgressiveByCategory.get(pdaCategoryKey) || 0) + 1;
+        pdaProgressiveByCategory.set(pdaCategoryKey, pdaProgressive);
         const result = await promoteTempPda({
           supabase,
           tempPath: item.pda_temp_path,
           basePath: storageBasePath,
           categoriaName: categoria.nome,
+          progressive: pdaProgressive,
           praticaId: praticaRow.id,
           contrattoId: insertedContract.id,
           anagraficaId,
@@ -1525,6 +1535,7 @@ exports.handler = async (event) => {
 exports._test = {
   authenticatedOperatorId,
   assertPersistedContractScores,
+  buildPdaFinalFileName,
   getRomeYearMonth,
   isSameRomeCalendarMonth,
   loadAnnualInsuranceBonus,
