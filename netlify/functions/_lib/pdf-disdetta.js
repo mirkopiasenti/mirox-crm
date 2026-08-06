@@ -117,7 +117,7 @@ const PHONE_RE = /^[0-9+(). /-]{5,30}$/;
 const DEFAULT_TEXT_RAISE = 2.2;
 const FISCAL_CODE_RAISE = 1.6;
 const UTENZA_FONT_SIZE = 14;
-const UTENZA_RAISE = 7.3;
+const UTENZA_RAISE = 9.3;
 const UTENZA_X_SHIFT = 5;
 
 function cleanText(value, maxLength, label, { required = true, uppercase = true } = {}) {
