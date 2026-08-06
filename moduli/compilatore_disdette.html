@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compilatore disdette - Mirox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/mirox-modules.css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; }
+    .page-header { align-items: center !important; justify-content: space-between !important; }
+    .page-header-copy { display: flex; flex-direction: column; gap: 3px; }
+    .page-header-copy p { margin: 0; }
+    .page-shell { max-width: 1180px; margin: 24px auto 60px; padding: 0 24px; }
+    .nav-tabs { position: sticky; top: 0; z-index: 5; }
+    .panel { display: none; }
+    .panel.active { display: block; animation: panel-in .25s ease; }
+    @keyframes panel-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .intro-card, .form-card, .history-card {
+      background: #fff;
+      border: 1px solid var(--mx-border);
+      border-radius: 16px;
+      box-shadow: var(--mx-shadow-sm);
+    }
+    .intro-card { padding: 28px; }
+    .intro-card h2 { margin: 0 0 5px; font-size: 20px; color: var(--mx-text); }
+    .intro-card > p { margin: 0 0 22px; color: var(--mx-text-secondary); font-size: 14px; }
+    .module-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+    .module-choice {
+      min-height: 132px;
+      padding: 18px;
+      border: 1px solid var(--mx-border);
+      border-radius: 14px;
+      background: #fff;
+      color: var(--mx-text);
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: all .2s ease;
+    }
+    .module-choice:hover { border-color: var(--mx-primary); transform: translateY(-2px); box-shadow: var(--mx-shadow); }
+    .module-choice.is-selected { border-color: var(--mx-primary); background: var(--mx-primary-bg); box-shadow: 0 0 0 2px rgba(255,102,0,.12); }
+    .module-kind {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      margin-bottom: 16px;
+      border-radius: 8px;
+      background: var(--mx-primary-bg);
+      color: var(--mx-primary-dark);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .module-choice.is-selected .module-kind { background: var(--mx-primary); color: #fff; }
+    .module-name { display: block; font-size: 15px; font-weight: 700; }
+    .module-description { display: block; margin-top: 5px; color: var(--mx-text-secondary); font-size: 12px; line-height: 1.4; }
+    .form-card { display: none; margin-top: 18px; overflow: hidden; }
+    .form-card.is-visible { display: block; }
+    .form-card-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--mx-border-light); }
+    .form-card-head h2 { margin: 0; font-size: 18px; }
+    .form-card-head p { margin: 4px 0 0; color: var(--mx-text-secondary); font-size: 12px; }
+    .change-module { border: 1px solid var(--mx-border); border-radius: 9px; background: #fff; padding: 8px 12px; font: 600 12px Inter, sans-serif; color: var(--mx-text); cursor: pointer; }
+    .change-module:hover { border-color: var(--mx-primary); color: var(--mx-primary-dark); }
+    .form-body { padding: 24px; }
+    .form-section { padding: 20px; margin: 0 0 18px; }
+    .form-section:last-of-type { margin-bottom: 0; }
+    .form-section h3 { margin: 0 0 18px; padding-bottom: 12px; border-bottom: 1px solid var(--mx-border-light); font-size: 15px; }
+    .form-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
+    .field { grid-column: span 4; min-width: 0; }
+    .field.wide { grid-column: span 6; }
+    .field.full { grid-column: 1 / -1; }
+    .field label { display: block; }
+    .required { color: var(--mx-primary-dark); }
+    .field-help { display: block; margin-top: 5px; color: var(--mx-text-secondary); font-size: 11px; line-height: 1.4; }
+    .choice-group { display: grid; gap: 9px; }
+    .choice-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 11px 12px;
+      border: 1px solid var(--mx-border);
+      border-radius: 10px;
+      background: #fff;
+      cursor: pointer;
+    }
+    .choice-row:hover { border-color: var(--mx-primary); background: var(--mx-primary-bg); }
+    .choice-row input { width: auto !important; margin: 2px 0 0; accent-color: var(--mx-primary); }
+    .choice-row span { font-size: 13px; font-weight: 500; color: var(--mx-text); }
+    .choice-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .choice-box h4 { margin: 0 0 9px; font-size: 13px; color: var(--mx-text); }
+    .date-row { display: flex; gap: 8px; align-items: center; }
+    .date-row input { margin: 0; }
+    .clear-date { flex: 0 0 auto; border: 1px solid var(--mx-border); border-radius: 9px; background: var(--mx-bg); color: var(--mx-text-secondary); padding: 10px 12px; font: 600 12px Inter, sans-serif; cursor: pointer; }
+    .signature-note { margin: 16px 0 0; padding: 12px 14px; border-radius: 10px; background: var(--mx-info-bg); color: var(--mx-text-secondary); font-size: 12px; line-height: 1.5; }
+    .form-actions { display: flex; justify-content: flex-end; padding-top: 20px; }
+    .generate-btn { min-width: 220px; padding: 13px 20px !important; }
+    .history-card { overflow: hidden; }
+    .history-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px; border-bottom: 1px solid var(--mx-border-light); }
+    .history-head h2 { margin: 0; font-size: 18px; }
+    .history-head p { margin: 4px 0 0; color: var(--mx-text-secondary); font-size: 12px; }
+    .history-body { padding: 0 24px 24px; }
+    .history-table-wrap { overflow-x: auto; }
+    .history-table { width: 100%; border-collapse: collapse; }
+    .history-table th, .history-table td { padding: 14px 10px; border-bottom: 1px solid var(--mx-border-light); text-align: left; vertical-align: middle; }
+    .history-table th { color: var(--mx-text-secondary); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .history-table td { font-size: 13px; color: var(--mx-text); }
+    .history-client { font-weight: 700; }
+    .history-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .type-badge { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: var(--mx-primary-bg); color: var(--mx-primary-dark); font-size: 10px; font-weight: 800; }
+    .view-pdf { border: 1px solid var(--mx-border); border-radius: 8px; background: #fff; color: var(--mx-text); padding: 7px 10px; font: 600 12px Inter, sans-serif; cursor: pointer; white-space: nowrap; }
+    .view-pdf:hover { border-color: var(--mx-primary); color: var(--mx-primary-dark); }
+    .history-state { padding: 46px 20px; text-align: center; color: var(--mx-text-secondary); font-size: 13px; }
+    .load-more-wrap { display: none; justify-content: center; padding-top: 20px; }
+    .load-more-wrap.is-visible { display: flex; }
+    [hidden] { display: none !important; }
+    @media (max-width: 900px) {
+      .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .field, .field.wide { grid-column: span 6; }
+      .choice-columns { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 620px) {
+      .page-header { align-items: flex-start !important; }
+      .page-shell { padding: 0 16px; margin-top: 16px; }
+      .nav-tabs { padding: 0 12px !important; }
+      .nav-tab { padding: 13px 14px !important; }
+      .intro-card, .form-body { padding: 18px; }
+      .module-grid { grid-template-columns: 1fr; }
+      .module-choice { min-height: 110px; }
+      .form-card-head, .history-head { align-items: flex-start; flex-direction: column; padding: 18px; }
+      .field, .field.wide, .field.full { grid-column: 1 / -1; }
+      .history-body { padding: 0 14px 18px; }
+      .generate-btn { width: 100%; }
+    }
+  </style>
+  <script src="../js/mirox-safe.js"></script>
+</head>
+<body>
+  <header class="page-header">
+    <div class="page-header-copy">
+      <h1>Compilatore disdette</h1>
+      <p>Compila e archivia i moduli di recesso WindTre.</p>
+      <a href="../dashboard.html" class="btn-back">Torna alla dashboard</a>
+    </div>
+  </header>
+
+  <nav class="nav-tabs" aria-label="Sezioni del Compilatore disdette">
+    <button type="button" class="nav-tab active" data-panel="compiler">Compila disdetta</button>
+    <button type="button" class="nav-tab" data-panel="history">Storico disdette</button>
+  </nav>
+
+  <main class="page-shell">
+    <section class="panel active" id="panelCompiler">
+      <div class="intro-card" id="moduleSelector">
+        <h2>Scegli il modulo da compilare</h2>
+        <p>I campi e le opzioni verranno adattati automaticamente al modello selezionato.</p>
+        <div class="module-grid">
+          <button type="button" class="module-choice" data-type="sim_consumer">
+            <span class="module-kind">SIM</span>
+            <span class="module-name">Consumer</span>
+            <span class="module-description">Recesso di una linea mobile privata.</span>
+          </button>
+          <button type="button" class="module-choice" data-type="sim_business">
+            <span class="module-kind">SIM</span>
+            <span class="module-name">Business</span>
+            <span class="module-description">Recesso mobile per professionisti e aziende.</span>
+          </button>
+          <button type="button" class="module-choice" data-type="fisso_consumer">
+            <span class="module-kind">Fisso</span>
+            <span class="module-name">Consumer</span>
+            <span class="module-description">Recesso di una linea fissa privata.</span>
+          </button>
+          <button type="button" class="module-choice" data-type="fisso_business">
+            <span class="module-kind">Fisso</span>
+            <span class="module-name">Business</span>
+            <span class="module-description">Recesso fisso per professionisti e aziende.</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-card" id="formCard">
+        <div class="form-card-head">
+          <div>
+            <h2 id="selectedModuleTitle">Nuova disdetta</h2>
+            <p>Tutti i campi sono obbligatori, tranne la data. La firma resta vuota.</p>
+          </div>
+          <button type="button" class="change-module" id="changeModule">Cambia modulo</button>
+        </div>
+
+        <form id="disdettaForm" class="form-body" novalidate>
+          <input type="hidden" name="tipo" id="tipoModulo">
+
+          <section class="form-section business-only" hidden>
+            <h3>Dati aziendali</h3>
+            <div class="form-grid">
+              <div class="field wide">
+                <label for="ragioneSociale">Ragione sociale <span class="required">*</span></label>
+                <input type="text" id="ragioneSociale" name="ragione_sociale" maxlength="100" autocomplete="organization">
+              </div>
+              <div class="field wide">
+                <label for="partitaIva">Partita IVA <span class="required">*</span></label>
+                <input type="text" id="partitaIva" name="partita_iva" maxlength="11" inputmode="numeric" autocomplete="off">
+              </div>
+              <div class="field wide">
+                <label for="referenteNome">Nome referente legale/delegato <span class="required">*</span></label>
+                <input type="text" id="referenteNome" name="referente_nome" maxlength="60" autocomplete="off">
+              </div>
+              <div class="field wide">
+                <label for="referenteCognome">Cognome referente legale/delegato <span class="required">*</span></label>
+                <input type="text" id="referenteCognome" name="referente_cognome" maxlength="60" autocomplete="off">
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <h3 id="identityTitle">Dati dell’intestatario</h3>
+            <div class="form-grid">
+              <div class="field wide">
+                <label for="nome" id="nomeLabel">Nome <span class="required">*</span></label>
+                <input type="text" id="nome" name="nome" maxlength="60" required autocomplete="given-name">
+              </div>
+              <div class="field wide">
+                <label for="cognome" id="cognomeLabel">Cognome <span class="required">*</span></label>
+                <input type="text" id="cognome" name="cognome" maxlength="60" required autocomplete="family-name">
+              </div>
+              <div class="field wide">
+                <label for="codiceFiscale">Codice fiscale <span class="required">*</span></label>
+                <input type="text" id="codiceFiscale" name="codice_fiscale" maxlength="16" required autocomplete="off" style="text-transform:uppercase">
+              </div>
+              <div class="field wide">
+                <label for="numeroTitolare" id="numeroTitolareLabel">Numero del titolare <span class="required">*</span></label>
+                <input type="tel" id="numeroTitolare" name="numero_titolare" maxlength="30" required autocomplete="tel">
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <h3>Documento d’identità</h3>
+            <div class="form-grid">
+              <div class="field wide">
+                <label for="documentoTipo">Tipo documento <span class="required">*</span></label>
+                <input type="text" id="documentoTipo" name="documento_tipo" maxlength="40" required placeholder="Es. Carta d’identità">
+              </div>
+              <div class="field wide">
+                <label for="documentoNumero">Numero documento <span class="required">*</span></label>
+                <input type="text" id="documentoNumero" name="documento_numero" maxlength="40" required style="text-transform:uppercase">
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <h3>Residenza e contatti</h3>
+            <div class="form-grid">
+              <div class="field wide">
+                <label for="via">Via <span class="required">*</span></label>
+                <input type="text" id="via" name="via" maxlength="80" required autocomplete="address-line1">
+              </div>
+              <div class="field">
+                <label for="civico">Numero civico <span class="required">*</span></label>
+                <input type="text" id="civico" name="civico" maxlength="15" required autocomplete="address-line2">
+              </div>
+              <div class="field">
+                <label for="citta">Città <span class="required">*</span></label>
+                <input type="text" id="citta" name="citta" maxlength="60" required autocomplete="address-level2">
+              </div>
+              <div class="field">
+                <label for="provincia">Provincia <span class="required">*</span></label>
+                <input type="text" id="provincia" name="provincia" maxlength="2" required autocomplete="address-level1" style="text-transform:uppercase">
+              </div>
+              <div class="field">
+                <label for="cap">CAP <span class="required">*</span></label>
+                <input type="text" id="cap" name="cap" maxlength="5" required inputmode="numeric" autocomplete="postal-code">
+              </div>
+              <div class="field wide">
+                <label for="recapitoAlternativo" id="recapitoAlternativoLabel">Recapito alternativo <span class="required">*</span></label>
+                <input type="tel" id="recapitoAlternativo" name="recapito_alternativo" maxlength="30" required autocomplete="off">
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <h3>Dettagli del recesso</h3>
+            <div class="form-grid">
+              <div class="field full">
+                <label for="utenza">Numero dell’utenza da disdire <span class="required">*</span></label>
+                <input type="tel" id="utenza" name="utenza" maxlength="30" required autocomplete="off">
+                <span class="field-help">È possibile inserire una sola utenza per ogni PDF.</span>
+              </div>
+              <div class="field full choice-columns">
+                <div class="choice-box">
+                  <h4>Motivo del recesso <span class="required">*</span></h4>
+                  <div class="choice-group">
+                    <label class="choice-row"><input type="radio" name="motivo_recesso" value="ordinario" required><span>Recesso ordinario</span></label>
+                    <label class="choice-row"><input type="radio" name="motivo_recesso" value="modifiche_contrattuali"><span>Modifiche contrattuali</span></label>
+                    <label class="choice-row consumer-reason"><input type="radio" name="motivo_recesso" value="entro_14_giorni"><span>Recesso entro 14 giorni</span></label>
+                  </div>
+                </div>
+                <div class="choice-box fixed-only" hidden>
+                  <h4>Modalità di cessazione <span class="required">*</span></h4>
+                  <div class="choice-group">
+                    <label class="choice-row"><input type="radio" name="modalita_cessazione" value="cessazione_definitiva"><span>Cessazione definitiva con perdita del numero</span></label>
+                    <label class="choice-row"><input type="radio" name="modalita_cessazione" value="portabilita"><span>Portabilità verso altro operatore</span></label>
+                  </div>
+                </div>
+                <div class="choice-box">
+                  <h4>Pagamento rate residue <span class="required">*</span></h4>
+                  <div class="choice-group">
+                    <label class="choice-row"><input type="radio" name="pagamento_rate" value="rateizzato" required><span>Pagamento rateizzato</span></label>
+                    <label class="choice-row"><input type="radio" name="pagamento_rate" value="unica_soluzione"><span>Pagamento in un’unica soluzione</span></label>
+                  </div>
+                </div>
+              </div>
+              <div class="field wide">
+                <label for="dataDisdetta">Data <span class="field-help" style="display:inline;margin-left:4px;">facoltativa</span></label>
+                <div class="date-row">
+                  <input type="date" id="dataDisdetta" name="data">
+                  <button type="button" class="clear-date" id="clearDate">Svuota</button>
+                </div>
+              </div>
+            </div>
+            <p class="signature-note">Lo spazio della firma resterà vuoto nel PDF per consentire la firma manuale del cliente o del rappresentante legale.</p>
+          </section>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary generate-btn" id="generateButton">Genera e archivia PDF</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel" id="panelHistory">
+      <div class="history-card">
+        <div class="history-head">
+          <div>
+            <h2>Storico disdette generate</h2>
+            <p>I PDF possono essere visualizzati, scaricati e stampati nuovamente.</p>
+          </div>
+          <button type="button" class="change-module" id="refreshHistory">Aggiorna storico</button>
+        </div>
+        <div class="history-body">
+          <div class="history-state" id="historyLoading">Caricamento dello storico in corso...</div>
+          <div class="history-state" id="historyEmpty" hidden>Nessuna disdetta generata.</div>
+          <div class="history-table-wrap" id="historyTableWrap" hidden>
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Cliente</th>
+                  <th>Codice fiscale / P.IVA</th>
+                  <th>Generata il</th>
+                  <th>PDF</th>
+                </tr>
+              </thead>
+              <tbody id="historyRows"></tbody>
+            </table>
+          </div>
+          <div class="load-more-wrap" id="loadMoreWrap">
+            <button type="button" class="change-module" id="loadMore">Carica altre disdette</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
+  <script src="../js/config.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/mirox-ui.js"></script>
+  <script src="../js/mirox-api.js"></script>
+  <script src="../js/mirox-error-reporter.js"></script>
+  <script>
+    if (window.MiroxErrorReporter) window.MiroxErrorReporter.install({ source: 'compilatore-disdette' });
+
+    const TYPES = {
+      sim_consumer: { label: 'SIM Consumer', business: false, fixed: false },
+      sim_business: { label: 'SIM Business', business: true, fixed: false },
+      fisso_consumer: { label: 'Fisso Consumer', business: false, fixed: true },
+      fisso_business: { label: 'Fisso Business', business: true, fixed: true }
+    };
+    const ENDPOINT = '/.netlify/functions/gestisci-disdette';
+    let selectedType = '';
+    let historyPage = 1;
+    let historyLoaded = false;
+
+    const form = document.getElementById('disdettaForm');
+    const formCard = document.getElementById('formCard');
+    const moduleSelector = document.getElementById('moduleSelector');
+    const historyRows = document.getElementById('historyRows');
+
+    function todayLocal() {
+      const now = new Date();
+      const local = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
+      return local.toISOString().slice(0, 10);
+    }
+
+    function setRequired(container, required) {
+      container.querySelectorAll('input, select, textarea').forEach(field => {
+        if (field.type === 'radio') return;
+        field.required = required;
+      });
+    }
+
+    function selectModule(type) {
+      const config = TYPES[type];
+      if (!config) return;
+      selectedType = type;
+      document.getElementById('tipoModulo').value = type;
+      document.getElementById('selectedModuleTitle').textContent = `Nuova disdetta ${config.label}`;
+      document.getElementById('identityTitle').textContent = config.business ? 'Dati del rappresentante legale' : 'Dati dell’intestatario';
+      document.getElementById('nomeLabel').innerHTML = `${config.business ? 'Nome del rappresentante legale' : 'Nome'} <span class="required">*</span>`;
+      document.getElementById('cognomeLabel').innerHTML = `${config.business ? 'Cognome del rappresentante legale' : 'Cognome'} <span class="required">*</span>`;
+      document.getElementById('numeroTitolareLabel').innerHTML = `${config.business ? 'Numero del rappresentante legale' : 'Numero del titolare'} <span class="required">*</span>`;
+      document.getElementById('recapitoAlternativoLabel').innerHTML = `${config.business ? 'Recapito del referente delegato' : 'Recapito alternativo'} <span class="required">*</span>`;
+
+      document.querySelectorAll('.module-choice').forEach(button => {
+        button.classList.toggle('is-selected', button.dataset.type === type);
+      });
+      document.querySelectorAll('.business-only').forEach(section => {
+        section.hidden = !config.business;
+        setRequired(section, config.business);
+      });
+      document.querySelectorAll('.fixed-only').forEach(section => {
+        section.hidden = !config.fixed;
+        section.querySelectorAll('input[type="radio"]').forEach(field => { field.required = config.fixed; });
+      });
+      document.querySelectorAll('.consumer-reason').forEach(row => {
+        row.hidden = config.business;
+        if (config.business) row.querySelector('input').checked = false;
+      });
+      formCard.classList.add('is-visible');
+      moduleSelector.hidden = true;
+      formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function resetModuleSelection() {
+      form.reset();
+      selectedType = '';
+      formCard.classList.remove('is-visible');
+      moduleSelector.hidden = false;
+      document.querySelectorAll('.module-choice').forEach(button => button.classList.remove('is-selected'));
+      document.getElementById('dataDisdetta').value = todayLocal();
+      moduleSelector.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function switchPanel(name) {
+      document.querySelectorAll('.nav-tab').forEach(button => button.classList.toggle('active', button.dataset.panel === name));
+      document.getElementById('panelCompiler').classList.toggle('active', name === 'compiler');
+      document.getElementById('panelHistory').classList.toggle('active', name === 'history');
+      if (name === 'history' && !historyLoaded) loadHistory(true);
+    }
+
+    function formPayload() {
+      const values = Object.fromEntries(new FormData(form).entries());
+      return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value]));
+    }
+
+    function formatDateTime(value) {
+      if (!value) return '—';
+      return new Intl.DateTimeFormat('it-IT', {
+        timeZone: 'Europe/Rome',
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      }).format(new Date(value));
+    }
+
+    async function openStoredPdf(id) {
+      const popup = window.open('', '_blank');
+      if (popup) popup.opener = null;
+      try {
+        const response = await MiroxApi.fetch(ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'signed_url', id })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success || !result.signed_url) throw new Error(result.error || 'PDF non disponibile');
+        if (popup) popup.location.href = result.signed_url;
+        else window.open(result.signed_url, '_blank', 'noopener');
+      } catch (error) {
+        if (popup) popup.close();
+        await MiroxUI.alert(error.message || 'Impossibile aprire il PDF', { type: 'error' });
+      }
+    }
+
+    function appendHistoryRows(items) {
+      items.forEach(item => {
+        const row = document.createElement('tr');
+        const typeCell = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'type-badge';
+        badge.textContent = TYPES[item.tipo]?.label || item.tipo;
+        typeCell.appendChild(badge);
+
+        const clientCell = document.createElement('td');
+        clientCell.className = 'history-client';
+        clientCell.textContent = item.ragione_sociale || `${item.nome || ''} ${item.cognome || ''}`.trim();
+
+        const codeCell = document.createElement('td');
+        codeCell.className = 'history-code';
+        codeCell.textContent = item.partita_iva || item.codice_fiscale || '—';
+
+        const dateCell = document.createElement('td');
+        dateCell.textContent = formatDateTime(item.created_at);
+
+        const actionCell = document.createElement('td');
+        const viewButton = document.createElement('button');
+        viewButton.type = 'button';
+        viewButton.className = 'view-pdf';
+        viewButton.textContent = 'Visualizza PDF';
+        viewButton.addEventListener('click', () => openStoredPdf(item.id));
+        actionCell.appendChild(viewButton);
+
+        row.append(typeCell, clientCell, codeCell, dateCell, actionCell);
+        historyRows.appendChild(row);
+      });
+    }
+
+    async function loadHistory(reset) {
+      if (reset) {
+        historyPage = 1;
+        historyRows.replaceChildren();
+      }
+      document.getElementById('historyLoading').hidden = false;
+      document.getElementById('historyEmpty').hidden = true;
+      document.getElementById('loadMoreWrap').classList.remove('is-visible');
+      try {
+        const response = await MiroxApi.fetch(`${ENDPOINT}?page=${historyPage}&page_size=50`);
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Errore caricamento storico');
+        appendHistoryRows(result.disdette || []);
+        historyLoaded = true;
+        document.getElementById('historyTableWrap').hidden = historyRows.children.length === 0;
+        document.getElementById('historyEmpty').hidden = historyRows.children.length !== 0;
+        document.getElementById('loadMoreWrap').classList.toggle('is-visible', !!result.has_more);
+      } catch (error) {
+        document.getElementById('historyTableWrap').hidden = true;
+        await MiroxUI.alert(error.message || 'Impossibile caricare lo storico', { type: 'error' });
+      } finally {
+        document.getElementById('historyLoading').hidden = true;
+      }
+    }
+
+    document.querySelectorAll('.module-choice').forEach(button => button.addEventListener('click', () => selectModule(button.dataset.type)));
+    document.querySelectorAll('.nav-tab').forEach(button => button.addEventListener('click', () => switchPanel(button.dataset.panel)));
+    document.getElementById('changeModule').addEventListener('click', resetModuleSelection);
+    document.getElementById('clearDate').addEventListener('click', () => { document.getElementById('dataDisdetta').value = ''; });
+    document.getElementById('refreshHistory').addEventListener('click', () => loadHistory(true));
+    document.getElementById('loadMore').addEventListener('click', () => { historyPage += 1; loadHistory(false); });
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!selectedType || !form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+
+      const popup = window.open('', '_blank');
+      if (popup) popup.opener = null;
+      const loading = MiroxUI.loading.show('Generazione PDF in corso...', 'Il documento verrà archiviato automaticamente.');
+      document.getElementById('generateButton').disabled = true;
+      try {
+        const response = await MiroxApi.fetch(ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'generate', disdetta: formPayload() })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Errore durante la generazione');
+        loading.success('PDF generato e archiviato');
+        setTimeout(() => loading.hide(), 700);
+        if (result.signed_url) {
+          if (popup) popup.location.href = result.signed_url;
+          else window.open(result.signed_url, '_blank', 'noopener');
+        } else if (popup) {
+          popup.close();
+        }
+        historyLoaded = false;
+        MiroxUI.toast('Disdetta generata correttamente', 'success');
+      } catch (error) {
+        if (popup) popup.close();
+        loading.error('Generazione non riuscita');
+        setTimeout(() => loading.hide(), 900);
+        await MiroxUI.alert(error.message || 'Impossibile generare la disdetta', { type: 'error' });
+      } finally {
+        document.getElementById('generateButton').disabled = false;
+      }
+    });
+
+    (async () => {
+      const profile = await Auth.richiediAuth();
+      if (!profile) return;
+      document.getElementById('dataDisdetta').value = todayLocal();
+    })();
+  </script>
+</body>
+</html>

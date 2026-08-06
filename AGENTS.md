@@ -101,7 +101,7 @@ Modifiche a schema / RLS / RPC / trigger su queste tabelle hanno rischio di **ro
 
 ### 1. Frontend (`/`, `/moduli/`, `/moduli/call-center/`, `/js/`, `/css/`)
 
-Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pubblica esclusivamente `dist/`, generata copiando gli HTML root e le directory `assets/`, `css/`, `js/`, `moduli/`; `dist/` è ignorata da Git. Backend, migration, test, script, file Markdown e configurazioni non devono mai essere aggiunti alla lista pubblica. `/moduli/call-center/` contiene il modulo CC integrato (Fase 1, vedi sezione dedicata). `dashboard.html` contiene anche il sottomenu Applicazioni: il bottone topbar `#btnApplicazioni`, collocato prima di Appuntamenti Oggi, espande `#applicationsDrawer` tra topbar e saluto e sposta il contenuto sottostante senza sovrapporlo; i riquadri applicazione mantengono le dimensioni dei bottoni topbar. La prima voce predisposta è `Compilatore disdette`, non ancora collegata a una pagina finché il relativo flusso non viene definito. Le pagine `admin*.html` alla root costituiscono il **Pannello Admin Mirox** (`admin.html` hub + configurazioni + gare + KPI Consumer/Business), tutte gated da `profili.ruolo='admin'`. La shell condivisa dell'area Admin è generata da `js/admin-shell.js` e stilizzata da `css/admin-shell.css`: sidebar sinistra persistente su desktop, drawer su mobile e area operativa a destra. Le due pagine KPI aggiungono `css/admin-kpi.css` e condividono `js/admin-kpi-vendita-consumer.js`, parametrizzato tramite `data-kpi-cluster`. JS condiviso Mirox esposto su `window`:
+Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pubblica esclusivamente `dist/`, generata copiando gli HTML root e le directory `assets/`, `css/`, `js/`, `moduli/`; `dist/` è ignorata da Git. Backend, migration, test, script, file Markdown e configurazioni non devono mai essere aggiunti alla lista pubblica. `/moduli/call-center/` contiene il modulo CC integrato (Fase 1, vedi sezione dedicata). `dashboard.html` contiene anche il sottomenu Applicazioni: il bottone topbar `#btnApplicazioni`, collocato prima di Appuntamenti Oggi, espande `#applicationsDrawer` tra topbar e saluto e sposta il contenuto sottostante senza sovrapporlo; i riquadri applicazione mantengono le dimensioni dei bottoni topbar. La prima voce è `Compilatore disdette` e collega a `moduli/compilatore_disdette.html`, che offre scelta fra quattro moduli, compilazione guidata e storico PDF. Le pagine `admin*.html` alla root costituiscono il **Pannello Admin Mirox** (`admin.html` hub + configurazioni + gare + KPI Consumer/Business), tutte gated da `profili.ruolo='admin'`. La shell condivisa dell'area Admin è generata da `js/admin-shell.js` e stilizzata da `css/admin-shell.css`: sidebar sinistra persistente su desktop, drawer su mobile e area operativa a destra. Le due pagine KPI aggiungono `css/admin-kpi.css` e condividono `js/admin-kpi-vendita-consumer.js`, parametrizzato tramite `data-kpi-cluster`. JS condiviso Mirox esposto su `window`:
 
 | File JS | Espone | Uso |
 |---|---|---|
@@ -122,7 +122,7 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 
 ### 2. Server (`/netlify/functions/`, Node >=22)
 
-Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i due cron Netlify e `public-prenota`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `admin-vendita-config`, `admin-kpi-vendita-consumer`, `gestisci-controllo-fissi`, `elimina-vendita-contratto`, le action manuali di `gestisci-controllo-lg` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. 23 functions + 6 lib condivise (`_lib/mailer.js`, `_lib/require-auth.js`, `_lib/smshosting.js`, `_lib/privacy-config.js`, `_lib/pdf-consenso.js`, `_lib/score-integrity.js`):
+Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i due cron Netlify e `public-prenota`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `admin-vendita-config`, `admin-kpi-vendita-consumer`, `gestisci-controllo-fissi`, `elimina-vendita-contratto`, le action manuali di `gestisci-controllo-lg` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. 24 functions + 7 lib condivise (`_lib/mailer.js`, `_lib/require-auth.js`, `_lib/smshosting.js`, `_lib/privacy-config.js`, `_lib/pdf-consenso.js`, `_lib/pdf-disdetta.js`, `_lib/score-integrity.js`):
 
 - `vendita-config.js` (GET) — catalogo per wizard
 - `admin-vendita-config.js` (GET/POST action-based) — CRUD admin offerte/opzioni/reload + replace regole documentali
@@ -134,6 +134,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `gestisci-controllo-fissi.js` (POST action-based, admin-only) — `reopen_activation` riporta una riga da `Attivo` a `In Attivazione` soltanto se lo stato corrente è ancora `Attivo`, azzera `data_attivazione` e registra data/autore del ripristino dai dati JWT.
 - `gestisci-controllo-lg.js` (POST action-based) — `csv_update_batch` applica fino a 50 esiti WindTre per richiesta agli account autenticati e ricontrolla atomicamente `esito_manuale_bloccato=false`; `set_manual_outcome` e `unlock_manual_outcome` sono admin-only. Lo stato manuale richiede motivazione, registra autore/data, azzera i dettagli rifiuto provenienti dal CSV e rimane protetto finche' un admin non riattiva l'automatismo.
 - `gestisci-operazioni-post-vendita.js` (POST action-based) — sostituisce tutte le scritture browser su `post_vendita_gestione_rimborsi`: creazione, associazione path PDF e completamento restano disponibili agli account autenticati; `create_rimborso_manuale` e `mark_apri_chiudi_ko` passano da `requireAuth(..., {adminOnly:true})`. Operatore e stato del rimborso manuale sono derivati lato server. Migration post-deploy `056`: rimborsi write server-only e trigger DB che impedisce di introdurre `vendita_apri_chiudi.stato='KO'` da sessioni non-admin.
+- `gestisci-disdette.js` (GET/POST action-based) — genera con `pdf-lib` uno dei quattro moduli WindTre precompilati, carica il risultato nel bucket privato `disdette-files`, registra l'indice in `disdette_generate`, elenca lo storico e crea signed URL di 5 minuti. Tutte le action sono autenticate e la service role è l'unico soggetto con accesso diretto a tabella e bucket.
 - `elimina-vendita-contratto.js` (POST) — admin-only; elimina definitivamente contratto, record collegati e allegati Storage, e la pratica se rimane vuota.
 - `ocr-pda.js` (POST multipart, max 20MB) — OCR del PDA via Claude API (`claude-haiku-4-5-20251001`). **Dati cliente**: cf_piva, ragione_sociale, nome_referente, cellulare, email, provincia, comune, via, civico. **Codice Rivenditore** (dal 2026-07-18, migration `050`): `codice_rivenditore` estratto dal "Codice POS" WindTre, valori ammessi solo `'9001415852'` (Legnago) o `'9000822241'` (Cerea), altrimenti `null`. **Dati dispositivo** (dal 2026-06-26, PDA WindTre Mobile/Customer Base): `dispositivo_presente` (bool), `tipo_acquisto` ('VAR' o 'Finanziamento'), `imei` (15 cifre), `prezzo_device` (stringa numerica es. "399.9"), `smartphone_reload` (bool nullable: true=SI[X], false=NO[X], null=sezione assente). Riconoscimento VAR vs Finanziamento via 3 segnali concordi nel PDA: titolo pagina ("Offerta con Finanziamento" vs "Offerta Vendita a Rate"), header sezione ("OFFERTA CON FINANZIAMENTO" vs "VENDITA A RATE"), riga Opzioni/servizi della SIM ("Vendita con Finanziamento" vs "Vendita a rate"). Validazione server-side: tipo_acquisto solo enum, imei regex 15 cifre, prezzo_device regex numerico (altrimenti `null` per evitare di sporcare il form). `finanziaria` e `kolme` NON sono estratti (non presenti nel PDA, compilazione manuale operatore). 200 con `data: {...}` se l'OCR estrae (campi `null` se parziale). In caso di errore "hard" l'errore Anthropic viene classificato in `error_code` strutturato: `ocr_credit_exhausted` (credit balance low → 503), `ocr_rate_limited` (429 → 503), `ocr_unavailable` (5xx/529 → 503), `ocr_auth_error` (401/403 → 503), `ocr_generic_error` (default → 500). Payload errore: `{success:false, error, error_code, http_status, provider_status, provider_message}`. Il client decide il popup in base a `error_code`. Richiede `ANTHROPIC_API_KEY`.
 - `search-anagrafica.js` (GET) — lookup CF/PIVA
@@ -152,6 +153,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `_lib/smshosting.js` — wrapper REST API Smshosting per invio SMS transactional. Espone `sendOtpSms({to, otp})`, `normalizeMobileNumber(raw)`, `generateOtp(6)`. Auth HTTP Basic. Endpoint `https://api.smshosting.it/rest/api/sms/send`. Timeout 12s. Modalità simulazione tramite env `SMSHOSTING_SIMULATE=true`. Vedi `docs/SMSHOSTING_SETUP.md` per il setup account.
 - `_lib/privacy-config.js` — fonte unica delle due versioni informative correnti: `v6_2026_07_26` cartacea e `v6_2026_07_26_dig` digitale OTP. Espone anche l'elenco accettato dal dedupe/backend.
 - `_lib/pdf-consenso.js` — generatore `pdfkit` con due template: cartaceo v6 su una pagina A4 monocromatica e digitale v6 `_dig` su tre pagine con layout storico. La ragione sociale del Titolare è `KONA TECH SRL`. Finalità, basi giuridiche, conservazione e perimetro marketing sono equivalenti. Entrambe le varianti mostrano ACCONSENTO e NON ACCONSENTO con una sola scelta marcata; il digitale la ripete nel riquadro probatorio e descrive il flusso OTP reale. Esporta `{buffer, hash, informativaVersione}`.
+- `_lib/pdf-disdetta.js` — generatore deterministico `pdf-lib` del Compilatore disdette. Carica i quattro template inclusi in `_templates/disdette/`, valida i dati, disegna testo e spunte a coordinate fisse, mantiene la firma vuota e restituisce un singolo PDF A4. Non usa OCR né API AI.
 - `_lib/score-integrity.js` — parser stretto dei punteggi catalogo e verifica condivisa dei quattro componenti, dei totali gara/extra e delle colonne legacy. Usato sia alla creazione sia in Verifica Contratti.
 
 ### 3. Database (Supabase Postgres)
@@ -182,6 +184,9 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `vendita_documenti`, `vendita_documenti_regole`, `vendita_compensi_regole`, `vendita_log_modifiche`. Migration `053`: UNIQUE `(storage_bucket, storage_path)`; migration post-deploy `054`: INSERT/DELETE documenti soltanto via backend.
 - `vendita_consensi_privacy` — registra presa visione dell'informativa CRM e consenso promozionale opzionale (migration 034; durata originaria 48 mesi ridotta e clamped a 24 mesi dalla migration 055). Modalità `otp_sms` o `cartaceo`, stato workflow (`pending`/`confermato`/`scaduto`/`fallito`/`revocato`), OTP hash+salt+scadenza+tentativi, audit IP/UA, snapshot anagrafica jsonb, `valido_fino_al`, `pdf_storage_path` privato. I ricontatti di servizio sulla pratica specifica non dipendono dal consenso marketing.
 - Moduli operativi: `vendita_apri_chiudi`, `vendita_switch_sim`, `vendita_ordini_smartphone`, `vendita_simulatore_protecta`
+
+### Applicazioni
+- `disdette_generate` — indice server-only dei PDF creati dal Compilatore disdette (migration `063`). Conserva tipo modulo, identificativi minimi necessari allo storico, path/hash/versione del PDF e operatore. I dati completi compilati non vengono duplicati nella tabella: restano nel PDF privato. Nessun grant a `anon` o `authenticated`; tutte le operazioni passano da `gestisci-disdette` con service role.
 
 ### Post-Vendita
 - `post_vendita_dispositivi_comodato` — codice generato da RPC `genera_codice_comodato()`
@@ -238,7 +243,7 @@ Il wizard Upload Contratti, al submit, passa `pratica.appuntamento_id` e `pratic
 
 ### Storage buckets
 
-Dal 2026-06-24 (migration `029`) i bucket dati clienti sono **PRIVATI**. Lettura solo via **signed URL** generato lato client con `MiroxStorage.signedUrl(bucket, path)` o `MiroxStorage.openAttachment(bucket, path)` (scadenza default 5 min).
+Dal 2026-06-24 (migration `029`) i bucket dati clienti sono **PRIVATI**. La lettura ordinaria usa **signed URL** generati lato client con `MiroxStorage.signedUrl(bucket, path)` o `MiroxStorage.openAttachment(bucket, path)` (scadenza default 5 min); i bucket server-only `consensi-privacy` e `disdette-files` espongono invece signed URL tramite le rispettive Netlify Functions.
 
 | Bucket | Public | Contenuto |
 |---|---|---|
@@ -250,11 +255,12 @@ Dal 2026-06-24 (migration `029`) i bucket dati clienti sono **PRIVATI**. Lettura
 | `rimborsi-files` | privato | PDF moduli gestione rimborsi |
 | `protecta-files` | privato | PDF preventivi simulatore Protecta |
 | `consensi-privacy` | privato | PDF informativa GDPR firmati (OTP o scansione cartaceo). MIME only `application/pdf`, max 20 MB. Naming `Privacy_<RagSocSafe>_<CF>_<DD_MM_YYYY>.pdf` con eventuale suffisso `_<id6>` per collisioni. Path `<YYYY>/<MM>/`. Migration 034 |
+| `disdette-files` | privato | PDF di recesso generati sui quattro moduli WindTre originali. PDF only, max 5 MB, path `<YYYY>/<MM>/<uuid>/<nome-file>.pdf`. Accesso esclusivo service role; `gestisci-disdette` restituisce signed URL di 5 minuti. Migration 063 |
 | `moduli-template` | **pubblico** | Template modulistici (disdetta_fisso_consumer.pdf, ecc.) — generici, leggibili anche da non autenticati |
 
 **Convenzione campi DB**: dopo migration 029 le colonne `cartella_url` / `preventivo_pdf_url` su `vendita_apri_chiudi`, `vendita_switch_sim`, `vendita_simulatore_protecta` contengono il **path** nel bucket (es. `dispositivo_X/file.pdf`), NON più un URL pubblico. I record legacy hanno ancora gli URL completi: il codice di lettura li gestisce entrambi (regex `replace` su prefisso `https://...storage/v1/object/public/<bucket>/`).
 
-**RLS storage** (migration post-deploy `054`): i bucket privati restano leggibili da `authenticated` per signed URL/list. Le policy INSERT/UPDATE/DELETE browser sui sette bucket dati vengono rimosse; le scritture passano esclusivamente da `upload-vendita-documento`, `upload-documento-modulo` o dalle altre functions specializzate con service role. Il bucket `consensi-privacy` era già server-only. `moduli-template` resta l'unica eccezione pubblica/gestibile separatamente.
+**RLS storage** (migration post-deploy `054`): i bucket privati operativi restano leggibili da `authenticated` per signed URL/list. Le policy INSERT/UPDATE/DELETE browser sui sette bucket dati vengono rimosse; le scritture passano esclusivamente da `upload-vendita-documento`, `upload-documento-modulo` o dalle altre functions specializzate con service role. I bucket `consensi-privacy` e `disdette-files` sono server-only. `moduli-template` resta l'unica eccezione pubblica/gestibile separatamente.
 
 L'eccezione anon temporanea di `segnalazioni-files` introdotta dalla migration `032` è stata revocata dalla `036`; la `054` rimuove anche le residue policy di scrittura `authenticated` sul bucket.
 
@@ -303,6 +309,14 @@ Le pagine post-vendita dei punti 8–11 espongono `Vai alla pratica` per ogni ri
 ---
 
 ## Regole di business chiave
+
+### Compilatore disdette (dal 2026-08-06, migration 063)
+- Varianti consentite: `sim_consumer`, `sim_business`, `fisso_consumer`, `fisso_business`; ogni PDF riguarda una sola utenza.
+- Tutti i dati anagrafici, di contatto, indirizzo, utenza e le scelte pertinenti sono obbligatori. La data è precompilata con oggi ma è l'unico dato facoltativo e può essere cancellata senza bloccare la generazione.
+- Nei Business il referente legale/delegato è composto da nome e cognome. Il ripensamento entro 14 giorni è disponibile solo per Consumer. Nei Fisso è obbligatorio scegliere cessazione completa oppure migrazione verso altro operatore.
+- Lo spazio firma non viene mai compilato: il PDF prodotto deve essere stampato o firmato successivamente dal cliente.
+- I campi sono disegnati a coordinate fisse sui quattro template originali inclusi nel bundle della Function. La generazione è deterministica con `pdf-lib`; non richiede API OpenAI, OCR o interpretazione AI a runtime.
+- Lo storico globale mostra Consumer come nome, cognome e CF; Business come ragione sociale e P.IVA. Il PDF resta privato e può essere visualizzato, riscaricato o stampato tramite signed URL temporaneo restituito dal backend.
 
 ### CF/PIVA → Cluster
 - CF italiano (16 char, regex con caratteri omocodia) → `Consumer`
@@ -581,12 +595,12 @@ Ogni errore tecnico nel CRM (rete, OCR, submit, JS non gestiti...) viene notific
 3. Negli `catch` di errori tecnici (rete, 5xx, eccezioni inattese): chiamare `MiroxErrorReporter.report({source, level, title, message, technical, context, silent:true})` oppure passare un quarto parametro `reportInfo` alle funzioni `showErrorOverlay`-style se la pagina ne ha una (il wizard upload-contratti-vendita ha integrato il pattern: vedi `showErrorOverlay(title, text, technicalText, reportInfo)` con `reportInfo = {level, errorCode, context}`)
 4. NON usare per errori di validazione utente ("compila il campo Email") — solo per problemi tecnici e di sistema. Il throttling 60s previene comunque flood
 
-### Implementato dove (al 2026-07-27)
+### Implementato dove (al 2026-08-06)
 
-**Integrazione globale (34 pagine, ogni pagina ha `install({source:'<nome>'})` al boot per catturare errori JS non gestiti):**
+**Integrazione globale (36 pagine, ogni pagina ha `install({source:'<nome>'})` al boot per catturare errori JS non gestiti):**
 
 - **Root** (8): `dashboard`, `admin`, `admin-utenti`, `admin-vendita-config`, `admin-call-center-config`, `admin-gare`, `admin-kpi-vendita-consumer`, `admin-kpi-vendita-business`
-- **Vendita/Post-Vendita** (16): `upload-contratti-vendita` (integrazione completa con `reportInfo` sui 5 catch tecnici principali + branching OCR credito esaurito), `apri_chiudi`, `switch_sim`, `ordini_smartphone`, `simulatore_protecta`, `dashboard_pezzi`, `storico_cliente`, `dispositivi_comodato`, `gestione_rimborsi`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `ticket`, `segnalazioni`
+- **Vendita/Post-Vendita/Applicazioni** (17): `upload-contratti-vendita` (integrazione completa con `reportInfo` sui 5 catch tecnici principali + branching OCR credito esaurito), `apri_chiudi`, `switch_sim`, `ordini_smartphone`, `simulatore_protecta`, `dashboard_pezzi`, `storico_cliente`, `dispositivi_comodato`, `gestione_rimborsi`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `ticket`, `segnalazioni`, `compilatore_disdette`
 - **Call Center** (11): `appuntamenti`, `appuntamenti-oggi`, `blacklist`, `call-center-lead-outbound`, `elenco-chiamate`, `esiti-appuntamenti`, `prenota-interno`, `prenota-interno-outbound`, `registra-chiamata`, `registra-chiamata-outbound`, `rilavorazione`
 
 **Pagine escluse (volutamente)**:
@@ -594,7 +608,7 @@ Ogni errore tecnico nel CRM (rete, OCR, submit, JS non gestiti...) viene notific
 - `index.html` — schermata di login, prima dell'autenticazione (nessun JWT da iniettare)
 - `moduli/call-center/prenota.html` — form pubblico anon (nessuna auth, `mirox-send-email` ritornerebbe 401)
 
-**Tipo di integrazione applicato sulle 30 pagine batch** (dal 2026-06-25):
+**Tipo di integrazione applicato alle pagine autenticate** (dal 2026-06-25):
 
 1. Aggiunto include `mirox-api.js` dove mancava (necessario per `Authorization: Bearer <jwt>` su `mirox-send-email`)
 2. Aggiunto include `mirox-error-reporter.js`
@@ -678,7 +692,7 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 - **Anagrafica**: SEMPRE via `AnagraficaHelper.cerca` / `cercaOcrea` (RPC `cerca_o_crea_anagrafica`) per evitare doppioni
 - **Upload PDF**: SEMPRE via Netlify function. Per i moduli operativi usare `MiroxStorageUpload.upload(...)`; per i documenti vendita usare `uploadVenditaDocumento(...)`. MAI `db.storage.from(...).upload()` dal client — la service_role non deve mai uscire dal server
 - **Anteprima PDF upload**: nei moduli Upload Contratti, Switch SIM, Apri/Chiudi, Verifica Contratti, Segnalazioni e Dispositivo Comodato ogni PDF selezionato o trascinato deve passare da `MiroxUpload` prima di essere mantenuto nell'input. Bottone rosso `X` = rimuovi, bottone verde `Conferma` = il file resta selezionato. Per drop-zone custom usare `MiroxUpload.previewPdfFiles()` o `MiroxUpload.confirmFilesForInput()` invece di assegnare il file direttamente.
-- **Lettura allegati da bucket privati**: SEMPRE via `MiroxStorage.openAttachment(bucket, path)` o `MiroxStorage.signedUrl(...)`. **MAI** `getPublicUrl()` per i bucket privati (vedi sezione "Storage buckets"). Eccezione: `moduli-template` resta pubblico e accetta `getPublicUrl()`
+- **Lettura allegati da bucket privati**: SEMPRE via `MiroxStorage.openAttachment(bucket, path)`, `MiroxStorage.signedUrl(...)` o, per i bucket server-only, tramite la Function proprietaria (`gestisci-disdette` per `disdette-files`). **MAI** `getPublicUrl()` per i bucket privati (vedi sezione "Storage buckets"). Eccezione: `moduli-template` resta pubblico e accetta `getPublicUrl()`
 - **Chiamate a Netlify functions dal client**: SEMPRE via `MiroxApi.fetch(url, opts)` — inietta `Authorization: Bearer <jwt>` dalla sessione Supabase. MAI `fetch()` diretto, altrimenti la function ritorna 401. Per FormData, NON settare `Content-Type` manualmente (il browser inserisce il boundary)
 - **Auth in nuove Netlify functions**: usare `const { requireAuth } = require('./_lib/require-auth')` e all'inizio dell'handler `const auth = await requireAuth(event); if (!auth.ok) return response(auth.status, { success: false, error: auth.error });`. Per endpoint solo admin: `requireAuth(event, { adminOnly: true })`. CORS `Access-Control-Allow-Headers` deve includere `Authorization`
 - **Identità server-side**: campi audit/ownership come `operatore_id`, `uploaded_by`, `created_by` non devono essere accettati come fonte di verità dal payload client; derivarli da `auth.profilo`/`auth.user` e validare le relazioni tra gli UUID ricevuti.

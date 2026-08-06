@@ -9,6 +9,7 @@
 
 [functions]
   node_bundler = "esbuild"
+  included_files = ["netlify/functions/_templates/disdette/*.pdf"]
   # External modules che non vanno bundlati.
   # pdfkit: ha font AFM e asset binari interni che esbuild non riesce a
   #   bundlare correttamente (a runtime fallirebbe con ENOENT su Helvetica.afm).

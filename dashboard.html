@@ -255,15 +255,6 @@
     .application-action {
       flex: 0 0 78px;
     }
-    .application-action[aria-disabled="true"] {
-      cursor: default;
-    }
-    .application-action[aria-disabled="true"]:hover {
-      border-color: var(--border);
-      transform: none;
-      box-shadow: none;
-    }
-
     /* HERO */
     .hero {
       text-align: center;
@@ -564,7 +555,7 @@
     <div class="applications-panel">
       <div class="applications-panel-title">Applicazioni</div>
       <div class="applications-grid">
-        <button class="action-square application-action" type="button" aria-disabled="true" title="Contenuto in preparazione">
+        <a class="action-square application-action" href="moduli/compilatore_disdette.html">
           <div class="action-square-icon">
             <svg viewBox="0 0 24 24">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -574,7 +565,7 @@
             </svg>
           </div>
           <div class="action-square-label">Compilatore disdette</div>
-        </button>
+        </a>
       </div>
     </div>
   </div>
