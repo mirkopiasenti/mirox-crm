@@ -5,7 +5,14 @@ const path = require('node:path');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 
 const TEMPLATE_VERSION = 'windtre-2024-06';
-const TEMPLATE_DIRECTORY = path.join(__dirname, '..', '_templates', 'disdette');
+const TEMPLATE_DIRECTORIES = Object.freeze([
+  // Netlify/esbuild appiattisce il modulo _lib nella directory della Function.
+  path.join(__dirname, '_templates', 'disdette'),
+  // Esecuzione Node locale: questo file si trova ancora dentro _lib.
+  path.join(__dirname, '..', '_templates', 'disdette'),
+  // Fallback per il layout /var/task usato dal runtime Netlify.
+  path.join(process.cwd(), 'netlify', 'functions', '_templates', 'disdette')
+]);
 
 const VARIANTS = Object.freeze({
   sim_consumer: {
@@ -249,10 +256,18 @@ function drawCheck(page, font, top) {
   });
 }
 
+function resolveTemplatePath(templateName) {
+  for (const directory of TEMPLATE_DIRECTORIES) {
+    const candidate = path.join(directory, templateName);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  throw new Error('Modello PDF non disponibile nel pacchetto della Function');
+}
+
 async function generateDisdettaPdf(rawPayload) {
   const data = validatePayload(rawPayload);
   const variant = VARIANTS[data.tipo];
-  const templatePath = path.join(TEMPLATE_DIRECTORY, variant.template);
+  const templatePath = resolveTemplatePath(variant.template);
   const templateBytes = fs.readFileSync(templatePath);
   const document = await PDFDocument.load(templateBytes);
   const page = document.getPages()[0];
@@ -304,6 +319,7 @@ async function generateDisdettaPdf(rawPayload) {
 module.exports = {
   generateDisdettaPdf,
   validatePayload,
+  resolveTemplatePath,
   VARIANTS,
   TEMPLATE_VERSION,
   _test: { formattedDate, drawFitText }

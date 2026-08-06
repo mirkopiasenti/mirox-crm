@@ -5,6 +5,7 @@ const test = require('node:test');
 const { PDFDocument } = require('pdf-lib');
 const {
   generateDisdettaPdf,
+  resolveTemplatePath,
   validatePayload,
   VARIANTS,
   TEMPLATE_VERSION
@@ -54,6 +55,7 @@ function payloadFor(type) {
 
 test('i quattro moduli generano un PDF A4 statico a pagina singola', async () => {
   for (const type of Object.keys(VARIANTS)) {
+    assert.equal(fs.existsSync(resolveTemplatePath(VARIANTS[type].template)), true);
     const generated = await generateDisdettaPdf(payloadFor(type));
     const document = await PDFDocument.load(generated.buffer);
     const [page] = document.getPages();
@@ -64,6 +66,17 @@ test('i quattro moduli generano un PDF A4 statico a pagina singola', async () =>
     assert.equal(generated.templateVersion, TEMPLATE_VERSION);
     assert.equal(generated.data.tipo, type);
   }
+});
+
+test('il resolver dei template supporta il layout locale e quello appiattito di Netlify', () => {
+  const helper = fs.readFileSync(
+    path.join(ROOT, 'netlify/functions/_lib/pdf-disdetta.js'),
+    'utf8'
+  );
+  assert.match(helper, /path\.join\(__dirname, '_templates', 'disdette'\)/);
+  assert.match(helper, /path\.join\(__dirname, '\.\.', '_templates', 'disdette'\)/);
+  assert.match(helper, /process\.cwd\(\), 'netlify', 'functions', '_templates', 'disdette'/);
+  assert.match(helper, /fs\.existsSync\(candidate\)/);
 });
 
 test('solo la data è facoltativa e le scelte dipendono dal modulo', () => {
