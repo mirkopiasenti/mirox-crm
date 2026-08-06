@@ -136,8 +136,8 @@ test('i campi stampati hanno un distacco verticale dalla riga del modulo', () =>
   );
   assert.match(helper, /DEFAULT_TEXT_RAISE = 2\.2/);
   assert.match(helper, /FISCAL_CODE_RAISE = 1\.6/);
-  assert.match(helper, /UTENZA_FONT_SIZE = 10/);
-  assert.match(helper, /UTENZA_RAISE = 3\.3/);
+  assert.match(helper, /UTENZA_FONT_SIZE = 14/);
+  assert.match(helper, /UTENZA_RAISE = 7\.3/);
   assert.match(helper, /UTENZA_X_SHIFT = 5/);
   assert.match(helper, /size: UTENZA_FONT_SIZE/);
   assert.match(helper, /raise: UTENZA_RAISE/);
