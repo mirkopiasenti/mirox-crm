@@ -103,6 +103,42 @@ test('solo la data è facoltativa e le scelte dipendono dal modulo', () => {
   );
 });
 
+test('tutti i dati testuali vengono normalizzati in stampato maiuscolo', () => {
+  const consumer = validatePayload({
+    ...payloadFor('sim_consumer'),
+    nome: 'Mario',
+    cognome: 'De Rossi',
+    documento_tipo: 'Carta d identità',
+    via: 'Via delle Rose',
+    citta: 'Legnago'
+  });
+  assert.equal(consumer.nome, 'MARIO');
+  assert.equal(consumer.cognome, 'DE ROSSI');
+  assert.equal(consumer.documento_tipo, 'CARTA D IDENTITÀ');
+  assert.equal(consumer.via, 'VIA DELLE ROSE');
+  assert.equal(consumer.citta, 'LEGNAGO');
+
+  const business = validatePayload({
+    ...payloadFor('sim_business'),
+    ragione_sociale: 'Impresa Demo Srl',
+    referente_nome: 'Paolo',
+    referente_cognome: 'Verdi'
+  });
+  assert.equal(business.ragione_sociale, 'IMPRESA DEMO SRL');
+  assert.equal(business.referente_nome, 'PAOLO');
+  assert.equal(business.referente_cognome, 'VERDI');
+});
+
+test('i campi stampati hanno un distacco verticale dalla riga del modulo', () => {
+  const helper = fs.readFileSync(
+    path.join(ROOT, 'netlify/functions/_lib/pdf-disdetta.js'),
+    'utf8'
+  );
+  assert.match(helper, /DEFAULT_TEXT_RAISE = 2\.2/);
+  assert.match(helper, /FISCAL_CODE_RAISE = 1\.6/);
+  assert.match(helper, /raise: 1\.5/);
+});
+
 test('pagina, backend, template e migration espongono compilazione e storico server-only', () => {
   const page = fs.readFileSync(path.join(ROOT, 'moduli/compilatore_disdette.html'), 'utf8');
   const dashboard = fs.readFileSync(path.join(ROOT, 'dashboard.html'), 'utf8');

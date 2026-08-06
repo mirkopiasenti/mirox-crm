@@ -114,10 +114,12 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const FISCAL_CODE_RE = /^[A-Z0-9]{16}$/;
 const VAT_RE = /^\d{11}$/;
 const PHONE_RE = /^[0-9+(). /-]{5,30}$/;
+const DEFAULT_TEXT_RAISE = 2.2;
+const FISCAL_CODE_RAISE = 1.6;
 
-function cleanText(value, maxLength, label, { required = true, uppercase = false } = {}) {
+function cleanText(value, maxLength, label, { required = true, uppercase = true } = {}) {
   let text = String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (uppercase) text = text.toUpperCase();
+  if (uppercase) text = text.toLocaleUpperCase('it-IT');
   if (required && !text) throw new Error(`${label} obbligatorio`);
   if (text.length > maxLength) throw new Error(`${label} troppo lungo`);
   return text;
@@ -222,7 +224,7 @@ function drawFitText(page, font, text, options) {
   while (size > minSize && font.widthOfTextAtSize(value, size) > options.maxWidth) size -= 0.25;
   page.drawText(value, {
     x: options.x,
-    y: page.getHeight() - options.top - size,
+    y: page.getHeight() - options.top - size + (options.raise ?? DEFAULT_TEXT_RAISE),
     size,
     font,
     color: rgb(0.05, 0.05, 0.05)
@@ -238,7 +240,7 @@ function drawFiscalCode(page, font, value, top) {
     const width = font.widthOfTextAtSize(character, size);
     page.drawText(character, {
       x: center - (width / 2),
-      y: page.getHeight() - top - size,
+      y: page.getHeight() - top - size + FISCAL_CODE_RAISE,
       size,
       font,
       color: rgb(0.02, 0.02, 0.02)
@@ -294,7 +296,7 @@ async function generateDisdettaPdf(rawPayload) {
   drawFitText(page, font, data.provincia, { x: 80, top: top.province, maxWidth: 205, size: 8 });
   drawFitText(page, font, data.cap, { x: 310, top: top.province, maxWidth: 241, size: 8 });
   drawFitText(page, font, data.recapito_alternativo, { x: variant.business ? 285 : 242, top: top.alternatePhone, maxWidth: variant.business ? 266 : 309, size: 8 });
-  drawFitText(page, bold, data.utenza, { x: variant.fixed ? 130 : 205, top: top.line, maxWidth: variant.fixed ? 421 : 304, size: 8.2 });
+  drawFitText(page, bold, data.utenza, { x: variant.fixed ? 130 : 205, top: top.line, maxWidth: variant.fixed ? 421 : 304, size: 8.2, raise: 1.5 });
 
   drawCheck(page, bold, variant.checks.reason[data.motivo_recesso]);
   if (variant.fixed) drawCheck(page, bold, variant.checks.termination[data.modalita_cessazione]);

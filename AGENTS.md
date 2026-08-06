@@ -316,6 +316,7 @@ Le pagine post-vendita dei punti 8–11 espongono `Vai alla pratica` per ogni ri
 - Tutti i dati anagrafici, di contatto, indirizzo, utenza e le scelte pertinenti sono obbligatori. La data è precompilata con oggi ma è l'unico dato facoltativo e può essere cancellata senza bloccare la generazione.
 - Nei Business il referente legale/delegato è composto da nome e cognome. Il ripensamento entro 14 giorni è disponibile solo per Consumer. Nei Fisso è obbligatorio scegliere cessazione completa oppure migrazione verso altro operatore.
 - Lo spazio firma non viene mai compilato: il PDF prodotto deve essere stampato o firmato successivamente dal cliente.
+- Tutti i dati testuali disegnati sul PDF sono normalizzati server-side in stampato maiuscolo con locale italiano, indipendentemente dal formato digitato nel frontend. Le baseline sono sollevate rispetto alle righe prestampate: offset standard 2,2 pt, CF 1,6 pt e utenza 1,5 pt.
 - I campi sono disegnati a coordinate fisse sui quattro template originali inclusi nel bundle della Function. La generazione è deterministica con `pdf-lib`; non richiede API OpenAI, OCR o interpretazione AI a runtime.
 - Lo storico globale mostra Consumer come nome, cognome e CF; Business come ragione sociale e P.IVA. Il PDF resta privato e può essere visualizzato, riscaricato o stampato tramite signed URL temporaneo restituito dal backend.
 
