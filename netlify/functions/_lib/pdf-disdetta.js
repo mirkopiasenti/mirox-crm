@@ -116,6 +116,9 @@ const VAT_RE = /^\d{11}$/;
 const PHONE_RE = /^[0-9+(). /-]{5,30}$/;
 const DEFAULT_TEXT_RAISE = 2.2;
 const FISCAL_CODE_RAISE = 1.6;
+const UTENZA_FONT_SIZE = 10;
+const UTENZA_RAISE = 3.3;
+const UTENZA_X_SHIFT = 5;
 
 function cleanText(value, maxLength, label, { required = true, uppercase = true } = {}) {
   let text = String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -296,7 +299,13 @@ async function generateDisdettaPdf(rawPayload) {
   drawFitText(page, font, data.provincia, { x: 80, top: top.province, maxWidth: 205, size: 8 });
   drawFitText(page, font, data.cap, { x: 310, top: top.province, maxWidth: 241, size: 8 });
   drawFitText(page, font, data.recapito_alternativo, { x: variant.business ? 285 : 242, top: top.alternatePhone, maxWidth: variant.business ? 266 : 309, size: 8 });
-  drawFitText(page, bold, data.utenza, { x: variant.fixed ? 130 : 205, top: top.line, maxWidth: variant.fixed ? 421 : 304, size: 8.2, raise: 1.5 });
+  drawFitText(page, bold, data.utenza, {
+    x: (variant.fixed ? 130 : 205) + UTENZA_X_SHIFT,
+    top: top.line,
+    maxWidth: (variant.fixed ? 421 : 304) - UTENZA_X_SHIFT,
+    size: UTENZA_FONT_SIZE,
+    raise: UTENZA_RAISE
+  });
 
   drawCheck(page, bold, variant.checks.reason[data.motivo_recesso]);
   if (variant.fixed) drawCheck(page, bold, variant.checks.termination[data.modalita_cessazione]);
