@@ -10,6 +10,11 @@ const {
   VARIANTS,
   TEMPLATE_VERSION
 } = require('../netlify/functions/_lib/pdf-disdetta');
+const {
+  splitPersonName,
+  buildAnagraficaResult,
+  allowedDuplicateTypes
+} = require('../netlify/functions/gestisci-disdette')._test;
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -143,11 +148,55 @@ test('i campi stampati hanno un distacco verticale dalla riga del modulo', () =>
   assert.match(helper, /raise: UTENZA_RAISE/);
 });
 
+test('la duplicazione resta nello stesso cluster Consumer o Business', () => {
+  assert.deepEqual(allowedDuplicateTypes('sim_consumer'), ['sim_consumer', 'fisso_consumer']);
+  assert.deepEqual(allowedDuplicateTypes('fisso_consumer'), ['sim_consumer', 'fisso_consumer']);
+  assert.deepEqual(allowedDuplicateTypes('sim_business'), ['sim_business', 'fisso_business']);
+  assert.deepEqual(allowedDuplicateTypes('fisso_business'), ['sim_business', 'fisso_business']);
+  assert.deepEqual(allowedDuplicateTypes('tipo_sconosciuto'), []);
+});
+
+test('i dati CRM vengono convertiti in una precompilazione modificabile', () => {
+  assert.deepEqual(splitPersonName('Mario De Rossi'), { nome: 'Mario', cognome: 'De Rossi' });
+  const consumer = buildAnagraficaResult({
+    id: 'consumer-id',
+    cluster: 'Consumer',
+    cf_piva: 'RSSMRA80A01H501U',
+    ragione_sociale: 'Mario Rossi',
+    nome_referente: '',
+    cellulare: '3471234567',
+    via: 'Via Roma',
+    civico: '18',
+    comune: 'Legnago',
+    provincia: 'VR'
+  });
+  assert.equal(consumer.cluster, 'consumer');
+  assert.equal(consumer.prefill.nome, 'Mario');
+  assert.equal(consumer.prefill.cognome, 'Rossi');
+  assert.equal(consumer.prefill.codice_fiscale, 'RSSMRA80A01H501U');
+  assert.equal(consumer.prefill.citta, 'Legnago');
+
+  const business = buildAnagraficaResult({
+    id: 'business-id',
+    cluster: 'Business',
+    cf_piva: '12345678901',
+    ragione_sociale: 'Impresa Demo Srl',
+    nome_referente: 'Lucia Bianchi',
+    cellulare: '0451234567'
+  });
+  assert.equal(business.cluster, 'business');
+  assert.equal(business.prefill.ragione_sociale, 'Impresa Demo Srl');
+  assert.equal(business.prefill.partita_iva, '12345678901');
+  assert.equal(business.prefill.referente_nome, 'Lucia');
+  assert.equal(business.prefill.referente_cognome, 'Bianchi');
+});
+
 test('pagina, backend, template e migration espongono compilazione e storico server-only', () => {
   const page = fs.readFileSync(path.join(ROOT, 'moduli/compilatore_disdette.html'), 'utf8');
   const dashboard = fs.readFileSync(path.join(ROOT, 'dashboard.html'), 'utf8');
   const endpoint = fs.readFileSync(path.join(ROOT, 'netlify/functions/gestisci-disdette.js'), 'utf8');
   const migration = fs.readFileSync(path.join(ROOT, 'database/063_compilatore_disdette.sql'), 'utf8');
+  const extensionMigration = fs.readFileSync(path.join(ROOT, 'database/064_disdette_duplica_ricerca.sql'), 'utf8');
   const netlifyConfig = fs.readFileSync(path.join(ROOT, 'netlify.toml'), 'utf8');
 
   assert.match(dashboard, /href="moduli\/compilatore_disdette\.html"/);
@@ -156,14 +205,24 @@ test('pagina, backend, template e migration espongono compilazione e storico ser
   assert.match(page, /data-type="fisso_consumer"/);
   assert.match(page, /data-type="fisso_business"/);
   assert.match(page, /Storico disdette/);
+  assert.match(page, /Numero disdetto/);
+  assert.match(page, /Duplica dati/);
+  assert.match(page, /Richiama un’anagrafica dal CRM/);
+  assert.match(page, /ragione sociale o partita IVA/);
+  assert.match(page, /action=search_anagrafica/);
   assert.match(page, /MiroxApi\.fetch\(ENDPOINT/);
   assert.doesNotMatch(page, /(?<!MiroxApi\.)\bfetch\(/);
   assert.match(endpoint, /requireAuth\(event\)/);
   assert.match(endpoint, /\.from\('disdette_generate'\)/);
   assert.match(endpoint, /createSignedUrl\(storagePath, 300\)/);
+  assert.match(endpoint, /body\.action === 'duplicate_data'/);
+  assert.match(endpoint, /dati_compilazione: generated\.data/);
+  assert.match(endpoint, /\.from\('anagrafica'\)/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.disdette_generate/i);
   assert.match(migration, /REVOKE ALL ON TABLE public\.disdette_generate FROM PUBLIC, anon, authenticated/i);
   assert.match(migration, /'disdette-files'[\s\S]*false[\s\S]*ARRAY\['application\/pdf'\]/i);
+  assert.match(extensionMigration, /ADD COLUMN IF NOT EXISTS utenza text/i);
+  assert.match(extensionMigration, /ADD COLUMN IF NOT EXISTS dati_compilazione jsonb/i);
   assert.match(netlifyConfig, /included_files = \["netlify\/functions\/_templates\/disdette\/\*\.pdf"\]/);
 
   for (const variant of Object.values(VARIANTS)) {

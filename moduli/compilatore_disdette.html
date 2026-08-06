@@ -19,12 +19,40 @@
     .panel { display: none; }
     .panel.active { display: block; animation: panel-in .25s ease; }
     @keyframes panel-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-    .intro-card, .form-card, .history-card {
+    .intro-card, .form-card, .history-card, .customer-search-card {
       background: #fff;
       border: 1px solid var(--mx-border);
       border-radius: 16px;
       box-shadow: var(--mx-shadow-sm);
     }
+    .customer-search-card { margin-bottom: 18px; padding: 22px 24px; }
+    .customer-search-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 14px; }
+    .customer-search-head h2 { margin: 0; font-size: 17px; color: var(--mx-text); }
+    .customer-search-head p { margin: 4px 0 0; color: var(--mx-text-secondary); font-size: 12px; }
+    .customer-search-form { display: flex; align-items: stretch; gap: 10px; }
+    .customer-search-form input { flex: 1 1 auto; width: 100%; margin: 0; min-width: 0; }
+    #anagraficaSearchForm .btn { flex: 0 0 auto; width: auto !important; min-width: 112px !important; margin-top: 0 !important; }
+    .customer-results { display: grid; gap: 8px; margin-top: 14px; }
+    .customer-result {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--mx-border);
+      border-radius: 10px;
+      background: var(--mx-bg);
+      color: var(--mx-text);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .customer-result:hover { border-color: var(--mx-primary); background: var(--mx-primary-bg); }
+    .customer-result-name { display: block; font-size: 13px; font-weight: 700; }
+    .customer-result-code { display: block; margin-top: 3px; color: var(--mx-text-secondary); font-size: 11px; }
+    .customer-result-kind { flex: 0 0 auto; color: var(--mx-primary-dark); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    .customer-search-state { margin: 12px 0 0; color: var(--mx-text-secondary); font-size: 12px; }
     .intro-card { padding: 28px; }
     .intro-card h2 { margin: 0 0 5px; font-size: 20px; color: var(--mx-text); }
     .intro-card > p { margin: 0 0 22px; color: var(--mx-text-secondary); font-size: 14px; }
@@ -113,11 +141,30 @@
     .history-client { font-weight: 700; }
     .history-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
     .type-badge { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: var(--mx-primary-bg); color: var(--mx-primary-dark); font-size: 10px; font-weight: 800; }
+    .history-actions { display: flex; flex-wrap: wrap; gap: 7px; }
     .view-pdf { border: 1px solid var(--mx-border); border-radius: 8px; background: #fff; color: var(--mx-text); padding: 7px 10px; font: 600 12px Inter, sans-serif; cursor: pointer; white-space: nowrap; }
     .view-pdf:hover { border-color: var(--mx-primary); color: var(--mx-primary-dark); }
+    .view-pdf.duplicate-data { border-color: rgba(255,102,0,.35); background: var(--mx-primary-bg); color: var(--mx-primary-dark); }
+    .view-pdf:disabled { border-color: var(--mx-border-light); background: var(--mx-bg); color: var(--mx-text-secondary); cursor: not-allowed; opacity: .65; }
     .history-state { padding: 46px 20px; text-align: center; color: var(--mx-text-secondary); font-size: 13px; }
     .load-more-wrap { display: none; justify-content: center; padding-top: 20px; }
     .load-more-wrap.is-visible { display: flex; }
+    .module-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(15, 23, 42, .55);
+    }
+    .module-modal-card { width: min(460px, 100%); padding: 24px; border-radius: 16px; background: #fff; box-shadow: 0 24px 70px rgba(15,23,42,.28); }
+    .module-modal-card h2 { margin: 0; font-size: 19px; }
+    .module-modal-card > p { margin: 7px 0 18px; color: var(--mx-text-secondary); font-size: 13px; line-height: 1.5; }
+    .module-modal-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .module-modal-option { padding: 18px; border: 1px solid var(--mx-border); border-radius: 12px; background: #fff; color: var(--mx-text); font: 700 14px Inter, sans-serif; cursor: pointer; }
+    .module-modal-option:hover { border-color: var(--mx-primary); background: var(--mx-primary-bg); color: var(--mx-primary-dark); }
+    .module-modal-cancel { width: 100%; margin-top: 12px; border: 0; background: transparent; color: var(--mx-text-secondary); padding: 8px; font: 600 12px Inter, sans-serif; cursor: pointer; }
     [hidden] { display: none !important; }
     @media (max-width: 900px) {
       .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -129,7 +176,10 @@
       .page-shell { padding: 0 16px; margin-top: 16px; }
       .nav-tabs { padding: 0 12px !important; }
       .nav-tab { padding: 13px 14px !important; }
-      .intro-card, .form-body { padding: 18px; }
+      .intro-card, .form-body, .customer-search-card { padding: 18px; }
+      .customer-search-head { flex-direction: column; }
+      .customer-search-form { flex-direction: column; }
+      #anagraficaSearchForm .btn { width: 100% !important; min-width: 0 !important; max-width: none; }
       .module-grid { grid-template-columns: 1fr; }
       .module-choice { min-height: 110px; }
       .form-card-head, .history-head { align-items: flex-start; flex-direction: column; padding: 18px; }
@@ -156,6 +206,21 @@
 
   <main class="page-shell">
     <section class="panel active" id="panelCompiler">
+      <div class="customer-search-card">
+        <div class="customer-search-head">
+          <div>
+            <h2>Richiama un’anagrafica dal CRM</h2>
+            <p>Cerca per nome, cognome, codice fiscale, ragione sociale o partita IVA. Verranno inseriti soltanto i dati già disponibili.</p>
+          </div>
+        </div>
+        <form class="customer-search-form" id="anagraficaSearchForm" role="search">
+          <input type="search" id="anagraficaSearchInput" minlength="2" maxlength="80" placeholder="Nome, cognome, CF, ragione sociale o P.IVA" autocomplete="off" aria-label="Cerca per nome, cognome, codice fiscale, ragione sociale o partita IVA">
+          <button type="submit" class="btn btn-primary" id="anagraficaSearchButton">Cerca</button>
+        </form>
+        <p class="customer-search-state" id="anagraficaSearchState" hidden></p>
+        <div class="customer-results" id="anagraficaResults" hidden></div>
+      </div>
+
       <div class="intro-card" id="moduleSelector">
         <h2>Scegli il modulo da compilare</h2>
         <p>I campi e le opzioni verranno adattati automaticamente al modello selezionato.</p>
@@ -352,8 +417,9 @@
                   <th>Tipo</th>
                   <th>Cliente</th>
                   <th>Codice fiscale / P.IVA</th>
+                  <th>Numero disdetto</th>
                   <th>Generata il</th>
-                  <th>PDF</th>
+                  <th>Azioni</th>
                 </tr>
               </thead>
               <tbody id="historyRows"></tbody>
@@ -366,6 +432,18 @@
       </div>
     </section>
   </main>
+
+  <div class="module-modal" id="moduleChoiceModal" role="dialog" aria-modal="true" aria-labelledby="moduleChoiceTitle" hidden>
+    <div class="module-modal-card">
+      <h2 id="moduleChoiceTitle">Scegli il modulo</h2>
+      <p id="moduleChoiceDescription">Seleziona se compilare una disdetta SIM oppure Fisso.</p>
+      <div class="module-modal-options">
+        <button type="button" class="module-modal-option" id="chooseSim">Disdetta SIM</button>
+        <button type="button" class="module-modal-option" id="chooseFisso">Disdetta Fisso</button>
+      </div>
+      <button type="button" class="module-modal-cancel" id="cancelModuleChoice">Annulla</button>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
   <script src="../js/config.js"></script>
@@ -386,6 +464,7 @@
     let selectedType = '';
     let historyPage = 1;
     let historyLoaded = false;
+    let moduleChoiceResolver = null;
 
     const form = document.getElementById('disdettaForm');
     const formCard = document.getElementById('formCard');
@@ -447,6 +526,43 @@
       moduleSelector.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
+    function fillForm(type, values, message) {
+      form.reset();
+      selectModule(type);
+      const config = TYPES[type];
+      Object.entries(values || {}).forEach(([name, value]) => {
+        if (name === 'tipo' || value === null || value === undefined) return;
+        if (name === 'modalita_cessazione' && !config.fixed) return;
+        const fields = form.querySelectorAll(`[name="${CSS.escape(name)}"]`);
+        fields.forEach(field => {
+          if (field.type === 'radio') field.checked = field.value === String(value);
+          else field.value = String(value);
+        });
+      });
+      document.getElementById('tipoModulo').value = type;
+      switchPanel('compiler');
+      formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (message) MiroxUI.toast(message, 'success');
+    }
+
+    function closeModuleChoice(value) {
+      document.getElementById('moduleChoiceModal').hidden = true;
+      const resolver = moduleChoiceResolver;
+      moduleChoiceResolver = null;
+      if (resolver) resolver(value);
+    }
+
+    function chooseModuleForCluster(cluster, title) {
+      const suffix = cluster === 'business' ? 'business' : 'consumer';
+      document.getElementById('moduleChoiceTitle').textContent = title || 'Scegli il modulo';
+      document.getElementById('moduleChoiceDescription').textContent = `Seleziona il nuovo modulo ${cluster === 'business' ? 'Business' : 'Consumer'} da compilare.`;
+      document.getElementById('chooseSim').dataset.targetType = `sim_${suffix}`;
+      document.getElementById('chooseFisso').dataset.targetType = `fisso_${suffix}`;
+      document.getElementById('moduleChoiceModal').hidden = false;
+      document.getElementById('chooseSim').focus();
+      return new Promise(resolve => { moduleChoiceResolver = resolve; });
+    }
+
     function switchPanel(name) {
       document.querySelectorAll('.nav-tab').forEach(button => button.classList.toggle('active', button.dataset.panel === name));
       document.getElementById('panelCompiler').classList.toggle('active', name === 'compiler');
@@ -487,6 +603,31 @@
       }
     }
 
+    async function duplicateHistoryItem(item) {
+      const config = TYPES[item.tipo];
+      if (!config || !item.duplicabile) return;
+      const targetType = await chooseModuleForCluster(config.business ? 'business' : 'consumer', 'Duplica i dati della disdetta');
+      if (!targetType) return;
+      const loading = MiroxUI.loading.show('Recupero dei dati in corso...', 'Preparazione del nuovo modulo.');
+      try {
+        const response = await MiroxApi.fetch(ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'duplicate_data', id: item.id, target_type: targetType })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Dati non disponibili');
+        loading.success('Dati duplicati');
+        setTimeout(() => loading.hide(), 500);
+        fillForm(targetType, result.disdetta, 'Dati duplicati. Verifica e modifica il numero da disdire.');
+        document.getElementById('utenza').focus();
+      } catch (error) {
+        loading.error('Duplicazione non riuscita');
+        setTimeout(() => loading.hide(), 800);
+        await MiroxUI.alert(error.message || 'Impossibile duplicare la disdetta', { type: 'error' });
+      }
+    }
+
     function appendHistoryRows(items) {
       items.forEach(item => {
         const row = document.createElement('tr');
@@ -504,20 +645,104 @@
         codeCell.className = 'history-code';
         codeCell.textContent = item.partita_iva || item.codice_fiscale || '—';
 
+        const numberCell = document.createElement('td');
+        numberCell.className = 'history-code';
+        numberCell.textContent = item.utenza || '—';
+
         const dateCell = document.createElement('td');
         dateCell.textContent = formatDateTime(item.created_at);
 
         const actionCell = document.createElement('td');
+        const actionGroup = document.createElement('div');
+        actionGroup.className = 'history-actions';
         const viewButton = document.createElement('button');
         viewButton.type = 'button';
         viewButton.className = 'view-pdf';
         viewButton.textContent = 'Visualizza PDF';
         viewButton.addEventListener('click', () => openStoredPdf(item.id));
-        actionCell.appendChild(viewButton);
+        actionGroup.appendChild(viewButton);
 
-        row.append(typeCell, clientCell, codeCell, dateCell, actionCell);
+        const duplicateButton = document.createElement('button');
+        duplicateButton.type = 'button';
+        duplicateButton.className = 'view-pdf duplicate-data';
+        duplicateButton.textContent = 'Duplica dati';
+        duplicateButton.disabled = !item.duplicabile;
+        duplicateButton.title = item.duplicabile
+          ? 'Crea una nuova disdetta con gli stessi dati'
+          : 'Dati completi non disponibili per le disdette precedenti all’aggiornamento';
+        duplicateButton.addEventListener('click', () => duplicateHistoryItem(item));
+        actionGroup.appendChild(duplicateButton);
+        actionCell.appendChild(actionGroup);
+
+        row.append(typeCell, clientCell, codeCell, numberCell, dateCell, actionCell);
         historyRows.appendChild(row);
       });
+    }
+
+    function renderAnagraficaResults(items) {
+      const container = document.getElementById('anagraficaResults');
+      const state = document.getElementById('anagraficaSearchState');
+      container.replaceChildren();
+      if (!items.length) {
+        container.hidden = true;
+        state.textContent = 'Nessuna anagrafica trovata.';
+        state.hidden = false;
+        return;
+      }
+      items.forEach(item => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'customer-result';
+        const copy = document.createElement('span');
+        const name = document.createElement('span');
+        name.className = 'customer-result-name';
+        name.textContent = item.display_name || 'Anagrafica senza nome';
+        const code = document.createElement('span');
+        code.className = 'customer-result-code';
+        code.textContent = item.cf_piva || 'Codice fiscale non disponibile';
+        copy.append(name, code);
+        const kind = document.createElement('span');
+        kind.className = 'customer-result-kind';
+        kind.textContent = item.cluster === 'business' ? 'Business' : 'Consumer';
+        button.append(copy, kind);
+        button.addEventListener('click', async () => {
+          const targetType = await chooseModuleForCluster(item.cluster, 'Compila una disdetta per questa anagrafica');
+          if (!targetType) return;
+          fillForm(targetType, { ...item.prefill, data: todayLocal() }, 'Dati CRM inseriti. Completa i campi mancanti.');
+        });
+        container.appendChild(button);
+      });
+      state.hidden = true;
+      container.hidden = false;
+    }
+
+    async function searchAnagrafiche() {
+      const input = document.getElementById('anagraficaSearchInput');
+      const button = document.getElementById('anagraficaSearchButton');
+      const state = document.getElementById('anagraficaSearchState');
+      const query = input.value.trim();
+      if (query.length < 2) {
+        state.textContent = 'Inserisci almeno 2 caratteri.';
+        state.hidden = false;
+        input.focus();
+        return;
+      }
+      button.disabled = true;
+      state.textContent = 'Ricerca in corso...';
+      state.hidden = false;
+      document.getElementById('anagraficaResults').hidden = true;
+      try {
+        const response = await MiroxApi.fetch(`${ENDPOINT}?action=search_anagrafica&q=${encodeURIComponent(query)}`);
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Errore durante la ricerca');
+        renderAnagraficaResults(result.anagrafiche || []);
+      } catch (error) {
+        state.textContent = '';
+        state.hidden = true;
+        await MiroxUI.alert(error.message || 'Impossibile cercare le anagrafiche', { type: 'error' });
+      } finally {
+        button.disabled = false;
+      }
     }
 
     async function loadHistory(reset) {
@@ -551,6 +776,19 @@
     document.getElementById('clearDate').addEventListener('click', () => { document.getElementById('dataDisdetta').value = ''; });
     document.getElementById('refreshHistory').addEventListener('click', () => loadHistory(true));
     document.getElementById('loadMore').addEventListener('click', () => { historyPage += 1; loadHistory(false); });
+    document.getElementById('anagraficaSearchForm').addEventListener('submit', event => {
+      event.preventDefault();
+      searchAnagrafiche();
+    });
+    document.getElementById('chooseSim').addEventListener('click', event => closeModuleChoice(event.currentTarget.dataset.targetType));
+    document.getElementById('chooseFisso').addEventListener('click', event => closeModuleChoice(event.currentTarget.dataset.targetType));
+    document.getElementById('cancelModuleChoice').addEventListener('click', () => closeModuleChoice(null));
+    document.getElementById('moduleChoiceModal').addEventListener('click', event => {
+      if (event.target === event.currentTarget) closeModuleChoice(null);
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !document.getElementById('moduleChoiceModal').hidden) closeModuleChoice(null);
+    });
 
     form.addEventListener('submit', async event => {
       event.preventDefault();

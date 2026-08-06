@@ -6,6 +6,7 @@ const { generateDisdettaPdf, VARIANTS } = require('./_lib/pdf-disdetta');
 
 const BUCKET = 'disdette-files';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ANAGRAFICA_SEARCH_COLUMNS = ['cf_piva', 'ragione_sociale', 'nome_referente'];
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -69,6 +70,64 @@ function buildFilename(data) {
   return `disdetta-${data.tipo.replaceAll('_', '-')}-${safeFilePart(subject, 'cliente')}-${safeFilePart(identifier, 'id')}-${parts.year}${parts.month}${parts.day}-${parts.hour}${parts.minute}${parts.second}.pdf`;
 }
 
+function splitPersonName(value) {
+  const parts = String(value || '').trim().replace(/\s+/g, ' ').split(' ').filter(Boolean);
+  if (parts.length === 0) return { nome: '', cognome: '' };
+  if (parts.length === 1) return { nome: parts[0], cognome: '' };
+  return { nome: parts[0], cognome: parts.slice(1).join(' ') };
+}
+
+function normalizeCluster(row) {
+  const cluster = String(row?.cluster || '').trim().toLowerCase();
+  if (cluster === 'business') return 'business';
+  if (cluster === 'consumer' || cluster === 'turista') return 'consumer';
+  return /^\d{11}$/.test(String(row?.cf_piva || '').trim()) ? 'business' : 'consumer';
+}
+
+function buildAnagraficaResult(row) {
+  const cluster = normalizeCluster(row);
+  const person = splitPersonName(row.nome_referente || (cluster === 'consumer' ? row.ragione_sociale : ''));
+  const base = {
+    id: row.id,
+    cluster,
+    display_name: cluster === 'business'
+      ? String(row.ragione_sociale || row.nome_referente || row.cf_piva || '').trim()
+      : String(row.ragione_sociale || row.nome_referente || row.cf_piva || '').trim(),
+    cf_piva: String(row.cf_piva || '').trim(),
+    prefill: {
+      nome: person.nome,
+      cognome: person.cognome,
+      numero_titolare: String(row.cellulare || '').trim(),
+      via: String(row.via || '').trim(),
+      civico: String(row.civico || '').trim(),
+      citta: String(row.comune || '').trim(),
+      provincia: String(row.provincia || '').trim(),
+      recapito_alternativo: String(row.cellulare || '').trim()
+    }
+  };
+
+  if (cluster === 'business') {
+    base.prefill.ragione_sociale = String(row.ragione_sociale || '').trim();
+    base.prefill.partita_iva = base.cf_piva;
+    base.prefill.referente_nome = person.nome;
+    base.prefill.referente_cognome = person.cognome;
+    base.prefill.codice_fiscale = '';
+  } else {
+    base.prefill.codice_fiscale = base.cf_piva;
+  }
+  return base;
+}
+
+function allowedDuplicateTypes(type) {
+  if (type === 'sim_business' || type === 'fisso_business') {
+    return ['sim_business', 'fisso_business'];
+  }
+  if (type === 'sim_consumer' || type === 'fisso_consumer') {
+    return ['sim_consumer', 'fisso_consumer'];
+  }
+  return [];
+}
+
 async function createSignedUrl(supabase, storagePath) {
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, 300);
   if (error) throw error;
@@ -105,6 +164,8 @@ async function generate({ supabase, auth, body }) {
     codice_fiscale: generated.variant.business ? null : generated.data.codice_fiscale,
     ragione_sociale: generated.variant.business ? generated.data.ragione_sociale : null,
     partita_iva: generated.variant.business ? generated.data.partita_iva : null,
+    utenza: generated.data.utenza,
+    dati_compilazione: generated.data,
     storage_bucket: BUCKET,
     storage_path: storagePath,
     nome_file: filename,
@@ -117,7 +178,7 @@ async function generate({ supabase, auth, body }) {
   const { data: saved, error: insertError } = await supabase
     .from('disdette_generate')
     .insert(record)
-    .select('id, tipo, nome, cognome, codice_fiscale, ragione_sociale, partita_iva, nome_file, created_at')
+    .select('id, tipo, nome, cognome, codice_fiscale, ragione_sociale, partita_iva, utenza, nome_file, created_at')
     .single();
 
   if (insertError) {
@@ -138,18 +199,77 @@ async function list({ supabase, event }) {
 
   const { data, error, count } = await supabase
     .from('disdette_generate')
-    .select('id, tipo, nome, cognome, codice_fiscale, ragione_sociale, partita_iva, nome_file, created_at', { count: 'exact' })
+    .select('id, tipo, nome, cognome, codice_fiscale, ragione_sociale, partita_iva, utenza, dati_compilazione, nome_file, created_at', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to);
   if (error) throw error;
 
   return response(200, {
     success: true,
-    disdette: data || [],
+    disdette: (data || []).map(({ dati_compilazione: snapshot, ...item }) => ({
+      ...item,
+      duplicabile: !!snapshot
+    })),
     page,
     page_size: pageSize,
     total: count || 0,
     has_more: to + 1 < (count || 0)
+  });
+}
+
+async function searchAnagrafica({ supabase, event }) {
+  const params = event.queryStringParameters || {};
+  const query = String(params.q || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+  if (query.length < 2) {
+    return response(400, { success: false, error: 'Inserisci almeno 2 caratteri per la ricerca' });
+  }
+
+  const fields = 'id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, provincia, comune, via, civico';
+  const searches = ANAGRAFICA_SEARCH_COLUMNS.map((column) => supabase
+    .from('anagrafica')
+    .select(fields)
+    .ilike(column, `%${query}%`)
+    .limit(12));
+  const results = await Promise.all(searches);
+  const failure = results.find((result) => result.error);
+  if (failure) throw failure.error;
+
+  const unique = new Map();
+  results.flatMap((result) => result.data || []).forEach((row) => {
+    if (!unique.has(row.id)) unique.set(row.id, buildAnagraficaResult(row));
+  });
+  const anagrafiche = [...unique.values()]
+    .sort((left, right) => left.display_name.localeCompare(right.display_name, 'it'))
+    .slice(0, 20);
+
+  return response(200, { success: true, anagrafiche });
+}
+
+async function duplicateData({ supabase, body }) {
+  const id = String(body.id || '').trim();
+  const targetType = String(body.target_type || '').trim();
+  if (!UUID_RE.test(id)) return response(400, { success: false, error: 'Identificativo non valido' });
+
+  const { data, error } = await supabase
+    .from('disdette_generate')
+    .select('tipo, dati_compilazione')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return response(404, { success: false, error: 'Disdetta non trovata' });
+  if (!data.dati_compilazione) {
+    return response(409, {
+      success: false,
+      error: 'I dati completi non sono disponibili per questa disdetta precedente all’aggiornamento'
+    });
+  }
+  if (!allowedDuplicateTypes(data.tipo).includes(targetType)) {
+    return response(400, { success: false, error: 'Il modulo scelto non appartiene allo stesso tipo cliente' });
+  }
+
+  return response(200, {
+    success: true,
+    disdetta: { ...data.dati_compilazione, tipo: targetType }
   });
 }
 
@@ -185,12 +305,18 @@ exports.handler = async (event) => {
   const supabase = getAdminClient();
 
   try {
-    if (event.httpMethod === 'GET') return await list({ supabase, event });
+    if (event.httpMethod === 'GET') {
+      if (event.queryStringParameters?.action === 'search_anagrafica') {
+        return await searchAnagrafica({ supabase, event });
+      }
+      return await list({ supabase, event });
+    }
 
     const body = parseBody(event);
     if (!body) return response(400, { success: false, error: 'Payload JSON non valido' });
     if (body.action === 'generate') return await generate({ supabase, auth, body });
     if (body.action === 'signed_url') return await signedUrl({ supabase, body });
+    if (body.action === 'duplicate_data') return await duplicateData({ supabase, body });
     return response(400, { success: false, error: 'Azione non valida' });
   } catch (error) {
     console.error('Errore gestisci-disdette:', error);
@@ -204,5 +330,8 @@ exports._test = {
   buildFilename,
   safeFilePart,
   currentRomeParts,
+  splitPersonName,
+  buildAnagraficaResult,
+  allowedDuplicateTypes,
   variants: VARIANTS
 };
