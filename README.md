@@ -16,7 +16,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | Cartella / File | Cosa contiene |
 |---|---|
 | `index.html` | Login Supabase Auth |
-| `dashboard.html` | Home con tabs Vendita / Post-Vendita + topbar con bottoni Ticket / Call Center / **Admin** (visibile solo se `ruolo='admin'`) + badge ticket aperti |
+| `dashboard.html` | Home con tabs Vendita / Post-Vendita + topbar con bottoni Applicazioni / Appuntamenti Oggi / Ticket / Call Center / **Admin** (visibile solo se `ruolo='admin'`) + badge ticket aperti. Il bottone Applicazioni apre un pannello espandibile sopra il saluto; la prima voce predisposta è `Compilatore disdette` |
 | `admin.html` | **Hub Admin Mirox** — shell a due aree con sidebar dei reparti e area di lavoro. `Configurazioni` contiene i 4 moduli esistenti; `KPI` raccoglie i moduli di analisi. Accesso ristretto a `ruolo='admin'` |
 | `admin-utenti.html` | Gestione utenti: ruoli admin/operatore, abilita/disabilita, permessi granulari Call Center, flag `in_gara`, colonna **Alias di** (unifica due account della stessa persona con backfill guidato del pregresso). Solo admin |
 | `admin-call-center-config.html` | Orari, blocchi e parametri di sistema del Call Center (spostata da `moduli/call-center/configurazione.html`). Solo admin |
