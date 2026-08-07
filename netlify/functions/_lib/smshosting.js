@@ -27,7 +27,8 @@ const TIMEOUT_MS = 12000; // 12s max per chiamata Smshosting
 /**
  * Normalizza un numero di cellulare a formato E.164 (+39...).
  * Accetta varianti tipiche: "3331234567", "+39 333 1234567", "0039333.1234567"
- * Ritorna stringa nel formato "+39XXXXXXXXXX" oppure null se non e' valido.
+ * e numerazioni mobili italiane legacy di 9 cifre complessive.
+ * Ritorna stringa nel formato E.164 "+39..." oppure null se non e' valido.
  */
 function normalizeMobileNumber(raw) {
     if (raw === null || raw === undefined) return null;
@@ -37,8 +38,11 @@ function normalizeMobileNumber(raw) {
     s = s.replace(/[\s.\-()/]/g, '');
     // 0039 -> +39
     if (/^0039\d+$/.test(s)) s = '+' + s.slice(2);
-    // Numero italiano senza prefisso (cellulari iniziano con 3, 10 cifre totali)
-    if (/^3\d{9}$/.test(s)) s = '+39' + s;
+    // Prefisso italiano salvato senza simbolo "+".
+    if (/^393\d{8,9}$/.test(s)) s = '+' + s;
+    // Numero italiano senza prefisso: 9 cifre per alcune numerazioni legacy,
+    // 10 cifre per il formato oggi piu' comune. I cellulari iniziano con 3.
+    if (/^3\d{8,9}$/.test(s)) s = '+39' + s;
     // Validazione finale: + seguito da 11-15 cifre
     if (!/^\+\d{11,15}$/.test(s)) return null;
     return s;

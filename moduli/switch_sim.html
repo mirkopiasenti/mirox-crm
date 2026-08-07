@@ -1632,7 +1632,7 @@
 <div class="mnp-input-row">
 <div class="mnp-input-field">
 <label for="numeroMNP"> Numero MNP</label>
-<input type="text" id="numeroMNP" placeholder="Es: 3331234567" maxlength="10">
+<input type="text" id="numeroMNP" placeholder="Es: 3331234567" minlength="9" maxlength="10">
 </div>
 <div class="mnp-input-field" style="flex: 1.5;">
 <label for="offertaMNP"> Offerta Rientro</label>
@@ -1961,7 +1961,7 @@ Mostra anche ricariche in OK
 </div>
 </div> <div class="form-group">
 <label>Numero MNP</label>
-<input type="text" id="dettaglio_numeroMNP" maxlength="10">
+<input type="text" id="dettaglio_numeroMNP" minlength="9" maxlength="10">
 </div> <div class="form-row">
 <div class="form-group">
 <label>Modalità Pagamento</label>
@@ -1987,8 +1987,8 @@ Mostra anche ricariche in OK
 </div>
 <div class="form-group">
 <label>Numero Provvisorio</label>
-<input type="text" id="dettaglio_numeroProvvisorio" maxlength="10" placeholder="10 cifre">
-<small class="field-hint">Formato: 10 cifre numeriche</small>
+<input type="text" id="dettaglio_numeroProvvisorio" minlength="9" maxlength="10" placeholder="9 o 10 cifre">
+<small class="field-hint">Formato: 9 o 10 cifre numeriche</small>
 </div>
 </div>
 <div class="form-row">
@@ -2011,8 +2011,8 @@ Mostra anche ricariche in OK
 </div>
 <div class="form-group">
 <label>SIM Definitiva Rientro</label>
-<input type="text" id="dettaglio_simDefinitiva" maxlength="10" placeholder="10 cifre">
-<small class="field-hint">Formato: 10 cifre numeriche</small>
+<input type="text" id="dettaglio_simDefinitiva" minlength="9" maxlength="10" placeholder="9 o 10 cifre">
+<small class="field-hint">Formato: 9 o 10 cifre numeriche</small>
 </div>
 </div>
 </div> <div class="modal-actions">
@@ -2428,9 +2428,9 @@ Mostra anche ricariche in OK
  return;
  }
  
- // Controllo formato numero (10 cifre)
- if (!/^\d{10}$/.test(numero)) {
- window.MiroxUI && window.MiroxUI.alert('Il numero deve essere di 10 cifre (es: 3331234567)', {type:'warning', title:'Attenzione'});
+ // Controllo formato numero (incluse numerazioni legacy di 9 cifre)
+ if (!/^\d{9,10}$/.test(numero)) {
+ window.MiroxUI && window.MiroxUI.alert('Il numero deve essere di 9 o 10 cifre (es: 3331234567)', {type:'warning', title:'Attenzione'});
  numeroInput.focus();
  return;
  }
@@ -3444,16 +3444,16 @@ ${showActions
  return;
  }
 
- // Numero Provvisorio: 10 cifre
- if (!/^\d{10}$/.test(dati.numeroProvvisorio)) {
- await window.MiroxUI.alert('Il Numero Provvisorio deve essere di 10 cifre numeriche.', { type: 'warning', title: 'Numero non valido' });
+ // Numero Provvisorio: 9 o 10 cifre, incluse numerazioni legacy
+ if (!/^\d{9,10}$/.test(dati.numeroProvvisorio)) {
+ await window.MiroxUI.alert('Il Numero Provvisorio deve essere di 9 o 10 cifre numeriche.', { type: 'warning', title: 'Numero non valido' });
  document.getElementById('dettaglio_numeroProvvisorio').focus();
  return;
  }
 
- // SIM Definitiva: 10 cifre (opzionale, ma se compilata deve essere valida)
- if (dati.simDefinitiva && !/^\d{10}$/.test(dati.simDefinitiva)) {
- await window.MiroxUI.alert('La SIM Definitiva Rientro deve essere di 10 cifre numeriche.', { type: 'warning', title: 'Numero non valido' });
+ // SIM Definitiva: 9 o 10 cifre (opzionale, ma se compilata deve essere valida)
+ if (dati.simDefinitiva && !/^\d{9,10}$/.test(dati.simDefinitiva)) {
+ await window.MiroxUI.alert('La SIM Definitiva Rientro deve essere di 9 o 10 cifre numeriche.', { type: 'warning', title: 'Numero non valido' });
  document.getElementById('dettaglio_simDefinitiva').focus();
  return;
  }

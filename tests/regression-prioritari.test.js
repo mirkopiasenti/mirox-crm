@@ -10,6 +10,10 @@ const scoreIntegrity = require(path.join(
   ROOT,
   'netlify/functions/_lib/score-integrity.js'
 ));
+const smsHosting = require(path.join(
+  ROOT,
+  'netlify/functions/_lib/smshosting.js'
+));
 
 function loadCommonJs(relativePath, stubs = {}) {
   const filename = path.join(ROOT, relativePath);
@@ -63,6 +67,56 @@ const contractManager = loadCommonJs('netlify/functions/gestisci-vendita-contrat
     getAdminClient() { return null; }
   },
   './_lib/score-integrity': scoreIntegrity
+});
+
+test('OTP accetta numerazioni mobili italiane correnti e legacy', () => {
+  assert.equal(
+    smsHosting.normalizeMobileNumber('3335496825'),
+    '+393335496825'
+  );
+  assert.equal(
+    smsHosting.normalizeMobileNumber('333549682'),
+    '+39333549682'
+  );
+  assert.equal(
+    smsHosting.normalizeMobileNumber('+39 333 549 682'),
+    '+39333549682'
+  );
+  assert.equal(
+    smsHosting.normalizeMobileNumber('393335496825'),
+    '+393335496825'
+  );
+  assert.equal(smsHosting.normalizeMobileNumber('33354968'), null);
+  assert.equal(smsHosting.normalizeMobileNumber('33354968251'), null);
+});
+
+test('i moduli CRM con controllo rigido accettano telefoni di 9 o 10 cifre', () => {
+  const wizard = fs.readFileSync(
+    path.join(ROOT, 'moduli/upload-contratti-vendita.html'),
+    'utf8'
+  );
+  const apriChiudi = fs.readFileSync(
+    path.join(ROOT, 'moduli/apri_chiudi.html'),
+    'utf8'
+  );
+  const switchSim = fs.readFileSync(
+    path.join(ROOT, 'moduli/switch_sim.html'),
+    'utf8'
+  );
+  const segnalazioni = fs.readFileSync(
+    path.join(ROOT, 'moduli/segnalazioni.html'),
+    'utf8'
+  );
+  const ocrPda = fs.readFileSync(
+    path.join(ROOT, 'netlify/functions/ocr-pda.js'),
+    'utf8'
+  );
+
+  assert.match(wizard, /if \(\/\^3\\d\{8,9\}\$\/\.test\(s\)\) s = '\+39' \+ s;/);
+  assert.match(apriChiudi, /const regex = \/\^3\\d\{8,9\}\$\//);
+  assert.match(switchSim, /if \(!\/\^\\d\{9,10\}\$\/\.test\(numero\)\)/);
+  assert.match(segnalazioni, /pattern="\[0-9\]\{9,10\}"/);
+  assert.match(ocrPda, /cellulare: 9 o 10 cifre, prefisso 3xx/);
 });
 
 test('normalizzazione contratto conserva Cerea e reinserimento', () => {

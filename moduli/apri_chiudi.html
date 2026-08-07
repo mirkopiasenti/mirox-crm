@@ -1406,7 +1406,7 @@
  const simSi = document.getElementById('sim-si').checked;
  if (simSi) {
    const numeroSim = document.getElementById('numero-sim').value;
-   const regex = /^3\d{9,10}$/;
+   const regex = /^3\d{8,9}$/;
    if (!regex.test(numeroSim)) { mxAlert('Inserire un numero di cellulare valido', 'warn'); return; }
  }
 

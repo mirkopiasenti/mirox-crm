@@ -6393,7 +6393,8 @@ Reload Forever
    if (raw == null) return null;
    let s = String(raw).trim().replace(/[\s.\-()/]/g, '');
    if (/^0039\d+$/.test(s)) s = '+' + s.slice(2);
-   if (/^3\d{9}$/.test(s)) s = '+39' + s;
+   if (/^393\d{8,9}$/.test(s)) s = '+' + s;
+   if (/^3\d{8,9}$/.test(s)) s = '+39' + s;
    if (!/^\+\d{11,15}$/.test(s)) return null;
    return s;
  }
@@ -6670,7 +6671,7 @@ Reload Forever
      async function sendOtp(isResend) {
        const numNorm = cpNormalizeMobile(cellularInput.value);
        if (!numNorm) {
-         setStatus('Numero cellulare non valido. Usa formato italiano (3XX...) o E.164 (+39...).', 'err');
+         setStatus('Numero cellulare non valido. Usa un numero italiano di 9 o 10 cifre (3XX...) oppure il formato E.164 (+39...).', 'err');
          return;
        }
        const consensoMarketing = marketingChoice();

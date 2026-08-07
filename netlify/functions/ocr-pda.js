@@ -104,7 +104,7 @@ Null se mancante o non sicuro, NON inventare.
 cf_piva: CF(16) o PIVA(11), solo valore
 ragione_sociale: nome+cognome (privato) o ragione azienda
 nome_referente: SOLO il nome di battesimo (es. "Mario" da "Mario Rossi"). Per persona fisica: nome del titolare. Per azienda: nome del referente. Mai cognome.
-cellulare: 10 cifre, prefisso 3xx, solo numero
+cellulare: 9 o 10 cifre, prefisso 3xx, solo numero; accetta anche numerazioni legacy di 9 cifre
 email: lowercase
 provincia: sigla 2 lettere maiuscole (VR,MI,RM)
 comune: nome
