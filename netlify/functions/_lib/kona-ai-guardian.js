@@ -97,10 +97,13 @@ function intakeFallback(messages, incidentContext = {}) {
   const humanMessages = messages.filter((item) => item.autore_tipo === 'operatore' || item.autore_tipo === 'mirko');
   const total = humanMessages.map((item) => item.testo).join(' ').length;
   const type = requestType(incidentContext.tipo_richiesta);
-  if (humanMessages.length < 2 || total < 140) {
+  const followupLimitReached = humanMessages.length >= 3;
+  if (!followupLimitReached && total < 140) {
     if (type === 'miglioria') {
       return {
-        reply: 'Per definire bene la miglioria mi servono ancora tre elementi: come funziona oggi, cosa vorresti ottenere e chi la userebbe. Se hai un esempio concreto, descrivilo.',
+        reply: humanMessages.length < 2
+          ? 'Come funziona oggi e cosa vorresti ottenere al suo posto?'
+          : 'Chi userebbe questa miglioria e quale vantaggio concreto porterebbe?',
         complete: false,
         title: null,
         priority: 'media',
@@ -108,7 +111,9 @@ function intakeFallback(messages, incidentContext = {}) {
       };
     }
     return {
-      reply: 'Per capire bene mi servono ancora tre elementi: cosa stavi facendo, cosa ti aspettavi e cosa è successo invece. Se compare un messaggio di errore, riportalo per intero.',
+      reply: humanMessages.length < 2
+        ? 'Cosa ti aspettavi che succedesse e cosa è successo invece?'
+        : 'Il problema si ripete e compare un messaggio di errore?',
       complete: false,
       title: null,
       priority: 'media',
@@ -125,6 +130,8 @@ function intakeFallback(messages, incidentContext = {}) {
 }
 
 async function generateIntakeReply(messages, incidentContext = {}) {
+  const humanMessages = messages.filter((item) => item.autore_tipo === 'operatore' || item.autore_tipo === 'mirko');
+  const followupLimitReached = humanMessages.length >= 3;
   const input = messages.slice(-16).map((item) => ({
     role: item.autore_tipo === 'guardian' ? 'assistant' : 'user',
     content: cleanText(item.testo, 4000)
@@ -150,6 +157,7 @@ async function generateIntakeReply(messages, incidentContext = {}) {
   const instructions = [
     `Sei KONA AI Guardian, il raccoglitore di ${type === 'miglioria' ? 'proposte di miglioria' : 'problemi tecnici'} del CRM Mirox.`,
     'Parla in italiano semplice con un operatore non tecnico e fai una sola domanda breve per volta.',
+    'Dopo la descrizione iniziale fai al massimo due domande di chiarimento. Se restano dubbi, registra comunque la richiesta: li approfondirà l’amministratore separatamente.',
     intakeGoal,
     'Non chiedere password, codici OTP, dati di carte, token, chiavi API o documenti personali.',
     'Non promettere una correzione o uno sviluppo e non dichiarare di aver analizzato il codice.',
@@ -170,12 +178,15 @@ async function generateIntakeReply(messages, incidentContext = {}) {
     const reply = cleanText(result.reply, 1800);
     const title = result.title ? cleanText(result.title, 180) : null;
     const priority = PRIORITIES.includes(result.priority) ? result.priority : 'media';
+    const forcedCompletion = followupLimitReached && !result.complete
+      ? intakeFallback(messages, incidentContext)
+      : null;
     return {
-      reply: reply || intakeFallback(messages, incidentContext).reply,
-      complete: Boolean(result.complete),
-      title: title && title.length >= 3 ? title : null,
+      reply: forcedCompletion?.reply || reply || intakeFallback(messages, incidentContext).reply,
+      complete: Boolean(result.complete) || followupLimitReached,
+      title: title && title.length >= 3 ? title : forcedCompletion?.title || null,
       priority: type === 'miglioria' && priority === 'critica' ? 'alta' : priority,
-      summary: result.summary ? cleanText(result.summary, 2000) : null
+      summary: result.summary ? cleanText(result.summary, 2000) : forcedCompletion?.summary || null
     };
   } catch (error) {
     console.warn('KONA AI intake fallback:', error?.message || String(error));
@@ -222,7 +233,7 @@ async function generateOwnerReply(incident, messages, ownerMessage) {
   });
   if (!result) {
     return {
-      reply: 'La conversazione Telegram è attiva, ma l’analisi intelligente richiede la variabile OPENAI_API_KEY nell’ambiente di staging.',
+      reply: 'La conversazione Telegram è attiva, ma l’analisi intelligente richiede la variabile OPENAI_API_KEY nell’ambiente corrente.',
       suggestedAction: 'nessuna'
     };
   }
@@ -408,5 +419,6 @@ module.exports = {
   profileName,
   requestType,
   requestTypeLabel,
-  workApprovalKeyboard
+  workApprovalKeyboard,
+  _test: { intakeFallback }
 };

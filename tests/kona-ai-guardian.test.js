@@ -12,7 +12,8 @@ const {
   incidentCode,
   requestType,
   requestTypeLabel,
-  workApprovalKeyboard
+  workApprovalKeyboard,
+  _test: { intakeFallback }
 } = require('../netlify/functions/_lib/kona-ai-guardian');
 
 test('codici incidente e testo Guardian sono normalizzati in modo deterministico', () => {
@@ -27,6 +28,29 @@ test('Guardian distingue problemi e migliorie senza cambiare il codice KG', () =
   assert.equal(requestTypeLabel('miglioria'), 'Miglioria');
   assert.equal(requestTypeLabel('sconosciuto'), 'Problema');
   assert.match(JSON.stringify(workApprovalKeyboard('incident-id')), /approve_work:incident-id/);
+});
+
+test('Guardian chiude la raccolta dopo al massimo due chiarimenti', () => {
+  const first = intakeFallback([
+    { autore_tipo: 'operatore', testo: 'Il pulsante non funziona.' }
+  ], { tipo_richiesta: 'problema' });
+  const second = intakeFallback([
+    { autore_tipo: 'operatore', testo: 'Il pulsante non funziona.' },
+    { autore_tipo: 'guardian', testo: first.reply },
+    { autore_tipo: 'operatore', testo: 'Mi aspettavo che aprisse la pratica.' }
+  ], { tipo_richiesta: 'problema' });
+  const completed = intakeFallback([
+    { autore_tipo: 'operatore', testo: 'Il pulsante non funziona.' },
+    { autore_tipo: 'guardian', testo: first.reply },
+    { autore_tipo: 'operatore', testo: 'Mi aspettavo che aprisse la pratica.' },
+    { autore_tipo: 'guardian', testo: second.reply },
+    { autore_tipo: 'operatore', testo: 'Si ripete sempre e non compare alcun errore.' }
+  ], { tipo_richiesta: 'problema' });
+
+  assert.equal(first.complete, false);
+  assert.equal(second.complete, false);
+  assert.equal(completed.complete, true);
+  assert.match(completed.reply, /inviata all’amministratore/);
 });
 
 test('il vecchio reporter email tecnico è rimosso senza eliminare il mailer operativo', () => {

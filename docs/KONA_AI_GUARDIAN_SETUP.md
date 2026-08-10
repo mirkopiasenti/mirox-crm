@@ -5,7 +5,7 @@
 La prima versione realizza un unico agente, senza gerarchie:
 
 - gli utenti autenticati aprono l'azione flottante KONA AI Guardian e scelgono `Segnala un problema` oppure `Proponi una miglioria`;
-- Guardian fa domande brevi specifiche per il tipo finche' la richiesta e' utilizzabile;
+- Guardian fa una domanda breve per volta e al massimo due chiarimenti dopo la descrizione iniziale; poi registra comunque la richiesta;
 - la richiesta viene registrata in tabelle Supabase server-only e notificata nella chat Telegram privata di Mirko;
 - Mirko puo' usare testo o messaggi vocali, aprire una richiesta, chiedere un'analisi Guardian, approvarne la lavorazione o archiviarla;
 - analisi, approvazione lavorazione e archiviazione partono solo da pulsanti Telegram e lasciano audit nel database;
