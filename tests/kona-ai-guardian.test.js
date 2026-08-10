@@ -46,6 +46,18 @@ test('le API Guardian separano segnalazioni autenticate e webhook Telegram priva
   assert.match(migration, /dettagli_tecnici_scadono_at/);
 });
 
+test('il bootstrap Guardian staging rifiuta database non vuoti e limita profili al proprietario', () => {
+  const bootstrap = read('database/staging/001_guardian_bootstrap.sql');
+
+  assert.match(bootstrap, /FROM pg_catalog\.pg_tables[\s\S]*schemaname = 'public'/i);
+  assert.match(bootstrap, /RAISE EXCEPTION[\s\S]*Bootstrap staging interrotto/i);
+  assert.match(bootstrap, /REFERENCES auth\.users\(id\) ON DELETE CASCADE/i);
+  assert.match(bootstrap, /REVOKE ALL ON TABLE public\.profili FROM PUBLIC, anon, authenticated/i);
+  assert.match(bootstrap, /GRANT SELECT ON TABLE public\.profili TO authenticated/i);
+  assert.match(bootstrap, /USING \(auth\.uid\(\) = id\)/i);
+  assert.doesNotMatch(bootstrap, /INSERT INTO public\.profili/i);
+});
+
 test('la pagina Segnala Problema usa il wrapper autenticato e non accede a Supabase direttamente', () => {
   const page = read('moduli/segnala-problema.html');
 

@@ -1,6 +1,6 @@
 # /database/ — Migrazioni SQL storiche
 
-I 63 file `.sql` in questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via `supabase db query --linked --file ...`) durante lo sviluppo.
+I file `.sql` nella root di questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via CLI) durante lo sviluppo. `staging/` contiene invece bootstrap one-shot destinati esclusivamente a database staging nuovi e vuoti.
 
 ## ⚠️ NON sono lo stato attuale del DB
 
@@ -69,7 +69,13 @@ Lo schema reale di Supabase contiene anche modifiche fatte:
 | `062_controllo_lg_esiti_manuali.sql` | Aggiunge a `post_vendita_controllo_lg` origine dello stato, blocco CSV, motivazione/autore/data dell'esito manuale e audit dello sblocco. CHECK di coerenza, indice parziale e trigger DB consentono la gestione manuale soltanto ad admin/service role e impediscono agli operatori di sovrascrivere una riga protetta. |
 | `063_compilatore_disdette.sql` | Crea la tabella server-only `disdette_generate` per lo storico minimo dei quattro moduli di recesso e il bucket privato `disdette-files` (PDF, max 5 MB). Revoca ogni accesso diretto a `anon`/`authenticated`: generazione, elenco e signed URL passano esclusivamente dalla function autenticata `gestisci-disdette`. Migration additiva e isolata dalle tabelle condivise col Call Center. |
 | `064_disdette_duplica_ricerca.sql` | Estende soltanto `disdette_generate` con `utenza` e `dati_compilazione jsonb`, entrambi server-only, per mostrare il numero cessato e duplicare i dati tra SIM/Fisso dello stesso cluster. Non modifica `anagrafica`: la ricerca CRM è una lettura autenticata eseguita dalla Function. |
-| `065_kona_ai_guardian.sql` | Crea le quattro tabelle server-only del primo agente KONA AI Guardian: incidenti, messaggi, approvazioni e sessione Telegram. Revoca ogni accesso diretto ad `anon`/`authenticated`, conserva audit delle decisioni di Mirko e imposta a 90 giorni la scadenza obiettivo dei dettagli tecnici. Migration additiva e isolata dalle tabelle condivise col Call Center. **Preparata ma non applicata**: provarla prima sul Supabase staging separato. |
+| `065_kona_ai_guardian.sql` | Crea le quattro tabelle server-only del primo agente KONA AI Guardian: incidenti, messaggi, approvazioni e sessione Telegram. Revoca ogni accesso diretto ad `anon`/`authenticated`, conserva audit delle decisioni di Mirko e imposta a 90 giorni la scadenza obiettivo dei dettagli tecnici. Migration additiva e isolata dalle tabelle condivise col Call Center. **Applicata il 2026-08-10 soltanto al Supabase staging `blwgxrszvsoqcmcmhhqr`; non applicata a production.** |
+
+## Bootstrap esclusivi staging
+
+| File | Cosa introduce |
+|---|---|
+| `staging/001_guardian_bootstrap.sql` | Bootstrap one-shot del Supabase `Mirox CRM - Staging` (`blwgxrszvsoqcmcmhhqr`): crea la sola tabella `profili` minima per Auth/Guardian, con SELECT autenticata limitata al proprio UUID. Un guard interrompe l'esecuzione se `public` contiene gia' tabelle, quindi non puo' essere applicato accidentalmente al production corrente. Non crea utenti e non copia dati. |
 
 ## Linee guida
 
@@ -80,7 +86,7 @@ Lo schema reale di Supabase contiene anche modifiche fatte:
 
 ## Registro aggiornamenti
 
-- **2026-08-10**: preparata la migration `065` per KONA AI Guardian. Non e' stata applicata ne' a staging ne' a production. Prima esecuzione prevista esclusivamente sul nuovo progetto Supabase staging, dopo la creazione dell'ambiente separato.
+- **2026-08-10**: creato il progetto Supabase separato `Mirox CRM - Staging` (`blwgxrszvsoqcmcmhhqr`, `eu-west-3`) e applicati, in quest'ordine, `staging/001_guardian_bootstrap.sql` e `065_kona_ai_guardian.sql`. Il controllo post-migration conferma RLS attiva, nessun privilegio Guardian per `anon`/`authenticated`, accesso completo della sola `service_role` e zero righe di test. Nessun dato cliente e' stato copiato e production non e' stata modificata.
 - **2026-08-07**: migrations `063` e `064` applicate su production. La `063` aggiunge `disdette_generate` e il bucket `disdette-files`; la `064` estende soltanto quella tabella con numero cessato e snapshot server-only. Nessuna delle due modifica tabelle, RPC o policy del Call Center condiviso.
 - **2026-07-27**: migration `062` applicata su production. Controllo L&G distingue gli stati CSV dagli esiti manuali admin-only, conserva motivazione/autore/data e impedisce agli upload successivi di sovrascrivere una riga protetta finche' un admin non riattiva esplicitamente l'automatismo.
 - **2026-07-26**: migrations `057`–`061` applicate su production. Otto duplicazioni anagrafiche certe consolidate (8.477 → 8.469 record), incluse le due righe di collaudo `TEST`/`test`; tutte le FK spostate e loser auditati, nessuna omonimia con identificativi validi distinti è stata unita. L'audit di 247 contratti luglio ha confermato gli 8 totali zero legittimi, corretto 3 Assicurazioni Annuali rimaste senza bonus 0,5 e ripristinato l'opzione Iliad su 7 contratti il cui punto era già corretto. Attivati CHECK e audit permanente dei punteggi.

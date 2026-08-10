@@ -40,6 +40,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `.github/workflows/ci.yml` | CI GitHub: build e test con Node 22 su pull request e branch `main`/`staging` |
 | `docs/KONA_AI_GUARDIAN_SETUP.md` | Setup staging, Telegram/OpenAI, approvazioni e confini del primo agente |
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |
+| `database/staging/` | Bootstrap one-shot esclusivi del Supabase staging; non applicabili a production |
 | `netlify.toml` | Config Netlify, header di sicurezza (CSP/HSTS/Permissions-Policy) e cron |
 | `package.json` | Dipendenze Node delle functions |
 | `CLAUDE.md` | Mappa completa per AI assistants (architettura, schema, regole di business, convenzioni) |
