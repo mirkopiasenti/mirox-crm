@@ -34,7 +34,7 @@ Non collegare il Guardian direttamente al database condiviso di produzione. Prim
 4. applicare una sola volta `database/staging/001_guardian_bootstrap.sql`, poi `database/065_kona_ai_guardian.sql` (completato il 2026-08-10);
 5. usare la branch `codex/kona-ai-guardian-staging` e verificare che il workflow `.github/workflows/ci.yml` sia verde (completato il 2026-08-10);
 6. creare soltanto l'utente Mirko, associarlo a un profilo `admin` e impostare `KONA_AI_OWNER_PROFILE_ID`; l'invito deve atterrare su `imposta-password.html`, dove Mirko sceglie autonomamente la password (account, profilo ed env var completati il 2026-08-10);
-7. configurare OpenAI e Telegram solo sul sito staging;
+7. configurare OpenAI e Telegram solo sul sito staging; Telegram completato il 2026-08-10 con `@MiroxAiGuardianBot`, webhook staging, owner chat e secret protetti; OpenAI ancora da configurare;
 8. provare creazione, domande, notifica, vocale, analisi e archiviazione prima di valutare la produzione.
 
 La migration `065` e' additiva e non modifica le tabelle Call Center condivise. E' stata applicata il 2026-08-10 soltanto al progetto staging `blwgxrszvsoqcmcmhhqr`; non e' stata applicata a production.

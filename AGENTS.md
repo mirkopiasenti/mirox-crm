@@ -614,7 +614,7 @@ La migration additiva `065_kona_ai_guardian.sql` crea quattro tabelle server-onl
 
 ### Ambiente e segreti
 
-Guardian e' pubblicato per la prova sul sito Netlify separato `mirox-crm-staging.netlify.app`, collegato al Supabase staging `blwgxrszvsoqcmcmhhqr`. Bootstrap e migration `065` risultano applicati soltanto li'. Nel progetto staging esiste soltanto l'account Auth di Mirko, collegato a un profilo `admin`, e il relativo `KONA_AI_OWNER_PROFILE_ID` e' configurato su Netlify; restano da configurare OpenAI/Telegram. Non usare dati reali durante la validazione.
+Guardian e' pubblicato per la prova sul sito Netlify separato `mirox-crm-staging.netlify.app`, collegato al Supabase staging `blwgxrszvsoqcmcmhhqr`. Bootstrap e migration `065` risultano applicati soltanto li'. Nel progetto staging esiste soltanto l'account Auth di Mirko, collegato a un profilo `admin`, e il relativo `KONA_AI_OWNER_PROFILE_ID` e' configurato su Netlify. Il bot `@MiroxAiGuardianBot` usa il webhook dello staging; token, owner chat e secret sono env protette. Resta da configurare OpenAI. Non usare dati reali durante la validazione.
 
 Env vars: `OPENAI_API_KEY`, `OPENAI_GUARDIAN_MODEL`, `OPENAI_TRANSCRIBE_MODEL`, `TELEGRAM_GUARDIAN_BOT_TOKEN`, `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`, `TELEGRAM_GUARDIAN_WEBHOOK_SECRET`, `KONA_AI_OWNER_PROFILE_ID`. Mai esporle nel frontend o committarle. Setup completo: `docs/KONA_AI_GUARDIAN_SETUP.md`.
 

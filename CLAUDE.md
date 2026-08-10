@@ -696,7 +696,7 @@ Il reporter globale `js/mirox-error-reporter.js` e tutte le email automatiche pe
 
 La migration `065_kona_ai_guardian.sql` crea `kona_ai_incidenti`, `kona_ai_messaggi`, `kona_ai_approvazioni` e `kona_ai_telegram_sessioni`, tutte server-only. I dettagli tecnici hanno una scadenza obiettivo a 90 giorni; il cleanup automatico non e' ancora attivo. Riepilogo e audit restano permanenti.
 
-Prima dell'attivazione usare Netlify staging + Supabase separato, dati fittizi e migration `065` applicata esplicitamente soltanto allo staging. Nel progetto staging esiste soltanto l'account Auth di Mirko con profilo `admin`; `KONA_AI_OWNER_PROFILE_ID` e' configurato sul sito Netlify staging. Restano da configurare OpenAI e Telegram. Env e webhook sono descritti in `docs/KONA_AI_GUARDIAN_SETUP.md`.
+Prima dell'attivazione usare Netlify staging + Supabase separato, dati fittizi e migration `065` applicata esplicitamente soltanto allo staging. Nel progetto staging esiste soltanto l'account Auth di Mirko con profilo `admin`; `KONA_AI_OWNER_PROFILE_ID` e' configurato sul sito Netlify staging. Il bot `@MiroxAiGuardianBot` e' collegato al webhook staging con token, owner chat e secret protetti; resta da configurare OpenAI. Env e webhook sono descritti in `docs/KONA_AI_GUARDIAN_SETUP.md`.
 
 ### Aggiornamenti UI e comunicazioni storici
 
