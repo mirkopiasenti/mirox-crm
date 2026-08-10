@@ -433,21 +433,6 @@
       refs.error.classList.add('is-visible');
       refs.refresh.disabled = false;
 
-      if (window.MiroxErrorReporter) {
-        window.MiroxErrorReporter.report({
-          source: `admin-kpi-vendita-${PAGE_CLUSTER.toLowerCase()}`,
-          level: 'error',
-          title: `Errore caricamento KPI Vendita ${PAGE_CLUSTER}`,
-          message: error?.message || `Impossibile caricare i KPI Vendita ${PAGE_CLUSTER}`,
-          technical: error?.stack || String(error),
-          context: {
-            year: refs.year.value,
-            store: refs.store.value,
-            cluster: PAGE_CLUSTER
-          },
-          silent: true
-        });
-      }
     }
   }
 

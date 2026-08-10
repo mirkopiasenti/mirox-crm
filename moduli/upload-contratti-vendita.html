@@ -1048,7 +1048,6 @@
 <script src="../js/mirox-ui.js"></script>
 <script src="../js/mirox-api.js"></script>
 <script src="../js/mirox-upload.js"></script>
-<script src="../js/mirox-error-reporter.js"></script>
 <script> // Auth guard: blocca rendering se non loggato
  (async () => {
  const profilo = await Auth.richiediAuth();
@@ -2151,13 +2150,7 @@ Reload Forever
  // showErrorOverlay
  //  - title/text: testo visibile all'utente
  //  - technicalText: dettagli tecnici (mostrati nel <details> nel modal)
- //  - reportInfo: se valorizzato, invia anche una mail di notifica al
- //    proprietario tramite MiroxErrorReporter. Forma:
- //      { level?: 'critical'|'error'|'warning', context?: object,
- //        errorCode?: string, source?: string }
- //    Se null/false/undefined, mostra solo il popup senza mandare mail
- //    (validation utente non e' un incidente).
- function showErrorOverlay(title, text, technicalText = '', reportInfo = null) {
+ function showErrorOverlay(title, text, technicalText = '') {
  refs.loadingTitle.textContent = title || 'Errore durante l\'invio';
  refs.loadingText.textContent = text || 'Si è verificato un errore inatteso.';
  refs.loadingSpinner.classList.add('hidden');
@@ -2168,33 +2161,13 @@ Reload Forever
  renderOverlaySummary([]);
  renderOverlayTechnical(technicalText);
  // Orario errore (Europe/Rome) sempre visibile per ogni popup di errore
- const stamp = (window.MiroxErrorReporter && window.MiroxErrorReporter.now)
- ? window.MiroxErrorReporter.now().formatted
- : new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' });
+ const stamp = new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' });
  renderOverlayTimestamp(stamp);
  setOverlayActions({
  primary: { label: 'Chiudi', onClick: () => hideLoadingOverlay() }
  });
  refs.loadingOverlay.classList.remove('hidden');
- // Invio mail di notifica al proprietario (best-effort, non blocca il popup)
- if (reportInfo && window.MiroxErrorReporter) {
- try {
- const ctx = reportInfo.context && typeof reportInfo.context === 'object'
- ? Object.assign({}, reportInfo.context)
- : {};
- if (reportInfo.errorCode) ctx.error_code = reportInfo.errorCode;
- window.MiroxErrorReporter.report({
- source: reportInfo.source || 'upload-contratti-vendita',
- level: reportInfo.level || 'error',
- title: title || 'Errore wizard upload contratti',
- message: text || '',
- technical: technicalText || '',
- context: ctx,
- silent: true
- });
- } catch (e) { /* mai blocchiamo l'utente per la mail */ }
- }
- }
+}
 
  function showInfoOverlay(title, text) {
  refs.loadingTitle.textContent = title || 'Informazione';
@@ -6256,13 +6229,6 @@ Reload Forever
  });
 
  (async function init() {
- // Sistema di error reporting via email: ogni errore JS non gestito
- // (window.error / unhandledrejection) viene notificato al proprietario
- // del CRM con timestamp Europe/Rome. I catch espliciti del wizard usano
- // showErrorOverlay(..., reportInfo) per inviare mail mirate.
- if (window.MiroxErrorReporter && typeof window.MiroxErrorReporter.install === 'function') {
- window.MiroxErrorReporter.install({ source: 'upload-contratti-vendita' });
- }
  initUploadBoxes();
  updateStep3ActionsLabels();
  markTechnicalChecking('Verifica...');

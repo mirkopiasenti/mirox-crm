@@ -1,16 +1,5 @@
 /**
- * MIROX Vendita - Configurazione Supabase
- * Stesso progetto del call center per usare la tabella `profili` condivisa.
+ * Questo file sorgente viene sostituito in dist/ da scripts/build-static.js.
+ * Usare npm run build o netlify dev: non aprire gli HTML sorgente direttamente.
  */
-const SUPABASE_URL = 'https://lbgwamhjkjjfwgusafbi.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxiZ3dhbWhqa2pqZndndXNhZmJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MjIxMTksImV4cCI6MjA5MDE5ODExOX0.SgmrxbP07F-8jtqvf8JHYkFqCVu-2hM4KgLEH_vPvuo';
-
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: false
-  }
-});
-// Espone anche su window per i moduli che accedono via window.db
-window.db = db;
+throw new Error('Configurazione frontend non generata: eseguire npm run build');

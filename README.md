@@ -9,6 +9,8 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 - **Database**: Supabase Postgres (Auth + Storage + RLS + RPC + Trigger), 10 bucket Storage (`moduli-template` pubblico + 9 privati con signed URL on-demand)
 - **Email**: Gmail SMTP via nodemailer + template DB (`email_template` + `email_log`)
 - **SMS transactional**: Smshosting REST API (consensi privacy via OTP — vedi `docs/SMSHOSTING_SETUP.md`)
+- **KONA AI Guardian**: OpenAI Responses API per raccolta/analisi strutturata + Audio Transcriptions per i vocali Telegram conclusi
+- **Canale proprietario**: bot Telegram privato limitato al solo `chat_id` di Mirko
 - **Hosting**: Netlify (build statica a lista consentita in `dist/` + functions + cron schedules)
 
 ## Struttura cartelle
@@ -16,7 +18,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | Cartella / File | Cosa contiene |
 |---|---|
 | `index.html` | Login Supabase Auth |
-| `dashboard.html` | Home con tabs Vendita / Post-Vendita + topbar con bottoni Applicazioni / Appuntamenti Oggi / Ticket / Call Center / **Admin** (visibile solo se `ruolo='admin'`) + badge ticket aperti. Il bottone Applicazioni apre un pannello espandibile sopra il saluto e collega al `Compilatore disdette` |
+| `dashboard.html` | Home con tabs Vendita / Post-Vendita + topbar con bottoni Applicazioni / **Segnala Problema** / Appuntamenti Oggi / Ticket / Call Center / **Admin** (visibile solo se `ruolo='admin'`) + badge ticket aperti. Il bottone Applicazioni apre un pannello espandibile sopra il saluto e collega al `Compilatore disdette` |
 | `admin.html` | **Hub Admin Mirox** — shell a due aree con sidebar dei reparti e area di lavoro. `Configurazioni` contiene i 4 moduli esistenti; `KPI` raccoglie i moduli di analisi. Accesso ristretto a `ruolo='admin'` |
 | `admin-utenti.html` | Gestione utenti: ruoli admin/operatore, abilita/disabilita, permessi granulari Call Center, flag `in_gara`, colonna **Alias di** (unifica due account della stessa persona con backfill guidato del pregresso). Solo admin |
 | `admin-call-center-config.html` | Orari, blocchi e parametri di sistema del Call Center (spostata da `moduli/call-center/configurazione.html`). Solo admin |
@@ -24,17 +26,19 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `admin-gare.html` | Configurazione **Gare & Avanzamento** — metriche, obiettivi mensili per operatore, editor compenso a scaglioni + bonus, duplica dal mese precedente, flag operatori "in gara". Solo admin |
 | `admin-kpi-vendita-consumer.html` | KPI **Vendita - Consumer**. Tab Mobile, Fisso, Luce & Gas, Allarmi e Assicurazioni con tabelle mensili e confronto operatori; filtri anno e punto vendita. Solo admin |
 | `admin-kpi-vendita-business.html` | KPI **Vendita - Business**. Replica struttura e metriche della pagina Consumer leggendo esclusivamente i contratti Business. Solo admin |
-| `moduli/` | 17 pagine funzionali Vendita / Post-Vendita / Applicazioni (`apri_chiudi`, `switch_sim`, `ordini_smartphone`, `dispositivi_comodato`, `gestione_rimborsi`, `segnalazioni`, `simulatore_protecta`, `storico_cliente`, `ticket`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `dashboard_pezzi` (3 tab: Day by Day + Gare Individuali + Avanzamento Mensile, con export PNG), `upload-contratti-vendita`, `compilatore_disdette`) |
+| `moduli/` | 18 pagine funzionali Vendita / Post-Vendita / Applicazioni / KONA AI (`apri_chiudi`, `switch_sim`, `ordini_smartphone`, `dispositivi_comodato`, `gestione_rimborsi`, `segnalazioni`, `simulatore_protecta`, `storico_cliente`, `ticket`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `dashboard_pezzi` (3 tab: Day by Day + Gare Individuali + Avanzamento Mensile, con export PNG), `upload-contratti-vendita`, `compilatore_disdette`, `segnala-problema`) |
 | `moduli/call-center/` | **Modulo Call Center integrato (Fase 1)** — 11 pagine (`registra-chiamata`, `elenco-chiamate`, `rilavorazione`, `appuntamenti`, `appuntamenti-oggi`, `prenota-interno`, `esiti-appuntamenti`, `blacklist`, `call-center-lead-outbound`, `prenota-interno-outbound`, `registra-chiamata-outbound`) + `prenota.html` (form pubblico). La pagina `configurazione` è stata spostata sotto Admin Mirox (`admin-call-center-config.html`). Vedi sezione "Modulo Call Center" sotto e [CLAUDE.md](CLAUDE.md) per i dettagli di coordinamento col CC prod |
-| `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-safe` (escape HTML, URL/ID/colori sicuri), `mirox-storage`, `mirox-storage-upload`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `mirox-error-reporter`, `anagrafica-helper`, `vendita-storage-helper`, `admin-shell`; logica pagina KPI in `admin-kpi-vendita-consumer.js` |
+| `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-safe` (escape HTML, URL/ID/colori sicuri), `mirox-storage`, `mirox-storage-upload`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `anagrafica-helper`, `vendita-storage-helper`, `admin-shell`; logica pagina KPI in `admin-kpi-vendita-consumer.js`. Il vecchio `mirox-error-reporter` email e' stato rimosso |
 | `css/` | `style.css`, `mirox-modules.css`, `admin-shell.css`, `admin-kpi.css` |
 | `assets/` | Logo, favicon |
-| `scripts/build-static.js` | Build Netlify: copia in `dist/` soltanto HTML root e le directory pubbliche `assets/`, `css/`, `js/`, `moduli/` |
+| `scripts/build-static.js` | Build Netlify: copia in `dist/` soltanto i file pubblici, genera `dist/js/config.js` e una CSP limitata al Supabase dell'ambiente |
 | `dist/` | Output locale della build, ignorato da Git. Non contiene backend, migration, test o documentazione |
 | `netlify/functions/` | Endpoint server-side (vedi sotto) |
-| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`, `pdf-disdetta`, `score-integrity`) |
+| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`, `pdf-disdetta`, `score-integrity`, `kona-ai-guardian`, `telegram`) |
 | `netlify/functions/_templates/disdette/` | I quattro moduli PDF WindTre originali usati come sfondo immutabile dal Compilatore disdette |
 | `tests/` | Test automatici Node (`node:test`): regressioni vendita, sicurezza/XSS, PDF privacy, sintassi e link locali |
+| `.github/workflows/ci.yml` | CI GitHub: build e test con Node 22 su pull request e branch `main`/`staging` |
+| `docs/KONA_AI_GUARDIAN_SETUP.md` | Setup staging, Telegram/OpenAI, approvazioni e confini del primo agente |
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |
 | `netlify.toml` | Config Netlify, header di sicurezza (CSP/HSTS/Permissions-Policy) e cron |
 | `package.json` | Dipendenze Node delle functions |
@@ -42,7 +46,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 
 ### Netlify Functions
 
-Tutte le functions, eccetto i due cron Netlify e l'endpoint anon intenzionale `public-prenota`, richiedono `Authorization: Bearer <jwt>` valido — il client usa `MiroxApi.fetch()` che lo inietta automaticamente dalla sessione Supabase.
+Tutte le functions, eccetto i due cron Netlify, l'endpoint anon intenzionale `public-prenota` e il webhook Telegram protetto da secret token + allowlist del `chat_id`, richiedono `Authorization: Bearer <jwt>` valido — il client usa `MiroxApi.fetch()` che lo inietta automaticamente dalla sessione Supabase.
 
 | Function | Metodo | Auth | Scopo |
 |---|---|---|---|
@@ -61,6 +65,8 @@ Tutte le functions, eccetto i due cron Netlify e l'endpoint anon intenzionale `p
 | `ocr-pda` | POST multipart | authenticated | OCR del PDA (Pratica di Adesione PDF) via Claude API — pre-compila l'anagrafica. In caso di errore Anthropic ritorna `error_code` strutturato (`ocr_credit_exhausted`, `ocr_rate_limited`, `ocr_unavailable`, `ocr_auth_error`, `ocr_generic_error`) per popup mirato lato client |
 | `search-anagrafica` | GET | authenticated | Ricerca cliente per CF/PIVA |
 | `mirox-send-email` | POST | authenticated | Invio email con template DB |
+| `guardian-incidents` | GET / POST | authenticated | Crea e prosegue le segnalazioni tecniche KONA AI. Gli operatori vedono solo le proprie; gli admin possono elencarle tutte. Nessun accesso browser diretto alle tabelle Guardian |
+| `guardian-telegram-webhook` | POST | webhook Telegram privato | Accetta solo il secret token configurato e il `chat_id` di Mirko; gestisce testo, vocali trascritti, apertura incidente, analisi Guardian approvata e archiviazione auditata |
 | `cron-rientro-sim` | scheduled | nessuna (cron Netlify) | Notifica giornaliera rientro SIM |
 | `cron-pulizia-operativa` | scheduled | nessuna (cron Netlify) | Scade OTP pending, elimina contatori rate-limit scaduti e rimuove bozze vendita oltre 24 ore con relativi PDF |
 | `public-prenota` | GET / POST | nessuna (form pubblico) | Endpoint per `prenota.html`: rate limit persistente su Postgres e POST atomica tramite RPC con lock e nuovo controllo dello slot nella stessa transazione |
@@ -91,7 +97,7 @@ Il PDF archiviato è accessibile solo tramite signed URL di 5 minuti restituito 
 - **Scritture protette**: il browser non ha policy INSERT/UPDATE/DELETE sui bucket dati e sui rimborsi, né INSERT/DELETE su `vendita_documenti` o UPDATE su `vendita_contratti`. Upload, rimborsi, rimozioni e verifica passano dalle Netlify Functions autenticate.
 - **Informativa CRM**: le versioni correnti sono `v6_2026_07_26` (cartacea, una pagina A4 in bianco e nero con corpo 10 pt e scelta marketing già marcata) e `v6_2026_07_26_dig` (digitale OTP, tre pagine con ACCONSENTO/NON ACCONSENTO esplicito). La ragione sociale del Titolare è riportata nella forma esatta `KONA TECH SRL`. La scelta binaria è obbligatoria prima del download cartaceo o dell'invio OTP, mentre il consenso marketing resta facoltativo. Finalità, basi giuridiche, conservazione e perimetro del consenso sono equivalenti; i ricontatti di servizio restano separati dal marketing. Le versioni precedenti rimangono evidenza storica ma non vengono riutilizzate.
 - **Numerazioni mobili legacy**: i campi che validano rigidamente un cellulare accettano 9 o 10 cifre nazionali. Il flusso OTP richiede l'inizio con `3` e normalizza entrambe le lunghezze nel formato E.164 `+39...`; restano accettati anche i numeri internazionali già espressi in E.164.
-- **Sicurezza frontend**: tutti gli script CDN sono versionati e protetti da SRI; `MiroxSafe` codifica i dati dinamici; Netlify invia CSP, HSTS e Permissions-Policy. Il deploy pubblica esclusivamente la build `dist/`: sorgenti server, migration, test e documentazione non sono raggiungibili dal sito. La CSP mantiene temporaneamente `'unsafe-inline'` perché le pagine statiche legacy contengono ancora script e handler inline.
+- **Sicurezza frontend**: tutti gli script CDN sono versionati e protetti da SRI; `MiroxSafe` codifica i dati dinamici; Netlify invia CSP, HSTS e Permissions-Policy. Il deploy pubblica esclusivamente la build `dist/`: sorgenti server, migration, test e documentazione non sono raggiungibili dal sito. La build genera `config.js` e CSP con l'host Supabase dell'ambiente; ogni branch Netlify diversa da `main` viene trattata come staging, richiede credenziali pubbliche dedicate e rifiuta il project ref di produzione. La CSP mantiene temporaneamente `'unsafe-inline'` perché le pagine statiche legacy contengono ancora script e handler inline.
 
 ## Setup locale
 
@@ -103,6 +109,17 @@ npx netlify dev   # serve frontend + functions su http://localhost:8888
 ```
 
 Per le functions in locale servono le env vars (vedi sotto). Mettile in un file `.env` nella root o passale a `netlify dev`.
+
+La build locale senza variabili continua a usare la configurazione frontend di produzione per compatibilita'. Per simulare lo staging in locale sono obbligatorie tutte e tre:
+
+```bash
+MIROX_DEPLOY_ENV=staging \
+MIROX_PUBLIC_SUPABASE_URL=https://<PROJECT_REF_STAGING>.supabase.co \
+MIROX_PUBLIC_SUPABASE_ANON_KEY=<PUBLISHABLE_KEY_STAGING> \
+npm run build
+```
+
+La build staging fallisce se riceve il project ref di produzione o una service role/secret key.
 
 ## Deploy Netlify
 
@@ -116,6 +133,8 @@ Setup:
 2. Le build settings vengono lette da `netlify.toml`: `npm run build` genera `dist/`, unica publish directory. La root del repository non viene esposta
 3. Imposta le env vars nel pannello Netlify (sezione Site settings → Environment variables)
 4. Deploy automatico al `git push origin main`
+
+Lo staging Guardian usa un sito Netlify separato collegato a `codex/kona-ai-guardian-staging`. Il sito deve impostare `MIROX_DEPLOY_ENV=staging` e le due variabili frontend dedicate; in loro assenza la build viene bloccata prima del deploy. Un push su questa branch non autorizza modifiche a `main` o al database di produzione.
 
 ## Workflow di aggiornamento
 
@@ -148,6 +167,9 @@ Dettagli e regole complete in [`AGENTS.md`](AGENTS.md); [`CLAUDE.md`](CLAUDE.md)
 |---|---|---|
 | `SUPABASE_URL` | sì | `https://lbgwamhjkjjfwgusafbi.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | sì | Service role key (NON la anon/publishable — solo lato server) |
+| `MIROX_DEPLOY_ENV` | sì nello staging | `staging`; su `main` il default e' `production` |
+| `MIROX_PUBLIC_SUPABASE_URL` | sì nello staging | URL pubblico del progetto Supabase staging, generato in `dist/js/config.js` |
+| `MIROX_PUBLIC_SUPABASE_ANON_KEY` | sì nello staging | Publishable/anon key staging; service role e secret key vengono rifiutate |
 | `ANTHROPIC_API_KEY` | sì | Chiave Claude API per la function `ocr-pda` (estrazione AI dati dal PDA) |
 | `SMTP_USER` | sì | Account Gmail mittente |
 | `SMTP_PASS` | sì | App Password Gmail |
@@ -157,6 +179,13 @@ Dettagli e regole complete in [`AGENTS.md`](AGENTS.md); [`CLAUDE.md`](CLAUDE.md)
 | `SMSHOSTING_SIMULATE` | no | `true` per attivare modalità simulazione (logga SMS senza inviarlo). Utile per test dev senza spendere credito |
 | `NOTIFICA_RIENTRO_TO` | no | Default `info@konatech.it` |
 | `MAIL_FROM_NAME` | no | Default `Mirox CRM` |
+| `OPENAI_API_KEY` | sì (per Guardian AI) | Responses API e Audio Transcriptions; solo lato server |
+| `OPENAI_GUARDIAN_MODEL` | no | Default `gpt-5.6-luna` |
+| `OPENAI_TRANSCRIBE_MODEL` | no | Default `gpt-transcribe` |
+| `TELEGRAM_GUARDIAN_BOT_TOKEN` | sì (per Telegram Guardian) | Token del bot dedicato; mai nel frontend |
+| `TELEGRAM_GUARDIAN_OWNER_CHAT_ID` | sì (per Telegram Guardian) | Unico `chat_id` autorizzato, appartenente a Mirko |
+| `TELEGRAM_GUARDIAN_WEBHOOK_SECRET` | sì (per Telegram Guardian) | Segreto casuale verificato nell'header webhook |
+| `KONA_AI_OWNER_PROFILE_ID` | sì (per audit completo) | UUID del profilo Mirko nell'ambiente Supabase corrente |
 
 ## Modulo Call Center (integrato, Fase 1)
 
@@ -242,26 +271,15 @@ Il CC prod su `mirox-crm.netlify.app` legge le stesse tabelle. Per non romperlo:
 - **Fase 5 facoltativa** (uniformità UI): le pagine CC conservano parte delle utility `Utils.*` del port storico. La creazione anagrafica è già migrata a `AnagraficaHelper.cercaOcrea` e non restano conferme native nei flussi controllati; l'eventuale sostituzione completa di `Utils.*` è un refactor architetturale, non un'attività correttiva aperta
 - **Estensioni Fase 4**: bottoni "Inizia vendita" anche in `registra-chiamata.html` (dopo passa-in-negozio), `esiti-appuntamenti.html` (prima di esitare), `rilavorazione.html` (tab Passa Negozio/Cerea) — da fare on-demand quando si ha bisogno
 
-## Error reporting via email (dal 2026-06-25)
+## KONA AI Guardian (prima versione, 2026-08-10)
 
-Sistema centralizzato di notifica errori tecnici. Ogni errore "hard" del CRM (rete, OCR, submit pratica, eccezioni JS non gestite) genera:
+Il vecchio reporter globale che inviava automaticamente email per gli errori tecnici e' stato rimosso perche' produceva notifiche poco utili. Restano invariati `mirox-send-email`, `MiroxMailer` e tutte le email operative basate sui template CRM. Restano inoltre i popup locali, compresi i messaggi mirati dell'OCR e l'orario mostrato dal wizard Upload Contratti.
 
-1. **Popup utente** con messaggio chiaro + pillola arancione "Orario errore: GG/MM/AAAA HH:MM:SS" (Europe/Rome con secondi)
-2. **Email automatica** al proprietario (`mirko.piasenti@gmail.com`) con metadata (livello, sorgente, utente, pagina, browser), dettagli tecnici e contesto JSON
+La dashboard espone ora `Segnala Problema`, che apre `moduli/segnala-problema.html`. L'operatore descrive il problema in linguaggio semplice; Guardian raccoglie un elemento alla volta e conferma con un codice `KG-000001` quando le informazioni sono sufficienti. Gli operatori possono soltanto segnalare e rispondere: non possono assegnare priorita', approvare analisi o avviare azioni.
 
-Componente: `js/mirox-error-reporter.js` → `window.MiroxErrorReporter`. Trasporto: `mirox-send-email` con HTML inline. Throttling 60s per fingerprint (stessa sorgente+livello+messaggio) per evitare flood. Livelli: `critical` / `error` / `warning` / `info`.
+Gli incidenti vivono nelle tabelle server-only della migration `065`: `kona_ai_incidenti`, `kona_ai_messaggi`, `kona_ai_approvazioni` e `kona_ai_telegram_sessioni`. Mirko e' l'unico interlocutore Telegram ammesso e puo' usare testo o vocali gia' registrati; non e' prevista conversazione audio live. Analisi Guardian e archiviazione richiedono un pulsante Telegram e producono un audit. Il Guardian conversazionale non legge il repository e non modifica codice: il collegamento a Codex verra' aggiunto in una fase separata e isolata dopo la prova reale in staging.
 
-**OCR — gestione credito esaurito**: `ocr-pda.js` ritorna `error_code='ocr_credit_exhausted'` quando Anthropic risponde con "credit balance is too low". Il wizard upload contratti mostra un popup esplicito "OCR non disponibile — Credito API esaurito. Procedi con l'inserimento manuale" + invia mail livello `critical`. Stessa logica per rate limit (429), 5xx, auth error.
-
-**Pagine integrate al 2026-08-06** (36 pagine: tutte tranne `index.html` e `moduli/call-center/prenota.html`):
-
-- Root: `dashboard`, `admin`, `admin-utenti`, `admin-vendita-config`, `admin-call-center-config`, `admin-gare`, `admin-kpi-vendita-consumer`, `admin-kpi-vendita-business`
-- Vendita / Post-Vendita / Applicazioni: `upload-contratti-vendita` (integrazione completa con popup OCR mirato per credito esaurito), `apri_chiudi`, `switch_sim`, `ordini_smartphone`, `simulatore_protecta`, `dashboard_pezzi`, `storico_cliente`, `dispositivi_comodato`, `gestione_rimborsi`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `ticket`, `segnalazioni`, `compilatore_disdette`
-- Call Center: tutte tranne `prenota.html` (anon pubblica)
-
-Sulle pagine integrate è installato l'handler globale (`window.error` + `unhandledrejection`), che cattura gli errori JS non gestiti. Per mail mirate su catch specifici si segue il pattern del wizard upload-contratti (vedi `CLAUDE.md` per dettagli).
-
-Dettagli operativi: vedi [CLAUDE.md](CLAUDE.md) sezione "Sistema di error reporting via email".
+La migration e il codice sono preparati localmente ma non risultano applicati o pubblicati. Prima dell'attivazione e' obbligatorio usare un sito Netlify staging con un progetto Supabase separato. Configurazione completa, env vars, webhook Telegram, limiti e percorso successivo verso Sentry/Codex sono in [`docs/KONA_AI_GUARDIAN_SETUP.md`](docs/KONA_AI_GUARDIAN_SETUP.md).
 
 ## Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
@@ -275,7 +293,7 @@ Dettagli operativi: vedi [CLAUDE.md](CLAUDE.md) sezione "Sistema di error report
 - `moduli/verifica_contratti.html`: per i contratti Fisso il popup dettaglio mostra anche la convergenza scelta, accanto al prezzo di vendita Fisso.
 - `js/mirox-upload.js`: prima di accettare un PDF selezionato o trascinato apre un popup di anteprima con `X` per rimuovere il file e `Conferma` per mantenerlo. La regola vale per Upload Contratti, Switch SIM, Apri/Chiudi, Verifica Contratti, Segnalazioni e Dispositivo Comodato.
 - Favicon Mirox standard (`assets/favicon.png`) allineata sulle pagine HTML che ne erano prive.
-- I bottoni delle email di comunicazione basate su template (segnalazioni, rientro Switch SIM, ordini smartphone) puntano a [`https://www.mirox-crm.it`](https://www.mirox-crm.it). Le mail tecniche di errore restano escluse.
+- I bottoni delle email operative basate su template (segnalazioni, rientro Switch SIM, ordini smartphone) puntano a [`https://www.mirox-crm.it`](https://www.mirox-crm.it). Le vecchie email automatiche per errori tecnici sono state rimosse.
 
 ## Schedulazioni
 
@@ -293,7 +311,7 @@ Dettagli operativi: vedi [CLAUDE.md](CLAUDE.md) sezione "Sistema di error report
 
 ## Note
 
-- Le credenziali pubbliche (URL Supabase + publishable key) vivono in `js/config.js` come unica sorgente di verità
+- La configurazione pubblica di produzione vive in `scripts/build-static.js`; per lo staging URL e publishable key arrivano dalle env `MIROX_PUBLIC_SUPABASE_*`. La build genera `dist/js/config.js`, mentre il file sorgente `js/config.js` e' soltanto un guard contro l'apertura degli HTML non compilati
 - L'autenticazione passa per `profili.attivo`: utenti disattivati non entrano
 - Esiste un secondo progetto **Call Center** non incluso in questo repo che condivide lo stesso database Supabase. Vedi `CLAUDE.md` per i boundaries delle tabelle condivise.
 
