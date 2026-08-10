@@ -209,19 +209,19 @@
     /* KONA AI GUARDIAN FLOATING ACTION */
     .guardian-fab {
       position: fixed;
-      right: 30px;
-      bottom: 28px;
+      right: 24px;
+      bottom: 22px;
       z-index: 30;
-      width: 248px;
-      min-height: 116px;
+      width: 282px;
+      min-height: 74px;
       display: flex;
       align-items: center;
-      padding: 18px 104px 18px 20px;
+      padding: 12px 76px 12px 18px;
       overflow: visible;
-      border: 1px solid rgba(255, 102, 0, 0.25);
-      border-radius: 28px;
-      background: linear-gradient(135deg, #ffffff 0%, #fff7ef 100%);
-      box-shadow: 0 18px 44px rgba(10, 37, 64, 0.18), 0 5px 16px rgba(255, 102, 0, 0.12);
+      border: 1px solid rgba(255, 102, 0, 0.2);
+      border-radius: 20px;
+      background: #ffffff;
+      box-shadow: 0 10px 28px rgba(10, 37, 64, 0.14);
       color: var(--text);
       text-decoration: none;
       transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
@@ -229,18 +229,18 @@
     .guardian-fab::before {
       content: '';
       position: absolute;
-      top: 14px;
-      left: 16px;
-      width: 8px;
-      height: 8px;
+      top: 17px;
+      left: 18px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: var(--primary);
-      box-shadow: 0 0 0 5px rgba(255, 102, 0, 0.12);
+      box-shadow: 0 0 0 3px rgba(255, 102, 0, 0.1);
     }
     .guardian-fab:hover {
       border-color: var(--primary);
-      transform: translateY(-4px);
-      box-shadow: 0 24px 52px rgba(10, 37, 64, 0.22), 0 8px 22px rgba(255, 102, 0, 0.18);
+      transform: translateY(-2px);
+      box-shadow: 0 14px 32px rgba(10, 37, 64, 0.18);
     }
     .guardian-fab:focus-visible {
       outline: 3px solid rgba(255, 102, 0, 0.35);
@@ -249,38 +249,39 @@
     .guardian-fab-copy {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 2px;
       min-width: 0;
     }
     .guardian-fab-kicker {
+      padding-left: 12px;
       color: var(--primary-dark);
-      font-size: 10px;
+      font-size: 8px;
       font-weight: 800;
-      letter-spacing: 0.12em;
+      letter-spacing: 0.1em;
       line-height: 1;
       text-transform: uppercase;
     }
     .guardian-fab-title {
       color: var(--text);
-      font-size: 17px;
+      font-size: 14px;
       font-weight: 800;
-      line-height: 1.1;
+      line-height: 1.15;
     }
     .guardian-fab-subtitle {
       color: var(--text-secondary);
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 600;
-      line-height: 1.25;
+      line-height: 1.2;
     }
     .guardian-fab-robot {
       position: absolute;
-      right: -12px;
-      bottom: -12px;
-      width: 122px;
-      height: 152px;
+      right: -7px;
+      bottom: -7px;
+      width: 78px;
+      height: 96px;
       object-fit: contain;
       object-position: center bottom;
-      filter: drop-shadow(0 12px 9px rgba(10, 37, 64, 0.22));
+      filter: drop-shadow(0 7px 7px rgba(10, 37, 64, 0.18));
       pointer-events: none;
     }
 
@@ -552,17 +553,18 @@
       .content { padding: 28px 18px 60px; }
       .tab-btn { padding: 10px 18px; font-size: 14px; }
       .guardian-fab {
-        right: 16px;
-        bottom: 16px;
-        width: min(330px, calc(100vw - 32px));
-        min-height: 104px;
-        padding: 16px 96px 16px 20px;
+        right: 14px;
+        bottom: 14px;
+        width: min(300px, calc(100vw - 28px));
+        min-height: 72px;
+        padding: 12px 70px 12px 16px;
       }
+      .guardian-fab::before { top: 16px; left: 16px; }
       .guardian-fab-robot {
-        right: -8px;
-        bottom: -8px;
-        width: 108px;
-        height: 136px;
+        right: -5px;
+        bottom: -5px;
+        width: 72px;
+        height: 90px;
       }
     } </style>
 <script src="js/mirox-safe.js"></script>
@@ -645,7 +647,7 @@
   <span class="guardian-fab-copy">
     <span class="guardian-fab-kicker">Assistenza Mirox</span>
     <span class="guardian-fab-title">KONA AI Guardian</span>
-    <span class="guardian-fab-subtitle">Segnala un problema e descrivilo in chat</span>
+  <span class="guardian-fab-subtitle">Segnala un problema in chat</span>
   </span>
   <img class="guardian-fab-robot" src="assets/kona-guardian-robot.png" alt="" aria-hidden="true">
 </a>
