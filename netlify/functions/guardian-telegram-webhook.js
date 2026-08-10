@@ -8,7 +8,10 @@ const {
   generateOwnerReply,
   incidentCode,
   incidentNotificationKeyboard,
-  OPEN_INCIDENT_STATES
+  OPEN_INCIDENT_STATES,
+  requestType,
+  requestTypeLabel,
+  workApprovalKeyboard
 } = require('./_lib/kona-ai-guardian');
 const {
   answerCallbackQuery,
@@ -100,7 +103,8 @@ async function getMessages(supabase, incidentId, limit = 40) {
 function compactIncident(incident) {
   return [
     `${incidentCode(incident.numero)} · ${incident.priorita} · ${incident.stato}`,
-    incident.titolo || 'Problema CRM',
+    `Tipo: ${requestTypeLabel(incident.tipo_richiesta)}`,
+    incident.titolo || (requestType(incident.tipo_richiesta) === 'miglioria' ? 'Miglioria CRM' : 'Problema CRM'),
     incident.riepilogo_ai || incident.descrizione_iniziale
   ].join('\n');
 }
@@ -108,19 +112,19 @@ function compactIncident(incident) {
 async function listOpenIncidents(supabase, chatId) {
   const { data, error } = await supabase
     .from('kona_ai_incidenti')
-    .select('id, numero, stato, priorita, titolo, descrizione_iniziale, riepilogo_ai')
+    .select('id, numero, stato, priorita, tipo_richiesta, titolo, descrizione_iniziale, riepilogo_ai')
     .in('stato', OPEN_INCIDENT_STATES)
     .order('updated_at', { ascending: false })
     .limit(10);
   if (error) throw error;
   if (!data?.length) {
-    await sendTelegramMessage(chatId, 'Non ci sono incidenti aperti.');
+    await sendTelegramMessage(chatId, 'Non ci sono richieste aperte.');
     return;
   }
   await sendTelegramMessage(chatId, [
-    'Incidenti aperti:',
+    'Richieste aperte:',
     '',
-    ...data.map((item) => `${incidentCode(item.numero)} · ${item.priorita} · ${item.titolo || 'Problema CRM'}`),
+    ...data.map((item) => `${incidentCode(item.numero)} · ${requestTypeLabel(item.tipo_richiesta)} · ${item.priorita} · ${item.titolo || 'Senza titolo'}`),
     '',
     'Usa /apri KG-000001 per entrare in una conversazione.'
   ].join('\n'));
@@ -138,7 +142,7 @@ async function openIncident(supabase, chatId, incident) {
     '',
     ...(history.length ? ['Ultimi messaggi:', ...history] : []),
     '',
-    'Da ora i tuoi messaggi e vocali saranno collegati a questo incidente.'
+    'Da ora i tuoi messaggi e vocali saranno collegati a questa richiesta.'
   ].join('\n'), { reply_markup: incidentNotificationKeyboard(incident.id) });
 }
 
@@ -156,16 +160,19 @@ async function openByCode(supabase, chatId, command) {
     .maybeSingle();
   if (error) throw error;
   if (!data) {
-    await sendTelegramMessage(chatId, 'Incidente non trovato.');
+    await sendTelegramMessage(chatId, 'Richiesta non trovata.');
     return;
   }
   await openIncident(supabase, chatId, data);
 }
 
-async function createTelegramIncident(supabase, chatId, text) {
+async function createTelegramIncident(supabase, chatId, text, requestedType = 'problema') {
   const description = cleanText(text, 4000);
+  const type = requestType(requestedType);
   if (description.length < 3) {
-    await sendTelegramMessage(chatId, 'Scrivi /nuovo seguito dalla descrizione del problema.');
+    await sendTelegramMessage(chatId, type === 'miglioria'
+      ? 'Scrivi /nuovo_miglioria seguito dalla descrizione della proposta.'
+      : 'Scrivi /nuovo seguito dalla descrizione del problema.');
     return;
   }
   const title = description.length > 90 ? `${description.slice(0, 87)}...` : description;
@@ -174,6 +181,7 @@ async function createTelegramIncident(supabase, chatId, text) {
     .insert({
       stato: 'ricevuto',
       priorita: 'media',
+      tipo_richiesta: type,
       sorgente: 'telegram',
       titolo: title,
       descrizione_iniziale: description,
@@ -192,18 +200,19 @@ async function createTelegramIncident(supabase, chatId, text) {
     canale: 'telegram',
     autore_tipo: 'mirko',
     autore_profile_id: ownerProfileId(),
-    testo: description
+    testo: description,
+    metadati: { request_type: type }
   });
   if (messageError) throw messageError;
   await setActiveIncident(supabase, chatId, incident.id);
-  await sendTelegramMessage(chatId, `Creato ${incidentCode(incident.numero)}. La conversazione è ora attiva.`, {
+  await sendTelegramMessage(chatId, `Creata richiesta ${incidentCode(incident.numero)} (${requestTypeLabel(type)}). La conversazione è ora attiva.`, {
     reply_markup: incidentNotificationKeyboard(incident.id)
   });
 }
 
 async function archiveIncident(supabase, chatId, incidentId) {
   const incident = await getIncident(supabase, incidentId);
-  if (!incident) throw new Error('Incidente non trovato');
+  if (!incident) throw new Error('Richiesta non trovata');
   const now = new Date().toISOString();
   const { data: approval, error: approvalError } = await supabase
     .from('kona_ai_approvazioni')
@@ -226,19 +235,20 @@ async function archiveIncident(supabase, chatId, incidentId) {
     .update({ stato: 'archiviato', archiviato_at: now })
     .eq('id', incident.id);
   if (error) throw error;
-  await supabase.from('kona_ai_messaggi').insert({
+  const { error: auditError } = await supabase.from('kona_ai_messaggi').insert({
     incidente_id: incident.id,
     canale: 'sistema',
     autore_tipo: 'sistema',
-    testo: 'Incidente archiviato da Mirko tramite Telegram.',
+    testo: 'Richiesta archiviata da Mirko tramite Telegram.',
     metadati: { approval_id: approval.id }
   });
+  if (auditError) throw auditError;
   await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} archiviato.`);
 }
 
 async function analyzeIncident(supabase, chatId, incidentId) {
   const incident = await getIncident(supabase, incidentId);
-  if (!incident) throw new Error('Incidente non trovato');
+  if (!incident) throw new Error('Richiesta non trovata');
   const now = new Date().toISOString();
   const { data: approval, error: approvalError } = await supabase
     .from('kona_ai_approvazioni')
@@ -279,7 +289,9 @@ async function analyzeIncident(supabase, chatId, incidentId) {
       risultato: { message_id: savedMessage.id }
     }).eq('id', approval.id);
     await supabase.from('kona_ai_incidenti').update({ stato: 'ricevuto' }).eq('id', incident.id);
-    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)}\n\n${analysis}`);
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)}\nTipo: ${requestTypeLabel(incident.tipo_richiesta)}\n\n${analysis}`, {
+      reply_markup: workApprovalKeyboard(incident.id)
+    });
   } catch (error) {
     await supabase.from('kona_ai_approvazioni').update({
       stato: 'fallita',
@@ -289,6 +301,70 @@ async function analyzeIncident(supabase, chatId, incidentId) {
     await supabase.from('kona_ai_incidenti').update({ stato: 'ricevuto' }).eq('id', incident.id);
     throw error;
   }
+}
+
+async function approveWork(supabase, chatId, incidentId) {
+  const incident = await getIncident(supabase, incidentId);
+  if (!incident) throw new Error('Richiesta non trovata');
+  if (incident.stato === 'archiviato') {
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} è archiviata e non può essere approvata.`);
+    return;
+  }
+  if (incident.stato === 'fix_approvato') {
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} risulta già approvata per la lavorazione.`);
+    return;
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from('kona_ai_approvazioni')
+    .select('id')
+    .eq('incidente_id', incident.id)
+    .eq('azione', 'prepara_fix')
+    .in('stato', ['approvata', 'eseguita'])
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing) {
+    await supabase.from('kona_ai_incidenti').update({ stato: 'fix_approvato' }).eq('id', incident.id);
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} risulta già approvata per la lavorazione.`);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const { data: approval, error: approvalError } = await supabase
+    .from('kona_ai_approvazioni')
+    .insert({
+      incidente_id: incident.id,
+      azione: 'prepara_fix',
+      stato: 'approvata',
+      richiesta_da: 'telegram',
+      decisa_da_profile_id: ownerProfileId(),
+      decisa_da_telegram_chat_id: chatId,
+      motivazione: 'Lavorazione approvata esplicitamente tramite pulsante Telegram',
+      decisa_at: now,
+      risultato: { executor: 'not_connected' }
+    })
+    .select('id')
+    .single();
+  if (approvalError) throw approvalError;
+
+  const { error: updateError } = await supabase
+    .from('kona_ai_incidenti')
+    .update({ stato: 'fix_approvato' })
+    .eq('id', incident.id);
+  if (updateError) throw updateError;
+
+  const { error: auditError } = await supabase.from('kona_ai_messaggi').insert({
+    incidente_id: incident.id,
+    canale: 'sistema',
+    autore_tipo: 'sistema',
+    testo: 'Lavorazione approvata da Mirko tramite Telegram. In attesa del collegamento all’esecutore Codex.',
+    metadati: { approval_id: approval.id, executor: 'not_connected' }
+  });
+  if (auditError) throw auditError;
+  await sendTelegramMessage(chatId, [
+    `${incidentCode(incident.numero)} approvata per la lavorazione.`,
+    'L’approvazione è registrata; nessun codice verrà modificato finché l’esecutore Codex non sarà collegato.'
+  ].join('\n'));
 }
 
 async function handleCallback(supabase, update, chatId) {
@@ -301,12 +377,16 @@ async function handleCallback(supabase, update, chatId) {
   await answerCallbackQuery(query.id, 'Ricevuto');
   if (action === 'open') {
     const incident = await getIncident(supabase, incidentId);
-    if (!incident) throw new Error('Incidente non trovato');
+    if (!incident) throw new Error('Richiesta non trovata');
     await openIncident(supabase, chatId, incident);
     return;
   }
   if (action === 'analyze') {
     await analyzeIncident(supabase, chatId, incidentId);
+    return;
+  }
+  if (action === 'approve_work') {
+    await approveWork(supabase, chatId, incidentId);
     return;
   }
   if (action === 'archive') {
@@ -317,17 +397,17 @@ async function handleCallback(supabase, update, chatId) {
 async function handleOwnerConversation(supabase, chatId, session, text, metadata = {}) {
   const incidentId = session?.incidente_attivo_id;
   if (!incidentId) {
-    await sendTelegramMessage(chatId, 'Nessun incidente attivo. Usa /incidenti, /apri KG-000001 oppure /nuovo descrizione.');
+    await sendTelegramMessage(chatId, 'Nessuna richiesta attiva. Usa /richieste, /apri KG-000001, /nuovo descrizione oppure /nuovo_miglioria descrizione.');
     return;
   }
   const incident = await getIncident(supabase, incidentId);
   if (!incident) {
     await setActiveIncident(supabase, chatId, null);
-    await sendTelegramMessage(chatId, 'L’incidente attivo non esiste più. Usa /incidenti per sceglierne un altro.');
+    await sendTelegramMessage(chatId, 'La richiesta attiva non esiste più. Usa /richieste per sceglierne un’altra.');
     return;
   }
   if (incident.stato === 'archiviato') {
-    await sendTelegramMessage(chatId, 'L’incidente attivo è archiviato. Aprine un altro con /incidenti.');
+    await sendTelegramMessage(chatId, 'La richiesta attiva è archiviata. Aprine un’altra con /richieste.');
     return;
   }
 
@@ -381,17 +461,23 @@ async function handleMessage(supabase, update, chatId, session) {
     await sendTelegramMessage(chatId, [
       'KONA AI Guardian è collegato soltanto a questa chat privata.',
       '',
-      '/incidenti mostra i problemi aperti',
-      '/apri KG-000001 apre una conversazione',
+      '/richieste mostra problemi e migliorie aperti',
+      '/apri KG-000001 apre una richiesta',
       '/nuovo descrizione crea un problema da Telegram',
+      '/nuovo_miglioria descrizione crea una miglioria da Telegram',
       '',
       'Puoi usare testo o messaggi vocali. Non è attiva una conversazione vocale dal vivo.'
     ].join('\n'));
     return;
   }
-  if (lower === '/incidenti') return listOpenIncidents(supabase, chatId);
+  if (lower === '/incidenti' || lower === '/richieste') return listOpenIncidents(supabase, chatId);
   if (lower.startsWith('/apri')) return openByCode(supabase, chatId, text);
-  if (lower.startsWith('/nuovo')) return createTelegramIncident(supabase, chatId, text.replace(/^\/nuovo\s*/i, ''));
+  if (lower.startsWith('/nuovo_miglioria')) {
+    return createTelegramIncident(supabase, chatId, text.replace(/^\/nuovo_miglioria\s*/i, ''), 'miglioria');
+  }
+  if (lower.startsWith('/nuovo')) {
+    return createTelegramIncident(supabase, chatId, text.replace(/^\/nuovo\s*/i, ''), 'problema');
+  }
   return handleOwnerConversation(supabase, chatId, session, text, metadata);
 }
 

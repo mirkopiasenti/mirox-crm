@@ -140,8 +140,8 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - **Compatibilità cellulare OCR**: il prompt di `ocr-pda` deve accettare ed estrarre numerazioni mobili italiane di 9 o 10 cifre; non reintrodurre l'assunzione rigida delle sole 10 cifre.
 - `search-anagrafica.js` (GET) — lookup CF/PIVA
 - `mirox-send-email.js` (POST) — mailer autenticato
-- `guardian-incidents.js` (GET/POST action-based) — endpoint autenticato della pagina `Segnala Problema`. Gli operatori creano/proseguono solo i propri incidenti; gli admin possono elencarli tutti. Identita', contesto sicuro e ownership sono derivati lato server; tabelle Guardian mai accessibili direttamente dal browser. La raccolta usa OpenAI Structured Outputs quando configurato e ha un fallback deterministico senza bloccare l'operatore.
-- `guardian-telegram-webhook.js` (POST) — webhook pubblico solo per necessita' Telegram, protetto da `X-Telegram-Bot-Api-Secret-Token`, confronto constant-time e allowlist rigida `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`. Accetta testo o vocali conclusi, trascritti via Audio Transcriptions; gestisce `/incidenti`, `/apri`, `/nuovo`, analisi Guardian e archiviazione. Analisi/archiviazione nascono da callback Telegram di Mirko e sono auditati in `kona_ai_approvazioni`. Non ha accesso al repository e non avvia Codex nella prima versione.
+- `guardian-incidents.js` (GET/POST action-based) — endpoint autenticato della pagina `Segnala Problema`. Ogni richiesta nasce come `problema` o `miglioria`; la raccolta Structured Outputs usa domande e criteri diversi per i due tipi. Gli operatori creano/proseguono solo le proprie richieste; gli admin possono elencarle tutte. Identita', contesto sicuro e ownership sono derivati lato server; tabelle Guardian mai accessibili direttamente dal browser. Il fallback deterministico non blocca l'operatore.
+- `guardian-telegram-webhook.js` (POST) — webhook pubblico solo per necessita' Telegram, protetto da `X-Telegram-Bot-Api-Secret-Token`, confronto constant-time e allowlist rigida `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`. Accetta testo o vocali conclusi, trascritti via Audio Transcriptions; gestisce `/richieste` (con alias `/incidenti`), `/apri`, `/nuovo`, `/nuovo_miglioria`, analisi Guardian, archiviazione e `Approva lavorazione`. L'approvazione crea un audit `prepara_fix` e porta la richiesta a `fix_approvato`, ma non esegue codice finche' Codex non e' collegato.
 - `cron-rientro-sim.js` (scheduled `0 7 * * *`) — notifica giornaliera switch SIM. **Non auth-gated** (chiamata dal cron Netlify, non da utente). Con `MIROX_DEPLOY_ENV=staging` termina subito con `skipped`, senza DB o email.
 - `cron-pulizia-operativa.js` (scheduled `30 2 * * *`) — scade OTP pending, elimina contatori rate-limit scaduti e recupera fino a 100 pratiche `bozza` oltre 24 ore eliminando prima i PDF noti e poi il record DB. **Non auth-gated** (cron Netlify). Con `MIROX_DEPLOY_ENV=staging` termina subito con `skipped`, senza DB o Storage.
 - `public-prenota.js` (GET/POST) — **endpoint pubblico** chiamato dal form `prenota.html` (anon). GET ritorna gli slot via `get_slot_disponibili`; POST usa la nuova RPC `public_prenota_appuntamento_v1` (migration `055`), che prende un advisory lock e ricontrolla lo slot nella stessa transazione dell'INSERT. Rate limit persistente su Postgres tramite fingerprint SHA256 dell'IP: 60 GET e 6 POST ogni 10 minuti; fail-closed se il limiter non risponde. **Non auth-gated** (intenzionalmente pubblico).
@@ -166,7 +166,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 
 ~80 tabelle. Project ref produzione: `lbgwamhjkjjfwgusafbi`. La configurazione pubblica di produzione e' in `scripts/build-static.js`; quella staging arriva soltanto dalle env Netlify e viene materializzata in `dist/js/config.js`.
 
-Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmcmhhqr`, regione `eu-west-3`, e non contiene dati CRM di produzione. Gli script one-shot dedicati vivono in `database/staging/`: `001_guardian_bootstrap.sql` crea soltanto il profilo minimo necessario ad Auth/Guardian e si blocca se lo schema `public` non e' vuoto, impedendone l'esecuzione accidentale sul database production. Il bootstrap e `database/065_kona_ai_guardian.sql` sono stati applicati esclusivamente a questo staging il 2026-08-10; production non e' stata modificata.
+Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmcmhhqr`, regione `eu-west-3`, e non contiene dati CRM di produzione. Gli script one-shot dedicati vivono in `database/staging/`: `001_guardian_bootstrap.sql` crea soltanto il profilo minimo necessario ad Auth/Guardian e si blocca se lo schema `public` non e' vuoto, impedendone l'esecuzione accidentale sul database production. Bootstrap, `database/065_kona_ai_guardian.sql` e `database/066_kona_ai_tipologia_richiesta.sql` sono stati applicati esclusivamente a questo staging il 2026-08-10; production non e' stata modificata.
 
 ---
 
@@ -197,9 +197,9 @@ Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmc
 - `disdette_generate` — indice server-only dei PDF creati dal Compilatore disdette (migrations `063` + `064`). Conserva tipo modulo, identificativi dello storico, numero cessato, snapshot JSON dei dati validati, path/hash/versione del PDF e operatore. Lo snapshot serve esclusivamente alla duplicazione nello stesso cluster e non viene mai incluso nell’elenco storico. Nessun grant a `anon` o `authenticated`; tutte le operazioni passano da `gestisci-disdette` con service role.
 
 ### KONA AI Guardian
-- `kona_ai_incidenti` — registro server-only migration `065`: codice progressivo `KG-*`, stato/priorita', reporter, contesto minimo, riepilogo AI/risoluzione e scadenza dettagli tecnici a 90 giorni.
+- `kona_ai_incidenti` — registro server-only migration `065`, esteso dalla `066` con `tipo_richiesta IN ('problema','miglioria')`: codice progressivo `KG-*`, stato/priorita', reporter, contesto minimo, riepilogo AI/risoluzione e scadenza dettagli tecnici a 90 giorni.
 - `kona_ai_messaggi` — cronologia per incidente dei canali `crm`, `telegram`, `guardian`, `codex`, `sistema`; nessun accesso browser diretto.
-- `kona_ai_approvazioni` — audit delle azioni proposte a Mirko. Azioni gia' eseguibili nella prima versione: `analizza_guardian` e `archivia`; le voci Codex/staging/produzione sono predisposte ma non hanno ancora un esecutore.
+- `kona_ai_approvazioni` — audit delle azioni proposte a Mirko. Azioni gia' eseguibili: `analizza_guardian`, `archivia` e approvazione `prepara_fix`; quest'ultima registra la decisione e imposta `fix_approvato`, ma resta senza esecutore. Le voci Codex/staging/produzione sono predisposte per fasi successive.
 - `kona_ai_telegram_sessioni` — associa il solo `chat_id` proprietario all'incidente attivo e conserva l'ultimo `update_id` Telegram per dedupe.
 
 ### Post-Vendita
@@ -594,18 +594,18 @@ Il reporter globale `js/mirox-error-reporter.js` e tutte le email automatiche pe
 
 ### Flusso e autorizzazioni
 
-1. Qualunque utente autenticato apre `moduli/segnala-problema.html` dalla dashboard e conversa con Guardian tramite `guardian-incidents`.
-2. Guardian fa una domanda breve alla volta. Quando i dati sono sufficienti imposta l'incidente a `ricevuto`, assegna un codice `KG-000001` e notifica la chat Telegram privata di Mirko.
-3. Gli operatori possono soltanto creare e completare le proprie segnalazioni. Non possono vedere incidenti altrui, approvare analisi, cambiare priorita' o avviare azioni.
+1. Qualunque utente autenticato apre `moduli/segnala-problema.html`, sceglie `Segnala un problema` oppure `Proponi una miglioria` e conversa con Guardian tramite `guardian-incidents`.
+2. Guardian fa una domanda breve alla volta usando un percorso dedicato: per i problemi raccoglie atteso/reale/errore/riproducibilita'; per le migliorie raccoglie funzionamento attuale, obiettivo, utenti, beneficio ed esempi. Quando i dati sono sufficienti imposta la richiesta a `ricevuto`, assegna un codice unico `KG-000001` e notifica Telegram indicando il tipo.
+3. Gli operatori possono soltanto creare e completare le proprie richieste. Non possono vedere richieste altrui, approvare analisi, cambiare priorita' o avviare azioni.
 4. `guardian-telegram-webhook` accetta esclusivamente il secret token configurato e `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`. Mirko puo' usare testo o vocali gia' conclusi; niente conversazione audio live.
-5. Analisi Guardian e archiviazione richiedono un pulsante Telegram. Ogni decisione viene registrata in `kona_ai_approvazioni`.
-6. La prima versione non legge il repository, non esegue Codex, non crea patch e non distribuisce codice. Il collegamento Codex sara' un esecutore isolato successivo, con approvazioni separate per analisi, patch/test staging e rilascio.
+5. Analisi Guardian, archiviazione e `Approva lavorazione` richiedono un pulsante Telegram. Ogni decisione viene registrata in `kona_ai_approvazioni`; `Approva lavorazione` usa `azione='prepara_fix'`, imposta `stato='fix_approvato'` e non modifica codice.
+6. La prima versione non legge il repository, non esegue Codex, non crea patch e non distribuisce codice. Il collegamento Codex sara' un esecutore isolato successivo che potra' prendere in carico soltanto richieste gia' approvate, con autorizzazioni separate per analisi, patch/test staging e rilascio.
 
 ### Database e retention
 
-La migration additiva `065_kona_ai_guardian.sql` crea quattro tabelle server-only, senza modificare le tabelle condivise col Call Center:
+La migration additiva `065_kona_ai_guardian.sql` crea quattro tabelle server-only, senza modificare le tabelle condivise col Call Center. La successiva `066_kona_ai_tipologia_richiesta.sql` aggiunge soltanto il tipo problema/miglioria, l'indice di consultazione e l'unicita' dell'approvazione attiva `prepara_fix`:
 
-- `kona_ai_incidenti`: stato, priorita', origine, reporter, contesto minimo e riepiloghi;
+- `kona_ai_incidenti`: tipo richiesta, stato, priorita', origine, reporter, contesto minimo e riepiloghi;
 - `kona_ai_messaggi`: conversazione CRM/Telegram/Guardian/Codex;
 - `kona_ai_approvazioni`: proposta, decisione ed esito delle azioni sensibili;
 - `kona_ai_telegram_sessioni`: incidente attivo e dedupe degli update Telegram.
@@ -614,7 +614,7 @@ La migration additiva `065_kona_ai_guardian.sql` crea quattro tabelle server-onl
 
 ### Ambiente e segreti
 
-Guardian e' pubblicato per la prova sul sito Netlify separato `mirox-crm-staging.netlify.app`, collegato al Supabase staging `blwgxrszvsoqcmcmhhqr`. Bootstrap e migration `065` risultano applicati soltanto li'. Nel progetto staging esiste soltanto l'account Auth di Mirko, collegato a un profilo `admin`, e il relativo `KONA_AI_OWNER_PROFILE_ID` e' configurato su Netlify. Il bot `@MiroxAiGuardianBot` usa il webhook dello staging; token, owner chat e secret sono env protette. OpenAI e' configurato nel progetto `Mirox CRM` e la raccolta/analisi reale e' stata verificata sullo staging. Non usare dati reali durante la validazione.
+Guardian e' pubblicato per la prova sul sito Netlify separato `mirox-crm-staging.netlify.app`, collegato al Supabase staging `blwgxrszvsoqcmcmhhqr`. Bootstrap e migration `065`/`066` risultano applicati soltanto li'. Nel progetto staging esiste soltanto l'account Auth di Mirko, collegato a un profilo `admin`, e il relativo `KONA_AI_OWNER_PROFILE_ID` e' configurato su Netlify. Il bot `@MiroxAiGuardianBot` usa il webhook dello staging; token, owner chat e secret sono env protette. OpenAI e' configurato nel progetto `Mirox CRM` e la raccolta/analisi reale e' stata verificata sullo staging. Non usare dati reali durante la validazione.
 
 Env vars: `OPENAI_API_KEY`, `OPENAI_GUARDIAN_MODEL`, `OPENAI_TRANSCRIBE_MODEL`, `TELEGRAM_GUARDIAN_BOT_TOKEN`, `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`, `TELEGRAM_GUARDIAN_WEBHOOK_SECRET`, `KONA_AI_OWNER_PROFILE_ID`. Mai esporle nel frontend o committarle. Setup completo: `docs/KONA_AI_GUARDIAN_SETUP.md`.
 

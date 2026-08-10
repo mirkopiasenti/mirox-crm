@@ -4,11 +4,11 @@
 
 La prima versione realizza un unico agente, senza gerarchie:
 
-- gli utenti autenticati aprono l'azione flottante KONA AI Guardian dalla dashboard e descrivono il problema in chat;
-- Guardian fa domande brevi finche' la segnalazione e' utilizzabile;
-- l'incidente viene registrato in tabelle Supabase server-only e notificato nella chat Telegram privata di Mirko;
-- Mirko puo' usare testo o messaggi vocali, aprire un incidente, chiedere un'analisi Guardian e archiviarlo;
-- analisi e archiviazione partono solo dopo un pulsante di approvazione Telegram e lasciano audit nel database;
+- gli utenti autenticati aprono l'azione flottante KONA AI Guardian e scelgono `Segnala un problema` oppure `Proponi una miglioria`;
+- Guardian fa domande brevi specifiche per il tipo finche' la richiesta e' utilizzabile;
+- la richiesta viene registrata in tabelle Supabase server-only e notificata nella chat Telegram privata di Mirko;
+- Mirko puo' usare testo o messaggi vocali, aprire una richiesta, chiedere un'analisi Guardian, approvarne la lavorazione o archiviarla;
+- analisi, approvazione lavorazione e archiviazione partono solo da pulsanti Telegram e lasciano audit nel database;
 - le email tecniche automatiche sono rimosse; `mirox-send-email` e tutte le email operative restano attivi.
 
 Questa versione non legge ancora il repository e non modifica codice. L'analisi Guardian distingue espressamente fatti, ipotesi e verifiche mancanti. Codex verra' collegato come esecutore separato soltanto dopo la validazione del flusso in staging: prima analisi read-only, poi proposta di patch, test e pull request; mai rilascio diretto in produzione.
@@ -31,13 +31,13 @@ Non collegare il Guardian direttamente al database condiviso di produzione. Prim
 1. creare il progetto Supabase `Mirox CRM - Staging` (`blwgxrszvsoqcmcmhhqr`, `eu-west-3`);
 2. creare il sito Netlify separato `mirox-crm-staging.netlify.app`, senza custom domain di produzione (completato il 2026-08-10);
 3. configurare sul sito staging `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MIROX_DEPLOY_ENV=staging`, `MIROX_PUBLIC_SUPABASE_URL` e `MIROX_PUBLIC_SUPABASE_ANON_KEY` del nuovo progetto (completato il 2026-08-10);
-4. applicare una sola volta `database/staging/001_guardian_bootstrap.sql`, poi `database/065_kona_ai_guardian.sql` (completato il 2026-08-10);
+4. applicare una sola volta `database/staging/001_guardian_bootstrap.sql`, poi `database/065_kona_ai_guardian.sql` e infine `database/066_kona_ai_tipologia_richiesta.sql` (tutte completate sullo staging il 2026-08-10);
 5. usare la branch `codex/kona-ai-guardian-staging` e verificare che il workflow `.github/workflows/ci.yml` sia verde (completato il 2026-08-10);
 6. creare soltanto l'utente Mirko, associarlo a un profilo `admin` e impostare `KONA_AI_OWNER_PROFILE_ID`; l'invito deve atterrare su `imposta-password.html`, dove Mirko sceglie autonomamente la password (account, profilo ed env var completati il 2026-08-10);
 7. configurare OpenAI e Telegram solo sul sito staging; Telegram completato il 2026-08-10 con `@MiroxAiGuardianBot`, webhook staging, owner chat e secret protetti; OpenAI configurato nel progetto `Mirox CRM` e raccolta/analisi reale verificata sullo staging il 2026-08-10;
-8. provare creazione, domande, notifica, vocale, analisi e archiviazione prima di valutare la produzione.
+8. provare entrambi i tipi di richiesta, domande, notifica, vocale, analisi, approvazione lavorazione e archiviazione prima di valutare la produzione.
 
-La migration `065` e' additiva e non modifica le tabelle Call Center condivise. E' stata applicata il 2026-08-10 soltanto al progetto staging `blwgxrszvsoqcmcmhhqr`; non e' stata applicata a production.
+Le migration `065` e `066` sono additive e non modificano le tabelle Call Center condivise. La `065` crea il dominio Guardian; la `066` aggiunge il tipo problema/miglioria e l'approvazione univoca della lavorazione. Entrambe sono state applicate il 2026-08-10 soltanto al progetto staging `blwgxrszvsoqcmcmhhqr`; production resta separata e non modificata.
 
 Il bootstrap staging si interrompe se trova anche una sola tabella nello schema `public`: questa guardia lo rende inadatto e non eseguibile sul production gia' popolato. Crea soltanto `profili`, senza utenti Auth e senza dati CRM; l'utente Mirko viene aggiunto separatamente dopo lo schema.
 
@@ -81,25 +81,27 @@ Il webhook rifiuta richieste prive del secret token e ignora qualunque chat dive
 
 Comandi disponibili:
 
-- `/incidenti` elenca gli incidenti aperti;
-- `/apri KG-000001` imposta l'incidente attivo;
-- `/nuovo descrizione` crea un incidente direttamente da Telegram;
-- messaggi e vocali normali vengono collegati all'incidente attivo.
+- `/richieste` elenca problemi e migliorie aperti (`/incidenti` resta un alias compatibile);
+- `/apri KG-000001` imposta la richiesta attiva;
+- `/nuovo descrizione` crea un problema direttamente da Telegram;
+- `/nuovo_miglioria descrizione` crea una proposta di miglioria;
+- messaggi e vocali normali vengono collegati alla richiesta attiva.
 
 ## Approvazioni e limiti
 
-Solo Mirko puo' approvare azioni. Gli operatori possono esclusivamente creare una segnalazione e rispondere alle domande di raccolta.
+Solo Mirko puo' approvare azioni. Gli operatori possono esclusivamente creare un problema o una miglioria e rispondere alle domande di raccolta.
 
 | Azione | Stato prima versione | Approvazione |
 |---|---|---|
 | Raccolta guidata CRM | attiva | non richiesta, e' solo conversazione |
-| Analisi Guardian sui dati dell'incidente | attiva | pulsante Telegram di Mirko |
-| Archiviazione incidente | attiva | pulsante Telegram di Mirko |
+| Analisi Guardian sui dati della richiesta | attiva | pulsante Telegram di Mirko |
+| Approva lavorazione (`prepara_fix` → `fix_approvato`) | attiva, solo registrazione; nessun esecutore | pulsante Telegram di Mirko |
+| Archiviazione richiesta | attiva | pulsante Telegram di Mirko |
 | Analisi Codex del repository | prevista, non ancora collegata | obbligatoria |
 | Preparazione patch e test staging | prevista, non ancora collegata | obbligatoria e separata |
 | Deploy produzione | non consentito al Guardian | richiesta esplicita fuori dal bot e controlli CI |
 
-I dettagli tecnici hanno una data obiettivo di scadenza a 90 giorni. Il riepilogo dell'incidente e l'audit delle approvazioni restano permanenti. La cancellazione automatica dei dettagli verra' aggiunta solo dopo aver validato quali campi sono indispensabili per analisi e audit.
+I dettagli tecnici hanno una data obiettivo di scadenza a 90 giorni. Il riepilogo della richiesta e l'audit delle approvazioni restano permanenti. La cancellazione automatica dei dettagli verra' aggiunta solo dopo aver validato quali campi sono indispensabili per analisi e audit.
 
 ## Passo successivo dopo la prova reale
 

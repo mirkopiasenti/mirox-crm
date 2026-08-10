@@ -7,7 +7,8 @@ const {
   incidentCode,
   notifyOwnerOfIncident,
   profileId,
-  profileName
+  profileName,
+  requestType
 } = require('./_lib/kona-ai-guardian');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -60,11 +61,11 @@ async function getAccessibleIncident(supabase, incidentId, auth) {
     .eq('id', incidentId)
     .maybeSingle();
   if (error) throw error;
-  if (!data) return { status: 404, error: 'Segnalazione non trovata' };
+  if (!data) return { status: 404, error: 'Richiesta non trovata' };
 
   const isAdmin = auth.profilo?.ruolo === 'admin';
   if (!isAdmin && data.reporter_id !== profileId(auth)) {
-    return { status: 403, error: 'Non puoi accedere a questa segnalazione' };
+    return { status: 403, error: 'Non puoi accedere a questa richiesta' };
   }
   return { incident: data };
 }
@@ -142,8 +143,10 @@ async function processIntake(supabase, incident) {
 async function createIncident(supabase, auth, body) {
   const message = cleanText(body.message, 4000);
   if (message.length < 3) {
-    return response(400, { success: false, error: 'Descrivi il problema con almeno 3 caratteri' });
+    return response(400, { success: false, error: 'Descrivi la richiesta con almeno 3 caratteri' });
   }
+  const type = requestType(body.request_type, null);
+  if (!type) return response(400, { success: false, error: 'Tipo di richiesta non valido' });
   const reporterId = profileId(auth);
   if (!reporterId) return response(400, { success: false, error: 'Profilo autenticato non valido' });
 
@@ -152,6 +155,7 @@ async function createIncident(supabase, auth, body) {
     sorgente: 'crm',
     stato: 'raccolta',
     priorita: 'media',
+    tipo_richiesta: type,
     descrizione_iniziale: message,
     reporter_id: reporterId,
     reporter_nome: profileName(auth),
@@ -174,7 +178,7 @@ async function createIncident(supabase, auth, body) {
     autore_tipo: 'operatore',
     autore_profile_id: reporterId,
     testo: message,
-    metadati: { page_path: pagePath }
+    metadati: { page_path: pagePath, request_type: type }
   });
   if (messageError) {
     await supabase.from('kona_ai_incidenti').delete().eq('id', incident.id);
@@ -188,7 +192,8 @@ async function createIncident(supabase, auth, body) {
       id: intake.incident.id,
       code: incidentCode(intake.incident.numero),
       status: intake.incident.stato,
-      priority: intake.incident.priorita
+      priority: intake.incident.priorita,
+      request_type: intake.incident.tipo_richiesta
     },
     reply: intake.message.testo,
     complete: intake.complete
@@ -198,13 +203,13 @@ async function createIncident(supabase, auth, body) {
 async function addMessage(supabase, auth, body) {
   const incidentId = String(body.incident_id || '').trim();
   const message = cleanText(body.message, 4000);
-  if (!UUID_RE.test(incidentId)) return response(400, { success: false, error: 'Identificativo segnalazione non valido' });
+  if (!UUID_RE.test(incidentId)) return response(400, { success: false, error: 'Identificativo richiesta non valido' });
   if (message.length < 1) return response(400, { success: false, error: 'Scrivi un messaggio' });
 
   const access = await getAccessibleIncident(supabase, incidentId, auth);
   if (!access.incident) return response(access.status, { success: false, error: access.error });
   if (['risolto', 'archiviato'].includes(access.incident.stato)) {
-    return response(409, { success: false, error: 'La segnalazione è chiusa e non accetta altri messaggi' });
+    return response(409, { success: false, error: 'La richiesta è chiusa e non accetta altri messaggi' });
   }
 
   const { error } = await supabase.from('kona_ai_messaggi').insert({
@@ -223,7 +228,8 @@ async function addMessage(supabase, auth, body) {
       id: intake.incident.id,
       code: incidentCode(intake.incident.numero),
       status: intake.incident.stato,
-      priority: intake.incident.priorita
+      priority: intake.incident.priorita,
+      request_type: intake.incident.tipo_richiesta
     },
     reply: intake.message.testo,
     complete: intake.complete
@@ -231,7 +237,7 @@ async function addMessage(supabase, auth, body) {
 }
 
 async function getIncident(supabase, auth, incidentId) {
-  if (!UUID_RE.test(incidentId)) return response(400, { success: false, error: 'Identificativo segnalazione non valido' });
+  if (!UUID_RE.test(incidentId)) return response(400, { success: false, error: 'Identificativo richiesta non valido' });
   const access = await getAccessibleIncident(supabase, incidentId, auth);
   if (!access.incident) return response(access.status, { success: false, error: access.error });
   const messages = await loadMessages(supabase, incidentId);
@@ -245,7 +251,7 @@ async function getIncident(supabase, auth, incidentId) {
 async function listIncidents(supabase, auth) {
   let query = supabase
     .from('kona_ai_incidenti')
-    .select('id, numero, stato, priorita, titolo, riepilogo_ai, reporter_nome, pagina_path, created_at, updated_at')
+    .select('id, numero, stato, priorita, tipo_richiesta, titolo, riepilogo_ai, reporter_nome, pagina_path, created_at, updated_at')
     .order('updated_at', { ascending: false })
     .limit(50);
   if (auth.profilo?.ruolo !== 'admin') query = query.eq('reporter_id', profileId(auth));
@@ -283,6 +289,6 @@ exports.handler = async (event) => {
     return response(400, { success: false, error: 'Azione non valida' });
   } catch (error) {
     console.error('guardian-incidents:', error);
-    return response(500, { success: false, error: 'Errore interno nella gestione della segnalazione' });
+    return response(500, { success: false, error: 'Errore interno nella gestione della richiesta' });
   }
 };

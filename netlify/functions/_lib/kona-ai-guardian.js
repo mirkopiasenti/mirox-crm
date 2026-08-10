@@ -4,6 +4,7 @@ const { isTelegramConfigured, sendTelegramMessage } = require('./telegram');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PRIORITIES = ['bassa', 'media', 'alta', 'critica'];
+const REQUEST_TYPES = ['problema', 'miglioria'];
 const OPEN_INCIDENT_STATES = [
   'raccolta',
   'ricevuto',
@@ -33,6 +34,16 @@ function profileName(auth) {
 
 function incidentCode(numero) {
   return `KG-${String(numero || 0).padStart(6, '0')}`;
+}
+
+function requestType(value, fallback = 'problema') {
+  const normalized = cleanText(value, 30).toLowerCase();
+  if (!normalized) return fallback;
+  return REQUEST_TYPES.includes(normalized) ? normalized : null;
+}
+
+function requestTypeLabel(value) {
+  return requestType(value) === 'miglioria' ? 'Miglioria' : 'Problema';
 }
 
 function extractOutputText(payload) {
@@ -82,10 +93,20 @@ async function openaiStructured({ instructions, input, name, schema, maxOutputTo
   return JSON.parse(output);
 }
 
-function intakeFallback(messages) {
+function intakeFallback(messages, incidentContext = {}) {
   const humanMessages = messages.filter((item) => item.autore_tipo === 'operatore' || item.autore_tipo === 'mirko');
   const total = humanMessages.map((item) => item.testo).join(' ').length;
+  const type = requestType(incidentContext.tipo_richiesta);
   if (humanMessages.length < 2 || total < 140) {
+    if (type === 'miglioria') {
+      return {
+        reply: 'Per definire bene la miglioria mi servono ancora tre elementi: come funziona oggi, cosa vorresti ottenere e chi la userebbe. Se hai un esempio concreto, descrivilo.',
+        complete: false,
+        title: null,
+        priority: 'media',
+        summary: null
+      };
+    }
     return {
       reply: 'Per capire bene mi servono ancora tre elementi: cosa stavi facendo, cosa ti aspettavi e cosa è successo invece. Se compare un messaggio di errore, riportalo per intero.',
       complete: false,
@@ -95,9 +116,9 @@ function intakeFallback(messages) {
     };
   }
   return {
-    reply: 'Grazie, ho registrato la segnalazione. KONA AI Guardian la porterà nella chat privata di Mirko per l’analisi e le eventuali approvazioni.',
+    reply: `Grazie, ho registrato ${type === 'miglioria' ? 'la proposta di miglioria' : 'la segnalazione'}. KONA AI Guardian la porterà nella chat privata di Mirko per l’analisi e le eventuali approvazioni.`,
     complete: true,
-    title: 'Problema segnalato dal CRM',
+    title: type === 'miglioria' ? 'Miglioria proposta dal CRM' : 'Problema segnalato dal CRM',
     priority: 'media',
     summary: cleanText(humanMessages.map((item) => item.testo).join(' '), 1200)
   };
@@ -122,15 +143,20 @@ async function generateIntakeReply(messages, incidentContext = {}) {
     additionalProperties: false
   };
   const pageHint = cleanText(incidentContext.pagina_path || 'pagina non indicata', 300);
+  const type = requestType(incidentContext.tipo_richiesta);
+  const intakeGoal = type === 'miglioria'
+    ? 'Raccogli almeno: funzionamento attuale, limite o attività da migliorare, risultato desiderato, persone che la userebbero, frequenza o beneficio atteso ed eventuale esempio concreto.'
+    : 'Raccogli almeno: operazione in corso, risultato atteso, risultato reale, eventuale messaggio di errore, possibilità di riprodurlo e persone bloccate.';
   const instructions = [
-    'Sei KONA AI Guardian, il raccoglitore di problemi tecnici del CRM Mirox.',
+    `Sei KONA AI Guardian, il raccoglitore di ${type === 'miglioria' ? 'proposte di miglioria' : 'problemi tecnici'} del CRM Mirox.`,
     'Parla in italiano semplice con un operatore non tecnico e fai una sola domanda breve per volta.',
-    'Raccogli almeno: operazione in corso, risultato atteso, risultato reale, eventuale messaggio di errore e possibilità di riprodurlo.',
+    intakeGoal,
     'Non chiedere password, codici OTP, dati di carte, token, chiavi API o documenti personali.',
-    'Non promettere una correzione e non dichiarare di aver analizzato il codice.',
+    'Non promettere una correzione o uno sviluppo e non dichiarare di aver analizzato il codice.',
     'Imposta complete=true solo quando la descrizione consente a Mirko di iniziare un’analisi.',
+    type === 'miglioria' ? 'Per le migliorie usa priorità critica soltanto in presenza di un obbligo normativo o di sicurezza documentato.' : '',
     `Pagina di provenienza: ${pageHint}.`
-  ].join(' ');
+  ].filter(Boolean).join(' ');
 
   try {
     const result = await openaiStructured({
@@ -140,19 +166,20 @@ async function generateIntakeReply(messages, incidentContext = {}) {
       schema,
       maxOutputTokens: 600
     });
-    if (!result) return intakeFallback(messages);
+    if (!result) return intakeFallback(messages, incidentContext);
     const reply = cleanText(result.reply, 1800);
     const title = result.title ? cleanText(result.title, 180) : null;
+    const priority = PRIORITIES.includes(result.priority) ? result.priority : 'media';
     return {
-      reply: reply || intakeFallback(messages).reply,
+      reply: reply || intakeFallback(messages, incidentContext).reply,
       complete: Boolean(result.complete),
       title: title && title.length >= 3 ? title : null,
-      priority: PRIORITIES.includes(result.priority) ? result.priority : 'media',
+      priority: type === 'miglioria' && priority === 'critica' ? 'alta' : priority,
       summary: result.summary ? cleanText(result.summary, 2000) : null
     };
   } catch (error) {
     console.warn('KONA AI intake fallback:', error?.message || String(error));
-    return intakeFallback(messages);
+    return intakeFallback(messages, incidentContext);
   }
 }
 
@@ -160,7 +187,7 @@ async function generateOwnerReply(incident, messages, ownerMessage) {
   const input = [
     {
       role: 'user',
-      content: `Incidente ${incidentCode(incident.numero)}\nTitolo: ${incident.titolo || 'Non definito'}\nPriorità: ${incident.priorita}\nStato: ${incident.stato}\nRiepilogo: ${incident.riepilogo_ai || incident.descrizione_iniziale}`
+      content: `Richiesta ${incidentCode(incident.numero)}\nTipo: ${requestTypeLabel(incident.tipo_richiesta)}\nTitolo: ${incident.titolo || 'Non definito'}\nPriorità: ${incident.priorita}\nStato: ${incident.stato}\nRiepilogo: ${incident.riepilogo_ai || incident.descrizione_iniziale}`
     },
     ...messages.slice(-14).map((item) => ({
       role: item.autore_tipo === 'guardian' ? 'assistant' : 'user',
@@ -179,7 +206,7 @@ async function generateOwnerReply(incident, messages, ownerMessage) {
   };
   const instructions = [
     'Sei KONA AI Guardian e parli esclusivamente con Mirko, proprietario del CRM.',
-    'Ragiona sull’incidente usando solo le informazioni fornite.',
+    'Ragiona sulla richiesta usando solo le informazioni fornite e rispettando il tipo problema o miglioria.',
     'Distingui sempre fatti, ipotesi e verifiche mancanti.',
     'Non affermare di aver letto il repository, eseguito test o applicato correzioni se non è documentato nei messaggi.',
     'Qualsiasi analisi ulteriore o archiviazione deve essere proposta e richiede conferma esplicita di Mirko.',
@@ -208,22 +235,13 @@ async function generateOwnerReply(incident, messages, ownerMessage) {
 }
 
 async function generateGuardianAnalysis(incident, messages) {
-  const schema = {
-    type: 'object',
-    properties: {
-      analysis: { type: 'string' },
-      probable_causes: { type: 'array', items: { type: 'string' } },
-      checks: { type: 'array', items: { type: 'string' } },
-      recommended_next_step: { type: 'string' }
-    },
-    required: ['analysis', 'probable_causes', 'checks', 'recommended_next_step'],
-    additionalProperties: false
-  };
+  const type = requestType(incident.tipo_richiesta);
   const input = [{
     role: 'user',
     content: JSON.stringify({
-      incident: {
+      request: {
         code: incidentCode(incident.numero),
+        type,
         title: incident.titolo,
         priority: incident.priorita,
         page: incident.pagina_path,
@@ -236,6 +254,81 @@ async function generateGuardianAnalysis(incident, messages) {
       }))
     })
   }];
+
+  if (type === 'miglioria') {
+    const schema = {
+      type: 'object',
+      properties: {
+        analysis: { type: 'string' },
+        proposed_solution: { type: 'string' },
+        affected_areas: { type: 'array', items: { type: 'string' } },
+        benefits: { type: 'array', items: { type: 'string' } },
+        risks: { type: 'array', items: { type: 'string' } },
+        complexity: { type: 'string', enum: ['bassa', 'media', 'alta', 'da_valutare'] },
+        acceptance_criteria: { type: 'array', items: { type: 'string' } },
+        recommended_next_step: { type: 'string' }
+      },
+      required: [
+        'analysis',
+        'proposed_solution',
+        'affected_areas',
+        'benefits',
+        'risks',
+        'complexity',
+        'acceptance_criteria',
+        'recommended_next_step'
+      ],
+      additionalProperties: false
+    };
+    const result = await openaiStructured({
+      instructions: [
+        'Analizza una proposta di miglioria del CRM Mirox esclusivamente dai dati forniti.',
+        'Non hai accesso al repository, ai log di produzione o al database: dichiaralo nel testo.',
+        'Distingui il bisogno espresso dalla soluzione proposta e non inventare vincoli tecnici non documentati.',
+        'Indica aree coinvolte, benefici, rischi, complessità indicativa e criteri verificabili di accettazione.',
+        'Non proporre modifiche in produzione e non dichiarare la miglioria pronta per lo sviluppo.'
+      ].join(' '),
+      input,
+      name: 'kona_guardian_improvement_analysis',
+      schema,
+      maxOutputTokens: 1500
+    });
+    if (!result) throw new Error('OPENAI_API_KEY non configurata per l’analisi Guardian');
+    return [
+      cleanText(result.analysis, 2000),
+      '',
+      'Soluzione proposta:',
+      cleanText(result.proposed_solution, 1200),
+      '',
+      'Aree coinvolte:',
+      ...(result.affected_areas || []).slice(0, 6).map((item) => `- ${cleanText(item, 400)}`),
+      '',
+      'Benefici attesi:',
+      ...(result.benefits || []).slice(0, 5).map((item) => `- ${cleanText(item, 400)}`),
+      '',
+      'Rischi e dipendenze:',
+      ...(result.risks || []).slice(0, 5).map((item) => `- ${cleanText(item, 400)}`),
+      '',
+      `Complessità indicativa: ${cleanText(result.complexity, 30)}`,
+      '',
+      'Criteri di accettazione:',
+      ...(result.acceptance_criteria || []).slice(0, 6).map((item) => `- ${cleanText(item, 450)}`),
+      '',
+      `Prossimo passo: ${cleanText(result.recommended_next_step, 800)}`
+    ].join('\n').slice(0, 3500);
+  }
+
+  const schema = {
+    type: 'object',
+    properties: {
+      analysis: { type: 'string' },
+      probable_causes: { type: 'array', items: { type: 'string' } },
+      checks: { type: 'array', items: { type: 'string' } },
+      recommended_next_step: { type: 'string' }
+    },
+    required: ['analysis', 'probable_causes', 'checks', 'recommended_next_step'],
+    additionalProperties: false
+  };
   const result = await openaiStructured({
     instructions: [
       'Analizza un incidente del CRM Mirox esclusivamente dai dati forniti.',
@@ -272,16 +365,28 @@ function incidentNotificationKeyboard(incidentId) {
   };
 }
 
+function workApprovalKeyboard(incidentId) {
+  return {
+    inline_keyboard: [
+      [{ text: 'Approva lavorazione', callback_data: `approve_work:${incidentId}` }],
+      [{ text: 'Apri conversazione', callback_data: `open:${incidentId}` }],
+      [{ text: 'Archivia', callback_data: `archive:${incidentId}` }]
+    ]
+  };
+}
+
 async function notifyOwnerOfIncident(incident) {
   if (!isTelegramConfigured()) return { sent: false, reason: 'telegram_not_configured' };
   const chatId = String(process.env.TELEGRAM_GUARDIAN_OWNER_CHAT_ID).trim();
+  const type = requestType(incident.tipo_richiesta);
   const text = [
-    `Nuovo incidente ${incidentCode(incident.numero)}`,
+    `Nuova richiesta ${incidentCode(incident.numero)}`,
+    `Tipo: ${requestTypeLabel(type)}`,
     `Priorità: ${incident.priorita}`,
     `Segnalato da: ${incident.reporter_nome}`,
     `Pagina: ${incident.pagina_path || 'non indicata'}`,
     '',
-    incident.titolo || 'Problema CRM',
+    incident.titolo || (type === 'miglioria' ? 'Miglioria CRM' : 'Problema CRM'),
     incident.riepilogo_ai || incident.descrizione_iniziale
   ].join('\n');
   const result = await sendTelegramMessage(chatId, text, {
@@ -300,5 +405,8 @@ module.exports = {
   incidentNotificationKeyboard,
   notifyOwnerOfIncident,
   profileId,
-  profileName
+  profileName,
+  requestType,
+  requestTypeLabel,
+  workApprovalKeyboard
 };

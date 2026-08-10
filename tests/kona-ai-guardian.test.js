@@ -7,11 +7,26 @@ const test = require('node:test');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
-const { cleanText, incidentCode } = require('../netlify/functions/_lib/kona-ai-guardian');
+const {
+  cleanText,
+  incidentCode,
+  requestType,
+  requestTypeLabel,
+  workApprovalKeyboard
+} = require('../netlify/functions/_lib/kona-ai-guardian');
 
 test('codici incidente e testo Guardian sono normalizzati in modo deterministico', () => {
   assert.equal(incidentCode(42), 'KG-000042');
   assert.equal(cleanText('  prova\n\tproblema\u0000  ', 20), 'prova problema');
+});
+
+test('Guardian distingue problemi e migliorie senza cambiare il codice KG', () => {
+  assert.equal(requestType('miglioria'), 'miglioria');
+  assert.equal(requestType('PROBLEMA'), 'problema');
+  assert.equal(requestType('sconosciuto'), null);
+  assert.equal(requestTypeLabel('miglioria'), 'Miglioria');
+  assert.equal(requestTypeLabel('sconosciuto'), 'Problema');
+  assert.match(JSON.stringify(workApprovalKeyboard('incident-id')), /approve_work:incident-id/);
 });
 
 test('il vecchio reporter email tecnico è rimosso senza eliminare il mailer operativo', () => {
@@ -35,7 +50,9 @@ test('il vecchio reporter email tecnico è rimosso senza eliminare il mailer op
 test('le API Guardian separano segnalazioni autenticate e webhook Telegram privato', () => {
   const incidents = read('netlify/functions/guardian-incidents.js');
   const webhook = read('netlify/functions/guardian-telegram-webhook.js');
+  const guardian = read('netlify/functions/_lib/kona-ai-guardian.js');
   const migration = read('database/065_kona_ai_guardian.sql');
+  const requestTypeMigration = read('database/066_kona_ai_tipologia_richiesta.sql');
 
   assert.match(incidents, /requireAuth\(event\)/);
   assert.match(incidents, /profileId\(auth\)/);
@@ -44,6 +61,11 @@ test('le API Guardian separano segnalazioni autenticate e webhook Telegram priva
   assert.match(webhook, /timingSafeEqual/);
   assert.match(migration, /REVOKE ALL ON TABLE public\.kona_ai_incidenti FROM PUBLIC, anon, authenticated/);
   assert.match(migration, /dettagli_tecnici_scadono_at/);
+  assert.match(requestTypeMigration, /ADD COLUMN IF NOT EXISTS tipo_richiesta text NOT NULL DEFAULT 'problema'/i);
+  assert.match(requestTypeMigration, /tipo_richiesta IN \('problema', 'miglioria'\)/i);
+  assert.match(requestTypeMigration, /azione = 'prepara_fix'/i);
+  assert.match(guardian, /Approva lavorazione/);
+  assert.match(webhook, /\/nuovo_miglioria/);
 });
 
 test('il bootstrap Guardian staging rifiuta database non vuoti e limita profili al proprietario', () => {
@@ -77,5 +99,8 @@ test('la pagina Segnala Problema usa il wrapper autenticato e non accede a Supab
   assert.match(page, /MiroxApi\.fetch\(API_URL/);
   assert.doesNotMatch(page, /db\.from\(|window\.db\.from\(/);
   assert.match(page, /Non inserire password, codici OTP/);
+  assert.match(page, /data-request-type="problema"/);
+  assert.match(page, /data-request-type="miglioria"/);
+  assert.match(page, /request_type: requestType/);
   assert.match(read('dashboard.html'), /moduli\/segnala-problema\.html\?from=\/dashboard\.html/);
 });

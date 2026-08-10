@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <link rel="icon" type="image/png" href="../assets/favicon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Segnala Problema - KONA AI Guardian</title>
+  <title>KONA AI Guardian - Mirox</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -131,6 +131,32 @@
       text-align: center;
       font-weight: 700;
     }
+    .request-type-options {
+      width: min(620px, 100%);
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      align-self: flex-start;
+    }
+    .request-type-options[hidden] { display: none; }
+    .request-type-button {
+      min-height: 82px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      color: var(--ink);
+      background: #fff;
+      text-align: left;
+      cursor: pointer;
+      transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+    }
+    .request-type-button:hover {
+      border-color: rgba(255, 102, 0, .55);
+      box-shadow: 0 8px 20px rgba(10, 37, 64, .08);
+      transform: translateY(-1px);
+    }
+    .request-type-button strong { display: block; font-size: 13px; margin-bottom: 5px; }
+    .request-type-button span { display: block; color: var(--muted); font-size: 11px; line-height: 1.4; }
     .typing { color: var(--muted); font-size: 12px; padding: 0 22px 12px; min-height: 26px; }
     .composer {
       padding: 15px;
@@ -140,6 +166,7 @@
       gap: 10px;
       align-items: end;
     }
+    .composer[hidden] { display: none; }
     textarea {
       min-height: 52px;
       max-height: 150px;
@@ -174,6 +201,8 @@
       .composer { grid-template-columns: 1fr; }
       .send-button { min-height: 46px; }
       .message { max-width: 94%; }
+      .request-type-options { grid-template-columns: 1fr; }
+      .request-type-button { min-height: 70px; }
     }
   </style>
 </head>
@@ -183,7 +212,7 @@
       <img src="../assets/logo.png" alt="Mirox">
       <div class="brand-copy">
         <strong>KONA AI Guardian</strong>
-        <span>Raccolta problemi tecnici</span>
+        <span>Problemi e migliorie</span>
       </div>
     </div>
     <a class="back-link" href="../dashboard.html">Torna alla dashboard</a>
@@ -191,26 +220,38 @@
 
   <main>
     <section class="intro">
-      <div class="eyebrow">Segnala Problema</div>
-      <h1>Spiega cosa non ha funzionato</h1>
-      <p>Scrivi come parleresti a una persona. Guardian ti farà poche domande e, quando le informazioni saranno sufficienti, consegnerà la segnalazione a Mirko.</p>
+      <div class="eyebrow">KONA AI Guardian</div>
+      <h1>Scegli cosa vuoi comunicare</h1>
+      <p>Puoi segnalare qualcosa che non funziona oppure proporre una miglioria. Guardian farà poche domande e consegnerà a Mirko una richiesta ordinata e pronta da valutare.</p>
     </section>
 
     <section class="chat-shell" aria-label="Chat con KONA AI Guardian">
       <div class="chat-head">
         <div>
           <div class="guardian-name">KONA AI Guardian</div>
-          <div class="guardian-state" id="guardianState">Pronto a raccogliere la segnalazione</div>
+          <div class="guardian-state" id="guardianState">Scegli il tipo di richiesta</div>
         </div>
         <div class="privacy-note">Non inserire password, codici OTP, dati di carte, token o chiavi API.</div>
       </div>
-      <div class="messages" id="messages" aria-live="polite"></div>
+      <div class="messages" id="messages" aria-live="polite">
+        <div class="message guardian">Come posso aiutarti?</div>
+        <div class="request-type-options" id="requestTypeOptions" aria-label="Tipo di richiesta">
+          <button class="request-type-button" type="button" data-request-type="problema">
+            <strong>Segnala un problema</strong>
+            <span>Qualcosa non funziona come dovrebbe.</span>
+          </button>
+          <button class="request-type-button" type="button" data-request-type="miglioria">
+            <strong>Proponi una miglioria</strong>
+            <span>Vorresti aggiungere, modificare o semplificare una funzione.</span>
+          </button>
+        </div>
+      </div>
       <div class="typing" id="typing" aria-live="polite"></div>
-      <form class="composer" id="composer">
-        <textarea id="messageInput" maxlength="4000" placeholder="Esempio: stavo caricando un contratto e dopo aver premuto Invia..." required></textarea>
+      <form class="composer" id="composer" hidden>
+        <textarea id="messageInput" maxlength="4000" placeholder="Descrivi la richiesta..." required></textarea>
         <button class="send-button" id="sendButton" type="submit">Invia</button>
       </form>
-      <button class="new-button" id="newButton" type="button">Nuova segnalazione</button>
+      <button class="new-button" id="newButton" type="button">Nuova richiesta</button>
     </section>
   </main>
 
@@ -229,10 +270,27 @@
       composer: document.getElementById('composer'),
       input: document.getElementById('messageInput'),
       send: document.getElementById('sendButton'),
-      newButton: document.getElementById('newButton')
+      newButton: document.getElementById('newButton'),
+      requestTypeOptions: document.getElementById('requestTypeOptions'),
+      requestTypeButtons: Array.from(document.querySelectorAll('[data-request-type]'))
     };
     let incidentId = null;
+    let requestType = null;
     let sending = false;
+    const requestTypeConfig = {
+      problema: {
+        label: 'Segnala un problema',
+        prompt: 'Raccontami cosa stavi facendo, cosa ti aspettavi e cosa è successo invece. Ti farò una domanda alla volta.',
+        placeholder: 'Esempio: stavo caricando un contratto e dopo aver premuto Invia...',
+        state: 'Pronto a raccogliere il problema'
+      },
+      miglioria: {
+        label: 'Proponi una miglioria',
+        prompt: 'Descrivimi cosa vorresti aggiungere, modificare o rendere più semplice. Ti farò una domanda alla volta.',
+        placeholder: 'Esempio: vorrei poter filtrare le richieste anche per punto vendita...',
+        state: 'Pronto a raccogliere la miglioria'
+      }
+    };
 
     function addMessage(text, kind) {
       const bubble = document.createElement('div');
@@ -270,19 +328,32 @@
       elements.state.textContent = value ? 'Raccolta informazioni in corso' : 'In attesa del tuo messaggio';
     }
 
+    function selectRequestType(type) {
+      const config = requestTypeConfig[type];
+      if (!config || requestType) return;
+      requestType = type;
+      elements.requestTypeOptions.hidden = true;
+      addMessage(config.label, 'operator');
+      addMessage(config.prompt, 'guardian');
+      elements.state.textContent = config.state;
+      elements.input.placeholder = config.placeholder;
+      elements.composer.hidden = false;
+      elements.input.focus();
+    }
+
     function completeIncident(code) {
       elements.input.disabled = true;
       elements.send.disabled = true;
       elements.composer.hidden = true;
       elements.newButton.classList.add('is-visible');
       elements.state.textContent = `${code} ricevuto`;
-      addMessage(`Segnalazione ${code} ricevuta. Mirko la gestirà nella chat privata con KONA AI Guardian.`, 'confirmation');
+      addMessage(`Richiesta ${code} ricevuta. Mirko la gestirà nella chat privata con KONA AI Guardian.`, 'confirmation');
     }
 
     async function sendMessage(text) {
       const body = incidentId
         ? { action: 'message', incident_id: incidentId, message: text }
-        : { action: 'create', message: text, context: requestContext() };
+        : { action: 'create', request_type: requestType, message: text, context: requestContext() };
       const response = await MiroxApi.fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -300,6 +371,7 @@
     elements.composer.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (sending) return;
+      if (!requestType) return;
       const text = elements.input.value.trim();
       if (!text) return;
       addMessage(text, 'operator');
@@ -309,7 +381,7 @@
         await sendMessage(text);
       } catch (error) {
         elements.input.value = text;
-        await MiroxUI.alert(error.message || 'Non è stato possibile inviare la segnalazione.', {
+        await MiroxUI.alert(error.message || 'Non è stato possibile inviare la richiesta.', {
           title: 'Invio non riuscito',
           type: 'error'
         });
@@ -334,11 +406,14 @@
       window.location.assign(`segnala-problema.html?from=${encodeURIComponent(sourcePath())}`);
     });
 
+    elements.requestTypeButtons.forEach((button) => {
+      button.addEventListener('click', () => selectRequestType(button.dataset.requestType));
+    });
+
     (async () => {
       const profilo = await Auth.richiediAuth();
       if (!profilo) return;
-      addMessage('Raccontami cosa stavi facendo e cosa è successo. Ti farò una domanda alla volta finché la segnalazione sarà abbastanza chiara.', 'guardian');
-      elements.input.focus();
+      elements.requestTypeButtons[0]?.focus();
     })();
   </script>
 </body>
