@@ -33,7 +33,7 @@ Non collegare il Guardian direttamente al database condiviso di produzione. Prim
 3. configurare sul sito staging `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MIROX_DEPLOY_ENV=staging`, `MIROX_PUBLIC_SUPABASE_URL` e `MIROX_PUBLIC_SUPABASE_ANON_KEY` del nuovo progetto (completato il 2026-08-10);
 4. applicare una sola volta `database/staging/001_guardian_bootstrap.sql`, poi `database/065_kona_ai_guardian.sql` (completato il 2026-08-10);
 5. usare la branch `codex/kona-ai-guardian-staging` e verificare che il workflow `.github/workflows/ci.yml` sia verde (completato il 2026-08-10);
-6. creare soltanto l'utente Mirko; nessun altro account KONA AI in questa prima fase e nessun dato cliente reale;
+6. creare soltanto l'utente Mirko, associarlo a un profilo `admin` e impostare `KONA_AI_OWNER_PROFILE_ID`; l'invito deve atterrare su `imposta-password.html`, dove Mirko sceglie autonomamente la password (account, profilo ed env var completati il 2026-08-10);
 7. configurare OpenAI e Telegram solo sul sito staging;
 8. provare creazione, domande, notifica, vocale, analisi e archiviazione prima di valutare la produzione.
 

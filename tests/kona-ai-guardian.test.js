@@ -58,6 +58,19 @@ test('il bootstrap Guardian staging rifiuta database non vuoti e limita profili 
   assert.doesNotMatch(bootstrap, /INSERT INTO public\.profili/i);
 });
 
+test('la pagina invito imposta la password senza esporre token o richiedere password in chat', () => {
+  const page = read('imposta-password.html');
+
+  assert.match(page, /exchangeCodeForSession\(code\)/);
+  assert.match(page, /verifyOtp\(\{\s*token_hash:\s*tokenHash,\s*type:\s*authType\s*\}\)/);
+  assert.match(page, /setSession\(\{[\s\S]*access_token:[\s\S]*refresh_token:/);
+  assert.match(page, /history\.replaceState\(\{\}, document\.title, 'imposta-password\.html'\)/);
+  assert.match(page, /updateUser\(\{ password \}\)/);
+  assert.match(page, /password\.length < 12/);
+  assert.match(page, /autocomplete="new-password"/);
+  assert.doesNotMatch(page, /innerHTML\s*=/);
+});
+
 test('la pagina Segnala Problema usa il wrapper autenticato e non accede a Supabase direttamente', () => {
   const page = read('moduli/segnala-problema.html');
 

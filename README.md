@@ -18,6 +18,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | Cartella / File | Cosa contiene |
 |---|---|
 | `index.html` | Login Supabase Auth |
+| `imposta-password.html` | Accetta inviti Auth, crea la sessione dal link e consente di scegliere la password senza comunicarla agli amministratori |
 | `dashboard.html` | Home con tabs Vendita / Post-Vendita + topbar con bottoni Applicazioni / **Segnala Problema** / Appuntamenti Oggi / Ticket / Call Center / **Admin** (visibile solo se `ruolo='admin'`) + badge ticket aperti. Il bottone Applicazioni apre un pannello espandibile sopra il saluto e collega al `Compilatore disdette` |
 | `admin.html` | **Hub Admin Mirox** — shell a due aree con sidebar dei reparti e area di lavoro. `Configurazioni` contiene i 4 moduli esistenti; `KPI` raccoglie i moduli di analisi. Accesso ristretto a `ruolo='admin'` |
 | `admin-utenti.html` | Gestione utenti: ruoli admin/operatore, abilita/disabilita, permessi granulari Call Center, flag `in_gara`, colonna **Alias di** (unifica due account della stessa persona con backfill guidato del pregresso). Solo admin |
@@ -281,7 +282,7 @@ La dashboard espone ora `Segnala Problema`, che apre `moduli/segnala-problema.ht
 
 Gli incidenti vivono nelle tabelle server-only della migration `065`: `kona_ai_incidenti`, `kona_ai_messaggi`, `kona_ai_approvazioni` e `kona_ai_telegram_sessioni`. Mirko e' l'unico interlocutore Telegram ammesso e puo' usare testo o vocali gia' registrati; non e' prevista conversazione audio live. Analisi Guardian e archiviazione richiedono un pulsante Telegram e producono un audit. Il Guardian conversazionale non legge il repository e non modifica codice: il collegamento a Codex verra' aggiunto in una fase separata e isolata dopo la prova reale in staging.
 
-Codice, bootstrap e migration Guardian sono pubblicati esclusivamente nello staging separato: Netlify `mirox-crm-staging.netlify.app`, branch `codex/kona-ai-guardian-staging` e Supabase `blwgxrszvsoqcmcmhhqr`. Non sono stati applicati a production. Restano da creare l'utente Mirko e da configurare OpenAI/Telegram. Setup completo, env vars, webhook, limiti e percorso successivo verso Sentry/Codex sono in [`docs/KONA_AI_GUARDIAN_SETUP.md`](docs/KONA_AI_GUARDIAN_SETUP.md).
+Codice, bootstrap e migration Guardian sono pubblicati esclusivamente nello staging separato: Netlify `mirox-crm-staging.netlify.app`, branch `codex/kona-ai-guardian-staging` e Supabase `blwgxrszvsoqcmcmhhqr`. Non sono stati applicati a production. Nel Supabase staging esiste soltanto l'account Auth di Mirko, associato a un profilo `admin`; `KONA_AI_OWNER_PROFILE_ID` e' configurato sul sito staging. Restano da configurare OpenAI e Telegram. Setup completo, env vars, webhook, limiti e percorso successivo verso Sentry/Codex sono in [`docs/KONA_AI_GUARDIAN_SETUP.md`](docs/KONA_AI_GUARDIAN_SETUP.md).
 
 ## Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
