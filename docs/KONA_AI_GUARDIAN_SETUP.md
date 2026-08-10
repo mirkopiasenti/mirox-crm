@@ -29,10 +29,10 @@ La separazione evita che il modello conversazionale possieda credenziali di depl
 Non collegare il Guardian direttamente al database condiviso di produzione. Prima del primo test:
 
 1. creare il progetto Supabase `Mirox CRM - Staging` (`blwgxrszvsoqcmcmhhqr`, `eu-west-3`);
-2. creare un nuovo sito Netlify collegato al repository, senza custom domain di produzione;
-3. configurare sul sito staging `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MIROX_DEPLOY_ENV=staging`, `MIROX_PUBLIC_SUPABASE_URL` e `MIROX_PUBLIC_SUPABASE_ANON_KEY` del nuovo progetto;
+2. creare il sito Netlify separato `mirox-crm-staging.netlify.app`, senza custom domain di produzione (completato il 2026-08-10);
+3. configurare sul sito staging `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MIROX_DEPLOY_ENV=staging`, `MIROX_PUBLIC_SUPABASE_URL` e `MIROX_PUBLIC_SUPABASE_ANON_KEY` del nuovo progetto (completato il 2026-08-10);
 4. applicare una sola volta `database/staging/001_guardian_bootstrap.sql`, poi `database/065_kona_ai_guardian.sql` (completato il 2026-08-10);
-5. usare la branch `codex/kona-ai-guardian-staging` e verificare che il workflow `.github/workflows/ci.yml` sia verde;
+5. usare la branch `codex/kona-ai-guardian-staging` e verificare che il workflow `.github/workflows/ci.yml` sia verde (completato il 2026-08-10);
 6. creare soltanto l'utente Mirko; nessun altro account KONA AI in questa prima fase e nessun dato cliente reale;
 7. configurare OpenAI e Telegram solo sul sito staging;
 8. provare creazione, domande, notifica, vocale, analisi e archiviazione prima di valutare la produzione.
@@ -43,10 +43,14 @@ Il bootstrap staging si interrompe se trova anche una sola tabella nello schema 
 
 La build tratta automaticamente ogni branch Netlify diversa da `main` come staging e impedisce di forzarla a `production` tramite env var; simmetricamente, `main` non puo' essere forzata a staging. Se le variabili frontend dedicate mancano, se l'URL punta al project ref produzione o se viene passata una service role/secret key, il deploy si interrompe prima di pubblicare file. Anche la CSP viene generata con il solo host Supabase staging.
 
+Netlify registra comunque le scheduled functions presenti in `netlify.toml`; entrambe le function CRM controllano quindi `MIROX_DEPLOY_ENV` come prima istruzione e, nello staging Guardian, terminano con `skipped` senza collegarsi a Supabase, Storage o SMTP.
+
 ## Variabili Netlify
 
 | Variabile | Uso |
 |---|---|
+| `SUPABASE_URL` | URL del progetto staging usato dalle Netlify Functions |
+| `SUPABASE_SERVICE_ROLE_KEY` | Secret key backend dedicata `netlify_guardian_staging`; mai frontend o repository |
 | `MIROX_DEPLOY_ENV` | Deve valere `staging` nel sito Guardian |
 | `MIROX_PUBLIC_SUPABASE_URL` | URL pubblico Supabase staging usato dal browser |
 | `MIROX_PUBLIC_SUPABASE_ANON_KEY` | Publishable/anon key Supabase staging; mai service role |

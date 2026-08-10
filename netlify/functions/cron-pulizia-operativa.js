@@ -15,6 +15,10 @@ const { createClient } = require('@supabase/supabase-js');
 const schedule = '30 2 * * *';
 const BOZZA_MAX_AGE_HOURS = 24;
 
+function isStagingEnvironment() {
+    return String(process.env.MIROX_DEPLOY_ENV || '').trim().toLowerCase() === 'staging';
+}
+
 function getClient() {
     const url = process.env.SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -66,6 +70,13 @@ async function cleanupDraft(supabase, praticaId) {
 }
 
 const handler = async () => {
+    if (isStagingEnvironment()) {
+        return {
+            statusCode: 200,
+            body: JSON.stringify({ ok: true, skipped: true, environment: 'staging' })
+        };
+    }
+
     let supabase;
     try {
         supabase = getClient();
@@ -127,4 +138,4 @@ const handler = async () => {
     };
 };
 
-module.exports = { handler, schedule };
+module.exports = { handler, schedule, _test: { isStagingEnvironment } };

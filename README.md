@@ -68,8 +68,8 @@ Tutte le functions, eccetto i due cron Netlify, l'endpoint anon intenzionale `pu
 | `mirox-send-email` | POST | authenticated | Invio email con template DB |
 | `guardian-incidents` | GET / POST | authenticated | Crea e prosegue le segnalazioni tecniche KONA AI. Gli operatori vedono solo le proprie; gli admin possono elencarle tutte. Nessun accesso browser diretto alle tabelle Guardian |
 | `guardian-telegram-webhook` | POST | webhook Telegram privato | Accetta solo il secret token configurato e il `chat_id` di Mirko; gestisce testo, vocali trascritti, apertura incidente, analisi Guardian approvata e archiviazione auditata |
-| `cron-rientro-sim` | scheduled | nessuna (cron Netlify) | Notifica giornaliera rientro SIM |
-| `cron-pulizia-operativa` | scheduled | nessuna (cron Netlify) | Scade OTP pending, elimina contatori rate-limit scaduti e rimuove bozze vendita oltre 24 ore con relativi PDF |
+| `cron-rientro-sim` | scheduled | nessuna (cron Netlify) | Notifica giornaliera rientro SIM; termina senza operazioni quando `MIROX_DEPLOY_ENV=staging` |
+| `cron-pulizia-operativa` | scheduled | nessuna (cron Netlify) | Scade OTP pending, elimina contatori rate-limit scaduti e rimuove bozze vendita oltre 24 ore con relativi PDF; termina senza operazioni quando `MIROX_DEPLOY_ENV=staging` |
 | `public-prenota` | GET / POST | nessuna (form pubblico) | Endpoint per `prenota.html`: rate limit persistente su Postgres e POST atomica tramite RPC con lock e nuovo controllo dello slot nella stessa transazione |
 | `garantisci-anagrafica` | POST | authenticated | Upsert anagrafica (lookup CF/PIVA, update campi vuoti / cambiati o insert). Usato dal wizard prima della raccolta consenso; per `Turista` salva `Consumer` su `anagrafica` e non richiede email |
 | `check-consenso-privacy` | GET | authenticated | Dedupe 24 mesi: cerca per `anagrafica_id` una dichiarazione corrente valida; con `include_history=true` restituisce inoltre l'esito privacy più recente e l'ultimo PDF archiviato per badge e download da Storico Cliente |
@@ -126,6 +126,7 @@ La build staging fallisce se riceve il project ref di produzione o una service r
 
 - **Netlify site**: `mirox-crm` (rinominato il 2026-07-02 in coerenza col repo GitHub `mirkopiasenti/mirox-crm`)
 - **Production URL**: [`mirox-crm.it`](https://mirox-crm.it) (custom domain, dal 2026-06-29). Qui sono configurate tutte le env vars (Supabase, Smshosting, Anthropic, SMTP)
+- **Guardian staging**: [`mirox-crm-staging.netlify.app`](https://mirox-crm-staging.netlify.app), sito separato collegato esclusivamente a `codex/kona-ai-guardian-staging` e al Supabase `blwgxrszvsoqcmcmhhqr`; primo deploy verificato il 2026-08-10
 - Vecchio URL di test `test-upload-contratti-konahub.netlify.app` non è più aggiornato — deprecato
 - **NON confondere** con `mirox-crm.netlify.app`: è un altro Netlify site, di un altro repo GitHub, che ospita il Call Center prod. Condivide solo il DB Supabase
 
@@ -135,7 +136,7 @@ Setup:
 3. Imposta le env vars nel pannello Netlify (sezione Site settings → Environment variables)
 4. Deploy automatico al `git push origin main`
 
-Lo staging Guardian usa un sito Netlify separato collegato a `codex/kona-ai-guardian-staging`. Il sito deve impostare `MIROX_DEPLOY_ENV=staging` e le due variabili frontend dedicate; in loro assenza la build viene bloccata prima del deploy. Un push su questa branch non autorizza modifiche a `main` o al database di produzione.
+Lo staging Guardian usa il sito Netlify separato `mirox-crm-staging`, collegato a `codex/kona-ai-guardian-staging`. Il sito imposta `MIROX_DEPLOY_ENV=staging` e le credenziali del Supabase separato; la build pubblicata conferma l'ambiente `staging` e il project ref `blwgxrszvsoqcmcmhhqr`. Un push su questa branch non autorizza modifiche a `main` o al database di produzione.
 
 ## Workflow di aggiornamento
 
@@ -280,7 +281,7 @@ La dashboard espone ora `Segnala Problema`, che apre `moduli/segnala-problema.ht
 
 Gli incidenti vivono nelle tabelle server-only della migration `065`: `kona_ai_incidenti`, `kona_ai_messaggi`, `kona_ai_approvazioni` e `kona_ai_telegram_sessioni`. Mirko e' l'unico interlocutore Telegram ammesso e puo' usare testo o vocali gia' registrati; non e' prevista conversazione audio live. Analisi Guardian e archiviazione richiedono un pulsante Telegram e producono un audit. Il Guardian conversazionale non legge il repository e non modifica codice: il collegamento a Codex verra' aggiunto in una fase separata e isolata dopo la prova reale in staging.
 
-La migration e il codice sono preparati localmente ma non risultano applicati o pubblicati. Prima dell'attivazione e' obbligatorio usare un sito Netlify staging con un progetto Supabase separato. Configurazione completa, env vars, webhook Telegram, limiti e percorso successivo verso Sentry/Codex sono in [`docs/KONA_AI_GUARDIAN_SETUP.md`](docs/KONA_AI_GUARDIAN_SETUP.md).
+Codice, bootstrap e migration Guardian sono pubblicati esclusivamente nello staging separato: Netlify `mirox-crm-staging.netlify.app`, branch `codex/kona-ai-guardian-staging` e Supabase `blwgxrszvsoqcmcmhhqr`. Non sono stati applicati a production. Restano da creare l'utente Mirko e da configurare OpenAI/Telegram. Setup completo, env vars, webhook, limiti e percorso successivo verso Sentry/Codex sono in [`docs/KONA_AI_GUARDIAN_SETUP.md`](docs/KONA_AI_GUARDIAN_SETUP.md).
 
 ## Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
@@ -298,8 +299,8 @@ La migration e il codice sono preparati localmente ma non risultano applicati o 
 
 ## Schedulazioni
 
-- `cron-rientro-sim`: ogni giorno alle **07:00 UTC** (09:00 ora italiana estate / 08:00 inverno). Cerca pratiche `vendita_switch_sim` con `giorno_rientro = oggi` e `mail_rientro_inviata_at IS NULL`, invia notifica via template `rientro_sim`, imposta `mail_rientro_inviata_at = now()`.
-- `cron-pulizia-operativa`: ogni giorno alle **02:30 UTC**. Scade gli OTP pending oltre termine, elimina i contatori del rate limit pubblico scaduti e recupera fino a 100 pratiche `bozza` più vecchie di 24 ore cancellando prima i PDF Storage e poi la pratica.
+- `cron-rientro-sim`: ogni giorno alle **07:00 UTC** (09:00 ora italiana estate / 08:00 inverno). Cerca pratiche `vendita_switch_sim` con `giorno_rientro = oggi` e `mail_rientro_inviata_at IS NULL`, invia notifica via template `rientro_sim`, imposta `mail_rientro_inviata_at = now()`. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o inviare email.
+- `cron-pulizia-operativa`: ogni giorno alle **02:30 UTC**. Scade gli OTP pending oltre termine, elimina i contatori del rate limit pubblico scaduti e recupera fino a 100 pratiche `bozza` più vecchie di 24 ore cancellando prima i PDF Storage e poi la pratica. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o modificare dati.
 
 ## Link utili
 
