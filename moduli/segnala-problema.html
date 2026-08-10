@@ -222,7 +222,7 @@
     <section class="intro">
       <div class="eyebrow">KONA AI Guardian</div>
       <h1>Scegli cosa vuoi comunicare</h1>
-      <p>Puoi segnalare qualcosa che non funziona oppure proporre una miglioria. Guardian farà poche domande e consegnerà a Mirko una richiesta ordinata e pronta da valutare.</p>
+      <p>Puoi segnalare qualcosa che non funziona oppure proporre una miglioria. Guardian farà poche domande e consegnerà all’amministratore una richiesta ordinata e pronta da valutare.</p>
     </section>
 
     <section class="chat-shell" aria-label="Chat con KONA AI Guardian">
@@ -347,7 +347,7 @@
       elements.composer.hidden = true;
       elements.newButton.classList.add('is-visible');
       elements.state.textContent = `${code} ricevuto`;
-      addMessage(`Richiesta ${code} ricevuta. Mirko la gestirà nella chat privata con KONA AI Guardian.`, 'confirmation');
+      addMessage(`Richiesta ${code} ricevuta e inviata all’amministratore. Non devi fare altro.`, 'confirmation');
     }
 
     async function sendMessage(text) {

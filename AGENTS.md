@@ -595,7 +595,7 @@ Il reporter globale `js/mirox-error-reporter.js` e tutte le email automatiche pe
 ### Flusso e autorizzazioni
 
 1. Qualunque utente autenticato apre `moduli/segnala-problema.html`, sceglie `Segnala un problema` oppure `Proponi una miglioria` e conversa con Guardian tramite `guardian-incidents`.
-2. Guardian fa una domanda breve alla volta usando un percorso dedicato: per i problemi raccoglie atteso/reale/errore/riproducibilita'; per le migliorie raccoglie funzionamento attuale, obiettivo, utenti, beneficio ed esempi. Quando i dati sono sufficienti imposta la richiesta a `ricevuto`, assegna un codice unico `KG-000001` e notifica Telegram indicando il tipo.
+2. Guardian fa una domanda breve alla volta usando un percorso dedicato: per i problemi raccoglie atteso/reale/errore/riproducibilita'; per le migliorie raccoglie funzionamento attuale, obiettivo, utenti, beneficio ed esempi. Quando i dati sono sufficienti imposta la richiesta a `ricevuto`, assegna un codice unico `KG-000001`, conferma all'operatore l'invio all'`amministratore` senza mostrare il nome di Mirko e notifica Telegram indicando il tipo.
 3. Gli operatori possono soltanto creare e completare le proprie richieste. Non possono vedere richieste altrui, approvare analisi, cambiare priorita' o avviare azioni.
 4. `guardian-telegram-webhook` accetta esclusivamente il secret token configurato e `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`. Mirko puo' usare testo o vocali gia' conclusi; niente conversazione audio live.
 5. Analisi Guardian, archiviazione e `Approva lavorazione` richiedono un pulsante Telegram. Ogni decisione viene registrata in `kona_ai_approvazioni`; `Approva lavorazione` usa `azione='prepara_fix'`, imposta `stato='fix_approvato'` e non modifica codice.

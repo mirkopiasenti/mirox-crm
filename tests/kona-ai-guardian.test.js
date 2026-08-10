@@ -102,5 +102,7 @@ test('la pagina Segnala Problema usa il wrapper autenticato e non accede a Supab
   assert.match(page, /data-request-type="problema"/);
   assert.match(page, /data-request-type="miglioria"/);
   assert.match(page, /request_type: requestType/);
+  assert.match(page, /inviata all’amministratore\. Non devi fare altro\./);
+  assert.doesNotMatch(page, /Mirko/i);
   assert.match(read('dashboard.html'), /moduli\/segnala-problema\.html\?from=\/dashboard\.html/);
 });

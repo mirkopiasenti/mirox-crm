@@ -116,7 +116,7 @@ function intakeFallback(messages, incidentContext = {}) {
     };
   }
   return {
-    reply: `Grazie, ho registrato ${type === 'miglioria' ? 'la proposta di miglioria' : 'la segnalazione'}. KONA AI Guardian la porterà nella chat privata di Mirko per l’analisi e le eventuali approvazioni.`,
+    reply: `Grazie, ho registrato ${type === 'miglioria' ? 'la proposta di miglioria' : 'la segnalazione'} e l’ho inviata all’amministratore. Non devi fare altro.`,
     complete: true,
     title: type === 'miglioria' ? 'Miglioria proposta dal CRM' : 'Problema segnalato dal CRM',
     priority: 'media',
@@ -153,7 +153,7 @@ async function generateIntakeReply(messages, incidentContext = {}) {
     intakeGoal,
     'Non chiedere password, codici OTP, dati di carte, token, chiavi API o documenti personali.',
     'Non promettere una correzione o uno sviluppo e non dichiarare di aver analizzato il codice.',
-    'Imposta complete=true solo quando la descrizione consente a Mirko di iniziare un’analisi.',
+    'Imposta complete=true solo quando la descrizione consente all’amministratore di iniziare un’analisi.',
     type === 'miglioria' ? 'Per le migliorie usa priorità critica soltanto in presenza di un obbligo normativo o di sicurezza documentato.' : '',
     `Pagina di provenienza: ${pageHint}.`
   ].filter(Boolean).join(' ');
