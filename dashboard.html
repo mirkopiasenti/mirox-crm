@@ -206,6 +206,84 @@
       box-shadow: 0 6px 16px rgba(255, 102, 0, 0.12);
     }
 
+    /* KONA AI GUARDIAN FLOATING ACTION */
+    .guardian-fab {
+      position: fixed;
+      right: 30px;
+      bottom: 28px;
+      z-index: 30;
+      width: 248px;
+      min-height: 116px;
+      display: flex;
+      align-items: center;
+      padding: 18px 104px 18px 20px;
+      overflow: visible;
+      border: 1px solid rgba(255, 102, 0, 0.25);
+      border-radius: 28px;
+      background: linear-gradient(135deg, #ffffff 0%, #fff7ef 100%);
+      box-shadow: 0 18px 44px rgba(10, 37, 64, 0.18), 0 5px 16px rgba(255, 102, 0, 0.12);
+      color: var(--text);
+      text-decoration: none;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .guardian-fab::before {
+      content: '';
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--primary);
+      box-shadow: 0 0 0 5px rgba(255, 102, 0, 0.12);
+    }
+    .guardian-fab:hover {
+      border-color: var(--primary);
+      transform: translateY(-4px);
+      box-shadow: 0 24px 52px rgba(10, 37, 64, 0.22), 0 8px 22px rgba(255, 102, 0, 0.18);
+    }
+    .guardian-fab:focus-visible {
+      outline: 3px solid rgba(255, 102, 0, 0.35);
+      outline-offset: 4px;
+    }
+    .guardian-fab-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .guardian-fab-kicker {
+      color: var(--primary-dark);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+    .guardian-fab-title {
+      color: var(--text);
+      font-size: 17px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+    .guardian-fab-subtitle {
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.25;
+    }
+    .guardian-fab-robot {
+      position: absolute;
+      right: -12px;
+      bottom: -12px;
+      width: 122px;
+      height: 152px;
+      object-fit: contain;
+      object-position: center bottom;
+      filter: drop-shadow(0 12px 9px rgba(10, 37, 64, 0.22));
+      pointer-events: none;
+    }
+
     /* APPLICATIONS DRAWER */
     .applications-drawer {
       display: grid;
@@ -473,6 +551,19 @@
       .hero-greeting { font-size: 30px; }
       .content { padding: 28px 18px 60px; }
       .tab-btn { padding: 10px 18px; font-size: 14px; }
+      .guardian-fab {
+        right: 16px;
+        bottom: 16px;
+        width: min(330px, calc(100vw - 32px));
+        min-height: 104px;
+        padding: 16px 96px 16px 20px;
+      }
+      .guardian-fab-robot {
+        right: -8px;
+        bottom: -8px;
+        width: 108px;
+        height: 136px;
+      }
     } </style>
 <script src="js/mirox-safe.js"></script>
 </head>
@@ -504,17 +595,6 @@
       </div>
       <div class="action-square-label">Applicazioni</div>
     </button>
-
-    <a class="action-square" href="moduli/segnala-problema.html?from=/dashboard.html" id="btnSegnalaProblema">
-      <div class="action-square-icon">
-        <svg viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-      </div>
-      <div class="action-square-label">Segnala Problema</div>
-    </a>
 
     <a class="action-square action-square-wide disabled" href="#" id="btnAppuntamentiOggi" onclick="return false;">
       <div class="action-square-icon">
@@ -560,6 +640,15 @@
     </a>
   </div>
 </div>
+
+<a class="guardian-fab" href="moduli/segnala-problema.html?from=/dashboard.html" id="btnSegnalaProblema" aria-label="Apri KONA AI Guardian e segnala un problema">
+  <span class="guardian-fab-copy">
+    <span class="guardian-fab-kicker">Assistenza Mirox</span>
+    <span class="guardian-fab-title">KONA AI Guardian</span>
+    <span class="guardian-fab-subtitle">Segnala un problema e descrivilo in chat</span>
+  </span>
+  <img class="guardian-fab-robot" src="assets/kona-guardian-robot.png" alt="" aria-hidden="true">
+</a>
 
 <section class="applications-drawer" id="applicationsDrawer" aria-hidden="true" aria-label="Applicazioni" inert>
   <div class="applications-drawer-inner">
