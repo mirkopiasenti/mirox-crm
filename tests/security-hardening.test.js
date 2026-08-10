@@ -67,15 +67,17 @@ test('tutte le pagine caricano MiroxSafe e gli script CDN sono pinning + SRI', (
 test('Netlify pubblica solo la build statica e applica gli header di sicurezza principali', () => {
   const config = fs.readFileSync(path.join(ROOT, 'netlify.toml'), 'utf8');
   const buildScript = fs.readFileSync(path.join(ROOT, 'scripts/build-static.js'), 'utf8');
+  const generatedHeaders = fs.readFileSync(path.join(ROOT, 'dist/_headers'), 'utf8');
 
   assert.match(config, /command\s*=\s*"npm run build"/);
   assert.match(config, /publish\s*=\s*"dist"/);
   assert.doesNotMatch(config, /publish\s*=\s*"\."/);
-  assert.match(config, /Content-Security-Policy/);
+  assert.match(generatedHeaders, /Content-Security-Policy/);
   assert.match(config, /Strict-Transport-Security/);
   assert.match(config, /Permissions-Policy/);
-  assert.match(config, /frame-ancestors 'self'/);
-  assert.match(config, /object-src 'none'/);
+  assert.match(generatedHeaders, /frame-ancestors 'self'/);
+  assert.match(generatedHeaders, /object-src 'none'/);
+  assert.match(generatedHeaders, /https:\/\/lbgwamhjkjjfwgusafbi\.supabase\.co/);
   assert.match(buildScript, /PUBLIC_DIRECTORIES = \['assets', 'css', 'js', 'moduli'\]/);
 
   for (const publicPath of [

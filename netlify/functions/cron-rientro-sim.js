@@ -23,6 +23,10 @@ const TIMEZONE = 'Europe/Rome';
 const schedule = '0 7 * * *';
 const MIROX_HOME_URL = 'https://www.mirox-crm.it';
 
+function isStagingEnvironment() {
+    return String(process.env.MIROX_DEPLOY_ENV || '').trim().toLowerCase() === 'staging';
+}
+
 function todayInRome() {
     const fmt = new Intl.DateTimeFormat('en-CA', {
         timeZone: TIMEZONE,
@@ -39,6 +43,13 @@ function fmtItDate(iso) {
 }
 
 const handler = async () => {
+    if (isStagingEnvironment()) {
+        return {
+            statusCode: 200,
+            body: JSON.stringify({ ok: true, skipped: true, environment: 'staging' })
+        };
+    }
+
     const destinatario = process.env.NOTIFICA_RIENTRO_TO || 'info@konatech.it';
 
     let supabase;
@@ -111,4 +122,4 @@ const handler = async () => {
     };
 };
 
-module.exports = { handler, schedule };
+module.exports = { handler, schedule, _test: { isStagingEnvironment } };

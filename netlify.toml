@@ -15,9 +15,8 @@
   #   bundlare correttamente (a runtime fallirebbe con ENOENT su Helvetica.afm).
   external_node_modules = ["@supabase/supabase-js", "nodemailer", "pdfkit"]
 
-# Headers di sicurezza. La CSP mantiene temporaneamente 'unsafe-inline' per
-# compatibilita' con gli script e gli handler inline delle pagine statiche;
-# le sorgenti di rete restano comunque limitate all'allowlist dichiarata.
+# Headers di sicurezza statici. La CSP e' generata in dist/_headers dalla build,
+# cosi' consente esclusivamente il progetto Supabase dell'ambiente corrente.
 [[headers]]
   for = "/*"
   [headers.values]
@@ -26,7 +25,6 @@
     Referrer-Policy          = "strict-origin-when-cross-origin"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
     Permissions-Policy       = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()"
-    Content-Security-Policy  = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://lbgwamhjkjjfwgusafbi.supabase.co https://script.google.com https://script.googleusercontent.com; connect-src 'self' https://lbgwamhjkjjfwgusafbi.supabase.co wss://lbgwamhjkjjfwgusafbi.supabase.co https://script.google.com https://script.googleusercontent.com; frame-src 'self' blob: https://lbgwamhjkjjfwgusafbi.supabase.co; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests"
 
 # =============================================================================
 # Scheduled functions

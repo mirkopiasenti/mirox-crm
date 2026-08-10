@@ -15,6 +15,11 @@
         });
       } catch(e) {}
       Auth._profilo = null;
+      const loginParams = new URLSearchParams(window.location.search);
+      if (loginParams.get('password_updated') === '1') {
+        showAlert('Password impostata correttamente. Ora puoi accedere.', 'success');
+        window.history.replaceState({}, document.title, 'index.html');
+      }
     })();
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -34,10 +39,10 @@
         window.location.href = 'dashboard.html';
       } catch (err) { showAlert(err.message); resetBtn(); }
     });
-    function showAlert(msg) {
+    function showAlert(msg, type = 'danger') {
       const alertBox = document.getElementById('alertBox');
       const alert = document.createElement('div');
-      alert.className = 'alert alert-danger';
+      alert.className = `alert alert-${type === 'success' ? 'success' : 'danger'}`;
       alert.textContent = String(msg || 'Errore di accesso');
       alertBox.replaceChildren(alert);
     }

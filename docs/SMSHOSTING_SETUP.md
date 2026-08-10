@@ -200,7 +200,7 @@ L'OTP contribuisce alla tracciabilità della dichiarazione, ma non sostituisce d
 | `Credenziali Smshosting mancanti (SMSHOSTING_API_KEY/SECRET non configurati)` | Env vars non settate o redeploy non fatto | Verifica Netlify env vars + trigger deploy |
 | `HTTP 401 da Smshosting` | API Key/Secret sbagliati o scaduti | Rigenera credenziali nel pannello Smshosting |
 | `HTTP 403 da Smshosting` | Mittente alfanumerico non approvato | Aspetta approvazione o usa numerico |
-| `Credito insufficiente` | Saldo esaurito | Acquista altro credito + il sistema genera mail di errore al proprietario via MiroxErrorReporter |
+| `Credito insufficiente` | Saldo esaurito | Acquista altro credito; l'operatore vede l'errore nel flusso OTP e puo' aprire `Segnala Problema` dalla dashboard |
 | `Timeout chiamata Smshosting` | Smshosting lento o down | Riprovare. Se ricorrente verificare status su <https://www.smshosting.it/> |
 | Cliente non riceve SMS | Numero formato sbagliato, oppure operatore mobile blocca | Verifica formato `+39XXXXXXXXXX` nel log. In caso di blocco lato cliente, usare il flusso cartaceo |
 | OTP inserito ma "Codice errato" sempre | Il cliente sta dicendo un codice vecchio | Cliccare "Reinvia SMS" e usare il nuovo codice (il vecchio è invalidato automaticamente) |

@@ -19,7 +19,6 @@
 <script src="../js/mirox-storage.js"></script>
 <script src="../js/mirox-folder.js"></script>
 <script src="../js/mirox-upload.js"></script>
-<script src="../js/mirox-error-reporter.js"></script>
 <style> :root {
  --primary: #FF6600;
  --primary-light: #FF8533;
@@ -279,7 +278,6 @@
 // `authenticated` — coperte dalle policy `segnalazioni_authenticated_all` e
 // `*auth segnalazioni files*`. NON piu' un client anon separato.
 Auth.richiediAuth();
-if (window.MiroxErrorReporter) MiroxErrorReporter.install({ source: 'segnalazioni' });
 
 const BUCKET='segnalazioni-files';
 const sb=window.db; // alias legacy per non riscrivere tutte le chiamate sb.from(...)
