@@ -78,8 +78,8 @@ Sostituire sempre con testo descrittivo (es. `🔄 Aggiorna` → `Aggiorna`, `�
 
 ### URL deploy
 - **Repo GitHub**: `git@github.com:mirkopiasenti/mirox-crm.git` (dal 2026-07-02, prima era `konahub-vendita-test` — redirect ancora attivo ma va usato il nome nuovo)
-- **Netlify site di questa codebase**: **`mirox-crm`** (nome sito Netlify dal 2026-07-02, prima era il vecchio nome legato al test). Custom domain **`mirox-crm.it`** in production dal 2026-06-29 — tutte le functions (auth + OTP + backend) rispondono qui. Env vars (Supabase, Smshosting, Anthropic, SMTP) configurate su questo site
-- **Guardian staging separato**: `mirox-crm-staging.netlify.app`, site Netlify `mirox-crm-staging`, branch primaria `codex/kona-ai-guardian-staging` e Supabase `blwgxrszvsoqcmcmhhqr`. Primo deploy verificato il 2026-08-10; nessun custom domain e nessun collegamento a production.
+- **Netlify site di questa codebase**: **`mirox-crm`** (nome sito Netlify dal 2026-07-02, prima era il vecchio nome legato al test). Custom domain **`mirox-crm.it`** in production dal 2026-06-29 — tutte le functions, compreso Guardian, rispondono qui. Env vars Supabase, OpenAI, Telegram e degli altri servizi sono configurate su questo site
+- **Guardian staging separato**: `mirox-crm-staging.netlify.app`, site Netlify `mirox-crm-staging`, branch primaria `codex/kona-ai-guardian-staging` e Supabase `blwgxrszvsoqcmcmhhqr`. Resta isolato dai dati production ed e' l'ambiente obbligatorio per gli sviluppi successivi; i test Telegram richiedono un secondo bot dedicato perche' il bot ufficiale ha il webhook production.
 - `test-upload-contratti-konahub.netlify.app` — vecchio URL di test del repo. **Non è più aggiornato** (le functions OTP rispondono 404). Deprecato — l'URL "buono" è `mirox-crm.it`
 - `mirox-crm.netlify.app` — **DIVERSO PROGETTO**: sito Call Center prod (altro repo GitHub, NON in questa codebase). Condivide lo stesso DB Supabase. Da non confondere col Netlify site `mirox-crm` di cui sopra (che è custom-domain su `mirox-crm.it`)
 
@@ -166,7 +166,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 
 ~80 tabelle. Project ref produzione: `lbgwamhjkjjfwgusafbi`. La configurazione pubblica di produzione e' in `scripts/build-static.js`; quella staging arriva soltanto dalle env Netlify e viene materializzata in `dist/js/config.js`.
 
-Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmcmhhqr`, regione `eu-west-3`, e non contiene dati CRM di produzione. Gli script one-shot dedicati vivono in `database/staging/`: `001_guardian_bootstrap.sql` crea soltanto il profilo minimo necessario ad Auth/Guardian e si blocca se lo schema `public` non e' vuoto, impedendone l'esecuzione accidentale sul database production. Bootstrap, `database/065_kona_ai_guardian.sql` e `database/066_kona_ai_tipologia_richiesta.sql` sono stati applicati esclusivamente a questo staging il 2026-08-10; production non e' stata modificata.
+Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmcmhhqr`, regione `eu-west-3`, e non contiene dati CRM di produzione. Gli script one-shot dedicati vivono in `database/staging/`: `001_guardian_bootstrap.sql` crea soltanto il profilo minimo necessario ad Auth/Guardian e si blocca se lo schema `public` non e' vuoto, impedendone l'esecuzione accidentale sul database production. Il bootstrap e le migration Guardian `065`/`066` sono applicati allo staging; le sole migration additive `065`/`066` risultano applicate anche al production `lbgwamhjkjjfwgusafbi` dal 2026-08-10.
 
 ---
 
@@ -614,7 +614,7 @@ La migration additiva `065_kona_ai_guardian.sql` crea quattro tabelle server-onl
 
 ### Ambiente e segreti
 
-Guardian e' pubblicato per la prova sul sito Netlify separato `mirox-crm-staging.netlify.app`, collegato al Supabase staging `blwgxrszvsoqcmcmhhqr`. Bootstrap e migration `065`/`066` risultano applicati soltanto li'. Nel progetto staging esiste soltanto l'account Auth di Mirko, collegato a un profilo `admin`, e il relativo `KONA_AI_OWNER_PROFILE_ID` e' configurato su Netlify. Il bot `@MiroxAiGuardianBot` usa il webhook dello staging; token, owner chat e secret sono env protette. OpenAI e' configurato nel progetto `Mirox CRM` e la raccolta/analisi reale e' stata verificata sullo staging. Non usare dati reali durante la validazione.
+Guardian e' attivo sul production `mirox-crm.it`, collegato al Supabase `lbgwamhjkjjfwgusafbi`; qui le env OpenAI/Telegram e il `KONA_AI_OWNER_PROFILE_ID` del profilo Mirko production sono configurati. Il bot `@MiroxAiGuardianBot` usa esclusivamente il webhook ufficiale. Il sito `mirox-crm-staging.netlify.app` e il Supabase `blwgxrszvsoqcmcmhhqr` restano l'ambiente isolato per sviluppi e validazioni senza dati reali; per testare Telegram sullo staging va creato un secondo bot.
 
 Env vars: `OPENAI_API_KEY`, `OPENAI_GUARDIAN_MODEL`, `OPENAI_TRANSCRIBE_MODEL`, `TELEGRAM_GUARDIAN_BOT_TOKEN`, `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`, `TELEGRAM_GUARDIAN_WEBHOOK_SECRET`, `KONA_AI_OWNER_PROFILE_ID`. Mai esporle nel frontend o committarle. Setup completo: `docs/KONA_AI_GUARDIAN_SETUP.md`.
 
@@ -713,7 +713,7 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 ## Note operative consapevoli (non "correggere" senza chiedere)
 
 - **Edge Functions Supabase**: non in uso, non aggiungerne senza discutere prima
-- **Guardian prima versione**: analizza soltanto il contenuto dell'incidente; non ha accesso al repository, non esegue Codex, non prepara patch e non effettua deploy. Non simulare queste capacita'. Il primo ambiente deve essere Netlify + Supabase staging separato; Sentry e il worker Codex sono fasi successive dopo la prova reale del flusso.
+- **Guardian prima versione**: analizza soltanto il contenuto dell'incidente; non ha accesso al repository, non esegue Codex, non prepara patch e non effettua deploy. Non simulare queste capacita'. Ogni sviluppo successivo deve passare prima da Netlify + Supabase staging separati; Sentry e il worker Codex restano fasi successive.
 - **Cluster `Turista`**: accettato solo da `crea-vendita-pratica-carrello.js`. È voluto.
 - **File SQL in `/database/`**: parziali, NON riflettono lo stato attuale del DB (vedi `database/README.md`)
 - **Modulo `simulatore_protecta.html`**: ~960 KB, molto pesante perché contiene asset embedded. Modificare con cautela.

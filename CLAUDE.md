@@ -161,7 +161,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 
 ~80 tabelle. Project ref produzione: `lbgwamhjkjjfwgusafbi`. La configurazione pubblica di produzione e' in `scripts/build-static.js`; quella staging arriva soltanto dalle env Netlify e viene materializzata in `dist/js/config.js`.
 
-Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmcmhhqr`, regione `eu-west-3`, e non contiene dati CRM di produzione. Gli script one-shot dedicati vivono in `database/staging/`: `001_guardian_bootstrap.sql` crea soltanto il profilo minimo necessario ad Auth/Guardian e si blocca se lo schema `public` non e' vuoto, impedendone l'esecuzione accidentale sul database production. Il bootstrap e `database/065_kona_ai_guardian.sql` sono stati applicati esclusivamente a questo staging il 2026-08-10; production non e' stata modificata.
+Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmcmhhqr`, regione `eu-west-3`, e non contiene dati CRM di produzione. Gli script one-shot dedicati vivono in `database/staging/`: `001_guardian_bootstrap.sql` crea soltanto il profilo minimo necessario ad Auth/Guardian e si blocca se lo schema `public` non e' vuoto. Il bootstrap e le migration Guardian `065`/`066` sono applicati allo staging; le sole migration additive `065`/`066` sono applicate anche al production `lbgwamhjkjjfwgusafbi` dal 2026-08-10.
 
 ---
 
@@ -191,7 +191,7 @@ Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmc
 ### KONA AI Guardian
 - `kona_ai_incidenti` — registro server-only migration `065`: codice `KG-*`, stato/priorita', reporter, contesto minimo, riepiloghi e scadenza dettagli tecnici a 90 giorni.
 - `kona_ai_messaggi` — cronologia CRM/Telegram/Guardian/Codex/sistema per incidente.
-- `kona_ai_approvazioni` — audit delle decisioni di Mirko. Nella prima versione sono eseguibili solo `analizza_guardian` e `archivia`; le azioni Codex/staging/produzione sono predisposte ma senza esecutore.
+- `kona_ai_approvazioni` — audit delle decisioni di Mirko. Sono eseguibili `analizza_guardian`, `archivia` e la sola registrazione `prepara_fix`; le azioni Codex/staging/produzione restano senza esecutore.
 - `kona_ai_telegram_sessioni` — incidente attivo e dedupe `update_id` per il solo chat Telegram proprietario.
 
 ### Post-Vendita
@@ -688,15 +688,15 @@ Il reporter globale `js/mirox-error-reporter.js` e tutte le email automatiche pe
 
 ### Flusso e autorizzazioni
 
-- gli utenti autenticati aprono `moduli/segnala-problema.html` e possono creare/proseguire soltanto le proprie segnalazioni;
-- Guardian raccoglie una informazione alla volta e, quando il report e' sufficiente, assegna un codice `KG-*` e notifica Telegram;
+- gli utenti autenticati aprono `moduli/segnala-problema.html`, scelgono problema o miglioria e possono creare/proseguire soltanto le proprie richieste;
+- Guardian pone una domanda breve per volta, massimo due chiarimenti, quindi assegna un codice `KG-*` e notifica Telegram anche se restano dettagli da approfondire;
 - soltanto `TELEGRAM_GUARDIAN_OWNER_CHAT_ID` puo' conversare via bot, con testo o vocali conclusi;
-- analisi Guardian e archiviazione richiedono un callback Telegram di Mirko e producono un record in `kona_ai_approvazioni`;
+- analisi Guardian, approvazione lavorazione e archiviazione richiedono un callback Telegram di Mirko e producono un record in `kona_ai_approvazioni`;
 - la prima versione non legge il repository, non esegue Codex, non crea patch e non distribuisce codice.
 
-La migration `065_kona_ai_guardian.sql` crea `kona_ai_incidenti`, `kona_ai_messaggi`, `kona_ai_approvazioni` e `kona_ai_telegram_sessioni`, tutte server-only. I dettagli tecnici hanno una scadenza obiettivo a 90 giorni; il cleanup automatico non e' ancora attivo. Riepilogo e audit restano permanenti.
+Le migration `065_kona_ai_guardian.sql` e `066_kona_ai_tipologia_richiesta.sql` creano ed estendono il dominio Guardian server-only. I dettagli tecnici hanno una scadenza obiettivo a 90 giorni; il cleanup automatico non e' ancora attivo. Riepilogo e audit restano permanenti.
 
-Prima dell'attivazione usare Netlify staging + Supabase separato, dati fittizi e migration `065` applicata esplicitamente soltanto allo staging. Nel progetto staging esiste soltanto l'account Auth di Mirko con profilo `admin`; `KONA_AI_OWNER_PROFILE_ID` e' configurato sul sito Netlify staging. Il bot `@MiroxAiGuardianBot` e' collegato al webhook staging con token, owner chat e secret protetti; resta da configurare OpenAI. Env e webhook sono descritti in `docs/KONA_AI_GUARDIAN_SETUP.md`.
+Guardian e' attivo sul production `mirox-crm.it` con Supabase `lbgwamhjkjjfwgusafbi`; OpenAI, Telegram e il profilo proprietario production sono configurati sul Netlify ufficiale. Staging resta obbligatorio per ogni sviluppo successivo e richiede un secondo bot per i test Telegram. Env e webhook sono descritti in `docs/KONA_AI_GUARDIAN_SETUP.md`.
 
 ### Aggiornamenti UI e comunicazioni storici
 
@@ -801,7 +801,7 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 ## Note operative consapevoli (non "correggere" senza chiedere)
 
 - **Edge Functions Supabase**: non in uso, non aggiungerne senza discutere prima
-- **Guardian prima versione**: analizza soltanto i dati dell'incidente; non ha accesso al repository, non esegue Codex, non prepara patch e non effettua deploy. Primo ambiente obbligatorio: Netlify + Supabase staging separato. Sentry e worker Codex vengono dopo la prova reale del flusso.
+- **Guardian prima versione**: analizza soltanto i dati della richiesta; non ha accesso al repository, non esegue Codex, non prepara patch e non effettua deploy. Ogni sviluppo successivo passa prima da Netlify + Supabase staging separati. Sentry e worker Codex vengono dopo la prova reale del flusso.
 - **Cluster `Turista`**: è un cluster di vendita, non un cluster anagrafico condiviso. `garantisci-anagrafica.js` e `crea-vendita-pratica-carrello.js` lo accettano dal wizard, mantengono `Turista` su pratica/contratti, salvano `anagrafica.cluster='Consumer'` e non richiedono email.
 - **File SQL in `/database/`**: parziali, NON riflettono lo stato attuale del DB (vedi `database/README.md`)
 - **Modulo `simulatore_protecta.html`**: ~960 KB, molto pesante perché contiene asset embedded. Modificare con cautela.

@@ -34,10 +34,10 @@ Non collegare il Guardian direttamente al database condiviso di produzione. Prim
 4. applicare una sola volta `database/staging/001_guardian_bootstrap.sql`, poi `database/065_kona_ai_guardian.sql` e infine `database/066_kona_ai_tipologia_richiesta.sql` (tutte completate sullo staging il 2026-08-10);
 5. usare la branch `codex/kona-ai-guardian-staging` e verificare che il workflow `.github/workflows/ci.yml` sia verde (completato il 2026-08-10);
 6. creare soltanto l'utente Mirko, associarlo a un profilo `admin` e impostare `KONA_AI_OWNER_PROFILE_ID`; l'invito deve atterrare su `imposta-password.html`, dove Mirko sceglie autonomamente la password (account, profilo ed env var completati il 2026-08-10);
-7. configurare OpenAI e Telegram solo sul sito staging; Telegram completato il 2026-08-10 con `@MiroxAiGuardianBot`, webhook staging, owner chat e secret protetti; OpenAI configurato nel progetto `Mirox CRM` e raccolta/analisi reale verificata sullo staging il 2026-08-10;
+7. configurare inizialmente OpenAI e Telegram solo sul sito staging; raccolta, analisi e bot sono stati verificati qui il 2026-08-10;
 8. provare entrambi i tipi di richiesta, domande, notifica, vocale, analisi, approvazione lavorazione e archiviazione prima di valutare la produzione.
 
-Le migration `065` e `066` sono additive e non modificano le tabelle Call Center condivise. La `065` crea il dominio Guardian; la `066` aggiunge il tipo problema/miglioria e l'approvazione univoca della lavorazione. Entrambe sono state applicate il 2026-08-10 soltanto al progetto staging `blwgxrszvsoqcmcmhhqr`; production resta separata e non modificata.
+La prima versione e' stata quindi attivata sul production `mirox-crm.it`: env OpenAI/Telegram e profilo proprietario sono configurati sul Netlify ufficiale, mentre `065` e `066` sono applicate anche al Supabase production `lbgwamhjkjjfwgusafbi`. Le migration sono additive e non modificano le tabelle Call Center condivise. Il bot `@MiroxAiGuardianBot` e' riservato al webhook production; per test Telegram futuri sullo staging serve un secondo bot dedicato.
 
 Il bootstrap staging si interrompe se trova anche una sola tabella nello schema `public`: questa guardia lo rende inadatto e non eseguibile sul production gia' popolato. Crea soltanto `profili`, senza utenti Auth e senza dati CRM; l'utente Mirko viene aggiunto separatamente dopo lo schema.
 
@@ -47,35 +47,37 @@ Netlify registra comunque le scheduled functions presenti in `netlify.toml`; ent
 
 ## Variabili Netlify
 
-| Variabile | Uso |
-|---|---|
-| `SUPABASE_URL` | URL del progetto staging usato dalle Netlify Functions |
-| `SUPABASE_SERVICE_ROLE_KEY` | Secret key backend dedicata `netlify_guardian_staging`; mai frontend o repository |
-| `MIROX_DEPLOY_ENV` | Deve valere `staging` nel sito Guardian |
-| `MIROX_PUBLIC_SUPABASE_URL` | URL pubblico Supabase staging usato dal browser |
-| `MIROX_PUBLIC_SUPABASE_ANON_KEY` | Publishable/anon key Supabase staging; mai service role |
-| `OPENAI_API_KEY` | Responses API e trascrizione vocali; solo lato server |
-| `OPENAI_GUARDIAN_MODEL` | Modello conversazionale. Default `gpt-5.6-luna` |
-| `OPENAI_TRANSCRIBE_MODEL` | Modello di trascrizione. Default `gpt-transcribe` |
-| `TELEGRAM_GUARDIAN_BOT_TOKEN` | Token del bot Telegram dedicato a Guardian |
-| `TELEGRAM_GUARDIAN_OWNER_CHAT_ID` | Unico `chat_id` autorizzato: quello di Mirko |
-| `TELEGRAM_GUARDIAN_WEBHOOK_SECRET` | Segreto casuale inviato da Telegram nell'header del webhook |
-| `KONA_AI_OWNER_PROFILE_ID` | UUID del profilo Mirko nel Supabase dell'ambiente |
+| Variabile | Uso | Ambiente |
+|---|---|---|
+| `SUPABASE_URL` | URL del progetto Supabase usato dalle Netlify Functions | Valore specifico per production e staging |
+| `SUPABASE_SERVICE_ROLE_KEY` | Secret key backend; mai frontend o repository | Valore specifico per production e staging |
+| `MIROX_DEPLOY_ENV` | Identifica l'ambiente e protegge build e cron | `production` sul sito ufficiale, `staging` sul sito di test |
+| `MIROX_PUBLIC_SUPABASE_URL` | URL pubblico Supabase usato dal browser | Necessario sullo staging; production usa la configurazione ufficiale della build |
+| `MIROX_PUBLIC_SUPABASE_ANON_KEY` | Publishable/anon key Supabase; mai service role | Necessaria sullo staging; production usa la configurazione ufficiale della build |
+| `OPENAI_API_KEY` | Responses API e trascrizione vocali; solo lato server | Production e staging |
+| `OPENAI_GUARDIAN_MODEL` | Modello conversazionale opzionale. Default `gpt-5.6-luna` | Production e staging |
+| `OPENAI_TRANSCRIBE_MODEL` | Modello di trascrizione opzionale. Default `gpt-transcribe` | Production e staging |
+| `TELEGRAM_GUARDIAN_BOT_TOKEN` | Token del bot Telegram dedicato a Guardian | Un bot distinto per ciascun ambiente |
+| `TELEGRAM_GUARDIAN_OWNER_CHAT_ID` | Unico `chat_id` autorizzato: quello di Mirko | Production e staging |
+| `TELEGRAM_GUARDIAN_WEBHOOK_SECRET` | Segreto casuale inviato da Telegram nell'header del webhook | Un valore distinto per ciascun ambiente |
+| `KONA_AI_OWNER_PROFILE_ID` | UUID del profilo Mirko nel Supabase dell'ambiente | Valore specifico per production e staging |
 
 Non salvare token, chiavi o ID sensibili nel repository. Il bot Guardian deve essere distinto dall'eventuale futuro bot Call Center Coach.
 
 ## Configurazione Telegram
 
-1. creare con BotFather un bot dedicato, ad esempio KONA AI Guardian;
+1. creare con BotFather un bot dedicato, ad esempio KONA AI Guardian; il bot ufficiale e' `@MiroxAiGuardianBot`, mentre per futuri test staging ne serve uno distinto;
 2. avviare una chat privata con il bot e ricavare il proprio `chat_id` tramite l'API `getUpdates` durante il setup;
 3. generare un segreto casuale lungo e salvarlo come `TELEGRAM_GUARDIAN_WEBHOOK_SECRET`;
-4. registrare il webhook staging con una richiesta equivalente a:
+4. registrare il webhook production con una richiesta equivalente a:
 
 ```bash
 curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
   -H "Content-Type: application/json" \
-  -d '{"url":"https://<SITO-STAGING>/.netlify/functions/guardian-telegram-webhook","secret_token":"<SEGRETO>"}'
+  -d '{"url":"https://mirox-crm.it/.netlify/functions/guardian-telegram-webhook","secret_token":"<SEGRETO>"}'
 ```
+
+Per lo staging ripetere la configurazione con un secondo bot, credenziali diverse e URL `https://mirox-crm-staging.netlify.app/.netlify/functions/guardian-telegram-webhook`.
 
 Il webhook rifiuta richieste prive del secret token e ignora qualunque chat diversa da `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`.
 

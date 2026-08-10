@@ -126,8 +126,8 @@ La build staging fallisce se riceve il project ref di produzione o una service r
 ## Deploy Netlify
 
 - **Netlify site**: `mirox-crm` (rinominato il 2026-07-02 in coerenza col repo GitHub `mirkopiasenti/mirox-crm`)
-- **Production URL**: [`mirox-crm.it`](https://mirox-crm.it) (custom domain, dal 2026-06-29). Qui sono configurate tutte le env vars (Supabase, Smshosting, Anthropic, SMTP)
-- **Guardian staging**: [`mirox-crm-staging.netlify.app`](https://mirox-crm-staging.netlify.app), sito separato collegato esclusivamente a `codex/kona-ai-guardian-staging` e al Supabase `blwgxrszvsoqcmcmhhqr`; primo deploy verificato il 2026-08-10
+- **Production URL**: [`mirox-crm.it`](https://mirox-crm.it) (custom domain, dal 2026-06-29). Qui sono configurate tutte le env vars, comprese OpenAI e Telegram per KONA AI Guardian
+- **Guardian staging**: [`mirox-crm-staging.netlify.app`](https://mirox-crm-staging.netlify.app), sito separato collegato esclusivamente a `codex/kona-ai-guardian-staging` e al Supabase `blwgxrszvsoqcmcmhhqr`; resta l'ambiente obbligatorio per gli sviluppi successivi. Poiche' un bot Telegram accetta un solo webhook, i test Telegram futuri richiedono un bot staging dedicato
 - Vecchio URL di test `test-upload-contratti-konahub.netlify.app` non è più aggiornato — deprecato
 - **NON confondere** con `mirox-crm.netlify.app`: è un altro Netlify site, di un altro repo GitHub, che ospita il Call Center prod. Condivide solo il DB Supabase
 
@@ -282,7 +282,7 @@ La dashboard espone una piccola mascotte KONA AI Guardian nell'angolo inferiore 
 
 Le richieste vivono nelle tabelle server-only della migration `065`; la migration `066` aggiunge a `kona_ai_incidenti` il tipo `problema|miglioria` e rende unica l'approvazione attiva della lavorazione. Mirko e' l'unico interlocutore Telegram ammesso e puo' usare testo o vocali gia' registrati; non e' prevista conversazione audio live. Analisi Guardian, archiviazione e `Approva lavorazione` passano da pulsanti Telegram e producono audit. L'approvazione porta la richiesta a `fix_approvato`, ma non esegue codice: il collegamento a Codex verra' aggiunto in una fase separata e isolata.
 
-Codice, bootstrap e migration Guardian `065`/`066` sono pubblicati esclusivamente nello staging separato: Netlify `mirox-crm-staging.netlify.app`, branch `codex/kona-ai-guardian-staging` e Supabase `blwgxrszvsoqcmcmhhqr`. Non sono stati applicati a production. Nel Supabase staging esiste soltanto l'account Auth di Mirko, associato a un profilo `admin`; `KONA_AI_OWNER_PROFILE_ID` e' configurato sul sito staging. Il bot Telegram `@MiroxAiGuardianBot` e' collegato al webhook staging con token, owner chat e secret protetti nelle env Netlify. OpenAI e' configurato nel progetto `Mirox CRM` e la raccolta/analisi reale e' stata verificata sullo staging. Setup completo, env vars, webhook, limiti e percorso successivo verso Sentry/Codex sono in [`docs/KONA_AI_GUARDIAN_SETUP.md`](docs/KONA_AI_GUARDIAN_SETUP.md).
+Guardian e' attivo sul CRM ufficiale `mirox-crm.it`, branch `main` e Supabase production `lbgwamhjkjjfwgusafbi`; le migration additive `065`/`066` sono applicate sia in produzione sia nello staging separato. Il bot Telegram `@MiroxAiGuardianBot` e' riservato alla produzione con token, owner chat e secret protetti nelle env Netlify. Lo staging `mirox-crm-staging.netlify.app` e il Supabase `blwgxrszvsoqcmcmhhqr` restano isolati e senza dati CRM reali; per provarvi Telegram servira' un secondo bot dedicato. Setup completo, env vars, limiti e percorso successivo verso Sentry/Codex sono in [`docs/KONA_AI_GUARDIAN_SETUP.md`](docs/KONA_AI_GUARDIAN_SETUP.md).
 
 ## Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
