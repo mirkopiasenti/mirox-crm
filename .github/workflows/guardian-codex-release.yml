@@ -1,0 +1,94 @@
+name: Guardian production release proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      execution_id:
+        description: Guardian execution UUID
+        required: true
+        type: string
+      requested_type:
+        description: Execution type supplied by the dispatcher
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: guardian-codex-${{ inputs.execution_id }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GUARDIAN_WORKER_URL: ${{ secrets.GUARDIAN_WORKER_URL }}
+      GUARDIAN_WORKER_SECRET: ${{ secrets.GUARDIAN_WORKER_SECRET }}
+      EXECUTION_ID: ${{ inputs.execution_id }}
+
+    steps:
+      - name: Checkout tested staging branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Claim Guardian execution
+        id: claim
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GUARDIAN_WORKER_URL"
+          test -n "$GUARDIAN_WORKER_SECRET"
+          body="$(jq -cn --arg id "$EXECUTION_ID" --arg run "${GITHUB_RUN_ID}" '{action:"claim",execution_id:$id,workflow_run_id:($run|tonumber)}')"
+          signature="$(BODY="$body" node -e 'const crypto=require("crypto"); process.stdout.write(crypto.createHmac("sha256", process.env.GUARDIAN_WORKER_SECRET).update(process.env.BODY).digest("hex"))')"
+          response="$(curl --fail --silent --show-error --max-time 20 "$GUARDIAN_WORKER_URL" -H 'Content-Type: application/json' -H "X-Guardian-Worker-Signature: $signature" --data "$body")"
+          lease="$(jq -er '.lease_token' <<<"$response")"
+          echo "::add-mask::$lease"
+          echo "lease_token=$lease" >> "$GITHUB_OUTPUT"
+
+      - name: Open draft production release pull request
+        id: publish
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          release_branch="${GITHUB_REF_NAME}"
+          title="Guardian ${EXECUTION_ID}: proposta rilascio production"
+          body_file="guardian-release-body.md"
+          {
+            echo "## Proposta di rilascio Guardian"
+            echo
+            echo "Esecuzione: ${EXECUTION_ID}"
+            echo "Branch testata: ${release_branch}"
+            echo
+            echo "Questa pull request è soltanto una proposta. Il merge su main e il deploy production restano manuali e richiedono conferma esplicita di Mirko."
+          } > "$body_file"
+          pr_url="$(gh pr create --draft --base main --head "$release_branch" --title "$title" --body-file "$body_file")"
+          echo "pull_request_url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Return release proposal to Guardian
+        if: always() && steps.claim.outputs.lease_token != ''
+        shell: bash
+        env:
+          LEASE_TOKEN: ${{ steps.claim.outputs.lease_token }}
+          PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
+          PR_URL: ${{ steps.publish.outputs.pull_request_url }}
+        run: |
+          set -euo pipefail
+          success=false
+          if [ "$PUBLISH_OUTCOME" = "success" ] && [ -n "$PR_URL" ]; then success=true; fi
+          summary="Proposta rilascio production: $PUBLISH_OUTCOME. Il merge resta manuale."
+          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg pr "$PR_URL" --arg outcome "$PUBLISH_OUTCOME" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,pull_request_url:($pr|select(length>0)),result:{publish:$outcome,production_merge:"manual_only"}}')"
+          if [ "$success" != true ]; then body="$(jq -c --arg error_code "release_proposal_failed" --arg error "$summary" '. + {error_code:$error_code,error:$error}' <<<"$body")"; fi
+          signature="$(BODY="$body" node -e 'const crypto=require("crypto"); process.stdout.write(crypto.createHmac("sha256", process.env.GUARDIAN_WORKER_SECRET).update(process.env.BODY).digest("hex"))')"
+          curl --fail --silent --show-error --max-time 20 "$GUARDIAN_WORKER_URL" -H 'Content-Type: application/json' -H "X-Guardian-Worker-Signature: $signature" --data "$body" >/dev/null

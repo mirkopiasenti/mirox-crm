@@ -6,13 +6,18 @@ const {
   cleanText,
   generateGuardianAnalysis,
   generateOwnerReply,
+  guardianAnalysisKeyboard,
   incidentCode,
   incidentNotificationKeyboard,
   OPEN_INCIDENT_STATES,
   requestType,
-  requestTypeLabel,
-  workApprovalKeyboard
+  requestTypeLabel
 } = require('./_lib/kona-ai-guardian');
+const {
+  dispatchWorkflow,
+  repositoryName,
+  stagingBranch
+} = require('./_lib/guardian-codex');
 const {
   answerCallbackQuery,
   downloadTelegramFile,
@@ -290,7 +295,7 @@ async function analyzeIncident(supabase, chatId, incidentId) {
     }).eq('id', approval.id);
     await supabase.from('kona_ai_incidenti').update({ stato: 'ricevuto' }).eq('id', incident.id);
     await sendTelegramMessage(chatId, `${incidentCode(incident.numero)}\nTipo: ${requestTypeLabel(incident.tipo_richiesta)}\n\n${analysis}`, {
-      reply_markup: workApprovalKeyboard(incident.id)
+      reply_markup: guardianAnalysisKeyboard(incident.id)
     });
   } catch (error) {
     await supabase.from('kona_ai_approvazioni').update({
@@ -303,19 +308,137 @@ async function analyzeIncident(supabase, chatId, incidentId) {
   }
 }
 
+async function createExecution(supabase, incident, approval, type, options = {}) {
+  const { data: active, error: activeError } = await supabase
+    .from('kona_ai_esecuzioni')
+    .select('*')
+    .eq('incidente_id', incident.id)
+    .eq('tipo_esecuzione', type)
+    .in('stato', ['in_coda', 'in_esecuzione'])
+    .maybeSingle();
+  if (activeError) throw activeError;
+  if (active) return { execution: active, created: false };
+
+  const { data: execution, error } = await supabase
+    .from('kona_ai_esecuzioni')
+    .insert({
+      incidente_id: incident.id,
+      approvazione_id: approval?.id || null,
+      tipo_esecuzione: type,
+      stato: 'in_coda',
+      esecutore: 'codex',
+      richiesta_da: 'telegram',
+      modello: options.model || 'gpt-5.6-luna',
+      sandbox: options.sandbox || 'read_only',
+      repository: repositoryName(),
+      branch_name: options.branch || stagingBranch(),
+      base_commit_sha: options.baseCommit || null,
+      workflow_name: options.workflow || null,
+      risultato: { requested_from: 'telegram' },
+      timeout_at: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+    })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return { execution, created: true };
+}
+
+async function failExecution(supabase, execution, message, code = 'dispatch_failed') {
+  const now = new Date().toISOString();
+  await supabase.from('kona_ai_esecuzioni').update({
+    stato: 'fallita',
+    codice_errore: code,
+    messaggio_errore: cleanText(message, 2000),
+    completata_at: now,
+    risultato: { dispatch: 'not_started' }
+  }).eq('id', execution.id).eq('stato', 'in_coda');
+  if (execution.approvazione_id) {
+    await supabase.from('kona_ai_approvazioni').update({
+      stato: 'fallita',
+      risultato: { execution_id: execution.id, error: cleanText(message, 500) },
+      eseguita_at: now
+    }).eq('id', execution.approvazione_id);
+  }
+  await supabase.from('kona_ai_incidenti').update({ stato: 'ricevuto' }).eq('id', execution.incidente_id);
+}
+
+async function dispatchExecution(supabase, chatId, incident, execution) {
+  try {
+    const dispatch = await dispatchWorkflow({
+      executionId: execution.id,
+      type: execution.tipo_esecuzione,
+      ref: execution.branch_name || stagingBranch()
+    });
+    if (!dispatch.dispatched) {
+      await failExecution(supabase, execution, 'Worker Codex non configurato nell’ambiente corrente.', 'worker_not_configured');
+      await sendTelegramMessage(chatId, [
+        `${incidentCode(incident.numero)}: approvazione registrata.`,
+        'Il worker Codex non è ancora configurato nello staging; nessun file è stato modificato.'
+      ].join('\n'));
+      return false;
+    }
+    await supabase.from('kona_ai_esecuzioni').update({
+      workflow_name: dispatch.workflow,
+      repository: dispatch.repository,
+      branch_name: dispatch.ref
+    }).eq('id', execution.id).eq('stato', 'in_coda');
+    await sendTelegramMessage(chatId, [
+      `${incidentCode(incident.numero)}: esecuzione Codex avviata.`,
+      `Fase: ${execution.tipo_esecuzione}.`,
+      'Ti notificherò il risultato qui su Telegram.'
+    ].join('\n'));
+    return true;
+  } catch (error) {
+    await failExecution(supabase, execution, error?.message || String(error));
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)}: avvio Codex fallito. Nessun file è stato modificato.`);
+    return false;
+  }
+}
+
+async function startCodexAnalysis(supabase, chatId, incidentId) {
+  const incident = await getIncident(supabase, incidentId);
+  if (!incident) throw new Error('Richiesta non trovata');
+  if (incident.stato === 'archiviato') {
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} è archiviata e non può essere analizzata.`);
+    return;
+  }
+  const { data: active, error: activeError } = await supabase
+    .from('kona_ai_esecuzioni')
+    .select('id, stato')
+    .eq('incidente_id', incident.id)
+    .eq('tipo_esecuzione', 'analisi_codex')
+    .in('stato', ['in_coda', 'in_esecuzione'])
+    .maybeSingle();
+  if (activeError) throw activeError;
+  if (active) {
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} ha già un’analisi Codex in corso.`);
+    return;
+  }
+  const now = new Date().toISOString();
+  const { data: approval, error: approvalError } = await supabase.from('kona_ai_approvazioni').insert({
+    incidente_id: incident.id,
+    azione: 'analizza_codex',
+    stato: 'approvata',
+    richiesta_da: 'telegram',
+    decisa_da_profile_id: ownerProfileId(),
+    decisa_da_telegram_chat_id: chatId,
+    motivazione: 'Analisi Codex read-only approvata esplicitamente tramite Telegram',
+    decisa_at: now
+  }).select('id').single();
+  if (approvalError) throw approvalError;
+  const { execution } = await createExecution(supabase, incident, approval, 'analisi_codex', { sandbox: 'read_only' });
+  await supabase.from('kona_ai_incidenti').update({ stato: 'in_analisi' }).eq('id', incident.id);
+  await dispatchExecution(supabase, chatId, incident, execution);
+}
+
 async function approveWork(supabase, chatId, incidentId) {
   const incident = await getIncident(supabase, incidentId);
   if (!incident) throw new Error('Richiesta non trovata');
   if (incident.stato === 'archiviato') {
-    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} è archiviata e non può essere approvata.`);
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} è archiviata e non può essere modificata.`);
     return;
   }
-  if (incident.stato === 'fix_approvato') {
-    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} risulta già approvata per la lavorazione.`);
-    return;
-  }
-
-  const { data: existing, error: existingError } = await supabase
+  const { data: existingApproval, error: existingError } = await supabase
     .from('kona_ai_approvazioni')
     .select('id')
     .eq('incidente_id', incident.id)
@@ -323,48 +446,117 @@ async function approveWork(supabase, chatId, incidentId) {
     .in('stato', ['approvata', 'eseguita'])
     .maybeSingle();
   if (existingError) throw existingError;
-  if (existing) {
-    await supabase.from('kona_ai_incidenti').update({ stato: 'fix_approvato' }).eq('id', incident.id);
-    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} risulta già approvata per la lavorazione.`);
+  if (existingApproval) {
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} ha già una modifica approvata o in lavorazione.`);
     return;
   }
-
   const now = new Date().toISOString();
-  const { data: approval, error: approvalError } = await supabase
-    .from('kona_ai_approvazioni')
-    .insert({
-      incidente_id: incident.id,
-      azione: 'prepara_fix',
-      stato: 'approvata',
-      richiesta_da: 'telegram',
-      decisa_da_profile_id: ownerProfileId(),
-      decisa_da_telegram_chat_id: chatId,
-      motivazione: 'Lavorazione approvata esplicitamente tramite pulsante Telegram',
-      decisa_at: now,
-      risultato: { executor: 'not_connected' }
-    })
-    .select('id')
-    .single();
-  if (approvalError) throw approvalError;
-
-  const { error: updateError } = await supabase
-    .from('kona_ai_incidenti')
-    .update({ stato: 'fix_approvato' })
-    .eq('id', incident.id);
-  if (updateError) throw updateError;
-
-  const { error: auditError } = await supabase.from('kona_ai_messaggi').insert({
+  const { data: approval, error: approvalError } = await supabase.from('kona_ai_approvazioni').insert({
     incidente_id: incident.id,
-    canale: 'sistema',
-    autore_tipo: 'sistema',
-    testo: 'Lavorazione approvata da Mirko tramite Telegram. In attesa del collegamento all’esecutore Codex.',
-    metadati: { approval_id: approval.id, executor: 'not_connected' }
+    azione: 'prepara_fix',
+    stato: 'approvata',
+    richiesta_da: 'telegram',
+    decisa_da_profile_id: ownerProfileId(),
+    decisa_da_telegram_chat_id: chatId,
+    motivazione: 'Preparazione modifica staging approvata esplicitamente tramite Telegram',
+    decisa_at: now
+  }).select('id').single();
+  if (approvalError) throw approvalError;
+  const { execution } = await createExecution(supabase, incident, approval, 'prepara_patch', {
+    sandbox: 'workspace_write',
+    branch: stagingBranch()
   });
-  if (auditError) throw auditError;
-  await sendTelegramMessage(chatId, [
-    `${incidentCode(incident.numero)} approvata per la lavorazione.`,
-    'L’approvazione è registrata; nessun codice verrà modificato finché l’esecutore Codex non sarà collegato.'
-  ].join('\n'));
+  await supabase.from('kona_ai_incidenti').update({ stato: 'fix_approvato' }).eq('id', incident.id);
+  await dispatchExecution(supabase, chatId, incident, execution);
+}
+
+async function startStagingTests(supabase, chatId, incidentId) {
+  const incident = await getIncident(supabase, incidentId);
+  if (!incident) throw new Error('Richiesta non trovata');
+  if (incident.stato === 'archiviato') {
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} è archiviata e non può essere testata.`);
+    return;
+  }
+  const { data: active, error: activeError } = await supabase.from('kona_ai_esecuzioni')
+    .select('id').eq('incidente_id', incident.id).eq('tipo_esecuzione', 'test_staging')
+    .in('stato', ['in_coda', 'in_esecuzione']).maybeSingle();
+  if (activeError) throw activeError;
+  if (active) {
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} ha già test staging in corso.`);
+    return;
+  }
+  const { data: patchExecution, error: patchError } = await supabase.from('kona_ai_esecuzioni')
+    .select('branch_name, result_commit_sha')
+    .eq('incidente_id', incident.id)
+    .eq('tipo_esecuzione', 'prepara_patch')
+    .eq('stato', 'completata')
+    .order('completata_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (patchError) throw patchError;
+  if (!patchExecution?.branch_name) {
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} non ha ancora una modifica staging completata.`);
+    return;
+  }
+  const now = new Date().toISOString();
+  const { data: approval, error: approvalError } = await supabase.from('kona_ai_approvazioni').insert({
+    incidente_id: incident.id,
+    azione: 'test_staging',
+    stato: 'approvata',
+    richiesta_da: 'telegram',
+    decisa_da_profile_id: ownerProfileId(),
+    decisa_da_telegram_chat_id: chatId,
+    motivazione: 'Test staging approvati esplicitamente tramite Telegram',
+    decisa_at: now
+  }).select('id').single();
+  if (approvalError) throw approvalError;
+  const { execution } = await createExecution(supabase, incident, approval, 'test_staging', {
+    sandbox: 'read_only',
+    branch: patchExecution.branch_name,
+    baseCommit: patchExecution.result_commit_sha || null
+  });
+  await supabase.from('kona_ai_incidenti').update({ stato: 'in_test' }).eq('id', incident.id);
+  await dispatchExecution(supabase, chatId, incident, execution);
+}
+
+async function prepareProductionRelease(supabase, chatId, incidentId) {
+  const incident = await getIncident(supabase, incidentId);
+  if (!incident) throw new Error('Richiesta non trovata');
+  if (incident.stato === 'archiviato') {
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} è archiviata e non può essere rilasciata.`);
+    return;
+  }
+  const { data: testExecution, error: testError } = await supabase.from('kona_ai_esecuzioni')
+    .select('branch_name, result_commit_sha')
+    .eq('incidente_id', incident.id)
+    .eq('tipo_esecuzione', 'test_staging')
+    .eq('stato', 'completata')
+    .order('completata_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (testError) throw testError;
+  if (!testExecution?.branch_name) {
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} non ha ancora un test staging completato.`);
+    return;
+  }
+  const now = new Date().toISOString();
+  const { data: approval, error: approvalError } = await supabase.from('kona_ai_approvazioni').insert({
+    incidente_id: incident.id,
+    azione: 'rilascia_produzione',
+    stato: 'approvata',
+    richiesta_da: 'telegram',
+    decisa_da_profile_id: ownerProfileId(),
+    decisa_da_telegram_chat_id: chatId,
+    motivazione: 'Preparazione rilascio approvata esplicitamente tramite Telegram; merge production resta manuale',
+    decisa_at: now
+  }).select('id').single();
+  if (approvalError) throw approvalError;
+  const { execution } = await createExecution(supabase, incident, approval, 'rilascio_produzione', {
+    sandbox: 'read_only',
+    branch: testExecution.branch_name,
+    baseCommit: testExecution.result_commit_sha || null
+  });
+  await dispatchExecution(supabase, chatId, incident, execution);
 }
 
 async function handleCallback(supabase, update, chatId) {
@@ -385,8 +577,20 @@ async function handleCallback(supabase, update, chatId) {
     await analyzeIncident(supabase, chatId, incidentId);
     return;
   }
+  if (action === 'analyze_codex') {
+    await startCodexAnalysis(supabase, chatId, incidentId);
+    return;
+  }
   if (action === 'approve_work') {
     await approveWork(supabase, chatId, incidentId);
+    return;
+  }
+  if (action === 'test_staging') {
+    await startStagingTests(supabase, chatId, incidentId);
+    return;
+  }
+  if (action === 'release_production') {
+    await prepareProductionRelease(supabase, chatId, incidentId);
     return;
   }
   if (action === 'archive') {

@@ -11,7 +11,9 @@ La prima versione realizza un unico agente, senza gerarchie:
 - analisi, approvazione lavorazione e archiviazione partono solo da pulsanti Telegram e lasciano audit nel database;
 - le email tecniche automatiche sono rimosse; `mirox-send-email` e tutte le email operative restano attivi.
 
-Questa versione non legge ancora il repository e non modifica codice. L'analisi Guardian distingue espressamente fatti, ipotesi e verifiche mancanti. Codex verra' collegato come esecutore separato soltanto dopo la validazione del flusso in staging: prima analisi read-only, poi proposta di patch, test e pull request; mai rilascio diretto in produzione.
+Questa versione non legge ancora il repository e non modifica codice. L'analisi Guardian distingue espressamente fatti, ipotesi e verifiche mancanti. Il collegamento Codex viene aggiunto come esecutore separato: prima analisi read-only, poi proposta di patch, test e pull request; mai rilascio diretto in produzione.
+
+La migration `067_kona_ai_codex_esecuzioni.sql` prepara il registro server-only delle esecuzioni future. In questa fase non avvia workflow, non concede accesso al repository e non cambia il comportamento del bot; deve essere applicata prima sul Supabase staging e verificata con una query di introspezione.
 
 ## Architettura scelta
 
@@ -61,6 +63,12 @@ Netlify registra comunque le scheduled functions presenti in `netlify.toml`; ent
 | `TELEGRAM_GUARDIAN_OWNER_CHAT_ID` | Unico `chat_id` autorizzato: quello di Mirko | Production e staging |
 | `TELEGRAM_GUARDIAN_WEBHOOK_SECRET` | Segreto casuale inviato da Telegram nell'header del webhook | Un valore distinto per ciascun ambiente |
 | `KONA_AI_OWNER_PROFILE_ID` | UUID del profilo Mirko nel Supabase dell'ambiente | Valore specifico per production e staging |
+| `GUARDIAN_WORKER_SECRET` | Firma HMAC tra Netlify e i workflow Codex | Valore distinto per ciascun ambiente; non nel repository |
+| `GUARDIAN_GITHUB_TOKEN` | Fine-grained token usato dal dispatcher per `workflow_dispatch` | Solo Netlify server-side; limitato al repository e alle Actions |
+| `GUARDIAN_GITHUB_REPOSITORY` | Repository del worker Codex | Default `mirkopiasenti/mirox-crm` |
+| `GUARDIAN_STAGING_BRANCH` | Branch base per patch e test | Default `codex/kona-ai-guardian-staging` |
+
+Sul repository GitHub configurare inoltre i secrets `OPENAI_API_KEY_CODEX_WORKER`, `GUARDIAN_WORKER_URL` e `GUARDIAN_WORKER_SECRET`. La chiave OpenAI del worker resta in GitHub Actions e non viene mai inviata a Netlify o al modello conversazionale.
 
 Non salvare token, chiavi o ID sensibili nel repository. Il bot Guardian deve essere distinto dall'eventuale futuro bot Call Center Coach.
 
@@ -99,18 +107,20 @@ Solo Mirko puo' approvare azioni. Gli operatori possono esclusivamente creare un
 | Analisi Guardian sui dati della richiesta | attiva | pulsante Telegram di Mirko |
 | Approva lavorazione (`prepara_fix` → `fix_approvato`) | attiva, solo registrazione; nessun esecutore | pulsante Telegram di Mirko |
 | Archiviazione richiesta | attiva | pulsante Telegram di Mirko |
-| Analisi Codex del repository | prevista, non ancora collegata | obbligatoria |
-| Preparazione patch e test staging | prevista, non ancora collegata | obbligatoria e separata |
-| Deploy produzione | non consentito al Guardian | richiesta esplicita fuori dal bot e controlli CI |
+| Analisi Codex del repository | collegata come workflow read-only | obbligatoria |
+| Preparazione patch e test staging | collegati come workflow separati | obbligatoria e separata |
+| Proposta di rilascio production | pull request draft, senza merge | conferma manuale di Mirko |
+| Deploy produzione | non eseguito dal Guardian | merge esplicito fuori dal bot e controlli CI |
 
-I dettagli tecnici hanno una data obiettivo di scadenza a 90 giorni. Il riepilogo della richiesta e l'audit delle approvazioni restano permanenti. La cancellazione automatica dei dettagli verra' aggiunta solo dopo aver validato quali campi sono indispensabili per analisi e audit.
+I dettagli tecnici hanno una data obiettivo di scadenza a 90 giorni. Il riepilogo della richiesta e l'audit delle approvazioni restano permanenti. `cron-pulizia-operativa` azzera dopo la scadenza percorso pagina, titolo pagina, user agent e contesto client; non elimina conversazioni, riepiloghi, commit o pull request.
 
 ## Passo successivo dopo la prova reale
 
 Dopo che raccolta CRM e Telegram sono affidabili:
 
-1. collegare Sentry allo staging con mascheramento dei dati personali e senza session replay iniziale;
-2. collegare Codex in modalita' read-only a un workflow isolato;
-3. far restituire l'analisi al medesimo incidente;
-4. aggiungere una seconda approvazione per creare una branch e una pull request;
-5. mantenere test staging e rilascio produzione come autorizzazioni distinte.
+1. applicare e verificare sul Supabase staging la migration `067_kona_ai_codex_esecuzioni.sql`;
+2. configurare i secrets GitHub e il fine-grained token del dispatcher;
+3. testare l'analisi read-only su una richiesta sintetica;
+4. testare patch, test staging e pull request draft su una richiesta sintetica;
+5. collegare Sentry allo staging con mascheramento dei dati personali e senza session replay iniziale;
+6. mantenere test staging e rilascio production come autorizzazioni distinte.

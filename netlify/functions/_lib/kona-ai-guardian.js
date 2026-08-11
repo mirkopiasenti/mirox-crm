@@ -386,6 +386,16 @@ function workApprovalKeyboard(incidentId) {
   };
 }
 
+function guardianAnalysisKeyboard(incidentId) {
+  return {
+    inline_keyboard: [
+      [{ text: 'Analisi Codex read-only', callback_data: `analyze_codex:${incidentId}` }],
+      [{ text: 'Apri conversazione', callback_data: `open:${incidentId}` }],
+      [{ text: 'Archivia', callback_data: `archive:${incidentId}` }]
+    ]
+  };
+}
+
 async function notifyOwnerOfIncident(incident) {
   if (!isTelegramConfigured()) return { sent: false, reason: 'telegram_not_configured' };
   const chatId = String(process.env.TELEGRAM_GUARDIAN_OWNER_CHAT_ID).trim();
@@ -412,6 +422,7 @@ module.exports = {
   generateGuardianAnalysis,
   generateIntakeReply,
   generateOwnerReply,
+  guardianAnalysisKeyboard,
   incidentCode,
   incidentNotificationKeyboard,
   notifyOwnerOfIncident,

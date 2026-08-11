@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "summary": { "type": "string", "maxLength": 4000 },
+    "facts": { "type": "array", "items": { "type": "string", "maxLength": 1000 }, "maxItems": 12 },
+    "hypotheses": { "type": "array", "items": { "type": "string", "maxLength": 1000 }, "maxItems": 10 },
+    "files": { "type": "array", "items": { "type": "string", "maxLength": 500 }, "maxItems": 20 },
+    "checks": { "type": "array", "items": { "type": "string", "maxLength": 1000 }, "maxItems": 12 },
+    "risks": { "type": "array", "items": { "type": "string", "maxLength": 1000 }, "maxItems": 10 },
+    "proposal": { "type": "string", "maxLength": 3000 },
+    "acceptance_criteria": { "type": "array", "items": { "type": "string", "maxLength": 1000 }, "maxItems": 12 },
+    "needs_clarification": { "type": "array", "items": { "type": "string", "maxLength": 800 }, "maxItems": 8 },
+    "confidence": { "type": "string", "enum": ["bassa", "media", "alta"] },
+    "blocked": { "type": "boolean" }
+  },
+  "required": [
+    "summary",
+    "facts",
+    "hypotheses",
+    "files",
+    "checks",
+    "risks",
+    "proposal",
+    "acceptance_criteria",
+    "needs_clarification",
+    "confidence",
+    "blocked"
+  ]
+}

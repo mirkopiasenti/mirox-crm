@@ -1,0 +1,169 @@
+name: Guardian Codex patch staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      execution_id:
+        description: Guardian execution UUID
+        required: true
+        type: string
+      requested_type:
+        description: Execution type supplied by the dispatcher
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: guardian-codex-${{ inputs.execution_id }}
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GUARDIAN_WORKER_URL: ${{ secrets.GUARDIAN_WORKER_URL }}
+      GUARDIAN_WORKER_SECRET: ${{ secrets.GUARDIAN_WORKER_SECRET }}
+      EXECUTION_ID: ${{ inputs.execution_id }}
+
+    steps:
+      - name: Checkout staging
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Claim Guardian execution
+        id: claim
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GUARDIAN_WORKER_URL"
+          test -n "$GUARDIAN_WORKER_SECRET"
+          body="$(jq -cn --arg id "$EXECUTION_ID" --arg run "${GITHUB_RUN_ID}" '{action:"claim",execution_id:$id,workflow_run_id:($run|tonumber)}')"
+          signature="$(BODY="$body" node -e 'const crypto=require("crypto"); process.stdout.write(crypto.createHmac("sha256", process.env.GUARDIAN_WORKER_SECRET).update(process.env.BODY).digest("hex"))')"
+          response="$(curl --fail --silent --show-error --max-time 20 "$GUARDIAN_WORKER_URL" \
+            -H 'Content-Type: application/json' \
+            -H "X-Guardian-Worker-Signature: $signature" \
+            --data "$body")"
+          lease="$(jq -er '.lease_token' <<<"$response")"
+          echo "::add-mask::$lease"
+          echo "lease_token=$lease" >> "$GITHUB_OUTPUT"
+          jq -e '.context' <<<"$response" > guardian-context.json
+          echo "base_commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create patch branch
+        id: branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch_branch="codex/kg-${EXECUTION_ID#????????-????????-????????-????????-}"
+          patch_branch="${patch_branch//[^a-zA-Z0-9._/-]/-}"
+          git switch -c "$patch_branch"
+          echo "name=$patch_branch" >> "$GITHUB_OUTPUT"
+
+      - name: Run Codex Luna with workspace write
+        id: run_codex
+        continue-on-error: true
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY_CODEX_WORKER }}
+          model: gpt-5.6-luna
+          effort: medium
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
+          prompt-file: .github/codex/prompts/guardian-patch.md
+          output-file: codex-output.md
+          codex-args: '["--ephemeral"]'
+
+      - name: Validate changed files
+        id: validate
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -N $(git ls-files --others --exclude-standard) 2>/dev/null || true
+          changed="$(git diff --name-only)"
+          test -n "$changed"
+          if printf '%s\n' "$changed" | grep -E '(^|/)(\.env|\.env\.|netlify\.toml$|\.github/workflows/|package-lock\.json$)' >/dev/null; then
+            echo 'Modifica bloccata: file di segreti, deploy, workflow o dipendenze.' >&2
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -E '(^|/)database/' >/dev/null; then
+            echo 'Modifica bloccata: le migration richiedono una revisione manuale separata.' >&2
+            exit 1
+          fi
+          git diff --check
+          printf '%s\n' "$changed" > guardian-changed-files.txt
+
+      - name: Setup Node
+        if: steps.validate.outcome == 'success'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.validate.outcome == 'success'
+        run: npm ci
+
+      - name: Run repository tests
+        id: tests
+        if: steps.validate.outcome == 'success'
+        continue-on-error: true
+        run: npm test
+
+      - name: Push patch branch and open draft pull request
+        id: publish
+        if: steps.validate.outcome == 'success' && steps.tests.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PATCH_BRANCH: ${{ steps.branch.outputs.name }}
+        run: |
+          set -euo pipefail
+          cp codex-output.md /tmp/guardian-codex-output.md 2>/dev/null || printf '%s\n' 'Codex non ha prodotto un riepilogo.' > /tmp/guardian-codex-output.md
+          rm -f guardian-context.json guardian-changed-files.txt codex-output.md
+          git config user.name 'KONA AI Guardian'
+          git config user.email 'guardian@kona-tech.invalid'
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git add -A
+          git commit -m "feat(guardian): prepara modifica staging ${EXECUTION_ID}" -m "Modifica preparata dopo approvazione Telegram; rilascio production escluso." \
+            -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
+          git push --set-upstream origin "$PATCH_BRANCH"
+          pr_url="$(gh pr create --draft --base "${GITHUB_REF_NAME}" --head "$PATCH_BRANCH" \
+            --title "Guardian ${EXECUTION_ID}: modifica staging" \
+            --body-file /tmp/guardian-codex-output.md)"
+          echo "pull_request_url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Return patch result to Guardian
+        if: always() && steps.claim.outputs.lease_token != ''
+        shell: bash
+        env:
+          LEASE_TOKEN: ${{ steps.claim.outputs.lease_token }}
+          CODEX_OUTCOME: ${{ steps.run_codex.outcome }}
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          TEST_OUTCOME: ${{ steps.tests.outcome }}
+          PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
+          PR_URL: ${{ steps.publish.outputs.pull_request_url }}
+          PATCH_BRANCH: ${{ steps.branch.outputs.name }}
+        run: |
+          set -euo pipefail
+          success=false
+          if [ "$CODEX_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$TEST_OUTCOME" = "success" ] && [ "$PUBLISH_OUTCOME" = "success" ]; then success=true; fi
+          summary="$(if [ -s /tmp/guardian-codex-output.md ]; then tr '\n' ' ' < /tmp/guardian-codex-output.md | cut -c1-5000; else echo 'Nessun riepilogo Codex disponibile.'; fi)"
+          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$PATCH_BRANCH" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,branch_name:$branch,pull_request_url:($pr|select(length>0)),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish}}')"
+          if [ "$success" != true ]; then
+            body="$(jq -c --arg error_code "patch_workflow_failed" --arg error "$summary" '. + {error_code:$error_code,error:$error}' <<<"$body")"
+          fi
+          signature="$(BODY="$body" node -e 'const crypto=require("crypto"); process.stdout.write(crypto.createHmac("sha256", process.env.GUARDIAN_WORKER_SECRET).update(process.env.BODY).digest("hex"))')"
+          curl --fail --silent --show-error --max-time 20 "$GUARDIAN_WORKER_URL" \
+            -H 'Content-Type: application/json' \
+            -H "X-Guardian-Worker-Signature: $signature" \
+            --data "$body" >/dev/null
