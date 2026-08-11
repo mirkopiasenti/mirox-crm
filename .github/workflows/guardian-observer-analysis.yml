@@ -15,6 +15,13 @@ on:
         description: Commit that generated the signal, when known
         required: false
         type: string
+      target_environment:
+        description: Guardian environment that owns the execution
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
 
 permissions:
   contents: read
@@ -25,7 +32,8 @@ concurrency:
 
 jobs:
   analyse:
-    if: (github.ref_name == 'main' || github.ref_name == 'codex/kona-ai-guardian-staging') && (inputs.requested_type == 'analisi_automatica' || inputs.requested_type == 'scansione_migliorie')
+    if: (github.ref_name == 'main' || github.ref_name == 'codex/kona-ai-guardian-staging') && (inputs.requested_type == 'analisi_automatica' || inputs.requested_type == 'scansione_migliorie') && (inputs.target_environment == 'staging' || inputs.target_environment == 'production')
+    environment: ${{ inputs.target_environment == 'production' && 'guardian-production' || 'guardian-staging' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

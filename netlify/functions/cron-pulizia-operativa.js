@@ -4,6 +4,7 @@
  * - scade le richieste OTP rimaste pending oltre otp_scade_at;
  * - elimina i contatori di rate limit non più utili;
  * - rimuove pratiche vendita in bozza da oltre 24 ore e i relativi PDF.
+ * - rimuove il contesto tecnico Guardian oltre la scadenza di 90 giorni.
  *
  * La pratica viene eliminata dal DB solo dopo la rimozione riuscita di tutti
  * gli oggetti Storage noti, così un errore temporaneo è ritentabile il giorno
@@ -69,6 +70,36 @@ async function cleanupDraft(supabase, praticaId) {
     return Boolean(deleted);
 }
 
+async function cleanupGuardianTechnicalDetails(supabase, nowIso) {
+    const { data, error } = await supabase
+        .from('kona_ai_incidenti')
+        .update({
+            pagina_path: null,
+            pagina_titolo: null,
+            user_agent: null,
+            contesto_client: {}
+        })
+        .lt('dettagli_tecnici_scadono_at', nowIso)
+        .select('id');
+    if (error) throw error;
+    return data?.length || 0;
+}
+
+async function cleanupGuardianTelemetry(supabase, nowIso) {
+    const { data, error } = await supabase
+        .from('kona_ai_eventi_tecnici')
+        .delete()
+        .lt('expires_at', nowIso)
+        .select('id');
+    if (error) {
+        // La migration Observer puo' essere applicata in una fase successiva:
+        // il cron storico non deve diventare inutilizzabile nel frattempo.
+        if (/relation .*kona_ai_eventi_tecnici.* does not exist/i.test(String(error.message || ''))) return 0;
+        throw error;
+    }
+    return data?.length || 0;
+}
+
 const handler = async () => {
     if (isStagingEnvironment()) {
         return {
@@ -124,6 +155,20 @@ const handler = async () => {
         }
     }
 
+    let guardianDetailsDeleted = 0;
+    try {
+        guardianDetailsDeleted = await cleanupGuardianTechnicalDetails(supabase, nowIso);
+    } catch (error) {
+        errors.push(`guardian retention: ${error?.message || error}`);
+    }
+
+    let guardianTelemetryDeleted = 0;
+    try {
+        guardianTelemetryDeleted = await cleanupGuardianTelemetry(supabase, nowIso);
+    } catch (error) {
+        errors.push(`guardian telemetry retention: ${error?.message || error}`);
+    }
+
     if (errors.length) console.error('cron-pulizia-operativa:', errors.join(' | '));
 
     return {
@@ -133,9 +178,11 @@ const handler = async () => {
             otp_scaduti: expiredOtps?.length || 0,
             rate_limit_eliminati: expiredLimits?.length || 0,
             bozze_eliminate: deletedDrafts,
+            dettagli_guardian_eliminati: guardianDetailsDeleted,
+            eventi_guardian_eliminati: guardianTelemetryDeleted,
             errori: errors
         })
     };
 };
 
-module.exports = { handler, schedule, _test: { isStagingEnvironment } };
+module.exports = { handler, schedule, _test: { isStagingEnvironment, cleanupGuardianTechnicalDetails, cleanupGuardianTelemetry } };

@@ -184,12 +184,58 @@
         setTimeout(() => { root.location.href = target; }, 800);
     }
 
+    function makeRequestId() {
+        try {
+            if (root.MiroxTelemetry && typeof root.MiroxTelemetry.requestId === 'function') {
+                return root.MiroxTelemetry.requestId();
+            }
+            if (root.crypto && typeof root.crypto.randomUUID === 'function') return root.crypto.randomUUID();
+        } catch (_) { /* fallback */ }
+        return `mirox-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function captureTelemetry(kind, error, url, details) {
+        try {
+            if (!root.MiroxTelemetry || typeof root.MiroxTelemetry.capture !== 'function') return;
+            const pathname = String(url || '').split('?')[0];
+            root.MiroxTelemetry.capture(kind, error, {
+                operation: details?.operation || pathname.split('/').pop(),
+                module: pathname.includes('/functions/') ? 'netlify-function' : null
+            }, details);
+        } catch (_) { /* telemetry must never affect the request */ }
+    }
+
     async function authFetch(url, opts) {
         const originalOpts = opts || {};
         const merged = { ...originalOpts };
         merged.headers = await headers(originalOpts.headers || {});
+        const requestId = merged.headers['X-Mirox-Request-Id'] || merged.headers['x-mirox-request-id'] || makeRequestId();
+        merged.headers['X-Mirox-Request-Id'] = requestId;
+        const startedAt = (root.performance && typeof root.performance.now === 'function')
+            ? root.performance.now()
+            : Date.now();
 
-        const response = await fetch(url, merged);
+        let response;
+        try {
+            response = await fetch(url, merged);
+        } catch (error) {
+            captureTelemetry('network_error', error, url, {
+                request_id: requestId,
+                action_key: originalOpts.__miroxActionKey,
+                retriable: true,
+                duration_ms: Math.max(0, ((root.performance?.now?.() || Date.now()) - startedAt))
+            });
+            throw error;
+        }
+        if (response.status >= 500) {
+            captureTelemetry('http_5xx', new Error(`HTTP ${response.status}`), url, {
+                request_id: requestId,
+                http_status: response.status,
+                action_key: originalOpts.__miroxActionKey,
+                retriable: response.status >= 500,
+                duration_ms: Math.max(0, ((root.performance?.now?.() || Date.now()) - startedAt))
+            });
+        }
         if (response.status !== 401) return response;
 
         // 401: probabilmente token scaduto. Se possiamo, refresh + retry una volta.
@@ -204,7 +250,17 @@
 
         const retryOpts = { ...originalOpts, __miroxRetry: true };
         retryOpts.headers = await headers(originalOpts.headers || {});
+        retryOpts.headers['X-Mirox-Request-Id'] = requestId;
         const retryResponse = await fetch(url, retryOpts);
+
+        if (retryResponse.status >= 500) {
+            captureTelemetry('http_5xx', new Error(`HTTP ${retryResponse.status}`), url, {
+                request_id: requestId,
+                http_status: retryResponse.status,
+                action_key: originalOpts.__miroxActionKey,
+                retriable: true
+            });
+        }
 
         // Se anche il retry fallisce 401, il refresh_token è davvero morto.
         if (retryResponse.status === 401) redirectToLogin();

@@ -39,3 +39,8 @@
 # Pulizia OTP scaduti, rate limit e pratiche vendita bozza oltre 24 ore.
 [functions."cron-pulizia-operativa"]
   schedule = "30 2 * * *"
+
+# KONA AI Guardian Observer — aggrega telemetria, avvia analisi read-only e
+# processa la coda Telegram. Tutte le azioni di scrittura restano approvate da Mirko.
+[functions."cron-guardian-observer"]
+  schedule = "*/5 * * * *"

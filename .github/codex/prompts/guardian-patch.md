@@ -6,4 +6,10 @@ Puoi modificare soltanto il repository corrente sulla branch di lavoro. Non usar
 
 Prima leggi `AGENTS.md`, `README.md` e la documentazione Guardian pertinente. Applica una modifica minima e coerente con le convenzioni esistenti. Aggiorna la documentazione richiesta dalla guida del repository. Esegui soltanto i test locali appropriati; non fare commit o push.
 
-Nel messaggio finale riassumi in modo breve: file modificati, comportamento ottenuto, test eseguiti, rischi e informazioni mancanti. Non includere segreti o dati personali.
+Il messaggio finale deve iniziare con una sola di queste righe esatte:
+
+- `ESITO_PATCH: MODIFICA_PREPARATA` se hai modificato almeno un file applicativo o di documentazione;
+- `ESITO_PATCH: GIA_PRESENTE` soltanto se hai verificato che il comportamento richiesto e i relativi test sono già presenti nel commit corrente e non serve alcuna modifica;
+- `ESITO_PATCH: BLOCCATA` se non puoi intervenire per vincoli di sicurezza, permessi o informazioni mancanti.
+
+Dopo la riga di esito riassumi in modo breve: file modificati, comportamento ottenuto, test eseguiti, rischi e informazioni mancanti. Non includere segreti o dati personali. Non usare `GIA_PRESENTE` come fallback generico: richiede evidenza concreta nel codice e nei test.

@@ -10,6 +10,7 @@ const {
   profileName,
   requestType
 } = require('./_lib/kona-ai-guardian');
+const { captureServerError } = require('./_lib/with-telemetry');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CORS_HEADERS = {
@@ -289,6 +290,14 @@ exports.handler = async (event) => {
     return response(400, { success: false, error: 'Azione non valida' });
   } catch (error) {
     console.error('guardian-incidents:', error);
+    await captureServerError({
+      supabase,
+      error,
+      functionName: 'guardian-incidents',
+      operation: String(event.httpMethod || 'request').toLowerCase(),
+      auth,
+      requestId: event.headers?.['x-mirox-request-id'] || event.headers?.['X-Mirox-Request-Id']
+    });
     return response(500, { success: false, error: 'Errore interno nella gestione della richiesta' });
   }
 };
