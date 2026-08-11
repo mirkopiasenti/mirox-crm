@@ -72,6 +72,8 @@ Sul repository GitHub configurare inoltre i secrets `OPENAI_API_KEY_CODEX_WORKER
 
 GitHub accetta `workflow_dispatch` soltanto se il workflow e' presente sulla branch predefinita. Registrare quindi anche su `main` esclusivamente `.github/workflows/guardian-codex-*.yml` e `.github/codex/`. I job sono protetti da guardie sul ref: `analisi_codex` e `prepara_patch` accettano soltanto `codex/kona-ai-guardian-staging`; `test_staging` e `rilascio_produzione` soltanto branch `codex/kg-*`. Questi file non entrano nella build Netlify `dist/` e non portano su production functions, migration o codice applicativo del worker.
 
+Il controllo dei file della patch blocca qualsiasi `*.sql` sotto `database/`, ma consente `database/README.md`, richiesto dalla manutenzione documentale del repository. Se una fase fallisce prima della creazione della pull request, il workflow invia comunque al worker un payload JSON completo con `pull_request_url: null`; Guardian puo' quindi chiudere il lease, registrare il fallimento e notificare Telegram senza lasciare l'esecuzione sospesa.
+
 Non salvare token, chiavi o ID sensibili nel repository. Il bot Guardian deve essere distinto dall'eventuale futuro bot Call Center Coach.
 
 ## Configurazione Telegram

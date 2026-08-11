@@ -96,7 +96,7 @@ jobs:
             echo 'Modifica bloccata: file di segreti, deploy, workflow o dipendenze.' >&2
             exit 1
           fi
-          if printf '%s\n' "$changed" | grep -E '(^|/)database/' >/dev/null; then
+          if printf '%s\n' "$changed" | grep -E '(^|/)database/.*\.sql$' >/dev/null; then
             echo 'Modifica bloccata: le migration richiedono una revisione manuale separata.' >&2
             exit 1
           fi
@@ -158,8 +158,8 @@ jobs:
           set -euo pipefail
           success=false
           if [ "$CODEX_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$TEST_OUTCOME" = "success" ] && [ "$PUBLISH_OUTCOME" = "success" ]; then success=true; fi
-          summary="$(if [ -s /tmp/guardian-codex-output.md ]; then tr '\n' ' ' < /tmp/guardian-codex-output.md | cut -c1-5000; else echo 'Nessun riepilogo Codex disponibile.'; fi)"
-          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$PATCH_BRANCH" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,branch_name:$branch,pull_request_url:($pr|select(length>0)),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish}}')"
+          summary="$(if [ -s /tmp/guardian-codex-output.md ]; then tr '\n' ' ' < /tmp/guardian-codex-output.md | cut -c1-5000; elif [ -s codex-output.md ]; then tr '\n' ' ' < codex-output.md | cut -c1-5000; else echo 'Nessun riepilogo Codex disponibile.'; fi)"
+          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$PATCH_BRANCH" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,branch_name:$branch,pull_request_url:(if ($pr|length) > 0 then $pr else null end),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish}}')"
           if [ "$success" != true ]; then
             body="$(jq -c --arg error_code "patch_workflow_failed" --arg error "$summary" '. + {error_code:$error_code,error:$error}' <<<"$body")"
           fi
@@ -168,3 +168,4 @@ jobs:
             -H 'Content-Type: application/json' \
             -H "X-Guardian-Worker-Signature: $signature" \
             --data "$body" >/dev/null
+          if [ "$success" != true ]; then exit 1; fi

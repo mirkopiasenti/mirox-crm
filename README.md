@@ -39,7 +39,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `netlify/functions/_templates/disdette/` | I quattro moduli PDF WindTre originali usati come sfondo immutabile dal Compilatore disdette |
 | `tests/` | Test automatici Node (`node:test`): regressioni vendita, sicurezza/XSS, PDF privacy, sintassi e link locali |
 | `.github/workflows/ci.yml` | CI GitHub: build e test con Node 22 su pull request e branch `main`/`staging` |
-| `.github/workflows/guardian-codex-*.yml` | Workflow separati per analisi read-only, patch verso staging, test staging e preparazione di una pull request production senza merge automatico. GitHub richiede che siano registrati anche sulla branch predefinita; le guardie `github.ref` consentono lavori soltanto sulla branch Guardian staging o sulle branch patch `codex/kg-*` |
+| `.github/workflows/guardian-codex-*.yml` | Workflow separati per analisi read-only, patch verso staging, test staging e preparazione di una pull request production senza merge automatico. GitHub richiede che siano registrati anche sulla branch predefinita; le guardie `github.ref` consentono lavori soltanto sulla branch Guardian staging o sulle branch patch `codex/kg-*`. La patch blocca i file SQL in `database/`, ma consente l'aggiornamento documentale obbligatorio di `database/README.md`; gli esiti negativi vengono sempre restituiti a Guardian con payload JSON valido |
 | `.github/codex/` | Prompt e schemi strutturati usati dai workflow Codex; i dati della segnalazione arrivano soltanto tramite il worker HMAC |
 | `docs/KONA_AI_GUARDIAN_SETUP.md` | Setup staging, Telegram/OpenAI, approvazioni e confini del primo agente |
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |

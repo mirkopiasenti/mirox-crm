@@ -89,7 +89,8 @@ jobs:
           success=false
           if [ "$PUBLISH_OUTCOME" = "success" ] && [ -n "$PR_URL" ]; then success=true; fi
           summary="Proposta rilascio production: $PUBLISH_OUTCOME. Il merge resta manuale."
-          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg pr "$PR_URL" --arg outcome "$PUBLISH_OUTCOME" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,pull_request_url:($pr|select(length>0)),result:{publish:$outcome,production_merge:"manual_only"}}')"
+          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg pr "$PR_URL" --arg outcome "$PUBLISH_OUTCOME" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,pull_request_url:(if ($pr|length) > 0 then $pr else null end),result:{publish:$outcome,production_merge:"manual_only"}}')"
           if [ "$success" != true ]; then body="$(jq -c --arg error_code "release_proposal_failed" --arg error "$summary" '. + {error_code:$error_code,error:$error}' <<<"$body")"; fi
           signature="$(BODY="$body" node -e 'const crypto=require("crypto"); process.stdout.write(crypto.createHmac("sha256", process.env.GUARDIAN_WORKER_SECRET).update(process.env.BODY).digest("hex"))')"
           curl --fail --silent --show-error --max-time 20 "$GUARDIAN_WORKER_URL" -H 'Content-Type: application/json' -H "X-Guardian-Worker-Signature: $signature" --data "$body" >/dev/null
+          if [ "$success" != true ]; then exit 1; fi

@@ -134,10 +134,16 @@ test('le API Guardian separano segnalazioni autenticate e webhook Telegram priva
   assert.match(patchWorkflow, /--base "\$\{GITHUB_REF_NAME\}"/i);
   assert.match(patchWorkflow, /github\.ref == 'refs\/heads\/codex\/kona-ai-guardian-staging'/i);
   assert.match(patchWorkflow, /inputs\.requested_type == 'prepara_patch'/i);
+  assert.match(patchWorkflow, /database\/\.\*\\\.sql\$/i);
+  assert.doesNotMatch(patchWorkflow, /grep -E '\(\^\|\/\)database\/'/i);
+  assert.match(patchWorkflow, /pull_request_url:\(if \(\$pr\|length\) > 0 then \$pr else null end\)/i);
+  assert.match(patchWorkflow, /if \[ "\$success" != true \]; then exit 1; fi/i);
   assert.match(testWorkflow, /startsWith\(github\.ref, 'refs\/heads\/codex\/kg-'\)/i);
   assert.match(testWorkflow, /inputs\.requested_type == 'test_staging'/i);
   assert.match(releaseWorkflow, /startsWith\(github\.ref, 'refs\/heads\/codex\/kg-'\)/i);
   assert.match(releaseWorkflow, /inputs\.requested_type == 'rilascio_produzione'/i);
+  assert.match(releaseWorkflow, /pull_request_url:\(if \(\$pr\|length\) > 0 then \$pr else null end\)/i);
+  assert.match(releaseWorkflow, /if \[ "\$success" != true \]; then exit 1; fi/i);
   assert.match(guardian, /Approva lavorazione/);
   assert.match(webhook, /\/nuovo_miglioria/);
 });
