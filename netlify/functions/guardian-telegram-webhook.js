@@ -477,7 +477,10 @@ async function startCodexAnalysis(supabase, chatId, incidentId) {
     decisa_at: now
   }).select('id').single();
   if (approvalError) throw approvalError;
-  const { execution } = await createExecution(supabase, incident, approval, 'analisi_codex', { sandbox: 'read_only' });
+  const { execution } = await createExecution(supabase, incident, approval, 'analisi_codex', {
+    sandbox: 'read_only',
+    branch: String(process.env.MIROX_DEPLOY_ENV || '').trim().toLowerCase() === 'staging' ? stagingBranch() : 'main'
+  });
   await supabase.from('kona_ai_incidenti').update({ stato: 'in_analisi' }).eq('id', incident.id);
   await dispatchExecution(supabase, chatId, incident, execution);
 }

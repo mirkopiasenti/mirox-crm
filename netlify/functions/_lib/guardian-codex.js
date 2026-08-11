@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const { environment } = require('./guardian-telemetry');
 
 const DEFAULT_REPOSITORY = 'mirkopiasenti/mirox-crm';
 const DEFAULT_STAGING_BRANCH = 'codex/kona-ai-guardian-staging';
@@ -76,7 +77,7 @@ function workflowForType(type) {
   return WORKFLOW_BY_TYPE[type] || null;
 }
 
-async function dispatchWorkflow({ executionId, type, ref = stagingBranch(), commitSha = null }) {
+async function dispatchWorkflow({ executionId, type, ref = stagingBranch(), commitSha = null, targetEnvironment = environment() }) {
   const token = String(process.env.GUARDIAN_GITHUB_TOKEN || '').trim();
   const repository = repositoryName();
   const workflow = cleanWorkerText(
@@ -90,7 +91,8 @@ async function dispatchWorkflow({ executionId, type, ref = stagingBranch(), comm
   const url = `https://api.github.com/repos/${repository}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`;
   const inputs = {
     execution_id: String(executionId),
-    requested_type: String(type)
+    requested_type: String(type),
+    target_environment: targetEnvironment === 'staging' ? 'staging' : 'production'
   };
   if (commitSha) inputs.commit_sha = String(commitSha);
   const response = await fetch(url, {
@@ -109,7 +111,7 @@ async function dispatchWorkflow({ executionId, type, ref = stagingBranch(), comm
     const detail = cleanWorkerText(await response.text().catch(() => ''), 500);
     throw new Error(`GitHub workflow dispatch ${response.status}${detail ? `: ${detail}` : ''}`);
   }
-  return { dispatched: true, repository, workflow, ref };
+  return { dispatched: true, repository, workflow, ref, targetEnvironment: inputs.target_environment };
 }
 
 function analysisKeyboard(incidentId) {

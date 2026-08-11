@@ -11,6 +11,13 @@ on:
         description: Execution type supplied by the dispatcher
         required: true
         type: string
+      target_environment:
+        description: Guardian environment that owns the execution
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
 
 permissions:
   contents: read
@@ -21,7 +28,8 @@ concurrency:
 
 jobs:
   analyse:
-    if: github.ref == 'refs/heads/codex/kona-ai-guardian-staging' && inputs.requested_type == 'analisi_codex'
+    if: (github.ref_name == 'main' || github.ref_name == 'codex/kona-ai-guardian-staging') && inputs.requested_type == 'analisi_codex' && (inputs.target_environment == 'staging' || inputs.target_environment == 'production')
+    environment: ${{ inputs.target_environment == 'production' && 'guardian-production' || 'guardian-staging' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
