@@ -39,7 +39,7 @@ Non collegare il Guardian direttamente al database condiviso di produzione. Prim
 7. configurare inizialmente OpenAI e Telegram solo sul sito staging; raccolta, analisi e bot sono stati verificati qui il 2026-08-10;
 8. provare entrambi i tipi di richiesta, domande, notifica, vocale, analisi, approvazione lavorazione e archiviazione prima di valutare la produzione.
 
-La prima versione e' stata quindi attivata sul production `mirox-crm.it`: env OpenAI/Telegram e profilo proprietario sono configurati sul Netlify ufficiale, mentre `065` e `066` sono applicate anche al Supabase production `lbgwamhjkjjfwgusafbi`. Le migration `067` e `068` sono state applicate e verificate sul Supabase staging il 2026-08-11; sono additive e non modificano le tabelle Call Center condivise. Le variabili Observer sono configurate sul sito Netlify staging. Il bot `@MiroxAiGuardianBot` e' riservato al webhook production; per i test Observer sullo staging serve ancora un secondo bot dedicato.
+La prima versione e' stata quindi attivata sul production `mirox-crm.it`: env OpenAI/Telegram e profilo proprietario sono configurati sul Netlify ufficiale, mentre `065` e `066` sono applicate anche al Supabase production `lbgwamhjkjjfwgusafbi`. Le migration `067` e `068` sono state applicate e verificate sul Supabase staging il 2026-08-11; sono additive e non modificano le tabelle Call Center condivise. Le variabili Observer sono configurate sul sito Netlify staging. Il bot `@MiroxAiGuardianBot` e' riservato al webhook production e il bot staging già creato è `@KonaAiGuardianBot`.
 
 Il bootstrap staging si interrompe se trova anche una sola tabella nello schema `public`: questa guardia lo rende inadatto e non eseguibile sul production gia' popolato. Crea soltanto `profili`, senza utenti Auth e senza dati CRM; l'utente Mirko viene aggiunto separatamente dopo lo schema.
 
@@ -84,7 +84,7 @@ Non salvare token, chiavi o ID sensibili nel repository. Il bot Guardian deve es
 
 ## Configurazione Telegram
 
-1. creare con BotFather un bot dedicato, ad esempio KONA AI Guardian; il bot ufficiale e' `@MiroxAiGuardianBot`, mentre per futuri test staging ne serve uno distinto;
+1. il bot ufficiale e' `@MiroxAiGuardianBot`, mentre il bot staging già creato è `@KonaAiGuardianBot`;
 2. avviare una chat privata con il bot e ricavare il proprio `chat_id` tramite l'API `getUpdates` durante il setup;
 3. generare un segreto casuale lungo e salvarlo come `TELEGRAM_GUARDIAN_WEBHOOK_SECRET`;
 4. registrare il webhook production con una richiesta equivalente a:
@@ -95,7 +95,7 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
   -d '{"url":"https://mirox-crm.it/.netlify/functions/guardian-telegram-webhook","secret_token":"<SEGRETO>"}'
 ```
 
-Per lo staging ripetere la configurazione con un secondo bot, credenziali diverse e URL `https://mirox-crm-staging.netlify.app/.netlify/functions/guardian-telegram-webhook`.
+Per lo staging configurare `@KonaAiGuardianBot` con credenziali diverse e URL `https://mirox-crm-staging.netlify.app/.netlify/functions/guardian-telegram-webhook`.
 
 Il webhook rifiuta richieste prive del secret token e ignora qualunque chat diversa da `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`.
 
@@ -129,7 +129,7 @@ I dettagli tecnici hanno una data obiettivo di scadenza a 90 giorni. Il riepilog
 
 Dopo che raccolta CRM e Telegram sono affidabili:
 
-1. creare e configurare il secondo bot Telegram dedicato allo staging;
+1. verificare il webhook e il `chat_id` del bot staging `@KonaAiGuardianBot`;
 2. verificare i secrets GitHub e il fine-grained token del dispatcher;
 3. testare l'analisi read-only su una richiesta sintetica;
 4. testare patch, test staging e pull request draft su una richiesta sintetica;

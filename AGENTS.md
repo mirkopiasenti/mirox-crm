@@ -79,7 +79,7 @@ Sostituire sempre con testo descrittivo (es. `🔄 Aggiorna` → `Aggiorna`, `�
 ### URL deploy
 - **Repo GitHub**: `git@github.com:mirkopiasenti/mirox-crm.git` (dal 2026-07-02, prima era `konahub-vendita-test` — redirect ancora attivo ma va usato il nome nuovo)
 - **Netlify site di questa codebase**: **`mirox-crm`** (nome sito Netlify dal 2026-07-02, prima era il vecchio nome legato al test). Custom domain **`mirox-crm.it`** in production dal 2026-06-29 — tutte le functions, compreso Guardian, rispondono qui. Env vars Supabase, OpenAI, Telegram e degli altri servizi sono configurate su questo site
-- **Guardian staging separato**: `mirox-crm-staging.netlify.app`, site Netlify `mirox-crm-staging`, branch primaria `codex/kona-ai-guardian-staging` e Supabase `blwgxrszvsoqcmcmhhqr`. Resta isolato dai dati production ed e' l'ambiente obbligatorio per gli sviluppi successivi; i test Telegram richiedono un secondo bot dedicato perche' il bot ufficiale ha il webhook production.
+- **Guardian staging separato**: `mirox-crm-staging.netlify.app`, site Netlify `mirox-crm-staging`, branch primaria `codex/kona-ai-guardian-staging` e Supabase `blwgxrszvsoqcmcmhhqr`. Resta isolato dai dati production ed e' l'ambiente obbligatorio per gli sviluppi successivi; usa il bot Telegram dedicato `@KonaAiGuardianBot`, mentre il bot ufficiale `@MiroxAiGuardianBot` resta production.
 - `test-upload-contratti-konahub.netlify.app` — vecchio URL di test del repo. **Non è più aggiornato** (le functions OTP rispondono 404). Deprecato — l'URL "buono" è `mirox-crm.it`
 - `mirox-crm.netlify.app` — **DIVERSO PROGETTO**: sito Call Center prod (altro repo GitHub, NON in questa codebase). Condivide lo stesso DB Supabase. Da non confondere col Netlify site `mirox-crm` di cui sopra (che è custom-domain su `mirox-crm.it`)
 
@@ -628,7 +628,7 @@ La migration additiva `065_kona_ai_guardian.sql` crea quattro tabelle server-onl
 
 ### Ambiente e segreti
 
-Guardian e' attivo sul production `mirox-crm.it`, collegato al Supabase `lbgwamhjkjjfwgusafbi`; qui le env OpenAI/Telegram e il `KONA_AI_OWNER_PROFILE_ID` del profilo Mirko production sono configurati. Il bot `@MiroxAiGuardianBot` usa esclusivamente il webhook ufficiale. Il sito `mirox-crm-staging.netlify.app` e il Supabase `blwgxrszvsoqcmcmhhqr` restano l'ambiente isolato per sviluppi e validazioni senza dati reali; per testare Telegram sullo staging va creato un secondo bot.
+Guardian e' attivo sul production `mirox-crm.it`, collegato al Supabase `lbgwamhjkjjfwgusafbi`; qui le env OpenAI/Telegram e il `KONA_AI_OWNER_PROFILE_ID` del profilo Mirko production sono configurati. Il bot `@MiroxAiGuardianBot` usa esclusivamente il webhook ufficiale. Il sito `mirox-crm-staging.netlify.app` e il Supabase `blwgxrszvsoqcmcmhhqr` restano l'ambiente isolato per sviluppi e validazioni senza dati reali e usano il bot già dedicato `@KonaAiGuardianBot`.
 
 Env vars: `OPENAI_API_KEY`, `OPENAI_GUARDIAN_MODEL`, `OPENAI_TRANSCRIBE_MODEL`, `TELEGRAM_GUARDIAN_BOT_TOKEN`, `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`, `TELEGRAM_GUARDIAN_WEBHOOK_SECRET`, `KONA_AI_OWNER_PROFILE_ID`, `GUARDIAN_OBSERVER_ENABLED`, `GUARDIAN_OBSERVER_DAILY_BUDGET`, `GUARDIAN_OBSERVER_MODEL`, `GUARDIAN_OBSERVER_REF`, `GUARDIAN_OBSERVER_WEEKLY_SCAN`, `GUARDIAN_TELEMETRY_HASH_SECRET`. Mai esporle nel frontend o committarle. Setup completo: `docs/KONA_AI_GUARDIAN_SETUP.md`.
 
