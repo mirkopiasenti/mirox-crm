@@ -13,7 +13,7 @@ La prima versione realizza un unico agente, senza gerarchie:
 
 Questa versione non legge ancora il repository e non modifica codice. L'analisi Guardian distingue espressamente fatti, ipotesi e verifiche mancanti. Il collegamento Codex viene aggiunto come esecutore separato: prima analisi read-only, poi proposta di patch, test e pull request; mai rilascio diretto in produzione.
 
-La migration `067_kona_ai_codex_esecuzioni.sql` prepara il registro server-only delle esecuzioni future. In questa fase non avvia workflow, non concede accesso al repository e non cambia il comportamento del bot; deve essere applicata prima sul Supabase staging e verificata con una query di introspezione.
+La migration `067_kona_ai_codex_esecuzioni.sql` prepara il registro server-only delle esecuzioni ed e' applicata esclusivamente sul Supabase staging. Il webhook staging avvia workflow separati per analisi, patch, test e proposta di rilascio; produzione e merge su `main` restano fuori dall'automazione.
 
 ## Architettura scelta
 
@@ -69,6 +69,8 @@ Netlify registra comunque le scheduled functions presenti in `netlify.toml`; ent
 | `GUARDIAN_STAGING_BRANCH` | Branch base per patch e test | Default `codex/kona-ai-guardian-staging` |
 
 Sul repository GitHub configurare inoltre i secrets `OPENAI_API_KEY_CODEX_WORKER`, `GUARDIAN_WORKER_URL` e `GUARDIAN_WORKER_SECRET`. La chiave OpenAI del worker resta in GitHub Actions e non viene mai inviata a Netlify o al modello conversazionale.
+
+GitHub accetta `workflow_dispatch` soltanto se il workflow e' presente sulla branch predefinita. Registrare quindi anche su `main` esclusivamente `.github/workflows/guardian-codex-*.yml` e `.github/codex/`. I job sono protetti da guardie sul ref: `analisi_codex` e `prepara_patch` accettano soltanto `codex/kona-ai-guardian-staging`; `test_staging` e `rilascio_produzione` soltanto branch `codex/kg-*`. Questi file non entrano nella build Netlify `dist/` e non portano su production functions, migration o codice applicativo del worker.
 
 Non salvare token, chiavi o ID sensibili nel repository. Il bot Guardian deve essere distinto dall'eventuale futuro bot Call Center Coach.
 

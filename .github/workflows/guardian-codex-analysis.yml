@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   analyse:
+    if: github.ref == 'refs/heads/codex/kona-ai-guardian-staging' && inputs.requested_type == 'analisi_codex'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

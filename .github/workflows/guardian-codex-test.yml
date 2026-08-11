@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   test:
+    if: startsWith(github.ref, 'refs/heads/codex/kg-') && inputs.requested_type == 'test_staging'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

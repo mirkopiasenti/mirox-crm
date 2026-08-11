@@ -602,6 +602,7 @@ Il reporter globale `js/mirox-error-reporter.js` e tutte le email automatiche pe
 4. `guardian-telegram-webhook` accetta esclusivamente il secret token configurato e `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`. Mirko puo' usare testo o vocali gia' conclusi; niente conversazione audio live.
 5. Analisi Guardian, analisi Codex read-only, preparazione patch, test staging, proposta di rilascio e archiviazione richiedono pulsanti Telegram separati. Ogni decisione viene registrata in `kona_ai_approvazioni`; l'esecuzione tecnica e' registrata in `kona_ai_esecuzioni`.
 6. Il worker Codex usa workflow GitHub separati: analisi read-only su commit staging, patch su branch dedicata, test staging e pull request draft verso production. Il merge su `main` e il deploy production restano manuali e fuori dall'esecuzione Codex.
+7. GitHub riceve `workflow_dispatch` soltanto per workflow presenti sulla branch predefinita: per questo i soli file `.github/workflows/guardian-codex-*.yml` e `.github/codex/` sono registrati anche su `main`. I job sono fail-closed sul ref: analisi/patch soltanto da `codex/kona-ai-guardian-staging`, test/rilascio soltanto da `codex/kg-*`. Non copiare su `main` il worker Netlify, la migration `067` o altro codice Guardian staging per soddisfare questo requisito.
 
 ### Database e retention
 
@@ -716,7 +717,7 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 ## Note operative consapevoli (non "correggere" senza chiedere)
 
 - **Edge Functions Supabase**: non in uso, non aggiungerne senza discutere prima
-- **Guardian prima versione**: analizza soltanto il contenuto dell'incidente; non ha accesso al repository, non esegue Codex, non prepara patch e non effettua deploy. Non simulare queste capacita'. Ogni sviluppo successivo deve passare prima da Netlify + Supabase staging separati; Sentry e il worker Codex restano fasi successive.
+- **Guardian production vs staging**: il bot production continua ad analizzare soltanto il contenuto della richiesta e non esegue Codex. Il worker Codex e la migration `067` sono attivi esclusivamente nello staging separato; qui analisi read-only, patch, test e proposta di pull request sono fasi distinte e auditabili. Nessun workflow effettua merge o deploy production automatico.
 - **Cluster `Turista`**: accettato solo da `crea-vendita-pratica-carrello.js`. È voluto.
 - **File SQL in `/database/`**: parziali, NON riflettono lo stato attuale del DB (vedi `database/README.md`)
 - **Modulo `simulatore_protecta.html`**: ~960 KB, molto pesante perché contiene asset embedded. Modificare con cautela.

@@ -39,7 +39,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `netlify/functions/_templates/disdette/` | I quattro moduli PDF WindTre originali usati come sfondo immutabile dal Compilatore disdette |
 | `tests/` | Test automatici Node (`node:test`): regressioni vendita, sicurezza/XSS, PDF privacy, sintassi e link locali |
 | `.github/workflows/ci.yml` | CI GitHub: build e test con Node 22 su pull request e branch `main`/`staging` |
-| `.github/workflows/guardian-codex-*.yml` | Workflow separati per analisi read-only, patch verso staging, test staging e preparazione di una pull request production senza merge automatico |
+| `.github/workflows/guardian-codex-*.yml` | Workflow separati per analisi read-only, patch verso staging, test staging e preparazione di una pull request production senza merge automatico. GitHub richiede che siano registrati anche sulla branch predefinita; le guardie `github.ref` consentono lavori soltanto sulla branch Guardian staging o sulle branch patch `codex/kg-*` |
 | `.github/codex/` | Prompt e schemi strutturati usati dai workflow Codex; i dati della segnalazione arrivano soltanto tramite il worker HMAC |
 | `docs/KONA_AI_GUARDIAN_SETUP.md` | Setup staging, Telegram/OpenAI, approvazioni e confini del primo agente |
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |
@@ -141,6 +141,8 @@ Setup:
 4. Deploy automatico al `git push origin main`
 
 Lo staging Guardian usa il sito Netlify separato `mirox-crm-staging`, collegato a `codex/kona-ai-guardian-staging`. Il sito imposta `MIROX_DEPLOY_ENV=staging` e le credenziali del Supabase separato; la build pubblicata conferma l'ambiente `staging` e il project ref `blwgxrszvsoqcmcmhhqr`. Un push su questa branch non autorizza modifiche a `main` o al database di produzione.
+
+I soli file di controllo `.github/workflows/guardian-codex-*.yml` e `.github/codex/` sono registrati anche su `main`, requisito tecnico di GitHub per ricevere `workflow_dispatch`. Non entrano nella build `dist/` e ogni job verifica il ref richiesto prima di usare secrets o eseguire comandi: analisi e patch partono solo da `codex/kona-ai-guardian-staging`, test e proposta di rilascio solo da `codex/kg-*`. Questa registrazione non pubblica il worker Netlify, migration o codice applicativo Guardian su production.
 
 ## Workflow di aggiornamento
 

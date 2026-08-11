@@ -108,6 +108,8 @@ test('le API Guardian separano segnalazioni autenticate e webhook Telegram priva
   const workerHelper = read('netlify/functions/_lib/guardian-codex.js');
   const analysisWorkflow = read('.github/workflows/guardian-codex-analysis.yml');
   const patchWorkflow = read('.github/workflows/guardian-codex-patch.yml');
+  const testWorkflow = read('.github/workflows/guardian-codex-test.yml');
+  const releaseWorkflow = read('.github/workflows/guardian-codex-release.yml');
 
   assert.match(incidents, /requireAuth\(event\)/);
   assert.match(incidents, /profileId\(auth\)/);
@@ -126,8 +128,16 @@ test('le API Guardian separano segnalazioni autenticate e webhook Telegram priva
   assert.match(worker, /lease_token_hash/i);
   assert.match(analysisWorkflow, /sandbox: read-only/i);
   assert.match(analysisWorkflow, /model: gpt-5\.6-luna/i);
+  assert.match(analysisWorkflow, /github\.ref == 'refs\/heads\/codex\/kona-ai-guardian-staging'/i);
+  assert.match(analysisWorkflow, /inputs\.requested_type == 'analisi_codex'/i);
   assert.match(patchWorkflow, /sandbox: workspace-write/i);
   assert.match(patchWorkflow, /--base "\$\{GITHUB_REF_NAME\}"/i);
+  assert.match(patchWorkflow, /github\.ref == 'refs\/heads\/codex\/kona-ai-guardian-staging'/i);
+  assert.match(patchWorkflow, /inputs\.requested_type == 'prepara_patch'/i);
+  assert.match(testWorkflow, /startsWith\(github\.ref, 'refs\/heads\/codex\/kg-'\)/i);
+  assert.match(testWorkflow, /inputs\.requested_type == 'test_staging'/i);
+  assert.match(releaseWorkflow, /startsWith\(github\.ref, 'refs\/heads\/codex\/kg-'\)/i);
+  assert.match(releaseWorkflow, /inputs\.requested_type == 'rilascio_produzione'/i);
   assert.match(guardian, /Approva lavorazione/);
   assert.match(webhook, /\/nuovo_miglioria/);
 });
