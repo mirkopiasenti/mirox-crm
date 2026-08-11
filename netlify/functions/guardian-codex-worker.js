@@ -192,6 +192,14 @@ async function heartbeatExecution(supabase, body) {
 }
 
 function resultMessage(execution, body, success) {
+  const noChanges = success
+    && execution.tipo_esecuzione === 'prepara_patch'
+    && body?.result?.no_changes === true;
+  const summary = cleanWorkerText(body.message || body.summary, 5000)
+    .replace(/^ESITO_PATCH:\s*(?:MODIFICA_PREPARATA|GIA_PRESENTE|BLOCCATA)\s*/i, '');
+  if (noChanges) {
+    return `Codex ha verificato la richiesta: il comportamento risulta già presente nello staging. Nessun file è stato modificato e non serve una pull request.${summary ? `\n\n${summary}` : ''}`.slice(0, 7800);
+  }
   const prefix = success ? 'Codex ha completato' : 'Codex non ha completato';
   const phase = execution.tipo_esecuzione === 'analisi_codex'
     ? 'l’analisi del repository'
@@ -200,12 +208,23 @@ function resultMessage(execution, body, success) {
       : execution.tipo_esecuzione === 'test_staging'
         ? 'i test dello staging'
         : 'la preparazione del rilascio';
-  const summary = cleanWorkerText(body.message || body.summary, 5000);
   return `${prefix} ${phase}.${summary ? `\n\n${summary}` : ''}`.slice(0, 7800);
 }
 
-function keyboardForExecution(execution) {
+function noChangeKeyboard(incidentId) {
+  return {
+    inline_keyboard: [
+      [{ text: 'Apri conversazione', callback_data: `open:${incidentId}` }],
+      [{ text: 'Archivia', callback_data: `archive:${incidentId}` }]
+    ]
+  };
+}
+
+function keyboardForExecution(execution, result) {
   if (execution.tipo_esecuzione === 'analisi_codex') return analysisKeyboard(execution.incidente_id);
+  if (execution.tipo_esecuzione === 'prepara_patch' && result?.no_changes === true) {
+    return noChangeKeyboard(execution.incidente_id);
+  }
   if (execution.tipo_esecuzione === 'prepara_patch') return patchKeyboard(execution.incidente_id);
   if (execution.tipo_esecuzione === 'test_staging') return testKeyboard(execution.incidente_id);
   return undefined;
@@ -218,6 +237,9 @@ async function recordResult(supabase, body) {
   const success = body.success === true;
   const now = nowIso();
   const safeResult = sanitizeValue(body.result || {}) || {};
+  const noChanges = success
+    && execution.tipo_esecuzione === 'prepara_patch'
+    && safeResult.no_changes === true;
   const update = {
     stato: success ? 'completata' : 'fallita',
     risultato: safeResult,
@@ -246,7 +268,7 @@ async function recordResult(supabase, body) {
     ? execution.tipo_esecuzione === 'analisi_codex'
       ? 'in_attesa_approvazione'
       : execution.tipo_esecuzione === 'prepara_patch'
-        ? 'in_lavorazione'
+        ? noChanges ? 'ricevuto' : 'in_lavorazione'
         : execution.tipo_esecuzione === 'test_staging'
           ? 'in_test'
           : 'in_lavorazione'
@@ -288,7 +310,7 @@ async function recordResult(supabase, body) {
       : 'Guardian';
     try {
       await sendTelegramMessage(chatId, `${heading}\n\n${text}`, {
-        reply_markup: success ? keyboardForExecution(execution) : undefined
+        reply_markup: success ? keyboardForExecution(execution, safeResult) : undefined
       });
     } catch (telegramError) {
       console.warn('Notifica Telegram esito Codex non inviata:', telegramError?.message || String(telegramError));

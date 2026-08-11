@@ -89,9 +89,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo 'has_changes=false' >> "$GITHUB_OUTPUT"
+          echo 'no_changes=false' >> "$GITHUB_OUTPUT"
           git add -N $(git ls-files --others --exclude-standard) 2>/dev/null || true
-          changed="$(git diff --name-only)"
-          test -n "$changed"
+          changed="$(git diff --name-only -- . \
+            ':(exclude)guardian-context.json' \
+            ':(exclude)guardian-changed-files.txt' \
+            ':(exclude)codex-output.md')"
+          if [ -z "$changed" ]; then
+            if grep -Eq '^ESITO_PATCH: GIA_PRESENTE[[:space:]]*$' codex-output.md; then
+              echo 'no_changes=true' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo 'Codex non ha prodotto modifiche e non ha dichiarato che la richiesta è già soddisfatta.' >&2
+            exit 1
+          fi
+          if ! grep -Eq '^ESITO_PATCH: MODIFICA_PREPARATA[[:space:]]*$' codex-output.md; then
+            echo 'Codex ha modificato file senza dichiarare ESITO_PATCH: MODIFICA_PREPARATA.' >&2
+            exit 1
+          fi
           if printf '%s\n' "$changed" | grep -E '(^|/)(\.env|\.env\.|netlify\.toml$|\.github/workflows/|package-lock\.json$)' >/dev/null; then
             echo 'Modifica bloccata: file di segreti, deploy, workflow o dipendenze.' >&2
             exit 1
@@ -100,29 +116,33 @@ jobs:
             echo 'Modifica bloccata: le migration richiedono una revisione manuale separata.' >&2
             exit 1
           fi
-          git diff --check
-          printf '%s\n' "$changed" > guardian-changed-files.txt
+          git diff --check -- . \
+            ':(exclude)guardian-context.json' \
+            ':(exclude)guardian-changed-files.txt' \
+            ':(exclude)codex-output.md'
+          printf '%s\n' "$changed" > /tmp/guardian-changed-files.txt
+          echo 'has_changes=true' >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
-        if: steps.validate.outcome == 'success'
+        if: steps.validate.outcome == 'success' && steps.validate.outputs.has_changes == 'true'
         uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies
-        if: steps.validate.outcome == 'success'
+        if: steps.validate.outcome == 'success' && steps.validate.outputs.has_changes == 'true'
         run: npm ci
 
       - name: Run repository tests
         id: tests
-        if: steps.validate.outcome == 'success'
+        if: steps.validate.outcome == 'success' && steps.validate.outputs.has_changes == 'true'
         continue-on-error: true
         run: npm test
 
       - name: Push patch branch and open draft pull request
         id: publish
-        if: steps.validate.outcome == 'success' && steps.tests.outcome == 'success'
+        if: steps.validate.outcome == 'success' && steps.validate.outputs.has_changes == 'true' && steps.tests.outcome == 'success'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -152,14 +172,22 @@ jobs:
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
           TEST_OUTCOME: ${{ steps.tests.outcome }}
           PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
+          HAS_CHANGES: ${{ steps.validate.outputs.has_changes }}
+          NO_CHANGES: ${{ steps.validate.outputs.no_changes }}
           PR_URL: ${{ steps.publish.outputs.pull_request_url }}
           PATCH_BRANCH: ${{ steps.branch.outputs.name }}
         run: |
           set -euo pipefail
           success=false
-          if [ "$CODEX_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$TEST_OUTCOME" = "success" ] && [ "$PUBLISH_OUTCOME" = "success" ]; then success=true; fi
+          result_branch=''
+          if [ "$CODEX_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$NO_CHANGES" = "true" ]; then
+            success=true
+          elif [ "$CODEX_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$HAS_CHANGES" = "true" ] && [ "$TEST_OUTCOME" = "success" ] && [ "$PUBLISH_OUTCOME" = "success" ]; then
+            success=true
+            result_branch="$PATCH_BRANCH"
+          fi
           summary="$(if [ -s /tmp/guardian-codex-output.md ]; then tr '\n' ' ' < /tmp/guardian-codex-output.md | cut -c1-5000; elif [ -s codex-output.md ]; then tr '\n' ' ' < codex-output.md | cut -c1-5000; else echo 'Nessun riepilogo Codex disponibile.'; fi)"
-          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$PATCH_BRANCH" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,branch_name:$branch,pull_request_url:(if ($pr|length) > 0 then $pr else null end),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish}}')"
+          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$result_branch" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --arg no_changes "$NO_CHANGES" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,branch_name:(if ($branch|length) > 0 then $branch else null end),pull_request_url:(if ($pr|length) > 0 then $pr else null end),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish,no_changes:($no_changes == "true")}}')"
           if [ "$success" != true ]; then
             body="$(jq -c --arg error_code "patch_workflow_failed" --arg error "$summary" '. + {error_code:$error_code,error:$error}' <<<"$body")"
           fi
