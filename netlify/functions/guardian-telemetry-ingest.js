@@ -145,7 +145,7 @@ async function ingest(supabase, auth, events) {
   return accepted;
 }
 
-exports.handler = async (event) => {
+const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return response(204, {});
   if (event.httpMethod !== 'POST') return response(405, { ok: false, error: 'Metodo non consentito' });
   const auth = await requireAuth(event);

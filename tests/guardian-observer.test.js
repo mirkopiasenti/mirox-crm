@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { evaluateSignal } = require('../netlify/functions/_lib/guardian-triage');
 const { preliminaryText } = require('../netlify/functions/cron-guardian-observer');
+const { handler: telemetryHandler } = require('../netlify/functions/guardian-telemetry-ingest');
 
 test('Observer considera critiche le operazioni dati sensibili', () => {
   const result = evaluateSignal({
@@ -15,6 +16,10 @@ test('Observer considera critiche le operazioni dati sensibili', () => {
   });
   assert.equal(result.priority, 'critica');
   assert.equal(result.immediate, true);
+});
+
+test('il collector telemetria esporta un handler caricabile dal worker', () => {
+  assert.equal(typeof telemetryHandler, 'function');
 });
 
 test('notifica preliminare non contiene stack o identificativi personali', () => {
