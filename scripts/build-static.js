@@ -113,10 +113,15 @@ function validateFrontendConfig(config) {
 
 function resolveFrontendConfig(env = process.env) {
   const deployEnvironment = normalizeDeployEnvironment(env);
+  const releaseInfo = {
+    commitSha: String(env.COMMIT_REF || env.COMMIT_SHA || '').trim().slice(0, 128) || null,
+    deployId: String(env.DEPLOY_ID || env.CONTEXT || '').trim().slice(0, 160) || null
+  };
 
   if (deployEnvironment === 'production') {
     return validateFrontendConfig({
       environment: deployEnvironment,
+      ...releaseInfo,
       ...PRODUCTION_FRONTEND_CONFIG
     });
   }
@@ -133,11 +138,38 @@ function resolveFrontendConfig(env = process.env) {
     throw new Error('Build staging bloccata: il Supabase di produzione non e\' consentito');
   }
 
-  return validateFrontendConfig({ environment: deployEnvironment, url, anonKey });
+  return validateFrontendConfig({ environment: deployEnvironment, url, anonKey, ...releaseInfo });
 }
 
 function renderFrontendConfig(config) {
-  return `/**\n * MIROX Vendita - configurazione Supabase generata dalla build.\n * Non modificare dist/js/config.js manualmente.\n */\nconst SUPABASE_URL = ${JSON.stringify(config.url)};\nconst SUPABASE_ANON_KEY = ${JSON.stringify(config.anonKey)};\n\nconst db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {\n  auth: {\n    persistSession: true,\n    autoRefreshToken: true,\n    detectSessionInUrl: false\n  }\n});\nwindow.db = db;\nwindow.MiroxEnvironment = ${JSON.stringify(config.environment)};\n`;
+  const environmentInfo = JSON.stringify({
+    environment: config.environment,
+    commit_sha: config.commitSha || null,
+    deploy_id: config.deployId || null
+  });
+  return `/**\n * MIROX Vendita - configurazione Supabase generata dalla build.\n * Non modificare dist/js/config.js manualmente.\n */\nconst SUPABASE_URL = ${JSON.stringify(config.url)};\nconst SUPABASE_ANON_KEY = ${JSON.stringify(config.anonKey)};\n\nconst db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {\n  auth: {\n    persistSession: true,\n    autoRefreshToken: true,\n    detectSessionInUrl: false\n  }\n});\nwindow.db = db;\nwindow.MiroxEnvironment = ${JSON.stringify(config.environment)};\nwindow.MiroxEnvironmentInfo = ${environmentInfo};\n`;
+  return `/**\n * MIROX Vendita - configurazione Supabase generata dalla build.\n * Non modificare dist/js/config.js manualmente.\n */\nconst SUPABASE_URL = ${JSON.stringify(config.url)};\nconst SUPABASE_ANON_KEY = ${JSON.stringify(config.anonKey)};\n\nconst db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {\n  auth: {\n    persistSession: true,\n    autoRefreshToken: true,\n    detectSessionInUrl: false\n  }\n});\nwindow.db = db;\nwindow.MiroxEnvironment = ${JSON.stringify(config.environment)};\nwindow.MiroxEnvironmentInfo = ${environmentInfo};\n`;
+}
+
+function injectTelemetryScript() {
+  const htmlFiles = [];
+  function visit(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const target = path.join(directory, entry.name);
+      if (entry.isDirectory()) visit(target);
+      else if (entry.isFile() && entry.name.endsWith('.html')) htmlFiles.push(target);
+    }
+  }
+  visit(OUTPUT);
+  for (const filename of htmlFiles) {
+    const source = fs.readFileSync(filename, 'utf8');
+    if (source.includes('mirox-telemetry.js')) continue;
+    const updated = source.replace(
+      /(<script\s+src=["']([^"']*\/)?mirox-api\.js["']\s*><\/script>)/i,
+      (match, apiTag, directory = '') => `${apiTag}\n<script src="${directory}mirox-telemetry.js"></script>`
+    );
+    if (updated !== source) fs.writeFileSync(filename, updated, 'utf8');
+  }
 }
 
 function renderSecurityHeaders(config) {
@@ -197,6 +229,7 @@ function buildStatic(env = process.env) {
     renderSecurityHeaders(frontendConfig),
     'utf8'
   );
+  injectTelemetryScript();
 
   assertPrivateSourcesExcluded();
 
@@ -215,5 +248,6 @@ module.exports._test = {
   resolveFrontendConfig,
   renderFrontendConfig,
   renderSecurityHeaders,
+  injectTelemetryScript,
   validateFrontendConfig
 };

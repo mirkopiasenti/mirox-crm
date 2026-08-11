@@ -85,6 +85,21 @@ async function cleanupGuardianTechnicalDetails(supabase, nowIso) {
     return data?.length || 0;
 }
 
+async function cleanupGuardianTelemetry(supabase, nowIso) {
+    const { data, error } = await supabase
+        .from('kona_ai_eventi_tecnici')
+        .delete()
+        .lt('expires_at', nowIso)
+        .select('id');
+    if (error) {
+        // La migration Observer puo' essere applicata in una fase successiva:
+        // il cron storico non deve diventare inutilizzabile nel frattempo.
+        if (/relation .*kona_ai_eventi_tecnici.* does not exist/i.test(String(error.message || ''))) return 0;
+        throw error;
+    }
+    return data?.length || 0;
+}
+
 const handler = async () => {
     if (isStagingEnvironment()) {
         return {
@@ -147,6 +162,13 @@ const handler = async () => {
         errors.push(`guardian retention: ${error?.message || error}`);
     }
 
+    let guardianTelemetryDeleted = 0;
+    try {
+        guardianTelemetryDeleted = await cleanupGuardianTelemetry(supabase, nowIso);
+    } catch (error) {
+        errors.push(`guardian telemetry retention: ${error?.message || error}`);
+    }
+
     if (errors.length) console.error('cron-pulizia-operativa:', errors.join(' | '));
 
     return {
@@ -157,9 +179,10 @@ const handler = async () => {
             rate_limit_eliminati: expiredLimits?.length || 0,
             bozze_eliminate: deletedDrafts,
             dettagli_guardian_eliminati: guardianDetailsDeleted,
+            eventi_guardian_eliminati: guardianTelemetryDeleted,
             errori: errors
         })
     };
 };
 
-module.exports = { handler, schedule, _test: { isStagingEnvironment, cleanupGuardianTechnicalDetails } };
+module.exports = { handler, schedule, _test: { isStagingEnvironment, cleanupGuardianTechnicalDetails, cleanupGuardianTelemetry } };

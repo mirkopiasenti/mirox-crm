@@ -6,6 +6,8 @@ const DEFAULT_REPOSITORY = 'mirkopiasenti/mirox-crm';
 const DEFAULT_STAGING_BRANCH = 'codex/kona-ai-guardian-staging';
 const WORKFLOW_BY_TYPE = {
   analisi_codex: 'guardian-codex-analysis.yml',
+  analisi_automatica: 'guardian-observer-analysis.yml',
+  scansione_migliorie: 'guardian-observer-analysis.yml',
   prepara_patch: 'guardian-codex-patch.yml',
   test_staging: 'guardian-codex-test.yml',
   rilascio_produzione: 'guardian-codex-release.yml'
@@ -74,7 +76,7 @@ function workflowForType(type) {
   return WORKFLOW_BY_TYPE[type] || null;
 }
 
-async function dispatchWorkflow({ executionId, type, ref = stagingBranch() }) {
+async function dispatchWorkflow({ executionId, type, ref = stagingBranch(), commitSha = null }) {
   const token = String(process.env.GUARDIAN_GITHUB_TOKEN || '').trim();
   const repository = repositoryName();
   const workflow = cleanWorkerText(
@@ -86,6 +88,11 @@ async function dispatchWorkflow({ executionId, type, ref = stagingBranch() }) {
     return { dispatched: false, reason: 'not_configured', repository, workflow };
   }
   const url = `https://api.github.com/repos/${repository}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`;
+  const inputs = {
+    execution_id: String(executionId),
+    requested_type: String(type)
+  };
+  if (commitSha) inputs.commit_sha = String(commitSha);
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -95,13 +102,7 @@ async function dispatchWorkflow({ executionId, type, ref = stagingBranch() }) {
       'Content-Type': 'application/json',
       'User-Agent': 'mirox-guardian-worker'
     },
-    body: JSON.stringify({
-      ref,
-      inputs: {
-        execution_id: String(executionId),
-        requested_type: String(type)
-      }
-    }),
+    body: JSON.stringify({ ref, inputs }),
     signal: AbortSignal.timeout(15000)
   });
   if (!response.ok) {
@@ -112,6 +113,16 @@ async function dispatchWorkflow({ executionId, type, ref = stagingBranch() }) {
 }
 
 function analysisKeyboard(incidentId) {
+  return {
+    inline_keyboard: [
+      [{ text: 'Prepara modifica staging', callback_data: `approve_work:${incidentId}` }],
+      [{ text: 'Apri conversazione', callback_data: `open:${incidentId}` }],
+      [{ text: 'Archivia', callback_data: `archive:${incidentId}` }]
+    ]
+  };
+}
+
+function observerKeyboard(incidentId) {
   return {
     inline_keyboard: [
       [{ text: 'Prepara modifica staging', callback_data: `approve_work:${incidentId}` }],
@@ -143,6 +154,7 @@ function testKeyboard(incidentId) {
 
 module.exports = {
   analysisKeyboard,
+  observerKeyboard,
   cleanWorkerText,
   createLeaseToken,
   dispatchWorkflow,

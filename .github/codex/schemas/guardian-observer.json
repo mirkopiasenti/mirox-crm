@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "classification": { "type": "string", "enum": ["bug", "outage", "configuration", "data_integrity", "performance", "false_positive", "improvement"] },
+    "confirmed_severity": { "type": "string", "enum": ["bassa", "media", "alta", "critica"] },
+    "summary": { "type": "string", "maxLength": 4000 },
+    "facts": { "type": "array", "items": { "type": "string", "maxLength": 1000 }, "maxItems": 12 },
+    "evidence": { "type": "array", "items": { "type": "string", "maxLength": 1000 }, "maxItems": 12 },
+    "likely_cause": { "type": "string", "maxLength": 2500 },
+    "affected_files": { "type": "array", "items": { "type": "string", "maxLength": 500 }, "maxItems": 20 },
+    "proposed_resolution": { "type": "string", "maxLength": 3000 },
+    "verification_steps": { "type": "array", "items": { "type": "string", "maxLength": 1000 }, "maxItems": 12 },
+    "acceptance_criteria": { "type": "array", "items": { "type": "string", "maxLength": 1000 }, "maxItems": 12 },
+    "missing_data": { "type": "array", "items": { "type": "string", "maxLength": 800 }, "maxItems": 8 },
+    "confidence": { "type": "string", "enum": ["bassa", "media", "alta"] },
+    "blocked": { "type": "boolean" },
+    "safe_to_prepare_patch": { "type": "boolean" }
+  },
+  "required": ["classification", "confirmed_severity", "summary", "facts", "evidence", "likely_cause", "affected_files", "proposed_resolution", "verification_steps", "acceptance_criteria", "missing_data", "confidence", "blocked", "safe_to_prepare_patch"]
+}

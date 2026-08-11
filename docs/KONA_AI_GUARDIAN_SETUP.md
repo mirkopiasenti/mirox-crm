@@ -11,9 +11,9 @@ La prima versione realizza un unico agente, senza gerarchie:
 - analisi, approvazione lavorazione e archiviazione partono solo da pulsanti Telegram e lasciano audit nel database;
 - le email tecniche automatiche sono rimosse; `mirox-send-email` e tutte le email operative restano attivi.
 
-Questa versione non legge ancora il repository e non modifica codice. L'analisi Guardian distingue espressamente fatti, ipotesi e verifiche mancanti. Il collegamento Codex viene aggiunto come esecutore separato: prima analisi read-only, poi proposta di patch, test e pull request; mai rilascio diretto in produzione.
+Il Guardian raccoglie le richieste manuali e l'Observer legge il repository soltanto tramite workflow Codex read-only. L'analisi distingue espressamente fatti, ipotesi e verifiche mancanti. Dopo una diagnosi può essere proposta una patch, ma test, pull request e rilascio restano fasi separate; mai rilascio diretto in produzione.
 
-La migration `067_kona_ai_codex_esecuzioni.sql` prepara il registro server-only delle esecuzioni ed e' applicata esclusivamente sul Supabase staging. Il webhook staging avvia workflow separati per analisi, patch, test e proposta di rilascio; produzione e merge su `main` restano fuori dall'automazione.
+Le migration `067_kona_ai_codex_esecuzioni.sql` e `068_kona_ai_observer.sql` preparano rispettivamente il registro delle esecuzioni e il dominio server-only dell'Observer (telemetria ripulita, fingerprint, outbox Telegram e checkpoint). Vanno applicate prima sul Supabase staging. Il webhook e il cron staging avviano analisi read-only; patch, test, produzione e merge su `main` restano fuori dall'automazione.
 
 ## Architettura scelta
 
@@ -33,13 +33,13 @@ Non collegare il Guardian direttamente al database condiviso di produzione. Prim
 1. creare il progetto Supabase `Mirox CRM - Staging` (`blwgxrszvsoqcmcmhhqr`, `eu-west-3`);
 2. creare il sito Netlify separato `mirox-crm-staging.netlify.app`, senza custom domain di produzione (completato il 2026-08-10);
 3. configurare sul sito staging `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MIROX_DEPLOY_ENV=staging`, `MIROX_PUBLIC_SUPABASE_URL` e `MIROX_PUBLIC_SUPABASE_ANON_KEY` del nuovo progetto (completato il 2026-08-10);
-4. applicare una sola volta `database/staging/001_guardian_bootstrap.sql`, poi `database/065_kona_ai_guardian.sql` e infine `database/066_kona_ai_tipologia_richiesta.sql` (tutte completate sullo staging il 2026-08-10);
+4. applicare una sola volta `database/staging/001_guardian_bootstrap.sql`, poi `database/065_kona_ai_guardian.sql`, `database/066_kona_ai_tipologia_richiesta.sql`, `database/067_kona_ai_codex_esecuzioni.sql` e infine `database/068_kona_ai_observer.sql` (la `068` richiede verifica preventiva dello schema);
 5. usare la branch `codex/kona-ai-guardian-staging` e verificare che il workflow `.github/workflows/ci.yml` sia verde (completato il 2026-08-10);
 6. creare soltanto l'utente Mirko, associarlo a un profilo `admin` e impostare `KONA_AI_OWNER_PROFILE_ID`; l'invito deve atterrare su `imposta-password.html`, dove Mirko sceglie autonomamente la password (account, profilo ed env var completati il 2026-08-10);
 7. configurare inizialmente OpenAI e Telegram solo sul sito staging; raccolta, analisi e bot sono stati verificati qui il 2026-08-10;
 8. provare entrambi i tipi di richiesta, domande, notifica, vocale, analisi, approvazione lavorazione e archiviazione prima di valutare la produzione.
 
-La prima versione e' stata quindi attivata sul production `mirox-crm.it`: env OpenAI/Telegram e profilo proprietario sono configurati sul Netlify ufficiale, mentre `065` e `066` sono applicate anche al Supabase production `lbgwamhjkjjfwgusafbi`. Le migration sono additive e non modificano le tabelle Call Center condivise. Il bot `@MiroxAiGuardianBot` e' riservato al webhook production; per test Telegram futuri sullo staging serve un secondo bot dedicato.
+La prima versione e' stata quindi attivata sul production `mirox-crm.it`: env OpenAI/Telegram e profilo proprietario sono configurati sul Netlify ufficiale, mentre `065` e `066` sono applicate anche al Supabase production `lbgwamhjkjjfwgusafbi`. Le migration `067` e `068` restano da verificare/applicare sullo staging prima di attivare l'Observer. Le migration sono additive e non modificano le tabelle Call Center condivise. Il bot `@MiroxAiGuardianBot` e' riservato al webhook production; per test Telegram futuri sullo staging serve un secondo bot dedicato.
 
 Il bootstrap staging si interrompe se trova anche una sola tabella nello schema `public`: questa guardia lo rende inadatto e non eseguibile sul production gia' popolato. Crea soltanto `profili`, senza utenti Auth e senza dati CRM; l'utente Mirko viene aggiunto separatamente dopo lo schema.
 
@@ -67,10 +67,16 @@ Netlify registra comunque le scheduled functions presenti in `netlify.toml`; ent
 | `GUARDIAN_GITHUB_TOKEN` | Fine-grained token usato dal dispatcher per `workflow_dispatch` | Solo Netlify server-side; limitato al repository e alle Actions |
 | `GUARDIAN_GITHUB_REPOSITORY` | Repository del worker Codex | Default `mirkopiasenti/mirox-crm` |
 | `GUARDIAN_STAGING_BRANCH` | Branch base per patch e test | Default `codex/kona-ai-guardian-staging` |
+| `GUARDIAN_OBSERVER_ENABLED` | Abilita o sospende il cron Observer senza togliere la raccolta | Default `true` |
+| `GUARDIAN_OBSERVER_DAILY_BUDGET` | Limite giornaliero per analisi automatiche Codex | Default `10` |
+| `GUARDIAN_OBSERVER_MODEL` | Modello del workflow Observer | Default `gpt-5.6-luna` |
+| `GUARDIAN_OBSERVER_REF` | Ref osservato dal cron | Default `GUARDIAN_STAGING_BRANCH` |
+| `GUARDIAN_OBSERVER_WEEKLY_SCAN` | Abilita la scansione preventiva settimanale delle migliorie | Default `true` |
+| `GUARDIAN_TELEMETRY_HASH_SECRET` | HMAC per anonimizzare gli attori negli eventi | Distinto per ambiente; fallback temporaneo al secret worker |
 
 Sul repository GitHub configurare inoltre i secrets `OPENAI_API_KEY_CODEX_WORKER`, `GUARDIAN_WORKER_URL` e `GUARDIAN_WORKER_SECRET`. La chiave OpenAI del worker resta in GitHub Actions e non viene mai inviata a Netlify o al modello conversazionale.
 
-GitHub accetta `workflow_dispatch` soltanto se il workflow e' presente sulla branch predefinita. Registrare quindi anche su `main` esclusivamente `.github/workflows/guardian-codex-*.yml` e `.github/codex/`. I job sono protetti da guardie sul ref: `analisi_codex` e `prepara_patch` accettano soltanto `codex/kona-ai-guardian-staging`; `test_staging` e `rilascio_produzione` soltanto branch `codex/kg-*`. Questi file non entrano nella build Netlify `dist/` e non portano su production functions, migration o codice applicativo del worker.
+GitHub accetta `workflow_dispatch` soltanto se il workflow e' presente sulla branch predefinita. Registrare quindi anche su `main` esclusivamente `.github/workflows/guardian-codex-*.yml`, `guardian-observer-analysis.yml` e `.github/codex/`. L'Observer accetta solo `main` o `codex/kona-ai-guardian-staging`, usa `contents: read`, sandbox `read-only`, `drop-sudo` e `--ephemeral`; patch/test/rilascio mantengono le guardie sul ref già documentate. Questi file non entrano nella build Netlify `dist/` e non portano su production functions, migration o codice applicativo del worker.
 
 Il controllo dei file della patch esclude dal diff i soli artefatti tecnici del runner (`guardian-context.json`, `guardian-changed-files.txt`, `codex-output.md`), blocca qualsiasi `*.sql` sotto `database/` e consente `database/README.md`, richiesto dalla manutenzione documentale. Il prompt deve dichiarare `ESITO_PATCH: MODIFICA_PREPARATA`, `GIA_PRESENTE` oppure `BLOCCATA`: `GIA_PRESENTE` è accettato soltanto a working tree applicativo invariato e chiude positivamente l'esecuzione senza branch, pull request o test staging. Se una fase fallisce prima della pull request, il workflow invia comunque al worker un payload JSON completo con `pull_request_url: null`; Guardian puo' quindi chiudere il lease, registrare il fallimento e notificare Telegram senza lasciare l'esecuzione sospesa.
 
@@ -96,6 +102,7 @@ Il webhook rifiuta richieste prive del secret token e ignora qualunque chat dive
 Comandi disponibili:
 
 - `/richieste` elenca problemi e migliorie aperti (`/incidenti` resta un alias compatibile);
+- `/salute` mostra a Mirko il checkpoint e i contatori tecnici dell'Observer (coda, esecuzioni, notifiche e segnali), senza esporre dati CRM;
 - `/apri KG-000001` imposta la richiesta attiva;
 - `/nuovo descrizione` crea un problema direttamente da Telegram;
 - `/nuovo_miglioria descrizione` crea una proposta di miglioria;
@@ -122,9 +129,10 @@ I dettagli tecnici hanno una data obiettivo di scadenza a 90 giorni. Il riepilog
 
 Dopo che raccolta CRM e Telegram sono affidabili:
 
-1. applicare e verificare sul Supabase staging la migration `067_kona_ai_codex_esecuzioni.sql`;
+1. applicare e verificare sul Supabase staging le migration `067_kona_ai_codex_esecuzioni.sql` e `068_kona_ai_observer.sql`;
 2. configurare i secrets GitHub e il fine-grained token del dispatcher;
 3. testare l'analisi read-only su una richiesta sintetica;
 4. testare patch, test staging e pull request draft su una richiesta sintetica;
-5. collegare Sentry allo staging con mascheramento dei dati personali e senza session replay iniziale;
-6. mantenere test staging e rilascio production come autorizzazioni distinte.
+5. verificare il cron Observer in shadow mode, la deduplicazione e la coda Telegram con eventi sintetici;
+6. collegare Sentry solo in seguito, con mascheramento dei dati personali e senza session replay iniziale;
+7. mantenere test staging e rilascio production come autorizzazioni distinte.

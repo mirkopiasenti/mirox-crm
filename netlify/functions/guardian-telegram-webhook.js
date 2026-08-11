@@ -135,6 +135,57 @@ async function listOpenIncidents(supabase, chatId) {
   ].join('\n'));
 }
 
+async function observerHealth(supabase, chatId) {
+  const ambiente = String(process.env.MIROX_DEPLOY_ENV || 'production').trim() === 'staging'
+    ? 'staging'
+    : 'production';
+  try {
+    const [checkpointResult, queuedResult, runningResult, notificationResult, signalResult] = await Promise.all([
+      supabase
+        .from('kona_ai_observer_checkpoint')
+        .select('ultima_esecuzione_at, ultimo_esito, budget_giornaliero, budget_data')
+        .eq('ambiente', ambiente)
+        .eq('tipo', 'observer')
+        .maybeSingle(),
+      supabase
+        .from('kona_ai_esecuzioni')
+        .select('id', { count: 'exact', head: true })
+        .in('stato', ['in_coda']),
+      supabase
+        .from('kona_ai_esecuzioni')
+        .select('id', { count: 'exact', head: true })
+        .in('stato', ['in_esecuzione']),
+      supabase
+        .from('kona_ai_notifiche')
+        .select('id', { count: 'exact', head: true })
+        .in('stato', ['in_coda', 'in_invio', 'fallita']),
+      supabase
+        .from('kona_ai_segnali')
+        .select('id', { count: 'exact', head: true })
+        .eq('ambiente', ambiente)
+    ]);
+    const queryError = [checkpointResult, queuedResult, runningResult, notificationResult, signalResult]
+      .map((result) => result.error)
+      .find(Boolean);
+    if (queryError) throw queryError;
+
+    const checkpoint = checkpointResult.data;
+    await sendTelegramMessage(chatId, [
+      `Guardian Observer · ${ambiente}`,
+      `Stato: ${checkpoint ? (checkpoint.ultimo_esito || 'configurato') : 'in attesa della prima scansione'}`,
+      `Ultima scansione: ${checkpoint?.ultima_esecuzione_at || 'mai'}`,
+      `Budget usato oggi: ${checkpoint?.budget_giornaliero || 0}`,
+      `Esecuzioni in coda: ${queuedResult.count || 0}`,
+      `Esecuzioni in corso: ${runningResult.count || 0}`,
+      `Notifiche da inviare: ${notificationResult.count || 0}`,
+      `Segnali osservati: ${signalResult.count || 0}`
+    ].join('\n'));
+  } catch (error) {
+    console.error('guardian observer health:', error);
+    await sendTelegramMessage(chatId, 'Guardian Observer non è ancora attivo. Verifica che la migration 068 sia stata applicata nello staging e che il cron sia configurato.');
+  }
+}
+
 async function openIncident(supabase, chatId, incident) {
   await setActiveIncident(supabase, chatId, incident.id);
   const messages = await getMessages(supabase, incident.id, 12);
@@ -666,6 +717,7 @@ async function handleMessage(supabase, update, chatId, session) {
       'KONA AI Guardian è collegato soltanto a questa chat privata.',
       '',
       '/richieste mostra problemi e migliorie aperti',
+      '/salute mostra lo stato tecnico dell\'Observer',
       '/apri KG-000001 apre una richiesta',
       '/nuovo descrizione crea un problema da Telegram',
       '/nuovo_miglioria descrizione crea una miglioria da Telegram',
@@ -674,6 +726,7 @@ async function handleMessage(supabase, update, chatId, session) {
     ].join('\n'));
     return;
   }
+  if (lower === '/salute') return observerHealth(supabase, chatId);
   if (lower === '/incidenti' || lower === '/richieste') return listOpenIncidents(supabase, chatId);
   if (lower.startsWith('/apri')) return openByCode(supabase, chatId, text);
   if (lower.startsWith('/nuovo_miglioria')) {

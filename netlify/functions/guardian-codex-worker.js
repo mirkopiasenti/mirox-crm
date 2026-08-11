@@ -8,6 +8,7 @@ const {
   hashLeaseToken,
   parseWorkerBody,
   patchKeyboard,
+  observerKeyboard,
   testKeyboard,
   verifyWorkerRequest
 } = require('./_lib/guardian-codex');
@@ -17,9 +18,10 @@ const {
   requestTypeLabel
 } = require('./_lib/kona-ai-guardian');
 const { sendTelegramMessage } = require('./_lib/telegram');
+const { captureServerError } = require('./_lib/with-telemetry');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const EXECUTION_TYPES = new Set(['analisi_codex', 'prepara_patch', 'test_staging', 'rilascio_produzione']);
+const EXECUTION_TYPES = new Set(['analisi_codex', 'analisi_automatica', 'scansione_migliorie', 'prepara_patch', 'test_staging', 'rilascio_produzione']);
 const ACTIVE_STATES = new Set(['in_coda', 'in_esecuzione']);
 const LEASE_MINUTES = 15;
 
@@ -203,6 +205,10 @@ function resultMessage(execution, body, success) {
   const prefix = success ? 'Codex ha completato' : 'Codex non ha completato';
   const phase = execution.tipo_esecuzione === 'analisi_codex'
     ? 'l’analisi del repository'
+    : execution.tipo_esecuzione === 'analisi_automatica'
+      ? 'l’analisi automatica del repository'
+      : execution.tipo_esecuzione === 'scansione_migliorie'
+        ? 'la scansione preventiva delle migliorie'
     : execution.tipo_esecuzione === 'prepara_patch'
       ? 'la preparazione della modifica staging'
       : execution.tipo_esecuzione === 'test_staging'
@@ -222,6 +228,8 @@ function noChangeKeyboard(incidentId) {
 
 function keyboardForExecution(execution, result) {
   if (execution.tipo_esecuzione === 'analisi_codex') return analysisKeyboard(execution.incidente_id);
+  if (execution.tipo_esecuzione === 'analisi_automatica') return observerKeyboard(execution.incidente_id);
+  if (execution.tipo_esecuzione === 'scansione_migliorie') return observerKeyboard(execution.incidente_id);
   if (execution.tipo_esecuzione === 'prepara_patch' && result?.no_changes === true) {
     return noChangeKeyboard(execution.incidente_id);
   }
@@ -266,6 +274,8 @@ async function recordResult(supabase, body) {
 
   const incidentState = success
     ? execution.tipo_esecuzione === 'analisi_codex'
+      || execution.tipo_esecuzione === 'analisi_automatica'
+      || execution.tipo_esecuzione === 'scansione_migliorie'
       ? 'in_attesa_approvazione'
       : execution.tipo_esecuzione === 'prepara_patch'
         ? noChanges ? 'ricevuto' : 'in_lavorazione'
@@ -299,15 +309,34 @@ async function recordResult(supabase, body) {
   if (messageError) throw messageError;
 
   const chatId = String(process.env.TELEGRAM_GUARDIAN_OWNER_CHAT_ID || '').trim();
-  if (chatId) {
-    const { data: incident } = await supabase
-      .from('kona_ai_incidenti')
-      .select('numero, tipo_richiesta')
-      .eq('id', execution.incidente_id)
-      .maybeSingle();
-    const heading = incident
-      ? `${incidentCode(incident.numero)} · ${requestTypeLabel(incident.tipo_richiesta)}`
-      : 'Guardian';
+  const { data: incident } = await supabase
+    .from('kona_ai_incidenti')
+    .select('numero, tipo_richiesta')
+    .eq('id', execution.incidente_id)
+    .maybeSingle();
+  const heading = incident
+    ? `${incidentCode(incident.numero)} · ${requestTypeLabel(incident.tipo_richiesta)}`
+    : 'Guardian';
+  const observerExecution = execution.tipo_esecuzione === 'analisi_automatica'
+    || execution.tipo_esecuzione === 'scansione_migliorie';
+  if (observerExecution) {
+    const { data: signal } = await supabase.from('kona_ai_segnali')
+      .select('id').eq('incidente_id', execution.incidente_id).maybeSingle();
+    if (signal?.id) {
+      await supabase.from('kona_ai_segnali').update({
+        stato: success ? 'notificato' : 'osservando',
+        last_analyzed_at: now
+      }).eq('id', signal.id);
+      await supabase.from('kona_ai_notifiche').upsert({
+        incidente_id: execution.incidente_id,
+        segnale_id: signal.id,
+        dedupe_key: `observer:${signal.id}:result:${execution.id}`,
+        payload: { text: `${heading}\n\n${text}`, reply_markup: success ? keyboardForExecution(execution, safeResult) : undefined },
+        stato: 'in_coda',
+        prossimo_tentativo_at: now
+      }, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+    }
+  } else if (chatId) {
     try {
       await sendTelegramMessage(chatId, `${heading}\n\n${text}`, {
         reply_markup: success ? keyboardForExecution(execution, safeResult) : undefined
@@ -333,6 +362,15 @@ exports.handler = async (event) => {
     return response(400, { ok: false, error: 'Azione worker non valida' });
   } catch (error) {
     console.error('guardian-codex-worker:', error);
+    await captureServerError({
+      supabase,
+      error,
+      functionName: 'guardian-codex-worker',
+      operation: body.action || 'worker',
+      kind: 'provider_error',
+      severityHint: 'error',
+      auth: { user: null }
+    });
     return response(500, { ok: false, error: 'Errore interno del worker' });
   }
 };
