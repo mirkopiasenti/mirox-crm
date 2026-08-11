@@ -64,6 +64,10 @@ Netlify registra comunque le scheduled functions presenti in `netlify.toml`; ent
 
 Non salvare token, chiavi o ID sensibili nel repository. Il bot Guardian deve essere distinto dall'eventuale futuro bot Call Center Coach.
 
+## Registrazione workflow GitHub per lo staging
+
+GitHub accetta `workflow_dispatch` soltanto per workflow presenti sulla branch predefinita. `main` contiene quindi esclusivamente `.github/workflows/guardian-codex-*.yml` e `.github/codex/` come control plane dello staging. Le guardie `github.ref` consentono analisi e patch soltanto da `codex/kona-ai-guardian-staging`, e test/proposta di rilascio soltanto da branch `codex/kg-*`. Questi file non sono inclusi nella build Netlify `dist/` e non attivano il worker, la migration `067` o funzionalita' Codex sul production.
+
 ## Configurazione Telegram
 
 1. creare con BotFather un bot dedicato, ad esempio KONA AI Guardian; il bot ufficiale e' `@MiroxAiGuardianBot`, mentre per futuri test staging ne serve uno distinto;

@@ -39,6 +39,8 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `netlify/functions/_templates/disdette/` | I quattro moduli PDF WindTre originali usati come sfondo immutabile dal Compilatore disdette |
 | `tests/` | Test automatici Node (`node:test`): regressioni vendita, sicurezza/XSS, PDF privacy, sintassi e link locali |
 | `.github/workflows/ci.yml` | CI GitHub: build e test con Node 22 su pull request e branch `main`/`staging` |
+| `.github/workflows/guardian-codex-*.yml` | Registrazione GitHub dei workflow Guardian staging. I job accettano soltanto `codex/kona-ai-guardian-staging` o branch patch `codex/kg-*`; non eseguono merge o deploy production automatici |
+| `.github/codex/` | Prompt e schema strutturato dei workflow Guardian staging; non entra nella build Netlify |
 | `docs/KONA_AI_GUARDIAN_SETUP.md` | Setup staging, Telegram/OpenAI, approvazioni e confini del primo agente |
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |
 | `database/staging/` | Bootstrap one-shot esclusivi del Supabase staging; non applicabili a production |
@@ -138,6 +140,8 @@ Setup:
 4. Deploy automatico al `git push origin main`
 
 Lo staging Guardian usa il sito Netlify separato `mirox-crm-staging`, collegato a `codex/kona-ai-guardian-staging`. Il sito imposta `MIROX_DEPLOY_ENV=staging` e le credenziali del Supabase separato; la build pubblicata conferma l'ambiente `staging` e il project ref `blwgxrszvsoqcmcmhhqr`. Un push su questa branch non autorizza modifiche a `main` o al database di produzione.
+
+GitHub richiede che i workflow invocati tramite `workflow_dispatch` siano presenti sulla branch predefinita. Per questo `main` registra esclusivamente `.github/workflows/guardian-codex-*.yml` e `.github/codex/`: questi file non entrano in `dist/`, analisi e patch sono ammesse solo dalla branch Guardian staging, mentre test e proposta di rilascio accettano solo branch `codex/kg-*`. Functions, migration e codice applicativo del worker restano esclusivamente nello staging.
 
 ## Workflow di aggiornamento
 

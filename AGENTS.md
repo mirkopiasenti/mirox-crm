@@ -600,6 +600,7 @@ Il reporter globale `js/mirox-error-reporter.js` e tutte le email automatiche pe
 4. `guardian-telegram-webhook` accetta esclusivamente il secret token configurato e `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`. Mirko puo' usare testo o vocali gia' conclusi; niente conversazione audio live.
 5. Analisi Guardian, archiviazione e `Approva lavorazione` richiedono un pulsante Telegram. Ogni decisione viene registrata in `kona_ai_approvazioni`; `Approva lavorazione` usa `azione='prepara_fix'`, imposta `stato='fix_approvato'` e non modifica codice.
 6. La prima versione non legge il repository, non esegue Codex, non crea patch e non distribuisce codice. Il collegamento Codex sara' un esecutore isolato successivo che potra' prendere in carico soltanto richieste gia' approvate, con autorizzazioni separate per analisi, patch/test staging e rilascio.
+7. La branch `main` registra soltanto `.github/workflows/guardian-codex-*.yml` e `.github/codex/`, requisito GitHub per ricevere `workflow_dispatch` destinati allo staging. Le guardie dei job sono fail-closed: analisi/patch solo da `codex/kona-ai-guardian-staging`, test/proposta di rilascio solo da `codex/kg-*`. Non portare su `main` il worker Netlify, la migration `067` o altro codice Guardian staging.
 
 ### Database e retention
 

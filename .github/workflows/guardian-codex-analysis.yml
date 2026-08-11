@@ -1,0 +1,92 @@
+name: Guardian Codex analysis
+
+on:
+  workflow_dispatch:
+    inputs:
+      execution_id:
+        description: Guardian execution UUID
+        required: true
+        type: string
+      requested_type:
+        description: Execution type supplied by the dispatcher
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guardian-codex-${{ inputs.execution_id }}
+  cancel-in-progress: false
+
+jobs:
+  analyse:
+    if: github.ref == 'refs/heads/codex/kona-ai-guardian-staging' && inputs.requested_type == 'analisi_codex'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      GUARDIAN_WORKER_URL: ${{ secrets.GUARDIAN_WORKER_URL }}
+      GUARDIAN_WORKER_SECRET: ${{ secrets.GUARDIAN_WORKER_SECRET }}
+      EXECUTION_ID: ${{ inputs.execution_id }}
+
+    steps:
+      - name: Checkout exact staging ref
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Claim Guardian execution
+        id: claim
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GUARDIAN_WORKER_URL"
+          test -n "$GUARDIAN_WORKER_SECRET"
+          body="$(jq -cn --arg id "$EXECUTION_ID" --arg run "${GITHUB_RUN_ID}" '{action:"claim",execution_id:$id,workflow_run_id:($run|tonumber)}')"
+          signature="$(BODY="$body" node -e 'const crypto=require("crypto"); process.stdout.write(crypto.createHmac("sha256", process.env.GUARDIAN_WORKER_SECRET).update(process.env.BODY).digest("hex"))')"
+          response="$(curl --fail --silent --show-error --max-time 20 "$GUARDIAN_WORKER_URL" \
+            -H 'Content-Type: application/json' \
+            -H "X-Guardian-Worker-Signature: $signature" \
+            --data "$body")"
+          lease="$(jq -er '.lease_token' <<<"$response")"
+          echo "::add-mask::$lease"
+          echo "lease_token=$lease" >> "$GITHUB_OUTPUT"
+          jq -e '.context' <<<"$response" > guardian-context.json
+          echo "base_commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Run Codex Luna read-only
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY_CODEX_WORKER }}
+          model: gpt-5.6-luna
+          effort: medium
+          sandbox: read-only
+          safety-strategy: drop-sudo
+          prompt-file: .github/codex/prompts/guardian-analysis.md
+          output-file: codex-output.md
+          codex-args: '["--output-schema", ".github/codex/schemas/guardian-analysis.json", "--ephemeral"]'
+
+      - name: Return result to Guardian
+        if: always() && steps.claim.outputs.lease_token != ''
+        shell: bash
+        env:
+          LEASE_TOKEN: ${{ steps.claim.outputs.lease_token }}
+          CODEX_OUTCOME: ${{ steps.run_codex.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "$CODEX_OUTCOME" = "success" ] && [ -s codex-output.md ] && jq -e . codex-output.md >/dev/null 2>&1; then
+            result="$(jq -c . codex-output.md)"
+            summary="$(jq -r '.summary // .proposal // "Analisi Codex completata."' codex-output.md)"
+            body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --argjson result "$result" '{action:"result",execution_id:$id,lease_token:$lease,success:true,summary:$summary,result:$result}')"
+          else
+            body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg error "Codex workflow outcome: $CODEX_OUTCOME" '{action:"result",execution_id:$id,lease_token:$lease,success:false,error_code:"codex_action_failed",error:$error}')"
+          fi
+          signature="$(BODY="$body" node -e 'const crypto=require("crypto"); process.stdout.write(crypto.createHmac("sha256", process.env.GUARDIAN_WORKER_SECRET).update(process.env.BODY).digest("hex"))')"
+          curl --fail --silent --show-error --max-time 20 "$GUARDIAN_WORKER_URL" \
+            -H 'Content-Type: application/json' \
+            -H "X-Guardian-Worker-Signature: $signature" \
+            --data "$body" >/dev/null
