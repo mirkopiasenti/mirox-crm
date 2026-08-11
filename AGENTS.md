@@ -170,7 +170,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 
 ~80 tabelle. Project ref produzione: `lbgwamhjkjjfwgusafbi`. La configurazione pubblica di produzione e' in `scripts/build-static.js`; quella staging arriva soltanto dalle env Netlify e viene materializzata in `dist/js/config.js`.
 
-Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmcmhhqr`, regione `eu-west-3`, e non contiene dati CRM di produzione. Gli script one-shot dedicati vivono in `database/staging/`: `001_guardian_bootstrap.sql` crea soltanto il profilo minimo necessario ad Auth/Guardian e si blocca se lo schema `public` non e' vuoto, impedendone l'esecuzione accidentale sul database production. Il bootstrap e le migration Guardian `065`/`066` sono applicati allo staging; le sole migration additive `065`/`066` risultano applicate anche al production `lbgwamhjkjjfwgusafbi` dal 2026-08-10.
+Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmcmhhqr`, regione `eu-west-3`, e non contiene dati CRM di produzione. Gli script one-shot dedicati vivono in `database/staging/`: `001_guardian_bootstrap.sql` crea soltanto il profilo minimo necessario ad Auth/Guardian e si blocca se lo schema `public` non e' vuoto, impedendone l'esecuzione accidentale sul database production. Il bootstrap e le migration Guardian `065`/`066`/`067`/`068` sono applicati allo staging; le sole migration additive `065`/`066` risultano applicate anche al production `lbgwamhjkjjfwgusafbi` dal 2026-08-10.
 
 ---
 
@@ -624,7 +624,7 @@ La migration additiva `065_kona_ai_guardian.sql` crea quattro tabelle server-onl
 - `kona_ai_esecuzioni`: contratto operativo e audit del worker Codex, con idempotenza delle esecuzioni attive.
 - `kona_ai_eventi_tecnici`, `kona_ai_segnali`, `kona_ai_notifiche`, `kona_ai_observer_checkpoint`: telemetria ripulita, aggregati, coda Telegram e checkpoint dell'Observer (migration `068`).
 
-`anon` e `authenticated` non hanno grant diretti. Gli eventi tecnici della `068` scadono dopo 30 giorni; i gruppi e le notifiche restano server-only per l'audit operativo. I dettagli tecnici degli incidenti hanno `dettagli_tecnici_scadono_at = now()+90 giorni`; riepilogo e audit restano permanenti. `cron-pulizia-operativa` dovrà eliminare gli eventi tecnici oltre `expires_at` nella stessa fase di retention. La migration `068` è preparata nel repository ma non ancora applicata: prima di applicarla occorre verificare `067` e lo schema Guardian sullo staging.
+`anon` e `authenticated` non hanno grant diretti. Gli eventi tecnici della `068` scadono dopo 30 giorni; i gruppi e le notifiche restano server-only per l'audit operativo. I dettagli tecnici degli incidenti hanno `dettagli_tecnici_scadono_at = now()+90 giorni`; riepilogo e audit restano permanenti. `cron-pulizia-operativa` dovrà eliminare gli eventi tecnici oltre `expires_at` nella stessa fase di retention. Le migration `067` e `068` sono applicate e verificate sullo staging; restano intenzionalmente non applicate in production finché l'Observer non sarà validato con il bot Telegram dedicato.
 
 ### Ambiente e segreti
 

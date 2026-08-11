@@ -39,7 +39,7 @@ Non collegare il Guardian direttamente al database condiviso di produzione. Prim
 7. configurare inizialmente OpenAI e Telegram solo sul sito staging; raccolta, analisi e bot sono stati verificati qui il 2026-08-10;
 8. provare entrambi i tipi di richiesta, domande, notifica, vocale, analisi, approvazione lavorazione e archiviazione prima di valutare la produzione.
 
-La prima versione e' stata quindi attivata sul production `mirox-crm.it`: env OpenAI/Telegram e profilo proprietario sono configurati sul Netlify ufficiale, mentre `065` e `066` sono applicate anche al Supabase production `lbgwamhjkjjfwgusafbi`. Le migration `067` e `068` restano da verificare/applicare sullo staging prima di attivare l'Observer. Le migration sono additive e non modificano le tabelle Call Center condivise. Il bot `@MiroxAiGuardianBot` e' riservato al webhook production; per test Telegram futuri sullo staging serve un secondo bot dedicato.
+La prima versione e' stata quindi attivata sul production `mirox-crm.it`: env OpenAI/Telegram e profilo proprietario sono configurati sul Netlify ufficiale, mentre `065` e `066` sono applicate anche al Supabase production `lbgwamhjkjjfwgusafbi`. Le migration `067` e `068` sono state applicate e verificate sul Supabase staging il 2026-08-11; sono additive e non modificano le tabelle Call Center condivise. Le variabili Observer sono configurate sul sito Netlify staging. Il bot `@MiroxAiGuardianBot` e' riservato al webhook production; per i test Observer sullo staging serve ancora un secondo bot dedicato.
 
 Il bootstrap staging si interrompe se trova anche una sola tabella nello schema `public`: questa guardia lo rende inadatto e non eseguibile sul production gia' popolato. Crea soltanto `profili`, senza utenti Auth e senza dati CRM; l'utente Mirko viene aggiunto separatamente dopo lo schema.
 
@@ -129,8 +129,8 @@ I dettagli tecnici hanno una data obiettivo di scadenza a 90 giorni. Il riepilog
 
 Dopo che raccolta CRM e Telegram sono affidabili:
 
-1. applicare e verificare sul Supabase staging le migration `067_kona_ai_codex_esecuzioni.sql` e `068_kona_ai_observer.sql`;
-2. configurare i secrets GitHub e il fine-grained token del dispatcher;
+1. creare e configurare il secondo bot Telegram dedicato allo staging;
+2. verificare i secrets GitHub e il fine-grained token del dispatcher;
 3. testare l'analisi read-only su una richiesta sintetica;
 4. testare patch, test staging e pull request draft su una richiesta sintetica;
 5. verificare il cron Observer in shadow mode, la deduplicazione e la coda Telegram con eventi sintetici;
