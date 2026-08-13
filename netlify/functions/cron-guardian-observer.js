@@ -19,18 +19,41 @@ function isEnabled() {
 
 function nowIso() { return new Date().toISOString(); }
 
+function priorityLabel(value) {
+  return ({ bassa: 'da osservare', media: 'da verificare', alta: 'importante', critica: 'urgente' })[value] || 'da verificare';
+}
+
+function signalExplanation(signal) {
+  if (signal.kind === 'network_error') {
+    return 'Un operatore non è riuscito a completare una comunicazione tra il CRM e il server. Può dipendere dalla connessione, da un’interruzione momentanea o dal servizio chiamato.';
+  }
+  if (signal.kind === 'http_5xx' || signal.kind === 'function_exception') {
+    return 'Il CRM ha ricevuto un errore dal server durante un’operazione.';
+  }
+  if (signal.kind === 'timeout') {
+    return 'Un’operazione del CRM ha impiegato troppo tempo e non si è conclusa.';
+  }
+  return 'Il CRM ha rilevato un comportamento tecnico da verificare.';
+}
+
 function preliminaryText(incident, signal, analysisQueued) {
+  const moduleName = signal.location?.module || signal.location?.function_name || signal.location?.page_path || 'area non identificata';
+  const spread = Number(signal.affected_actor_count || 0) <= 1
+    ? `Per ora è successo ${signal.occurrence_count} volta/e a un solo operatore.`
+    : `È successo ${signal.occurrence_count} volta/e e coinvolge ${signal.affected_actor_count} operatori.`;
   return [
     `Guardian automatico · ${incidentCode(incident.numero)}`,
-    `Priorità: ${signal.priorita} · ${requestTypeLabel(incident.tipo_richiesta)}`,
-    `Ambiente: ${signal.ambiente}`,
-    `Rilevazioni: ${signal.occurrence_count} · Operatori coinvolti: ${signal.affected_actor_count}`,
-    signal.location?.module || signal.location?.function_name || signal.location?.page_path || 'Modulo non identificato',
-    text(signal.error_sample?.message || 'Errore tecnico rilevato', 700),
+    `${requestTypeLabel(incident.tipo_richiesta)} ${priorityLabel(signal.priorita)} · ${signal.ambiente === 'production' ? 'CRM ufficiale' : 'ambiente di prova'}`,
+    '',
+    'Che cosa è successo',
+    signalExplanation(signal),
+    '',
+    `Dove: ${moduleName}.`,
+    spread,
     '',
     analysisQueued
-      ? 'Ho avviato un’analisi read-only del repository. Ti invierò la diagnosi su Telegram.'
-      : 'L’incidente è registrato. L’analisi automatica verrà ritentata quando il worker sarà disponibile.'
+      ? 'Cosa faccio ora: controllo il codice senza modificarlo e ti invio una spiegazione semplice qui su Telegram.'
+      : 'Cosa faccio ora: conservo la segnalazione e riprovo il controllo automatico appena il servizio è disponibile.'
   ].join('\n').slice(0, 3900);
 }
 
@@ -123,7 +146,7 @@ async function enqueueNotification(supabase, incident, signal, analysisQueued) {
   const dedupeKey = `observer:${signal.id}:${analysisQueued ? 'analysis' : 'preliminary'}`;
   const payload = {
     text: preliminaryText(incident, signal, analysisQueued),
-    reply_markup: observerKeyboard(incident.id)
+    reply_markup: observerKeyboard(incident.id, { allowPatch: false })
   };
   const { error } = await supabase.from('kona_ai_notifiche').upsert({
     incidente_id: incident.id,

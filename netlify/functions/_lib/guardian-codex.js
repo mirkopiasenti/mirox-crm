@@ -124,14 +124,17 @@ function analysisKeyboard(incidentId) {
   };
 }
 
-function observerKeyboard(incidentId) {
-  return {
-    inline_keyboard: [
-      [{ text: 'Prepara modifica staging', callback_data: `approve_work:${incidentId}` }],
-      [{ text: 'Apri conversazione', callback_data: `open:${incidentId}` }],
-      [{ text: 'Archivia', callback_data: `archive:${incidentId}` }]
-    ]
-  };
+function observerKeyboard(incidentId, options = {}) {
+  const rows = [];
+  if (options.allowPatch === true) {
+    rows.push([{ text: 'Prepara modifica staging', callback_data: `approve_work:${incidentId}` }]);
+  }
+  rows.push([{
+    text: options.needsInformation ? 'Aggiungi informazioni' : 'Apri conversazione',
+    callback_data: `open:${incidentId}`
+  }]);
+  rows.push([{ text: 'Archivia', callback_data: `archive:${incidentId}` }]);
+  return { inline_keyboard: rows };
 }
 
 function patchKeyboard(incidentId) {

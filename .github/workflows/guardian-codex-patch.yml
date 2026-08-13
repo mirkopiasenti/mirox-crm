@@ -77,6 +77,15 @@ jobs:
           git switch -c "$patch_branch"
           echo "name=$patch_branch" >> "$GITHUB_OUTPUT"
 
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies before Codex
+        run: npm ci
+
       - name: Run Codex Luna with workspace write
         id: run_codex
         continue-on-error: true
@@ -99,6 +108,8 @@ jobs:
           set -euo pipefail
           echo 'has_changes=false' >> "$GITHUB_OUTPUT"
           echo 'no_changes=false' >> "$GITHUB_OUTPUT"
+          echo 'needs_information=false' >> "$GITHUB_OUTPUT"
+          echo 'blocked=false' >> "$GITHUB_OUTPUT"
           git add -N $(git ls-files --others --exclude-standard) 2>/dev/null || true
           changed="$(git diff --name-only -- . \
             ':(exclude)guardian-context.json' \
@@ -107,6 +118,14 @@ jobs:
           if [ -z "$changed" ]; then
             if grep -Eq '^ESITO_PATCH: GIA_PRESENTE[[:space:]]*$' codex-output.md; then
               echo 'no_changes=true' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if grep -Eq '^ESITO_PATCH: RICHIEDE_INFORMAZIONI[[:space:]]*$' codex-output.md; then
+              echo 'needs_information=true' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if grep -Eq '^ESITO_PATCH: BLOCCATA[[:space:]]*$' codex-output.md; then
+              echo 'blocked=true' >> "$GITHUB_OUTPUT"
               exit 0
             fi
             echo 'Codex non ha prodotto modifiche e non ha dichiarato che la richiesta è già soddisfatta.' >&2
@@ -130,17 +149,6 @@ jobs:
             ':(exclude)codex-output.md'
           printf '%s\n' "$changed" > /tmp/guardian-changed-files.txt
           echo 'has_changes=true' >> "$GITHUB_OUTPUT"
-
-      - name: Setup Node
-        if: steps.validate.outcome == 'success' && steps.validate.outputs.has_changes == 'true'
-        uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        if: steps.validate.outcome == 'success' && steps.validate.outputs.has_changes == 'true'
-        run: npm ci
 
       - name: Run repository tests
         id: tests
@@ -182,6 +190,8 @@ jobs:
           PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
           HAS_CHANGES: ${{ steps.validate.outputs.has_changes }}
           NO_CHANGES: ${{ steps.validate.outputs.no_changes }}
+          NEEDS_INFORMATION: ${{ steps.validate.outputs.needs_information }}
+          BLOCKED: ${{ steps.validate.outputs.blocked }}
           PR_URL: ${{ steps.publish.outputs.pull_request_url }}
           PATCH_BRANCH: ${{ steps.branch.outputs.name }}
         run: |
@@ -190,12 +200,16 @@ jobs:
           result_branch=''
           if [ "$CODEX_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$NO_CHANGES" = "true" ]; then
             success=true
+          elif [ "$CODEX_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$NEEDS_INFORMATION" = "true" ]; then
+            success=true
+          elif [ "$CODEX_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$BLOCKED" = "true" ]; then
+            success=true
           elif [ "$CODEX_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$HAS_CHANGES" = "true" ] && [ "$TEST_OUTCOME" = "success" ] && [ "$PUBLISH_OUTCOME" = "success" ]; then
             success=true
             result_branch="$PATCH_BRANCH"
           fi
           summary="$(if [ -s /tmp/guardian-codex-output.md ]; then tr '\n' ' ' < /tmp/guardian-codex-output.md | cut -c1-5000; elif [ -s codex-output.md ]; then tr '\n' ' ' < codex-output.md | cut -c1-5000; else echo 'Nessun riepilogo Codex disponibile.'; fi)"
-          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$result_branch" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --arg no_changes "$NO_CHANGES" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,branch_name:(if ($branch|length) > 0 then $branch else null end),pull_request_url:(if ($pr|length) > 0 then $pr else null end),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish,no_changes:($no_changes == "true")}}')"
+          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$result_branch" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --arg no_changes "$NO_CHANGES" --arg needs_information "$NEEDS_INFORMATION" --arg blocked "$BLOCKED" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,branch_name:(if ($branch|length) > 0 then $branch else null end),pull_request_url:(if ($pr|length) > 0 then $pr else null end),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish,no_changes:($no_changes == "true"),needs_information:($needs_information == "true"),blocked:($blocked == "true")}}')"
           if [ "$success" != true ]; then
             body="$(jq -c --arg error_code "patch_workflow_failed" --arg error "$summary" '. + {error_code:$error_code,error:$error}' <<<"$body")"
           fi
