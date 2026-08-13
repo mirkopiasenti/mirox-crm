@@ -143,8 +143,15 @@ test('le API Guardian separano segnalazioni autenticate e webhook Telegram priva
   assert.match(patchWorkflow, /:\(exclude\)guardian-context\.json/i);
   assert.match(patchWorkflow, /\/tmp\/guardian-changed-files\.txt/i);
   assert.match(patchWorkflow, /ESITO_PATCH: GIA_PRESENTE/i);
+  assert.match(patchWorkflow, /ESITO_PATCH: RICHIEDE_INFORMAZIONI/i);
   assert.match(patchWorkflow, /steps\.validate\.outputs\.has_changes == 'true'/i);
   assert.match(patchWorkflow, /no_changes:\(\$no_changes == "true"\)/i);
+  assert.match(patchWorkflow, /needs_information:\(\$needs_information == "true"\)/i);
+  assert.match(patchWorkflow, /blocked:\(\$blocked == "true"\)/i);
+  assert.ok(
+    patchWorkflow.indexOf('Install dependencies before Codex') < patchWorkflow.indexOf('Run Codex Luna with workspace write'),
+    'le dipendenze devono essere installate prima di avviare Codex'
+  );
   assert.match(patchWorkflow, /pull_request_url:\(if \(\$pr\|length\) > 0 then \$pr else null end\)/i);
   assert.match(patchWorkflow, /if \[ "\$success" != true \]; then exit 1; fi/i);
   assert.match(testWorkflow, /startsWith\(github\.ref, 'refs\/heads\/codex\/kg-'\)/i);
@@ -157,13 +164,15 @@ test('le API Guardian separano segnalazioni autenticate e webhook Telegram priva
   assert.match(releaseWorkflow, /if \[ "\$success" != true \]; then exit 1; fi/i);
   assert.match(worker, /il comportamento risulta già presente nello staging/i);
   assert.match(worker, /result\?\.no_changes === true/i);
-  assert.match(worker, /noChanges \? 'ricevuto' : 'in_lavorazione'/i);
+  assert.match(worker, /needsInformation/i);
+  assert.match(worker, /noChanges \|\| needsInformation \|\| blocked \? 'ricevuto' : 'in_lavorazione'/i);
   assert.match(worker, /keyboardForExecution\(execution, safeResult\)/i);
   assert.match(workerHelper, /target_environment: targetEnvironment === 'staging' \? 'staging' : 'production'/i);
   assert.match(guardian, /Approva lavorazione/);
   assert.match(webhook, /\/nuovo_miglioria/);
   assert.match(read('.github/codex/prompts/guardian-patch.md'), /ESITO_PATCH: MODIFICA_PREPARATA/i);
   assert.match(read('.github/codex/prompts/guardian-patch.md'), /ESITO_PATCH: GIA_PRESENTE/i);
+  assert.match(read('.github/codex/prompts/guardian-patch.md'), /ESITO_PATCH: RICHIEDE_INFORMAZIONI/i);
   assert.match(read('.github/codex/prompts/guardian-patch.md'), /ESITO_PATCH: BLOCCATA/i);
 });
 

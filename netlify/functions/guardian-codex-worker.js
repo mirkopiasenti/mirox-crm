@@ -197,10 +197,51 @@ function resultMessage(execution, body, success) {
   const noChanges = success
     && execution.tipo_esecuzione === 'prepara_patch'
     && body?.result?.no_changes === true;
+  const needsInformation = success
+    && execution.tipo_esecuzione === 'prepara_patch'
+    && body?.result?.needs_information === true;
+  const blocked = success
+    && execution.tipo_esecuzione === 'prepara_patch'
+    && body?.result?.blocked === true;
   const summary = cleanWorkerText(body.message || body.summary, 5000)
-    .replace(/^ESITO_PATCH:\s*(?:MODIFICA_PREPARATA|GIA_PRESENTE|BLOCCATA)\s*/i, '');
+    .replace(/^ESITO_PATCH:\s*(?:MODIFICA_PREPARATA|GIA_PRESENTE|RICHIEDE_INFORMAZIONI|BLOCCATA)\s*/i, '');
   if (noChanges) {
     return `Codex ha verificato la richiesta: il comportamento risulta già presente nello staging. Nessun file è stato modificato e non serve una pull request.${summary ? `\n\n${summary}` : ''}`.slice(0, 7800);
+  }
+  if (needsInformation) {
+    return [
+      'Non ho preparato una modifica perché non ci sono ancora informazioni sufficienti per correggere il problema in sicurezza.',
+      summary ? `\nCosa manca\n${summary}` : '',
+      '\nProssimo passo\nPremi “Aggiungi informazioni” e rispondi alla domanda indicata. Dopo la risposta potremo ripetere la preparazione della modifica.'
+    ].join('').slice(0, 7800);
+  }
+  if (blocked) {
+    return [
+      'Non ho preparato una modifica automatica perché questa richiesta richiede una verifica manuale o riguarda un’area protetta.',
+      summary ? `\n\n${summary}` : '',
+      '\n\nNessun file è stato modificato.'
+    ].join('').slice(0, 7800);
+  }
+  if (success && (execution.tipo_esecuzione === 'analisi_automatica' || execution.tipo_esecuzione === 'scansione_migliorie')) {
+    const result = body?.result && typeof body.result === 'object' ? body.result : {};
+    const missing = Array.isArray(result.missing_data)
+      ? result.missing_data.map((item) => cleanWorkerText(item, 500)).filter(Boolean)
+      : [];
+    const safeToPatch = result.safe_to_prepare_patch === true && result.blocked !== true && missing.length === 0;
+    return [
+      'Codex ha completato il controllo automatico del codice.',
+      '',
+      'Che cosa significa',
+      cleanWorkerText(result.summary || summary || 'Il controllo non ha prodotto una conclusione descrittiva.', 2200),
+      '',
+      safeToPatch
+        ? 'Conclusione: ci sono elementi sufficienti per valutare una modifica nello staging.'
+        : 'Conclusione: non ci sono ancora elementi sufficienti per preparare una modifica sicura.',
+      missing.length ? `\nInformazione necessaria\n${missing[0]}` : '',
+      safeToPatch
+        ? '\nProssimo passo\nPuoi chiedermi di preparare la modifica nello staging.'
+        : '\nProssimo passo\nPremi “Aggiungi informazioni” e rispondi alla domanda indicata.'
+    ].filter(Boolean).join('\n').slice(0, 7800);
   }
   const prefix = success ? 'Codex ha completato' : 'Codex non ha completato';
   const phase = execution.tipo_esecuzione === 'analisi_codex'
@@ -228,9 +269,23 @@ function noChangeKeyboard(incidentId) {
 
 function keyboardForExecution(execution, result) {
   if (execution.tipo_esecuzione === 'analisi_codex') return analysisKeyboard(execution.incidente_id);
-  if (execution.tipo_esecuzione === 'analisi_automatica') return observerKeyboard(execution.incidente_id);
-  if (execution.tipo_esecuzione === 'scansione_migliorie') return observerKeyboard(execution.incidente_id);
-  if (execution.tipo_esecuzione === 'prepara_patch' && result?.no_changes === true) {
+  if (execution.tipo_esecuzione === 'analisi_automatica' || execution.tipo_esecuzione === 'scansione_migliorie') {
+    const missing = Array.isArray(result?.missing_data) && result.missing_data.length > 0;
+    const allowPatch = result?.safe_to_prepare_patch === true && result?.blocked !== true && !missing;
+    return observerKeyboard(execution.incidente_id, {
+      allowPatch,
+      needsInformation: !allowPatch
+    });
+  }
+  if (execution.tipo_esecuzione === 'prepara_patch'
+    && result?.needs_information === true) {
+    return observerKeyboard(execution.incidente_id, {
+      allowPatch: false,
+      needsInformation: true
+    });
+  }
+  if (execution.tipo_esecuzione === 'prepara_patch'
+    && (result?.no_changes === true || result?.blocked === true)) {
     return noChangeKeyboard(execution.incidente_id);
   }
   if (execution.tipo_esecuzione === 'prepara_patch') return patchKeyboard(execution.incidente_id);
@@ -248,6 +303,12 @@ async function recordResult(supabase, body) {
   const noChanges = success
     && execution.tipo_esecuzione === 'prepara_patch'
     && safeResult.no_changes === true;
+  const needsInformation = success
+    && execution.tipo_esecuzione === 'prepara_patch'
+    && safeResult.needs_information === true;
+  const blocked = success
+    && execution.tipo_esecuzione === 'prepara_patch'
+    && safeResult.blocked === true;
   const update = {
     stato: success ? 'completata' : 'fallita',
     risultato: safeResult,
@@ -278,7 +339,7 @@ async function recordResult(supabase, body) {
       || execution.tipo_esecuzione === 'scansione_migliorie'
       ? 'in_attesa_approvazione'
       : execution.tipo_esecuzione === 'prepara_patch'
-        ? noChanges ? 'ricevuto' : 'in_lavorazione'
+        ? noChanges || needsInformation || blocked ? 'ricevuto' : 'in_lavorazione'
         : execution.tipo_esecuzione === 'test_staging'
           ? 'in_test'
           : 'in_lavorazione'
@@ -347,6 +408,8 @@ async function recordResult(supabase, body) {
   }
   return response(200, { ok: true, execution_id: saved.id, state: saved.stato });
 }
+
+exports._test = { keyboardForExecution, resultMessage };
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return response(405, { ok: false, error: 'Metodo non consentito' });
