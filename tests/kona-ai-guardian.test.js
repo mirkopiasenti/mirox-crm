@@ -170,6 +170,8 @@ test('le API Guardian separano segnalazioni autenticate e webhook Telegram priva
   assert.match(workerHelper, /target_environment: targetEnvironment === 'staging' \? 'staging' : 'production'/i);
   assert.match(guardian, /Approva lavorazione/);
   assert.match(webhook, /\/nuovo_miglioria/);
+  assert.match(webhook, /if \(action !== 'archive'\) \{\s*await setActiveIncident\(supabase, chatId, incidentId\);/);
+  assert.match(webhook, /await setActiveIncident\(supabase, chatId, null\);\s*await sendTelegramMessage\(chatId, `\$\{incidentCode\(incident\.numero\)\} archiviato\.`\);/);
   assert.match(read('.github/codex/prompts/guardian-patch.md'), /ESITO_PATCH: MODIFICA_PREPARATA/i);
   assert.match(read('.github/codex/prompts/guardian-patch.md'), /ESITO_PATCH: GIA_PRESENTE/i);
   assert.match(read('.github/codex/prompts/guardian-patch.md'), /ESITO_PATCH: RICHIEDE_INFORMAZIONI/i);
