@@ -231,7 +231,7 @@
  .total-discount-highlight { margin: 16px 0 12px; padding: 14px 18px; text-align: center; background: linear-gradient(135deg, #FFF7ED, #FED7AA); border: 3px solid #F97316; border-radius: 12px; color: #9A3412; box-shadow: 0 4px 12px rgba(234,88,12,0.18); }
  .total-discount-label { font-size: 13px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; }
  .total-discount-value { display: block; margin-top: 3px; font-size: 32px; line-height: 1.1; font-weight: 900; color: #C2410C; }
- .expiry-highlight { margin: 12px 0; font-size: 16px; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; color: #7C2D12; }
+ .expiry-highlight { margin: 12px 0; font-size: 16px; font-weight: 800; color: #7C2D12; }
  .live-preview {
  background: #e5edf5;
  padding: 16px;
@@ -1254,7 +1254,7 @@ ${noteLock}
 
  let totaleDaFinanziare = totaleScontato;
  const scadenzaPdf = extra.scadenza ? `
-<div style="margin:12px 0;font-size:16px;font-weight:800;text-decoration:underline;text-underline-offset:3px;color:#7C2D12;">Scadenza preventivo: ${escapeHtml(extra.scadenza)}</div>` : '';
+<div style="margin:12px 0;font-size:16px;font-weight:800;color:#7C2D12;">Scadenza preventivo: ${escapeHtml(extra.scadenza)}</div>` : '';
  const totaleScontoPdf = extra.attivo && extra.totaleSconto > 0 ? `
 <div style="margin:18px 0 12px;padding:14px 18px;text-align:center;background:linear-gradient(135deg,#FFF7ED,#FED7AA);border:3px solid #F97316;border-radius:12px;color:#9A3412;box-shadow:0 4px 12px rgba(234,88,12,0.18);">
 <div style="font-size:14px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;">TOTALE SCONTO</div>
