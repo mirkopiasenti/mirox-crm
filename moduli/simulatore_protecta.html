@@ -1047,9 +1047,13 @@ ${noteLock}
  path
  });
  // Bucket privato: salviamo il path, signed URL on-demand
+ if (!uploadResult || !uploadResult.storage_path) {
+   throw new Error('Upload preventivo completato senza percorso Storage');
+ }
  pdfUrl = uploadResult.storage_path;
  } catch (uploadError) {
  console.error('Upload preventivo Protecta non riuscito:', uploadError);
+ throw new Error(`Il PDF del preventivo non è stato archiviato: ${uploadError.message}`);
  }
  }
  const insertPayload = {

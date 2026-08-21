@@ -119,6 +119,19 @@ test('i moduli CRM con controllo rigido accettano telefoni di 9 o 10 cifre', () 
   assert.match(ocrPda, /cellulare: 9 o 10 cifre, prefisso 3xx/);
 });
 
+test('Protecta non salva preventivi senza PDF archiviato', () => {
+  const protecta = fs.readFileSync(
+    path.join(ROOT, 'moduli/simulatore_protecta.html'),
+    'utf8'
+  );
+
+  assert.match(protecta, /if \(!uploadResult \|\| !uploadResult\.storage_path\)/);
+  assert.match(
+    protecta,
+    /throw new Error\(`Il PDF del preventivo non è stato archiviato: \$\{uploadError\.message\}`\)/
+  );
+});
+
 test('normalizzazione contratto conserva Cerea e reinserimento', () => {
   const normalized = carrelloModule._test.normalizeContractInput({
     categoria_id: 'categoria-1',
