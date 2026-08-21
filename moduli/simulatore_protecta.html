@@ -204,6 +204,23 @@
  }
  .discount-btn:hover { background: #059669; transform: translateY(-1px); }
  .discount-btn.active { background: #059669; }
+ .discount-section { background: #F0FDF4; border: 1px solid #BBF7D0; }
+ .discount-toggle { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 700; color: #166534; }
+ .discount-toggle input { width: 18px; height: 18px; margin: 0; accent-color: #16A34A; }
+ .discount-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+ .discount-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #166534; }
+ .discount-field input { width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid #86EFAC; border-radius: 7px; font: inherit; color: #14532D; background: #fff; }
+ .discount-field input:disabled { background: #DCFCE7; color: #86A391; cursor: not-allowed; }
+ .discount-help { margin-top: 8px; color: #4D7C5B; font-size: 11px; line-height: 1.4; }
+ .discount-summary { background: #D1FAE5; color: #065F46; border-left: 4px solid #10B981; border-radius: 8px; padding: 9px 12px; margin: 10px 0; font-size: 12px; line-height: 1.5; }
+ .price-comparison { display: inline-flex; align-items: baseline; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+ .price-original { color: #6B7280; text-decoration: line-through; font-weight: 500; white-space: nowrap; }
+ .price-discounted { color: #047857; background: #D1FAE5; border-radius: 5px; padding: 2px 6px; font-weight: 800; white-space: nowrap; }
+ .price-saving { color: #047857; font-size: 11px; font-weight: 700; white-space: nowrap; }
+ .price-unchanged { color: #92400E; font-size: 11px; font-weight: 600; display: block; margin-top: 4px; }
+ .comparison-label { display: flex; flex-direction: column; gap: 3px; }
+ .comparison-note { color: #4B5563; font-size: 11px; font-weight: 400; }
+ .rate-comparison { background: #ECFDF5; border: 1px solid #86EFAC; border-radius: 8px; padding: 10px; margin-top: 8px; }
  .live-preview {
  background: #e5edf5;
  padding: 16px;
@@ -330,6 +347,7 @@
  .section { padding: 18px 14px; }
  .live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
  .btn-group { grid-template-columns: 1fr; }
+ .discount-fields { grid-template-columns: 1fr; }
  }
 </style>
 <script src="../js/mirox-safe.js"></script>
@@ -364,15 +382,22 @@
 <option value="Kit Casa Plus|799|49">Kit Casa Plus - 799€ 49€/mese</option>
 <option value="Kit Business|549|39">Kit Business - 549€ 39€/mese</option>
 </select>
-</div> <div class="section">
-<h3>Finanziamento</h3>
+ </div> <div class="section">
+ <h3>Finanziamento</h3>
 <select id="finanziamento" onchange="calcolaLive()">
 <option value="No">No finanziamento</option>
 <option value="36">36 mesi</option>
 <option value="48">48 mesi</option>
 <option value="60">60 mesi</option>
-</select>
-</div> <div id="kitBox" class="kit-box"></div> <div class="section">
+ </select>
+ </div> <div class="section discount-section">
+ <label class="discount-toggle"><input type="checkbox" id="scontoToggle" onchange="aggiornaSconto()"> Applica sconti commerciali</label>
+ <div class="discount-fields">
+ <label class="discount-field">Sconto sull'anticipo (€)<input type="number" id="scontoAnticipo" min="0" step="0.01" value="100" disabled onchange="aggiornaSconto()"></label>
+ <label class="discount-field">Sconto sulla rata mensile (€)<input type="number" id="scontoRata" min="0" step="0.01" value="10" disabled onchange="aggiornaSconto()"></label>
+ </div>
+ <div class="discount-help">Gli importi vengono applicati separatamente. Con finanziamento, lo sconto sull'anticipo riduce il totale da finanziare; l'anticipo pagato resta 0 €.</div>
+ </div> <div id="kitBox" class="kit-box"></div> <div class="section">
 <h3>Dispositivi aggiuntivi</h3>
 <div class="device-grid" id="dispositiviContainer"></div>
 </div> <div class="section">
@@ -487,6 +512,9 @@
  [5500,174.3,136.2,113.5],[5750,182.2,142.4,118.7],[6000,190.1,148.6,123.8]
  ];
 
+ const SCONTO_ANTICIPO_DEFAULT = 100;
+ const SCONTO_RATA_DEFAULT = 10;
+
  const dispositivi = [
  {nome: "Sensore Porta PLUS", costo: 47.5, canone: 1},
  {nome: "Sensore Porta/Finestre", costo: 32.5, canone: 1},
@@ -550,24 +578,45 @@
  ]
  };
 
- function toggleSconto() {
- scontoAttivo = !scontoAttivo;
- const btn = document.getElementById('discountBtn');
- if (scontoAttivo) {
- btn.textContent = 'Sconto Attivo';
- btn.classList.add('active');
- } else {
- btn.textContent = 'Applica Sconto';
- btn.classList.remove('active');
+ function getScontoSettings() {
+ const anticipoInput = document.getElementById('scontoAnticipo');
+ const rataInput = document.getElementById('scontoRata');
+ const parseDiscount = (input, fallback) => {
+   const value = Number(input?.value);
+   return Number.isFinite(value) && value >= 0 ? value : fallback;
+ };
+ return {
+   attivo: scontoAttivo,
+   anticipo: scontoAttivo ? parseDiscount(anticipoInput, SCONTO_ANTICIPO_DEFAULT) : 0,
+   rata: scontoAttivo ? parseDiscount(rataInput, SCONTO_RATA_DEFAULT) : 0
+ };
  }
+
+ function aggiornaSconto() {
+ const toggle = document.getElementById('scontoToggle');
+ scontoAttivo = Boolean(toggle?.checked);
+ ['scontoAnticipo', 'scontoRata'].forEach(id => {
+   const input = document.getElementById(id);
+   if (input) input.disabled = !scontoAttivo;
+ });
  calcolaLive();
+ }
+
+ function toggleSconto() {
+ const toggle = document.getElementById('scontoToggle');
+ if (toggle) toggle.checked = !toggle.checked;
+ aggiornaSconto();
  }
 
  function resetForm() {
  document.getElementById('kitSelect').selectedIndex = 0;
  document.getElementById('finanziamento').selectedIndex = 0;
- document.getElementById('discountBtn').textContent = 'Applica Sconto';
- document.getElementById('discountBtn').classList.remove('active');
+ const discountToggle = document.getElementById('scontoToggle');
+ if (discountToggle) discountToggle.checked = false;
+ ['scontoAnticipo', 'scontoRata'].forEach(id => {
+   const input = document.getElementById(id);
+   if (input) input.disabled = true;
+ });
  scontoAttivo = false;
  dispositivi.forEach((_, i) => {
  const input = document.getElementById(`q${i}`);
@@ -680,6 +729,52 @@
  return {rata, importoTrovato};
  }
 
+ function calcolaProtecta(kitCosto, canoneBase, costoDisp, canoneDisp, mesi) {
+ const costoOriginale = kitCosto + costoDisp;
+ const canoneOriginale = canoneBase + canoneDisp;
+ const sconti = getScontoSettings();
+ const costoScontato = Math.max(0, costoOriginale - sconti.anticipo);
+ const canoneScontato = Math.max(0, canoneOriginale - sconti.rata);
+ const totaleOriginale = costoOriginale + (mesi > 0 ? canoneOriginale * mesi : 0);
+ const totaleScontato = costoScontato + (mesi > 0 ? canoneScontato * mesi : 0);
+ const matchOriginale = mesi > 0 ? trovaRataCorretta(totaleOriginale, mesi) : null;
+ const matchScontato = mesi > 0 ? trovaRataCorretta(totaleScontato, mesi) : null;
+ return {
+   sconti,
+   costoOriginale,
+   costoScontato,
+   canoneOriginale,
+   canoneScontato,
+   totaleOriginale,
+   totaleScontato,
+   matchOriginale,
+   matchScontato,
+   rataOriginale: matchOriginale?.rata || 0,
+   rataScontata: matchScontato?.rata || 0
+ };
+ }
+
+ function displayPrice(original, discounted, suffix = '€') {
+ const same = Math.abs(original - discounted) < 0.005;
+ if (!scontoAttivo || same) return `${discounted.toFixed(2)}${suffix}`;
+ const saving = original - discounted;
+ return `<span class="price-comparison"><span class="price-original">${original.toFixed(2)}${suffix}</span><span class="price-discounted">${discounted.toFixed(2)}${suffix}</span><span class="price-saving">(-${saving.toFixed(2)}${suffix})</span></span>`;
+ }
+
+ function displayRate(original, discounted) {
+ const same = Math.abs(original - discounted) < 0.005;
+ if (!scontoAttivo) return `${original.toFixed(2)}€`;
+ if (same) {
+   return `<span class="price-discounted">${discounted.toFixed(2)}€</span>${scontoAttivo && same ? '<span class="price-unchanged">Rata invariata: il totale resta nella stessa fascia della tabella finanziaria.</span>' : ''}`;
+ }
+ return `<span class="price-comparison"><span class="price-original">${original.toFixed(2)}€</span><span class="price-discounted">${discounted.toFixed(2)}€</span><span class="price-saving">(-${(original - discounted).toFixed(2)}€)</span></span>`;
+ }
+
+ function renderDiscountSummary(calcolo) {
+ if (!calcolo.sconti.attivo) return '';
+ return `<div class="discount-summary"><strong>Sconti applicati</strong><br>Anticipo: -${(calcolo.costoOriginale - calcolo.costoScontato).toFixed(2)}€ · Rata mensile: -${(calcolo.canoneOriginale - calcolo.canoneScontato).toFixed(2)}€</div>`;
+ }
+
  function calcolaLive() {
  const [kitNome, kitCosto, canoneBase] = document.getElementById('kitSelect').value
  .split('|')
@@ -693,44 +788,36 @@
  costoDisp += disp.costo * qty;
  canoneDisp += disp.canone * qty;
  });
-
- const costoKitComponenti = kitCosto + costoDisp;
- let costoScontato = costoKitComponenti;
- let canoneScontato = canoneBase + canoneDisp;
-
- if (scontoAttivo) {
- costoScontato = Math.max(0, costoKitComponenti - 100);
- canoneScontato = Math.max(0, canoneBase + canoneDisp - 10);
- }
-
- const anticipo = costoScontato;
- const canoneTotale = canoneScontato;
-
- let rata = 0;
- if (mesi> 0) {
- const costoCanone = canoneTotale * mesi;
- const totaleFin = anticipo + costoCanone;
- const match = trovaRataCorretta(totaleFin, mesi);
- rata = match.rata;
- }
-
+ const calcolo = calcolaProtecta(kitCosto, canoneBase, costoDisp, canoneDisp, mesi);
  const labelAnticipo = isBusiness ? "Anticipo iva" : "Anticipo";
  const labelCanone = isBusiness ? "Canone/mese iva" : "Canone/mese";
+ const anticipoHtml = mesi > 0
+   ? '<span class="price-discounted">0,00€</span><span class="comparison-note">Nessun anticipo con finanziamento</span>'
+   : displayPrice(calcolo.costoOriginale, calcolo.costoScontato);
+ const rataHtml = mesi > 0
+   ? displayRate(calcolo.rataOriginale, calcolo.rataScontata)
+   : '-';
+ const canoneHtml = displayPrice(calcolo.canoneOriginale, calcolo.canoneScontato, '€/mese');
+ const totalHtml = mesi > 0 ? displayPrice(calcolo.totaleOriginale, calcolo.totaleScontato) : '';
 
  document.getElementById('previewLive').innerHTML = `
 <div class="live-grid">
-<div class="live-item"${mesi> 0 ? 'style="background:#fef9c3;border:1px solid #facc15;"' : ''}>
-<div class="live-label">${labelAnticipo}${scontoAttivo ? ' (SCONTO -100€)' : ''}</div>
-<div class="live-value">${mesi> 0 ? '0.0€' : anticipo.toFixed(1) + '€'}</div>
+<div class="live-item"${mesi > 0 ? 'style="background:#fef9c3;border:1px solid #facc15;"' : ''}>
+<div class="live-label">${labelAnticipo}</div>
+<div class="live-value">${anticipoHtml}</div>
 </div> ${mesi === 0 ? `<div class="live-item">
-<div class="live-label">${labelCanone}${scontoAttivo ? ' (SCONTO -10€)' : ''}</div>
-<div class="live-value">${canoneTotale.toFixed(1)}€</div>
-</div>` : ''}
+<div class="live-label">${labelCanone}</div>
+<div class="live-value">${canoneHtml}</div>
+</div>` : `<div class="live-item">
+<div class="live-label">Totale da finanziare</div>
+<div class="live-value">${totalHtml}</div>
+</div>`}
 <div class="live-item">
-<div class="live-label">${mesi> 0 ? mesi + 'mesi - Rata finale' : 'Nessun finanziamento'}${scontoAttivo ? '<br><small>Sconto attivo</small>' : ''}</div>
-<div class="live-value">${mesi> 0 ? rata.toFixed(1) + '€' : '-'}</div>
+<div class="live-label">${mesi > 0 ? mesi + ' mesi - Rata mensile' : 'Nessun finanziamento'}</div>
+<div class="live-value">${rataHtml}</div>
 </div>
 </div>
+${renderDiscountSummary(calcolo)}
 <div class="disclaimer-live">${DISCLAIMER}</div> `;
  document.getElementById('previewLive').style.display = 'block';
  }
@@ -749,50 +836,36 @@
  canoneDisp += disp.canone * qty;
  });
 
- const costoKitComponenti = kitCosto + costoDisp;
- let costoScontato = costoKitComponenti;
- let canoneTotale = canoneBase + canoneDisp;
- let scontoInfo = '';
-
- if (scontoAttivo) {
- costoScontato = Math.max(0, costoKitComponenti - 100);
- canoneTotale = Math.max(0, canoneBase + canoneDisp - 10);
- scontoInfo = `
-<div style="background:#d1fae5;padding:12px;border-radius:8px;border-left:4px solid #10b981;margin:12px 0;">
-<strong>SCONTO 10% ATTIVO</strong><br> -100€ sul costo iniziale, -10€ sul canone mensile.
-</div>`;
- }
+ const calcolo = calcolaProtecta(kitCosto, canoneBase, costoDisp, canoneDisp, mesi);
+ const { costoOriginale, costoScontato, canoneOriginale, canoneScontato, totaleOriginale, totaleScontato } = calcolo;
+ const scontoInfo = renderDiscountSummary(calcolo);
 
  let html = '';
 
  if (mesi> 0) {
- const costoCanoneTotal = canoneTotale * mesi;
- const totaleFinanziamento = costoScontato + costoCanoneTotal;
- const match = trovaRataCorretta(totaleFinanziamento, mesi);
- const rataMensile = match.rata;
+ const costoCanoneTotalOriginale = canoneOriginale * mesi;
+ const costoCanoneTotal = canoneScontato * mesi;
+ const match = calcolo.matchScontato;
+ const rataMensile = calcolo.rataScontata;
 
  html = `
 <div class="result-title"> Preventivo finanziato${isBusiness ? 'iva' : ''}${scontoAttivo ? 'CON SCONTO' : ''}
 </div> ${scontoInfo}
-<div class="preventivo-item">
-<div class="preventivo-label">Costo kit + componenti aggiuntivi${isBusiness ? 'iva' : ''}</div>
-<div class="preventivo-value">${costoKitComponenti.toFixed(1)}€</div>
-</div>
-<div class="preventivo-item">
-<div class="preventivo-label">Costo effettivo dopo sconto</div>
-<div class="preventivo-value">${costoScontato.toFixed(1)}€</div>
-</div>
-<div class="preventivo-item">
-<div class="preventivo-label">Costo canone ${mesi} mesi${isBusiness ? 'iva' : ''}</div>
-<div class="preventivo-value">${costoCanoneTotal.toFixed(1)}€</div>
-</div>
-<div class="preventivo-item">
-<div class="preventivo-label">Totale da finanziare${isBusiness ? 'iva' : ''}</div>
-<div class="preventivo-value">${totaleFinanziamento.toFixed(1)}€</div>
-</div>
+ <div class="preventivo-item">
+ <div class="preventivo-label">Costo kit + componenti aggiuntivi${isBusiness ? ' iva' : ''}</div>
+ <div class="preventivo-value">${displayPrice(costoOriginale, costoScontato)}</div>
+ </div>
+ <div class="preventivo-item">
+ <div class="preventivo-label">Costo canone ${mesi} mesi${isBusiness ? 'iva' : ''}</div>
+ <div class="preventivo-value">${displayPrice(costoCanoneTotalOriginale, costoCanoneTotal)}</div>
+ </div>
+ <div class="preventivo-item">
+ <div class="preventivo-label">Totale da finanziare${isBusiness ? 'iva' : ''}</div>
+ <div class="preventivo-value">${displayPrice(totaleOriginale, totaleScontato)}</div>
+ </div>
 <div class="preventivo-item"style="background:#e0f0f8;border:1px solid #7EC8D9;border-radius:8px;padding:12px;margin:8px 0;">
 <div class="preventivo-label"style="font-weight:700;color:#1a3a5c;">Rimborso Detrazione Fiscale</div>
-<div class="preventivo-value"style="font-weight:700;color:#1a3a5c;">${(totaleFinanziamento / 2).toFixed(1)}€</div>
+ <div class="preventivo-value"style="font-weight:700;color:#1a3a5c;">${(totaleScontato / 2).toFixed(1)}€</div>
 <div style="font-size:9px;color:#4a6a8a;margin-top:6px;line-height:1.4;width:100%;">${DETRAZIONE_DISCLAIMER}</div>
 </div>
 <div class="preventivo-item"style="background:#fef9c3;border:2px solid #facc15;border-radius:8px;padding:12px;margin:8px 0;">
@@ -800,32 +873,28 @@
 <div class="preventivo-value"style="font-weight:700;">0,00€</div>
 </div>
 <div class="match-info">
-<strong>Tabella finanziaria</strong>: importo per eccesso ${match.importoTrovato}${isBusiness ? 'iva' : ''}<br>
-<div class="match-rate">
-<span class="match-rate-title">Rata mensile (${mesi} mesi)</span>
-<span class="match-rate-value">${rataMensile.toFixed(1)}€</span>
-</div>
+ <strong>Tabella finanziaria</strong>: importo per eccesso dopo sconto ${match.importoTrovato}${isBusiness ? ' iva' : ''}<br>
+ <div class="match-rate rate-comparison">
+ <span class="match-rate-title">Rata mensile (${mesi} mesi)</span>
+ <span class="match-rate-value">${displayRate(calcolo.rataOriginale, rataMensile)}</span>
+ </div>
 <br><br><em style="color:#92400e;">${DISCLAIMER}</em>
 </div>`;
  } else {
  html = `
 <div class="result-title"> Preventivo No finanziamento${isBusiness ? 'iva' : ''}${scontoAttivo ? 'CON SCONTO' : ''}
 </div> ${scontoInfo}
-<div class="preventivo-item">
-<div class="preventivo-label">Costo kit + componenti aggiuntivi${isBusiness ? 'iva' : ''}</div>
-<div class="preventivo-value">${costoKitComponenti.toFixed(1)}€</div>
-</div>
-<div class="preventivo-item">
-<div class="preventivo-label">Costo effettivo dopo sconto</div>
-<div class="preventivo-value">${costoScontato.toFixed(1)}€</div>
-</div>
-<div class="preventivo-item">
-<div class="preventivo-label">Canone mensile${isBusiness ? 'iva' : ''}</div>
-<div class="preventivo-value">${canoneTotale.toFixed(1)}€</div>
+ <div class="preventivo-item">
+ <div class="preventivo-label">Totale anticipo${isBusiness ? ' iva' : ''}</div>
+ <div class="preventivo-value">${displayPrice(costoOriginale, costoScontato)}</div>
+ </div>
+ <div class="preventivo-item">
+ <div class="preventivo-label">Canone mensile${isBusiness ? 'iva' : ''}</div>
+ <div class="preventivo-value">${displayPrice(canoneOriginale, canoneScontato, '€/mese')}</div>
 </div>
 <div class="preventivo-item"style="background:#e0f0f8;border:1px solid #7EC8D9;border-radius:8px;padding:12px;margin:8px 0;">
 <div class="preventivo-label"style="font-weight:700;color:#1a3a5c;">Rimborso Detrazione Fiscale</div>
-<div class="preventivo-value"style="font-weight:700;color:#1a3a5c;">${(costoKitComponenti / 2).toFixed(1)}€</div>
+ <div class="preventivo-value"style="font-weight:700;color:#1a3a5c;">${(costoScontato / 2).toFixed(1)}€</div>
 <div style="font-size:9px;color:#4a6a8a;margin-top:6px;line-height:1.4;width:100%;">${DETRAZIONE_DISCLAIMER}</div>
 </div>`;
  }
@@ -1064,7 +1133,7 @@ ${noteLock}
  kit: dati.kit,
  stato: 'In corso',
  preventivo_pdf_url: pdfUrl,
- preventivo_payload: { data: dati.data, filename: dati.pdfFilename }
+ preventivo_payload: { data: dati.data, filename: dati.pdfFilename, calcolo: dati.calcolo || null }
  };
  // Aggancia esplicitamente il preventivo alla trattativa scelta a inizio sessione.
  // Se null (fallback vecchio browser senza crypto.randomUUID) il DB genera un nuovo uuid via DEFAULT.
@@ -1113,22 +1182,14 @@ ${noteLock}
  }
  });
 
- const costoKitComponenti = kitCosto + costoDispAgg;
- let costoScontato = costoKitComponenti;
- let canoneTotale = canoneBase + canoneDispAgg;
- let scontoTesto = '';
-
- if (scontoAttivo) {
- costoScontato = Math.max(0, costoKitComponenti - 100);
- canoneTotale = Math.max(0, canoneBase + canoneDispAgg - 10);
- scontoTesto = `
+ const calcolo = calcolaProtecta(kitCosto, canoneBase, costoDispAgg, canoneDispAgg, mesi);
+ const { costoOriginale, costoScontato, canoneOriginale, canoneScontato, totaleOriginale, totaleScontato } = calcolo;
+ const scontoTesto = scontoAttivo ? `
 <div style="background:#d1fae5;padding:8px 10px;border-radius:8px;border-left:4px solid #10b981;margin:10px 0;font-weight:600;color:#065f46;font-size:12px;">
-<strong>SCONTI APPLICATI</strong><br> -100€ sul costo iniziale | -10€ sul canone mensile
-</div>`;
- }
+<strong>SCONTI APPLICATI</strong><br> Anticipo: -${(costoOriginale - costoScontato).toFixed(2)}€ | Rata mensile: -${(canoneOriginale - canoneScontato).toFixed(2)}€
+</div>` : '';
 
- let totaleDaFinanziare = costoScontato;
- if (mesi> 0) totaleDaFinanziare = costoScontato + canoneTotale * mesi;
+ let totaleDaFinanziare = totaleScontato;
 
  const labelCostoKit = isBusiness ? "Costo kit iva" : "Costo kit";
  const labelCanoneKit = isBusiness ? "Canone mensile kit iva" : "Canone mensile kit";
@@ -1215,9 +1276,13 @@ ${noteLock}
  if (mesi> 0) {
  // Con finanziamento: TOTALE ANTICIPO 0€ giallo, no canone mensile
  html += `
-<div style="display:flex;justify-content:space-between;margin-bottom:8px;padding:10px;border-radius:8px;background:#fef9c3;border:2px solid #facc15;font-size:14px;font-weight:700;">
-<div>${isBusiness ? 'TOTALE ANTICIPO iva' : 'TOTALE ANTICIPO'}</div>
-<div>0,00€</div>
+ <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding:10px;border-radius:8px;background:#fef9c3;border:2px solid #facc15;font-size:14px;font-weight:700;">
+ <div>${isBusiness ? 'TOTALE ANTICIPO iva' : 'TOTALE ANTICIPO'}</div>
+ <div>0,00€</div>
+ </div>
+<div style="display:flex;justify-content:space-between;margin-bottom:8px;padding:10px;border-radius:8px;background:#fff;border:1px solid #d1d9e6;font-size:13px;font-weight:600;">
+<div>TOTALE DA FINANZIARE${isBusiness ? ' iva' : ''}</div>
+<div>${displayPrice(totaleOriginale, totaleScontato)}</div>
 </div>
 <div style="background:#e0f0f8;border:1px solid #7EC8D9;border-radius:8px;padding:10px 12px;margin:8px 0;">
 <div style="display:flex;justify-content:space-between;font-weight:700;color:#1a3a5c;font-size:13px;">
@@ -1229,32 +1294,32 @@ ${noteLock}
  } else {
  // Senza finanziamento: anticipo reale + canone mensile
  html += `
-<div style="display:flex;justify-content:space-between;margin-bottom:8px;padding:10px 0;border-top:2px solid #003366;border-bottom:2px solid #003366;font-size:13px;font-weight:600;">
-<div>${isBusiness ? 'TOTALE ANTICIPO iva' : 'TOTALE ANTICIPO'}</div>
-<div>${totaleDaFinanziare.toFixed(2)}€</div>
-</div>
-<div style="display:flex;justify-content:space-between;margin-bottom:16px;padding:10px 0;border-bottom:2px solid #003366;font-size:13px;font-weight:600;">
-<div>${labelCanoneTot}</div>
-<div>${canoneTotale.toFixed(2)}€/mese</div>
+ <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding:10px 0;border-top:2px solid #003366;border-bottom:2px solid #003366;font-size:13px;font-weight:600;">
+ <div>${isBusiness ? 'TOTALE ANTICIPO iva' : 'TOTALE ANTICIPO'}</div>
+ <div>${displayPrice(costoOriginale, costoScontato)}</div>
+ </div>
+ <div style="display:flex;justify-content:space-between;margin-bottom:16px;padding:10px 0;border-bottom:2px solid #003366;font-size:13px;font-weight:600;">
+ <div>${labelCanoneTot}</div>
+ <div>${displayPrice(canoneOriginale, canoneScontato, '€/mese')}</div>
 </div>
 <div style="background:#e0f0f8;border:1px solid #7EC8D9;border-radius:8px;padding:10px 12px;margin:8px 0;">
 <div style="display:flex;justify-content:space-between;font-weight:700;color:#1a3a5c;font-size:13px;">
 <div>Rimborso Detrazione Fiscale</div>
-<div>${(costoKitComponenti / 2).toFixed(2)}€</div>
+ <div>${(costoScontato / 2).toFixed(2)}€</div>
 </div>
 <div style="font-size:7px;color:#4a6a8a;margin-top:4px;line-height:1.4;">${DETRAZIONE_DISCLAIMER}</div>
 </div>`;
  }
 
  if (mesi> 0) {
- const match = trovaRataCorretta(totaleDaFinanziare, mesi);
- const rataMensile = match.rata;
+ const match = calcolo.matchScontato;
+ const rataMensile = calcolo.rataScontata;
  const labelRata = isBusiness ? `RATA MENSILE ${mesi} mesi iva` : `RATA MENSILE ${mesi} mesi`;
  html += `
-<div style="display:flex;justify-content:space-between;padding:10px 0;border-top:2px solid #003366;border-bottom:2px solid #003366;font-size:14px;font-weight:700;">
-<div>${labelRata}</div>
-<div>${rataMensile.toFixed(2)}€</div>
-</div>`;
+ <div style="display:flex;justify-content:space-between;padding:10px 0;border-top:2px solid #003366;border-bottom:2px solid #003366;font-size:14px;font-weight:700;">
+ <div>${labelRata}</div>
+ <div>${displayRate(calcolo.rataOriginale, rataMensile)}</div>
+ </div>`;
  }
 
  html += `
@@ -1344,6 +1409,19 @@ ${noteLock}
  operatore: operatore,
  kit: kitInfo,
  data: new Date().toLocaleString('it-IT'),
+ calcolo: {
+   sconto_attivo: calcolo.sconti.attivo,
+   sconto_anticipo: calcolo.sconti.anticipo,
+   sconto_rata_mensile: calcolo.sconti.rata,
+   anticipo_originale: calcolo.costoOriginale,
+   anticipo_scontato: calcolo.costoScontato,
+   canone_originale: calcolo.canoneOriginale,
+   canone_scontato: calcolo.canoneScontato,
+   totale_finanziato_originale: calcolo.totaleOriginale,
+   totale_finanziato_scontato: calcolo.totaleScontato,
+   rata_originale: calcolo.rataOriginale,
+   rata_scontata: calcolo.rataScontata
+ },
  pdfBase64: pdfBase64,
  pdfFilename: filename
  });
