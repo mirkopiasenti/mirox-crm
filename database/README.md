@@ -9,6 +9,8 @@ Lo schema reale di Supabase contiene anche modifiche fatte:
 - Tramite SQL Editor senza salvare il file qui
 - Cambiamenti a RLS, RPC, trigger, viste applicati a caldo
 
+La correzione Guardian del 2026-08-21 non modifica lo schema: i callback Telegram mantengono la richiesta selezionata in `kona_ai_telegram_sessioni.incidente_attivo_id`, mentre l'archiviazione azzera il riferimento usando le tabelle esistenti.
+
 **Per lo stato attuale, NON fare affidamento su questi file.** Interrogare direttamente Supabase con query di introspezione su `information_schema` e `pg_*` (vedi anche `../CLAUDE.md`).
 
 ## Elenco file

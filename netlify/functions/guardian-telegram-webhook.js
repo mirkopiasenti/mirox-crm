@@ -299,6 +299,7 @@ async function archiveIncident(supabase, chatId, incidentId) {
     metadati: { approval_id: approval.id }
   });
   if (auditError) throw auditError;
+  await setActiveIncident(supabase, chatId, null);
   await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} archiviato.`);
 }
 
@@ -621,6 +622,9 @@ async function handleCallback(supabase, update, chatId) {
     return;
   }
   await answerCallbackQuery(query.id, 'Ricevuto');
+  if (action !== 'archive') {
+    await setActiveIncident(supabase, chatId, incidentId);
+  }
   if (action === 'open') {
     const incident = await getIncident(supabase, incidentId);
     if (!incident) throw new Error('Richiesta non trovata');
