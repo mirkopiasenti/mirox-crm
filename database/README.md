@@ -2,12 +2,12 @@
 
 I file `.sql` nella root di questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via CLI) durante lo sviluppo. `staging/` contiene invece bootstrap one-shot destinati esclusivamente a database staging nuovi e vuoti.
 
-## ⚠️ NON sono lo stato attuale del DB
+## ⚠️ Stato del DB
 
-Lo schema reale di Supabase contiene anche modifiche fatte:
-- Direttamente dalla dashboard (creazione tabelle, colonne aggiuntive, indici)
-- Tramite SQL Editor senza salvare il file qui
-- Cambiamenti a RLS, RPC, trigger, viste applicati a caldo
+Fino alla `069_baseline_allineamento.sql` (2026-08-22) i file riflettono lo stato di produzione: la 069 recupera il drift accumulato dalle modifiche fatte a caldo prima del tracciamento. Le categorie di drift recuperate erano:
+- Tabelle create direttamente dalla dashboard
+- Colonne e indici aggiunti via SQL Editor senza salvare il file qui
+- RLS, RPC, trigger e viste applicati a caldo
 
 La correzione Guardian del 2026-08-21 non modifica lo schema: i callback Telegram mantengono la richiesta selezionata in `kona_ai_telegram_sessioni.incidente_attivo_id`, mentre l'archiviazione azzera il riferimento usando le tabelle esistenti.
 
@@ -75,6 +75,7 @@ La correzione Guardian del 2026-08-21 non modifica lo schema: i callback Telegra
 | `066_kona_ai_tipologia_richiesta.sql` | Estende soltanto il dominio Guardian con `kona_ai_incidenti.tipo_richiesta IN ('problema','miglioria')`, indice per tipo/stato e indice univoco dell'approvazione attiva `prepara_fix`. Le righe esistenti diventano `problema`; nessuna tabella CRM o Call Center viene modificata. **Applicata il 2026-08-10 a staging `blwgxrszvsoqcmcmhhqr` e production `lbgwamhjkjjfwgusafbi`.** |
 | `067_kona_ai_codex_esecuzioni.sql` | Crea `kona_ai_esecuzioni`, tabella server-only per il contratto operativo delle esecuzioni Guardian/Codex: fase, stato, workflow, commit, branch, pull request, heartbeat, timeout ed esito. Include un indice univoco per impedire due esecuzioni attive dello stesso tipo sulla stessa richiesta. Additiva e isolata dalle tabelle CRM/Call Center. **Applicata il 2026-08-11 a staging `blwgxrszvsoqcmcmhhqr` e production `lbgwamhjkjjfwgusafbi`.** |
 | `068_kona_ai_observer.sql` | Aggiunge il dominio server-only del Guardian Observer: `kona_ai_eventi_tecnici` (eventi già ripuliti, retention 30 giorni), `kona_ai_segnali` (fingerprint e soglie), `kona_ai_notifiche` (outbox Telegram con retry) e `kona_ai_observer_checkpoint` (checkpoint/budget). Estende in modo additivo i tipi di `kona_ai_esecuzioni` con `analisi_automatica` e `scansione_migliorie`; non modifica tabelle CRM/Call Center. **Applicata il 2026-08-11 a staging `blwgxrszvsoqcmcmhhqr` e production `lbgwamhjkjjfwgusafbi`.** |
+| `069_baseline_allineamento.sql` | **Baseline di allineamento** (NON applicare su produzione). Recupera il drift non tracciato dello schema `public`: 18 tabelle, 62 colonne, 73 policy RLS, 32 function, 32 trigger, 53 indici, 2 viste, 1 sequence. Da applicare solo su database puliti dopo 001–068. |
 
 ## Bootstrap esclusivi staging
 
@@ -86,11 +87,12 @@ La correzione Guardian del 2026-08-21 non modifica lo schema: i callback Telegra
 
 - **Non aggiungere nuove migrazioni** senza coordinarle con l'utente
 - Per nuove modifiche schema: applicare via SQL Editor Supabase E aggiungere il file qui con prefisso numerico progressivo (`015_`, `016_`, ...)
-- Le **RLS policies**, **RPC** e **trigger** possono evolvere senza file associato qui: per uno snapshot affidabile esportare via dashboard Supabase o via query di introspezione
+- **Anche** RLS policies, RPC, trigger, viste e indici vanno salvati in un file `.sql` con prefisso progressivo, come tabelle e colonne. L'eccezione precedente ("possono evolvere senza file") è rimossa: è la causa del drift recuperato dalla migration `069`
 - Quando si aggiunge un nuovo file `.sql` in questa cartella, **aggiornare contestualmente la tabella "Elenco file"** sopra (regola di manutenzione documentale — vedi sezione "Manutenzione di questa guida" in `../CLAUDE.md`)
 
 ## Registro aggiornamenti
 
+- **2026-08-22**: generata e tracciata la migration di baseline `069_baseline_allineamento.sql`, che recupera il drift dello schema `public` accumulato dalle modifiche fatte a caldo prima del tracciamento. Non applicata su production (gli oggetti esistono già); serve a riprodurre lo stato attuale su database puliti e come punto di partenza per il tracciamento futuro.
 - **2026-08-10**: attivato Guardian sul production `lbgwamhjkjjfwgusafbi` applicando le migration additive `065` e `066`. Verifica post-migration: 4 tabelle Guardian, RLS attiva su tutte, zero grant ad `anon`/`authenticated`, default e CHECK problema/miglioria e indice univoco `prepara_fix` presenti. Nessuna tabella condivisa col Call Center modificata.
 - **2026-08-10**: creato il progetto Supabase separato `Mirox CRM - Staging` (`blwgxrszvsoqcmcmhhqr`, `eu-west-3`) e applicati, in quest'ordine, `staging/001_guardian_bootstrap.sql`, `065_kona_ai_guardian.sql` e `066_kona_ai_tipologia_richiesta.sql`. Il controllo post-migration conferma RLS attiva, nessun privilegio Guardian per `anon`/`authenticated`, colonna `tipo_richiesta` con CHECK problema/miglioria, indici Guardian attesi, accesso completo della sola `service_role` e nessun dato CRM copiato. E' stato poi creato il solo account Auth di Mirko e il corrispondente profilo `admin`.
 - **2026-08-11**: applicate sul Supabase staging `blwgxrszvsoqcmcmhhqr` e poi sul production `lbgwamhjkjjfwgusafbi` le migration additive `067_kona_ai_codex_esecuzioni.sql` e `068_kona_ai_observer.sql`, dopo verifica del dominio Guardian esistente. Il controllo production conferma 5 tabelle Observer/Codex, RLS attiva su tutte, zero grant ad `anon`/`authenticated` e il vincolo aggiornato sui tipi di esecuzione. Nessun dato CRM e nessuna tabella condivisa Call Center sono stati modificati.
