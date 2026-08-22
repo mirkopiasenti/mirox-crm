@@ -34,10 +34,10 @@
         </div>
 
         <div class="tabs" id="tabsContainer">
-            <button class="tab active" onclick="switchTab('ricontatti')">Ricontatti <span class="tab-badge badge-info" id="countRicontatti">0</span></button>
-            <button class="tab" onclick="switchTab('non_presentati')">Non presentati <span class="tab-badge badge-danger" id="countNonPresentati">0</span></button>
-            <button class="tab" onclick="switchTab('passa_negozio')">Passa in negozio <span class="tab-badge badge-warning" id="countPassaNegozio">0</span></button>
-            <button class="tab" onclick="switchTab('cerea')">Cerea <span class="tab-badge badge-warning" id="countCerea">0</span></button>
+            <button class="tab active" data-tab="ricontatti" onclick="switchTab('ricontatti')">Ricontatti <span class="tab-badge badge-info" id="countRicontatti">0</span></button>
+            <button class="tab" data-tab="non_presentati" onclick="switchTab('non_presentati')">Non presentati <span class="tab-badge badge-danger" id="countNonPresentati">0</span></button>
+            <button class="tab" data-tab="passa_negozio" onclick="switchTab('passa_negozio')">Passa in negozio <span class="tab-badge badge-warning" id="countPassaNegozio">0</span></button>
+            <button class="tab" data-tab="cerea" onclick="switchTab('cerea')">Cerea <span class="tab-badge badge-warning" id="countCerea">0</span></button>
         </div>
 
         <div id="loading" style="text-align:center;padding:40px"><div class="spinner"></div></div>
@@ -131,10 +131,31 @@ let ricontattiItems = [];
     await caricaTutto();
 })();
 
+// Listener delegato per tutti i bottoni con data-azione.
+document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-azione]');
+    if (!el) return;
+    const azione = el.getAttribute('data-azione');
+    const id = el.getAttribute('data-id');
+    if (!MiroxSafe.isRecordId(id)) return;
+    const tipo = el.getAttribute('data-tipo');
+
+    switch (azione) {
+        case 'nota': mostraNoteRilav(id, tipo); break;
+        case 'lavora-ricontatto': lavoraRicontatto(id); break;
+        case 'conferma-presenza': confermaPresenza(id); break;
+        case 'lavora-non-presentato': lavoraNonPresentato(id); break;
+        case 'passaggio-presentato': passaggioPresentato(id); break;
+        case 'passaggio-ricontatta': passaggioRicontatta(id); break;
+        case 'cerea-presentato': cereaPresentato(id); break;
+        case 'cerea-ricontatta': cereaRicontatta(id); break;
+    }
+});
+
 function switchTab(tab) {
     currentTab = tab;
-    document.querySelectorAll('.tab').forEach((t,i) => {
-        t.classList.toggle('active', ['ricontatti','non_presentati','passa_negozio','cerea'][i] === tab);
+    document.querySelectorAll('.tab').forEach((t) => {
+        t.classList.toggle('active', t.getAttribute('data-tab') === tab);
     });
     document.getElementById('tabRicontatti').classList.toggle('hidden', tab !== 'ricontatti');
     document.getElementById('tabNonPresentati').classList.toggle('hidden', tab !== 'non_presentati');
@@ -148,13 +169,6 @@ async function caricaTutto() {
     await Promise.all([caricaRicontatti(), caricaNonPresentati(), caricaPassaNegozio(), caricaCerea()]);
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('content').classList.remove('hidden');
-}
-
-// Arrotonda al quarto d'ora più vicino (per walk-in)
-function oraArrotondata() {
-    const now = new Date();
-    now.setMinutes(Math.round(now.getMinutes() / 15) * 15, 0, 0);
-    return now.toISOString();
 }
 
 async function mostraNoteRilav(id, tipo) {
@@ -272,9 +286,9 @@ function renderRicontatti() {
                 <span class="badge ${esitoBadge}" style="font-size:11px">${esitoLabel}</span>
                 ${origineBadge}
             </div>
-            ${c.note?`<div style="margin-top:8px"><span style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--primary);opacity:0.7;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7" onclick="event.stopPropagation();mostraNoteRilav('${c.origine_id}','ricontatto')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Leggi note</span></div>`:''}
+            ${c.note?`<div style="margin-top:8px"><span style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--primary);opacity:0.7;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7" data-azione="nota" data-id="${c.origine_id}" data-tipo="ricontatto"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Leggi note</span></div>`:''}
             <div class="rilav-actions">
-                <button class="btn btn-sm btn-primary" onclick="lavoraRicontatto('${c.origine_id}')">
+                <button class="btn btn-sm btn-primary" data-azione="lavora-ricontatto" data-id="${c.origine_id}">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 3.09 5.18 2 2 0 0 1 5.11 3h3"/><polyline points="16 3 22 3 22 9"/><line x1="22" y1="3" x2="14" y2="11"/></svg>
                     Lavora
                 </button>
@@ -353,13 +367,13 @@ async function caricaNonPresentati() {
                 <span>Motivo: ${Utils.escapeHtml(a.motivo)}</span>
                 <span style="display:inline-flex;align-items:center;gap:4px">${Utils.avatarHtml(a.fissato_da_nome||'Online', a.fissato_da_operatore_id, 18)} ${Utils.escapeHtml(a.fissato_da_nome||'-')}</span>
             </div>
-            ${(a.chiamata && a.chiamata.note)?`<div style="margin-top:8px"><span style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--primary);opacity:0.7;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7" onclick="event.stopPropagation();mostraNoteRilav('${a.id}','non_presentato')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Leggi note</span></div>`:''}
+            ${(a.chiamata && a.chiamata.note)?`<div style="margin-top:8px"><span style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--primary);opacity:0.7;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7" data-azione="nota" data-id="${a.id}" data-tipo="non_presentato"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Leggi note</span></div>`:''}
             <div class="rilav-actions">
-                <button class="btn btn-sm btn-success" onclick="confermaPresenza('${a.id}')">
+                <button class="btn btn-sm btn-success" data-azione="conferma-presenza" data-id="${a.id}">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                     Presentato (dimenticanza)
                 </button>
-                <button class="btn btn-sm btn-primary" onclick="lavoraNonPresentato('${a.id}')">
+                <button class="btn btn-sm btn-primary" data-azione="lavora-non-presentato" data-id="${a.id}">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 3.09 5.18 2 2 0 0 1 5.11 3h3"/><polyline points="16 3 22 3 22 9"/><line x1="22" y1="3" x2="14" y2="11"/></svg>
                     Lavora
                 </button>
@@ -455,13 +469,13 @@ function filtroPassaNegozio() {
                 <span>Chiamata: ${Utils.formatDateTime(c.data_ora)}</span>
                 ${scaduto?'<span class="badge badge-danger">Scaduto (>5 gg)</span>':''}
             </div>
-            ${c.note?`<div style="margin-top:8px"><span style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--primary);opacity:0.7;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7" onclick="event.stopPropagation();mostraNoteRilav('${c.id}','passa_negozio')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Leggi note</span></div>`:''}
+            ${c.note?`<div style="margin-top:8px"><span style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--primary);opacity:0.7;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7" data-azione="nota" data-id="${c.id}" data-tipo="passa_negozio"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Leggi note</span></div>`:''}
             <div class="rilav-actions">
-                <button class="btn btn-sm btn-success" onclick="passaggioPresentato('${c.id}')">
+                <button class="btn btn-sm btn-success" data-azione="passaggio-presentato" data-id="${c.id}">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                     Presentato
                 </button>
-                <button class="btn btn-sm btn-primary" onclick="passaggioRicontatta('${c.id}')">
+                <button class="btn btn-sm btn-primary" data-azione="passaggio-ricontatta" data-id="${c.id}">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 3.09 5.18 2 2 0 0 1 5.11 3h3"/><polyline points="16 3 22 3 22 9"/><line x1="22" y1="3" x2="14" y2="11"/></svg>
                     Ricontatta
                 </button>
@@ -556,13 +570,13 @@ function filtroCerea() {
                 <span>Chiamata: ${Utils.formatDateTime(c.data_ora)}</span>
                 ${scaduto?'<span class="badge badge-danger">Scaduto (>5 gg)</span>':''}
             </div>
-            ${c.note?`<div style="margin-top:8px"><span style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--primary);opacity:0.7;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7" onclick="event.stopPropagation();mostraNoteRilav('${c.id}','cerea')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Leggi note</span></div>`:''}
+            ${c.note?`<div style="margin-top:8px"><span style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--primary);opacity:0.7;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.7" data-azione="nota" data-id="${c.id}" data-tipo="cerea"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Leggi note</span></div>`:''}
             <div class="rilav-actions">
-                <button class="btn btn-sm btn-success" onclick="cereaPresentato('${c.id}')">
+                <button class="btn btn-sm btn-success" data-azione="cerea-presentato" data-id="${c.id}">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                     Presentato
                 </button>
-                <button class="btn btn-sm btn-primary" onclick="cereaRicontatta('${c.id}')">
+                <button class="btn btn-sm btn-primary" data-azione="cerea-ricontatta" data-id="${c.id}">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 3.09 5.18 2 2 0 0 1 5.11 3h3"/><polyline points="16 3 22 3 22 9"/><line x1="22" y1="3" x2="14" y2="11"/></svg>
                     Ricontatta
                 </button>

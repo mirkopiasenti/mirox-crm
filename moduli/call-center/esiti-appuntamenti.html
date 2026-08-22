@@ -67,6 +67,8 @@ let currentTab = 'da_esitare';
 let selezionatoId = null;
 let selezionatoTipo = null; // 'appuntamento' o 'chiamata'
 let esitoScelto = null;
+let daEsitareItems = [];
+let salvaEsitoInCorso = false;
 
 (async () => {
     const { data:{session} } = await db.auth.getSession();
@@ -129,6 +131,7 @@ async function caricaDaEsitare() {
         });
     }
 
+    daEsitareItems = items;
     document.getElementById('countDaEsitare').textContent = items.length;
     document.getElementById('tabDaEsitare').classList.remove('hidden');
 
@@ -151,7 +154,7 @@ async function caricaDaEsitare() {
             <td>${Utils.escapeHtml(a.motivo||'')}</td>
             <td>${provBadge}</td>
             <td>${Utils.escapeHtml(a.fissato_da)}</td>
-            <td><button class="btn btn-sm btn-primary" onclick="apriEsito('${a.id}','${Utils.escapeHtml(a.nome).replace(/'/g,"\\'")}','${a.tipo}')">Esita</button></td>
+            <td><button class="btn btn-sm btn-primary" data-esita-id="${Utils.escapeHtml(a.id)}" data-esita-tipo="${Utils.escapeHtml(a.tipo)}">Esita</button></td>
         </tr>`;
     }
     html += '</tbody></table></div>';
@@ -228,16 +231,26 @@ async function caricaEsitati() {
     if (currentTab!=='esitati') document.getElementById('tabEsitati').classList.add('hidden');
 }
 
-function apriEsito(id, nome, tipo) {
+function apriEsito(id, tipo) {
+    const item = daEsitareItems.find(x => x.id === id && x.tipo === tipo);
+    if (!item) return;
     selezionatoId = id;
     selezionatoTipo = tipo;
     esitoScelto = null;
-    document.getElementById('modalNome').textContent = nome;
+    document.getElementById('modalNome').textContent = item.nome;
     document.getElementById('modalDettagli').value = '';
     document.getElementById('btnSalvaEsito').disabled = true;
     document.querySelectorAll('#modalEsito .btn-success, #modalEsito .btn-danger').forEach(b => b.style.opacity='1');
     Utils.openModal('modalEsito');
 }
+
+document.getElementById('tabDaEsitare').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-esita-id]');
+    if (!btn) return;
+    const id = btn.getAttribute('data-esita-id');
+    if (!MiroxSafe.isRecordId(id)) return;
+    apriEsito(id, btn.getAttribute('data-esita-tipo'));
+});
 
 function selezionaEsito(esito) {
     esitoScelto = esito;
@@ -250,6 +263,10 @@ function selezionaEsito(esito) {
 
 async function salvaEsito() {
     if (!esitoScelto) return;
+    if (salvaEsitoInCorso) return;
+    salvaEsitoInCorso = true;
+    const btn = document.getElementById('btnSalvaEsito');
+    btn.disabled = true;
     Utils.showLoading('Salvataggio...');
 
     const updateData = {
@@ -263,6 +280,8 @@ async function salvaEsito() {
     const { error } = await db.from(tabella).update(updateData).eq('id', selezionatoId);
 
     Utils.hideLoading();
+    salvaEsitoInCorso = false;
+    btn.disabled = false;
     if (error) { Utils.toast('Errore: '+error.message,'danger'); return; }
     Utils.toast('Esito salvato','success');
     Utils.closeModal('modalEsito');

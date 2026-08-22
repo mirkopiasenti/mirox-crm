@@ -187,6 +187,9 @@ async function caricaChiamate() {
 
     if (error) { Utils.toast('Errore: '+error.message,'danger'); return; }
     chiamate = data || [];
+    if (chiamate.length >= 500) {
+        Utils.toast('Mostrate le prime 500 chiamate: restringi l\'intervallo date per vedere il resto', 'warning');
+    }
     filtroLocale();
 }
 
@@ -234,7 +237,7 @@ function renderLista() {
         const origineBadge = isOutbound
             ? '<span class="badge badge-info" style="margin-top:4px">Outbound business</span>'
             : '<span class="badge badge-neutral" style="margin-top:4px">Standard</span>';
-        const noteHtml = c.note ? `<span style="cursor:pointer;opacity:0.5;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5" onclick="mostraNote('${c.id}')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>` : '<span style="color:var(--text-light)">-</span>';
+        const noteHtml = c.note ? `<span style="cursor:pointer;opacity:0.5;transition:opacity 0.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5" data-nota-id="${Utils.escapeHtml(c.id)}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>` : '<span style="color:var(--text-light)">-</span>';
         const canEdit = !isOutbound && (isAdmin || c.operatore_id === myId);
         
         html += `<tr>
@@ -249,11 +252,24 @@ function renderLista() {
             <td><span class="badge ${esitoView.badge}">${Utils.escapeHtml(esitoView.label)}</span></td>
             <td style="text-align:center">${noteHtml}</td>
             <td><span style="display:inline-flex;align-items:center;gap:6px">${Utils.avatarHtml(c.operatore_nome, c.operatore_id, 22)}<span style="font-size:13px">${Utils.escapeHtml(c.operatore_nome)}</span></span></td>
-            <td>${canEdit ? `<button class="btn btn-sm btn-secondary" onclick="apriModifica('${c.id}')">Modifica</button>` : ''}</td>
+            <td>${canEdit ? `<button class="btn btn-sm btn-secondary" data-modifica-id="${Utils.escapeHtml(c.id)}">Modifica</button>` : ''}</td>
         </tr>`;
     }
     html += '</tbody></table></div>';
     document.getElementById('lista').innerHTML = html;
+
+    document.getElementById('lista').querySelectorAll('[data-nota-id]').forEach(el => {
+        el.addEventListener('click', () => {
+            const id = el.getAttribute('data-nota-id');
+            if (MiroxSafe.isRecordId(id)) mostraNote(id);
+        });
+    });
+    document.getElementById('lista').querySelectorAll('[data-modifica-id]').forEach(el => {
+        el.addEventListener('click', () => {
+            const id = el.getAttribute('data-modifica-id');
+            if (MiroxSafe.isRecordId(id)) apriModifica(id);
+        });
+    });
 }
 
 function apriModifica(id) {

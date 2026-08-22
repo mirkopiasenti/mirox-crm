@@ -132,15 +132,24 @@ function filtroOggi() {
                 <div class="oggi-meta">${Utils.escapeHtml(a.motivo)} — CF: ${Utils.escapeHtml(a.codice_fiscale||'-')} — Tel: ${Utils.escapeHtml(a.telefono||'-')} — <span style="display:inline-flex;align-items:center;gap:4px">${Utils.avatarHtml(a.fissato_da_nome||'Online', a.fissato_da_operatore_id, 18)} ${Utils.escapeHtml(a.fissato_da_nome||'Online')}</span></div>
             </div>
             <div class="oggi-actions">
-                ${!a.presentato ? `<button class="btn btn-success" onclick="segnaPresente('${a.id}')">Presentato</button>` : ''}
+                ${!a.presentato ? `<button class="btn btn-success" data-azione="segna-presente" data-id="${a.id}">Presentato</button>` : ''}
                 ${a.presentato==='si' ? '<span class="badge badge-success">Presentato</span>' : ''}
                 ${a.presentato==='no' ? '<span class="badge badge-danger">Non presentato</span>' : ''}
-                ${a.presentato==='si' && a.codice_fiscale ? `<button class="btn btn-primary" onclick="iniziaVendita('${a.id}', '${(a.codice_fiscale||'').toUpperCase()}', '${a.anagrafica_id||''}')" style="margin-left:8px">Inizia vendita</button>` : ''}
+                ${a.presentato==='si' && a.codice_fiscale ? `<button class="btn btn-primary" data-azione="inizia-vendita" data-id="${a.id}" style="margin-left:8px">Inizia vendita</button>` : ''}
             </div>
         </div>`;
     }
     document.getElementById('lista').innerHTML = html;
 }
+
+document.getElementById('lista').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-azione]');
+    if (!btn) return;
+    const id = btn.getAttribute('data-id');
+    if (!MiroxSafe.isRecordId(id)) return;
+    if (btn.getAttribute('data-azione') === 'segna-presente') segnaPresente(id);
+    else if (btn.getAttribute('data-azione') === 'inizia-vendita') iniziaVendita(id);
+});
 
 async function segnaPresente(id) {
     Utils.showLoading('Salvataggio...');
@@ -153,15 +162,18 @@ async function segnaPresente(id) {
 // Apre il wizard Upload Contratti con CF/PIVA pre-compilato e ricerca anagrafica
 // auto-avviata. La RPC vendita_deriva_origine pre-compilera' origine_pratica
 // = appuntamento_callcenter (l'appuntamento di oggi e' gia' presentato).
-function iniziaVendita(appuntamentoId, cfPiva, anagraficaId) {
+function iniziaVendita(id) {
+    const a = oggiItems.find(x => x.id === id);
+    if (!a) return;
+    const cfPiva = (a.codice_fiscale || '').trim();
     if (!cfPiva) {
         Utils.toast('CF/PIVA mancante su questo appuntamento', 'warning');
         return;
     }
     sessionStorage.setItem('mirox_vendita_da_cc', JSON.stringify({
         cf_piva: cfPiva,
-        appuntamento_id: appuntamentoId || null,
-        anagrafica_id: anagraficaId || null
+        appuntamento_id: a.id || null,
+        anagrafica_id: a.anagrafica_id || null
     }));
     window.location.href = '../upload-contratti-vendita.html';
 }

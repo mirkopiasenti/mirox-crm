@@ -149,6 +149,9 @@ async function caricaAppuntamenti() {
     const { data } = await query.limit(500);
     document.getElementById('loading').classList.add('hidden');
     appuntamenti = data || [];
+    if (appuntamenti.length >= 500) {
+        Utils.toast('Mostrati i primi 500 appuntamenti: usa i filtri per vedere il resto', 'warning');
+    }
     filtro();
 }
 

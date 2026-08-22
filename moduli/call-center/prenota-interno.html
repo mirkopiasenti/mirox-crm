@@ -117,6 +117,7 @@
 <script>
 let state = { data: null, slot: null, currentMonth: new Date() };
 let prenotaDati = null; // Dati dal flusso chiamata
+let confermaInCorso = false;
 
 (async () => {
     const { data:{session} } = await db.auth.getSession();
@@ -206,8 +207,11 @@ async function loadSlots(data) {
     document.getElementById('slotsGrid').innerHTML = slots.map(s => {
         const t = new Date(s);
         const ora = t.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
-        return `<div class="slot" onclick="selectSlot(this,'${s}')">${ora}</div>`;
+        return `<div class="slot" data-slot="${Utils.escapeHtml(s)}">${ora}</div>`;
     }).join('');
+    document.querySelectorAll('#slotsGrid .slot').forEach(el => {
+        el.addEventListener('click', () => selectSlot(el, el.getAttribute('data-slot')));
+    });
 }
 
 function selectSlot(el, slot) {
@@ -218,6 +222,7 @@ function selectSlot(el, slot) {
 }
 
 async function conferma() {
+    if (confermaInCorso) return;
     if (!state.slot) { Utils.toast('Seleziona un orario','warning'); return; }
 
     let nome, cf, telefono, motivo, note, anagraficaId, chiamataId;
@@ -240,6 +245,9 @@ async function conferma() {
     }
 
     Utils.showLoading('Creazione appuntamento...');
+    confermaInCorso = true;
+    const btn = document.getElementById('btnConferma');
+    btn.disabled = true;
 
     const { data:app, error } = await db.from('appuntamenti').insert({
         nome, codice_fiscale: cf||null, telefono, motivo, note: note||null,
@@ -252,7 +260,7 @@ async function conferma() {
         storico: JSON.stringify([{azione:'creato',data:new Date().toISOString(),operatore:Auth.getNome()}])
     }).select().single();
 
-    if (error) { Utils.hideLoading(); Utils.toast('Errore: '+error.message,'danger'); return; }
+    if (error) { Utils.hideLoading(); confermaInCorso = false; btn.disabled = false; Utils.toast('Errore: '+error.message,'danger'); return; }
 
     // Aggiorna la chiamata con il link all'appuntamento
     if (chiamataId) {

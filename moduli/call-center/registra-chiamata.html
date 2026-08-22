@@ -278,6 +278,7 @@
         let clienteEsistente = null;
         let anagraficaId = null;
         let esitoSelezionato = null;
+        let salvataggioInCorso = false;
 
         // ==================== INIT ====================
         let origineRilavorazione = null; // Dati dalla rilavorazione da chiudere dopo il salvataggio
@@ -657,6 +658,7 @@
 
         // ==================== SALVATAGGIO ====================
         async function salvaChiamata() {
+            if (salvataggioInCorso) return;
             if (!esitoSelezionato) {
                 Utils.toast('Seleziona un esito', 'warning');
                 return;
@@ -685,6 +687,8 @@
             }
 
             Utils.showLoading('Salvataggio...');
+            salvataggioInCorso = true;
+            document.getElementById('btnSalva').disabled = true;
 
             try {
                 // Se cliente nuovo, salva prima in anagrafica
@@ -701,6 +705,7 @@
                     if (!cluster || !ragSoc || !nomeRef || !cellulare || !prov || !comune || !via || !civico) {
                         Utils.hideLoading();
                         Utils.toast('Tutti i campi dell\'anagrafica sono obbligatori', 'warning');
+                        document.getElementById('btnSalva').disabled = false;
                         return;
                     }
 
@@ -825,6 +830,9 @@
                 Utils.hideLoading();
                 console.error(err);
                 Utils.toast('Errore nel salvataggio: ' + err.message, 'danger');
+                document.getElementById('btnSalva').disabled = false;
+            } finally {
+                salvataggioInCorso = false;
             }
         }
 

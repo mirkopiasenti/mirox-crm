@@ -64,6 +64,7 @@
 
 <script>
 let items = [];
+let aggiuntaInCorso = false;
 
 (async () => {
     const { data:{session} } = await db.auth.getSession();
@@ -117,11 +118,13 @@ function filtro() {
 }
 
 async function aggiungi() {
+    if (aggiuntaInCorso) return;
     const nome = document.getElementById('blNome').value.trim();
     const cf = document.getElementById('blCf').value.trim().toUpperCase();
     if (!nome || !cf) { Utils.toast('Nome e CF obbligatori','warning'); return; }
 
     Utils.showLoading('Salvataggio...');
+    aggiuntaInCorso = true;
     const { error } = await db.from('blacklist').insert({
         nome_cognome: nome, cf_piva: cf,
         cellulare: document.getElementById('blCell').value.trim() || null,
@@ -129,6 +132,7 @@ async function aggiungi() {
         inserito_da: Auth.getId()
     });
     Utils.hideLoading();
+    aggiuntaInCorso = false;
     if (error) { Utils.toast('Errore: '+error.message,'danger'); return; }
     Utils.toast('Aggiunto alla Black List','success');
     Utils.closeModal('modalAggiungi');
