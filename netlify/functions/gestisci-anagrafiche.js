@@ -31,8 +31,11 @@ const SELECT_FIELDS = [
 const CLUSTERS = new Set(['Consumer', 'Business']);
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
+const MAX_COMUNI_FILTER = 30;
 const EXPORT_BATCH_SIZE = 1000;
 const EXPORT_MAX_ROWS = 50000;
+const COMUNI_CACHE_TTL_MS = 15 * 60 * 1000;
+let comuniCache = { expiresAt: 0, values: [] };
 
 function jsonResponse(statusCode, payload) {
   return {
@@ -57,11 +60,39 @@ function parsePositiveInteger(value, fallback, max) {
   return Math.min(parsed, max);
 }
 
+function cleanComuneChoice(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .replace(/[^\p{L}\p{N}\s.'’\-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+}
+
+function parseComuni(value) {
+  if (!value) return [];
+  let requested;
+  try {
+    requested = Array.isArray(value) ? value : JSON.parse(String(value));
+  } catch (_) {
+    return [];
+  }
+  if (!Array.isArray(requested)) return [];
+  const unique = new Map();
+  for (const item of requested.slice(0, MAX_COMUNI_FILTER)) {
+    const comune = cleanComuneChoice(item);
+    const key = comune.toLocaleLowerCase('it-IT');
+    if (comune && !unique.has(key)) unique.set(key, comune);
+  }
+  return Array.from(unique.values());
+}
+
 function parseFilters(params = {}) {
   const requestedCluster = String(params.cluster || '').trim();
   return {
     cluster: CLUSTERS.has(requestedCluster) ? requestedCluster : '',
     comune: cleanFilter(params.comune),
+    comuni: parseComuni(params.comuni),
     search: cleanFilter(params.search),
     page: parsePositiveInteger(params.page, 1, 100000),
     pageSize: parsePositiveInteger(params.page_size, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE)
@@ -71,12 +102,38 @@ function parseFilters(params = {}) {
 function applyFilters(query, filters) {
   let next = query;
   if (filters.cluster) next = next.eq('cluster', filters.cluster);
-  if (filters.comune) next = next.ilike('comune', `%${filters.comune}%`);
+  if (filters.comuni.length) next = next.in('comune', filters.comuni);
+  else if (filters.comune) next = next.ilike('comune', `%${filters.comune}%`);
   if (filters.search) {
     const pattern = `%${filters.search}%`;
     next = next.or(`ragione_sociale.ilike.${pattern},nome_referente.ilike.${pattern}`);
   }
   return next;
+}
+
+async function fetchComuniOptions(supabase) {
+  if (comuniCache.expiresAt > Date.now() && comuniCache.values.length) {
+    return comuniCache.values;
+  }
+  const values = new Set();
+  for (let offset = 0; offset < EXPORT_MAX_ROWS; offset += EXPORT_BATCH_SIZE) {
+    const { data, error } = await supabase
+      .from('anagrafica')
+      .select('comune')
+      .not('comune', 'is', null)
+      .order('comune', { ascending: true })
+      .range(offset, offset + EXPORT_BATCH_SIZE - 1);
+    if (error) throw error;
+    const batch = data || [];
+    for (const row of batch) {
+      const comune = String(row.comune || '').trim();
+      if (comune) values.add(comune);
+    }
+    if (batch.length < EXPORT_BATCH_SIZE) break;
+  }
+  const sorted = Array.from(values).sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
+  comuniCache = { expiresAt: Date.now() + COMUNI_CACHE_TTL_MS, values: sorted };
+  return sorted;
 }
 
 function readableError(error, fallback = 'Errore lettura anagrafiche') {
@@ -247,12 +304,16 @@ exports.handler = async (event) => {
 
   const params = event.queryStringParameters || {};
   const filters = parseFilters(params);
-  const action = params.action === 'export' ? 'export' : 'list';
+  const action = params.action === 'export' ? 'export' : (params.action === 'comuni' ? 'comuni' : 'list');
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false }
   });
 
   try {
+    if (action === 'comuni') {
+      return jsonResponse(200, { success: true, data: await fetchComuniOptions(supabase) });
+    }
+
     if (action === 'export') {
       const rows = await fetchAllRows(supabase, filters);
       const workbook = createWorkbook(rows);
@@ -292,6 +353,7 @@ exports.handler = async (event) => {
       filters: {
         cluster: filters.cluster || null,
         comune: filters.comune || null,
+        comuni: filters.comuni,
         search: filters.search || null
       }
     });
@@ -302,9 +364,11 @@ exports.handler = async (event) => {
 
 exports._test = {
   applyFilters,
+  cleanComuneChoice,
   cleanFilter,
   columnName,
   createWorkbook,
+  parseComuni,
   parseFilters,
   xmlEscape
 };

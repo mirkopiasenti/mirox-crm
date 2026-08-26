@@ -17,6 +17,7 @@ test('i filtri anagrafiche accettano solo valori previsti e limiti sicuri', () =
   }), {
     cluster: 'Business',
     comune: 'San Pietro VR',
+    comuni: [],
     search: 'Rossi or id eq bad',
     page: 1,
     pageSize: 100
@@ -25,6 +26,35 @@ test('i filtri anagrafiche accettano solo valori previsti e limiti sicuri', () =
   assert.equal(api.parseFilters({ cluster: 'Admin' }).cluster, '');
   assert.equal(api.cleanFilter('Mario%_Rossi,(test)'), 'Mario Rossi test');
   assert.equal(api.cleanFilter("D'Amico"), 'D Amico');
+});
+
+test('il filtro comuni accetta più scelte, rimuove duplicati e applica il limite', () => {
+  const requested = Array.from({ length: 35 }, (_, index) => `Comune ${index + 1}`);
+  requested[1] = 'L\'Aquila';
+  requested[2] = 'l\'aquila';
+  const comuni = api.parseComuni(JSON.stringify(requested));
+  assert.equal(comuni.length, 29);
+  assert.equal(comuni[1], "L'Aquila");
+  assert.deepEqual(api.parseComuni('non-json'), []);
+  assert.deepEqual(api.parseComuni(JSON.stringify({ comune: 'Cerea' })), []);
+
+  const calls = [];
+  const query = {
+    eq(column, value) { calls.push(['eq', column, value]); return this; },
+    in(column, value) { calls.push(['in', column, value]); return this; },
+    ilike(column, value) { calls.push(['ilike', column, value]); return this; },
+    or(value) { calls.push(['or', value]); return this; }
+  };
+  api.applyFilters(query, {
+    cluster: 'Consumer',
+    comune: '',
+    comuni: ['Cerea', 'Legnago'],
+    search: ''
+  });
+  assert.deepEqual(calls, [
+    ['eq', 'cluster', 'Consumer'],
+    ['in', 'comune', ['Cerea', 'Legnago']]
+  ]);
 });
 
 test('il generatore produce un vero workbook xlsx filtrabile e neutralizza formule', () => {
@@ -68,10 +98,14 @@ test('la pagina Anagrafiche usa la function autenticata e contiene filtri, popup
 
   assert.match(html, /id="searchName"/);
   assert.match(html, /id="filterCluster"/);
-  assert.match(html, /id="filterComune"/);
+  assert.match(html, /id="comuniTrigger"/);
+  assert.match(html, /id="comuniOptions"/);
+  assert.match(html, /aria-multiselectable="true"/);
   assert.match(html, /id="detailModal"/);
   assert.match(html, /id="btnExport"/);
   assert.match(js, /MiroxApi\.fetch/);
+  assert.match(js, /action=comuni/);
+  assert.match(js, /JSON\.stringify\(state\.comuni\)/);
   assert.match(js, /action', 'export'/);
   assert.doesNotMatch(js, /\.from\(['"]anagrafica['"]\)/);
   assert.match(js, /Auth\.richiediAuth\(\)/);

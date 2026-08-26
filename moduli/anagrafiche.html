@@ -12,8 +12,24 @@
         .anagrafiche-header-actions { display:flex; gap:10px; align-items:center; }
         .anagrafiche-back { display:inline-block; margin-bottom:14px; color:var(--text-secondary); font-size:13px; font-weight:500; text-decoration:none; }
         .anagrafiche-back:hover { color:var(--primary); }
-        .filters-grid { display:grid; grid-template-columns:minmax(240px,2fr) minmax(160px,1fr) minmax(180px,1fr) auto; gap:14px; align-items:end; }
+        .filters-grid { display:grid; grid-template-columns:minmax(240px,2fr) minmax(160px,1fr) minmax(210px,1.25fr) auto; gap:14px; align-items:end; }
         .filters-grid .form-group { margin:0; }
+        .comuni-picker { position:relative; }
+        .comuni-trigger { width:100%; min-height:38px; justify-content:space-between; background:var(--bg-card); text-align:left; }
+        .comuni-trigger svg { width:15px; height:15px; flex:0 0 auto; transition:transform .18s ease; }
+        .comuni-trigger[aria-expanded="true"] svg { transform:rotate(180deg); }
+        .comuni-summary { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .comuni-menu { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:30; min-width:280px; padding:10px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); }
+        .comuni-menu.hidden { display:none; }
+        .comuni-search { margin-bottom:8px; }
+        .comuni-options { max-height:240px; overflow-y:auto; border-top:1px solid var(--border-light); border-bottom:1px solid var(--border-light); }
+        .comune-option { display:flex; align-items:center; gap:9px; padding:8px 5px; color:var(--text); font-size:13px; cursor:pointer; }
+        .comune-option:hover { background:var(--bg); }
+        .comune-option input { width:16px; height:16px; accent-color:var(--primary); flex:0 0 auto; }
+        .comuni-empty { padding:18px 8px; color:var(--text-secondary); font-size:12px; text-align:center; }
+        .comuni-menu-footer { display:flex; justify-content:flex-end; padding-top:8px; }
+        .comuni-clear { border:0; background:transparent; color:var(--primary-dark); font:inherit; font-size:12px; font-weight:600; cursor:pointer; }
+        .comuni-clear:disabled { color:var(--text-light); cursor:default; }
         .results-toolbar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:12px; }
         .result-count { color:var(--text-secondary); font-size:13px; font-weight:600; }
         .anagrafiche-table th:last-child, .anagrafiche-table td:last-child { text-align:right; }
@@ -74,9 +90,21 @@
                         <option value="Business">Business</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label class="form-label" for="filterComune">Comune</label>
-                    <input class="form-control" id="filterComune" type="search" placeholder="Tutti i comuni" autocomplete="off">
+                <div class="form-group comuni-picker" id="comuniPicker">
+                    <label class="form-label" for="comuniTrigger">Comuni</label>
+                    <button class="btn btn-secondary comuni-trigger" id="comuniTrigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="comuni-summary" id="comuniSummary">Tutti i comuni</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="comuni-menu hidden" id="comuniMenu">
+                        <input class="form-control comuni-search" id="comuniSearch" type="search" placeholder="Cerca comune" autocomplete="off" aria-label="Cerca tra i comuni">
+                        <div class="comuni-options" id="comuniOptions" role="listbox" aria-multiselectable="true">
+                            <div class="comuni-empty">Caricamento comuni...</div>
+                        </div>
+                        <div class="comuni-menu-footer">
+                            <button class="comuni-clear" id="btnClearComuni" type="button" disabled>Azzera selezione</button>
+                        </div>
+                    </div>
                 </div>
                 <button class="btn btn-secondary" id="btnReset" type="button">Azzera filtri</button>
             </div>

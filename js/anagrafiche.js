@@ -2,12 +2,15 @@
   'use strict';
 
   const ENDPOINT = '/.netlify/functions/gestisci-anagrafiche';
+  const MAX_SELECTED_COMUNI = 30;
   const state = {
     rows: [],
     page: 1,
     pageSize: 50,
     total: 0,
     totalPages: 1,
+    comuni: [],
+    comuniOptions: [],
     loading: false,
     exporting: false
   };
@@ -52,12 +55,91 @@
       page_size: String(state.pageSize)
     });
     const cluster = el('filterCluster').value;
-    const comune = el('filterComune').value.trim();
     const search = el('searchName').value.trim();
     if (cluster) params.set('cluster', cluster);
-    if (comune) params.set('comune', comune);
+    if (state.comuni.length) params.set('comuni', JSON.stringify(state.comuni));
     if (search) params.set('search', search);
     return params;
+  }
+
+  function renderComuniSummary() {
+    const count = state.comuni.length;
+    const summary = count === 0
+      ? 'Tutti i comuni'
+      : (count === 1 ? state.comuni[0] : `${count} comuni selezionati`);
+    el('comuniSummary').textContent = summary;
+    el('comuniTrigger').title = count ? state.comuni.join(', ') : '';
+    el('btnClearComuni').disabled = count === 0;
+  }
+
+  function renderComuniOptions() {
+    const container = el('comuniOptions');
+    const term = el('comuniSearch').value.trim().toLocaleLowerCase('it-IT');
+    const selected = new Set(state.comuni);
+    const visible = state.comuniOptions.filter((comune) => comune.toLocaleLowerCase('it-IT').includes(term));
+    container.replaceChildren();
+
+    if (!visible.length) {
+      const empty = document.createElement('div');
+      empty.className = 'comuni-empty';
+      empty.textContent = state.comuniOptions.length ? 'Nessun comune corrispondente' : 'Nessun comune disponibile';
+      container.appendChild(empty);
+      return;
+    }
+
+    for (const comune of visible) {
+      const label = document.createElement('label');
+      label.className = 'comune-option';
+      label.setAttribute('role', 'option');
+      label.setAttribute('aria-selected', selected.has(comune) ? 'true' : 'false');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = selected.has(comune);
+      input.value = comune;
+      const text = document.createElement('span');
+      text.textContent = comune;
+      input.addEventListener('change', () => {
+        if (input.checked) {
+          if (state.comuni.length >= MAX_SELECTED_COMUNI) {
+            input.checked = false;
+            window.MiroxUI.toast(`Puoi selezionare al massimo ${MAX_SELECTED_COMUNI} comuni`, 'warning');
+            return;
+          }
+          if (!state.comuni.includes(comune)) state.comuni.push(comune);
+        } else {
+          state.comuni = state.comuni.filter((value) => value !== comune);
+        }
+        state.comuni.sort((a, b) => a.localeCompare(b, 'it'));
+        renderComuniSummary();
+        renderComuniOptions();
+        resetAndLoad();
+      });
+      label.append(input, text);
+      container.appendChild(label);
+    }
+  }
+
+  function setComuniMenu(open) {
+    el('comuniMenu').classList.toggle('hidden', !open);
+    el('comuniTrigger').setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) {
+      renderComuniOptions();
+      el('comuniSearch').focus();
+    }
+  }
+
+  async function loadComuniOptions() {
+    try {
+      const response = await window.MiroxApi.fetch(`${ENDPOINT}?action=comuni`);
+      if (!response.ok) throw new Error(await readError(response));
+      const payload = await response.json();
+      state.comuniOptions = Array.isArray(payload.data) ? payload.data : [];
+      renderComuniOptions();
+    } catch (error) {
+      state.comuniOptions = [];
+      renderComuniOptions();
+      window.MiroxUI.toast(error.message || 'Errore durante il caricamento dei comuni', 'error');
+    }
   }
 
   async function readError(response) {
@@ -218,12 +300,25 @@
 
     const debouncedLoad = debounce(resetAndLoad, 350);
     el('searchName').addEventListener('input', debouncedLoad);
-    el('filterComune').addEventListener('input', debouncedLoad);
     el('filterCluster').addEventListener('change', resetAndLoad);
+    el('comuniTrigger').addEventListener('click', () => {
+      setComuniMenu(el('comuniTrigger').getAttribute('aria-expanded') !== 'true');
+    });
+    el('comuniSearch').addEventListener('input', renderComuniOptions);
+    el('btnClearComuni').addEventListener('click', () => {
+      state.comuni = [];
+      renderComuniSummary();
+      renderComuniOptions();
+      resetAndLoad();
+    });
     el('btnReset').addEventListener('click', () => {
       el('searchName').value = '';
       el('filterCluster').value = '';
-      el('filterComune').value = '';
+      el('comuniSearch').value = '';
+      state.comuni = [];
+      renderComuniSummary();
+      renderComuniOptions();
+      setComuniMenu(false);
       resetAndLoad();
     });
     el('btnExport').addEventListener('click', exportRows);
@@ -242,11 +337,22 @@
     el('detailModal').addEventListener('click', (event) => {
       if (event.target === el('detailModal')) closeDetail();
     });
+    document.addEventListener('click', (event) => {
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+      if (!path.includes(el('comuniPicker'))) setComuniMenu(false);
+    });
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') closeDetail();
+      if (event.key !== 'Escape') return;
+      if (el('comuniTrigger').getAttribute('aria-expanded') === 'true') {
+        setComuniMenu(false);
+        el('comuniTrigger').focus();
+      } else {
+        closeDetail();
+      }
     });
 
-    await loadRows();
+    renderComuniSummary();
+    await Promise.all([loadComuniOptions(), loadRows()]);
   }
 
   init();
