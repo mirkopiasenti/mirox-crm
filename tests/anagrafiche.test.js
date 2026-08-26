@@ -234,3 +234,22 @@ test('la migration ISTAT è server-only, completa e aggiunge il trigger non bloc
   assert.match(sql, /BEFORE INSERT OR UPDATE OF comune, provincia ON public\.anagrafica/);
   assert.doesNotMatch(sql, /ALTER TABLE public\.anagrafica (?:ADD|DROP|RENAME)/i);
 });
+
+test('la bonifica località è transazionale, auditata e conserva lo storico collegato', () => {
+  const sql = fs.readFileSync(path.join(ROOT, 'database/071_bonifica_localita_anagrafica.sql'), 'utf8');
+  assert.match(sql, /^BEGIN;/m);
+  assert.match(sql, /^COMMIT;/m);
+  assert.match(sql, /SET LOCAL statement_timeout = '45s'/);
+  assert.match(sql, /CREATE TABLE public\.mirox_anagrafica_localita_audit/);
+  assert.match(sql, /ALTER TABLE public\.mirox_anagrafica_localita_audit ENABLE ROW LEVEL SECURITY/);
+  assert.match(sql, /REVOKE ALL ON TABLE public\.mirox_anagrafica_localita_audit FROM PUBLIC, anon, authenticated/);
+  assert.match(sql, /v_totale <> 1094/);
+  assert.match(sql, /\('CAPITELLO', 'CONCAMARISE', 'VR', 'correzione_manual_utente'/);
+  assert.match(sql, /'c502c5a2-0ebd-4e00-92b1-34ef8edb44d9'::uuid/);
+  assert.match(sql, /'aafa568f-898d-4306-a0ee-e7362c01ef3f'::uuid/);
+  assert.match(sql, /'8c685507-624a-48ee-9e95-19485f180db7'::uuid/);
+  assert.match(sql, /record_eliminato/);
+  assert.equal((sql.match(/DELETE FROM public\.anagrafica/g) || []).length, 1);
+  assert.doesNotMatch(sql, /DELETE FROM public\.(?:chiamate|vendita_contratti|vendita_documenti|vendita_pratiche)/);
+  assert.doesNotMatch(sql, /ALTER TABLE public\.anagrafica (?:ADD|DROP|RENAME)/i);
+});
