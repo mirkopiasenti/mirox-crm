@@ -99,9 +99,6 @@ const Auth = {
         if (!this._profilo) return false;
         if (this._profilo.ruolo === 'admin') return true;
         const permessi = this._profilo.pagine_accessibili || {};
-        if (pagina === 'anagrafiche' && permessi.anagrafiche === undefined) {
-            return permessi.elenco_chiamate === true;
-        }
         return permessi[pagina] === true;
     },
 

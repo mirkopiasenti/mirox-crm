@@ -27,14 +27,6 @@ test('i filtri anagrafiche accettano solo valori previsti e limiti sicuri', () =
   assert.equal(api.cleanFilter("D'Amico"), 'D Amico');
 });
 
-test('il permesso Anagrafiche è esplicito o eredita Elenco chiamate solo se assente', () => {
-  assert.equal(api.canAccess({ ruolo: 'admin', attivo: true }), true);
-  assert.equal(api.canAccess({ ruolo: 'operatore', attivo: true, pagine_accessibili: { anagrafiche: true } }), true);
-  assert.equal(api.canAccess({ ruolo: 'operatore', attivo: true, pagine_accessibili: { elenco_chiamate: true } }), true);
-  assert.equal(api.canAccess({ ruolo: 'operatore', attivo: true, pagine_accessibili: { anagrafiche: false, elenco_chiamate: true } }), false);
-  assert.equal(api.canAccess({ ruolo: 'operatore', attivo: false, pagine_accessibili: { anagrafiche: true } }), false);
-});
-
 test('il generatore produce un vero workbook xlsx filtrabile e neutralizza formule', () => {
   const workbook = api.createWorkbook([{
     id: '11111111-1111-4111-8111-111111111111',
@@ -70,8 +62,9 @@ test('il generatore produce un vero workbook xlsx filtrabile e neutralizza formu
 });
 
 test('la pagina Anagrafiche usa la function autenticata e contiene filtri, popup ed export', () => {
-  const html = fs.readFileSync(path.join(ROOT, 'moduli/call-center/anagrafiche.html'), 'utf8');
-  const js = fs.readFileSync(path.join(ROOT, 'moduli/call-center/js/anagrafiche.js'), 'utf8');
+  const html = fs.readFileSync(path.join(ROOT, 'moduli/anagrafiche.html'), 'utf8');
+  const js = fs.readFileSync(path.join(ROOT, 'js/anagrafiche.js'), 'utf8');
+  const dashboard = fs.readFileSync(path.join(ROOT, 'dashboard.html'), 'utf8');
 
   assert.match(html, /id="searchName"/);
   assert.match(html, /id="filterCluster"/);
@@ -81,4 +74,8 @@ test('la pagina Anagrafiche usa la function autenticata e contiene filtri, popup
   assert.match(js, /MiroxApi\.fetch/);
   assert.match(js, /action', 'export'/);
   assert.doesNotMatch(js, /\.from\(['"]anagrafica['"]\)/);
+  assert.match(js, /Auth\.richiediAuth\(\)/);
+  assert.match(dashboard, /#panel-post-vendita \.grid/);
+  assert.match(dashboard, /moduli\/anagrafiche\.html/);
+  assert.doesNotMatch(dashboard, /moduli\/call-center\/anagrafiche\.html/);
 });

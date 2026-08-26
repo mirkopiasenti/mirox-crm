@@ -16,6 +16,14 @@
     return document.getElementById(id);
   }
 
+  function debounce(fn, delay = 300) {
+    let timer;
+    return (...args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    };
+  }
+
   function safe(value) {
     return window.MiroxSafe.escapeHtml(value == null || value === '' ? '—' : String(value));
   }
@@ -125,7 +133,7 @@
       state.total = 0;
       state.totalPages = 1;
       renderRows();
-      Utils.toast(error.message || 'Errore durante il caricamento', 'danger');
+      window.MiroxUI.toast(error.message || 'Errore durante il caricamento', 'error');
     } finally {
       setLoading(false);
     }
@@ -160,12 +168,12 @@
       detailField('Aggiornato il', formatDateTime(row.updated_at)),
       detailField('ID anagrafica', row.id, true)
     ].join('');
-    Utils.openModal('detailModal');
+    el('detailModal').classList.add('active');
     el('detailClose').focus();
   }
 
   function closeDetail() {
-    Utils.closeModal('detailModal');
+    el('detailModal').classList.remove('active');
   }
 
   async function exportRows() {
@@ -194,9 +202,9 @@
       anchor.click();
       anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      Utils.toast('File Excel generato con i filtri attivi', 'success');
+      window.MiroxUI.toast('File Excel generato con i filtri attivi', 'success');
     } catch (error) {
-      Utils.toast(error.message || 'Errore durante la generazione Excel', 'danger');
+      window.MiroxUI.toast(error.message || 'Errore durante la generazione Excel', 'error');
     } finally {
       state.exporting = false;
       button.disabled = false;
@@ -205,12 +213,10 @@
   }
 
   async function init() {
-    const profilo = await Auth.richiediAccesso('anagrafiche');
+    const profilo = await Auth.richiediAuth();
     if (!profilo) return;
-    CcHeader.render('anagrafiche', profilo);
-    await Notifiche.init();
 
-    const debouncedLoad = Utils.debounce(resetAndLoad, 350);
+    const debouncedLoad = debounce(resetAndLoad, 350);
     el('searchName').addEventListener('input', debouncedLoad);
     el('filterComune').addEventListener('input', debouncedLoad);
     el('filterCluster').addEventListener('change', resetAndLoad);

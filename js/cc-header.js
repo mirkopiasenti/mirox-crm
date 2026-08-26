@@ -23,7 +23,6 @@
   const CC_PAGES = [
     { perm: 'registra_chiamata',         label: 'Registra Chiamata',  href: 'registra-chiamata.html' },
     { perm: 'elenco_chiamate',           label: 'Elenco Chiamate',    href: 'elenco-chiamate.html' },
-    { perm: 'anagrafiche',                label: 'Anagrafiche',        href: 'anagrafiche.html', fallbackPerm: 'elenco_chiamate' },
     { perm: 'rilavorazione',             label: 'Rilavorazione',      href: 'rilavorazione.html' },
     { perm: 'call_center_lead_outbound', label: 'Lead Outbound',      href: 'call-center-lead-outbound.html' },
     { perm: 'appuntamenti',              label: 'Appuntamenti',       href: 'appuntamenti.html' },

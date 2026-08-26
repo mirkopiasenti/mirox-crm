@@ -39,7 +39,6 @@ const APP_CONFIG = {
     PAGINE: {
         registra_chiamata:  { titolo: 'Registra chiamata', icona: 'phone-outgoing', href: 'registra-chiamata.html', gruppo: 'call-center' },
         elenco_chiamate:    { titolo: 'Elenco chiamate',   icona: 'list',           href: 'elenco-chiamate.html',   gruppo: 'call-center' },
-        anagrafiche:        { titolo: 'Anagrafiche',       icona: 'users',          href: 'anagrafiche.html',       gruppo: 'call-center' },
         rilavorazione:      { titolo: 'Rilavorazione',      icona: 'refresh-cw',     href: 'rilavorazione.html',     gruppo: 'call-center' },
         call_center_lead_outbound: { titolo: 'Lead Outbound (business)', icona: 'list', href: 'call-center-lead-outbound.html', gruppo: 'call-center' },
         appuntamenti:       { titolo: 'Appuntamenti',       icona: 'calendar',       href: 'appuntamenti.html',      gruppo: 'appuntamenti' },

@@ -68,14 +68,6 @@ function parseFilters(params = {}) {
   };
 }
 
-function canAccess(profilo) {
-  if (!profilo || profilo.attivo === false) return false;
-  if (profilo.ruolo === 'admin') return true;
-  const perms = profilo.pagine_accessibili || {};
-  if (perms.anagrafiche === true) return true;
-  return perms.anagrafiche === undefined && perms.elenco_chiamate === true;
-}
-
 function applyFilters(query, filters) {
   let next = query;
   if (filters.cluster) next = next.eq('cluster', filters.cluster);
@@ -247,10 +239,6 @@ exports.handler = async (event) => {
 
   const auth = await requireAuth(event);
   if (!auth.ok) return jsonResponse(auth.status, { success: false, error: auth.error });
-  if (!canAccess(auth.profilo)) {
-    return jsonResponse(403, { success: false, error: 'Non hai il permesso per accedere alle anagrafiche' });
-  }
-
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceRoleKey) {
@@ -314,7 +302,6 @@ exports.handler = async (event) => {
 
 exports._test = {
   applyFilters,
-  canAccess,
   cleanFilter,
   columnName,
   createWorkbook,

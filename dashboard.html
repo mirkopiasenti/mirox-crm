@@ -681,6 +681,17 @@
       document.getElementById('userName').textContent = nome;
       document.getElementById('userAvatar').textContent = nome.trim().charAt(0).toUpperCase();
 
+      // Anagrafiche appartiene al reparto Post-Vendita: aggiunge una card
+      // autonoma e disponibile a ogni account CRM attivo.
+      const postVenditaGrid = document.querySelector('#panel-post-vendita .grid');
+      if (postVenditaGrid) {
+        const anagraficheCard = document.createElement('a');
+        anagraficheCard.className = 'card';
+        anagraficheCard.href = 'moduli/anagrafiche.html';
+        anagraficheCard.innerHTML = '<div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="card-label">Anagrafiche</div>';
+        postVenditaGrid.prepend(anagraficheCard);
+      }
+
       // Bottone Admin: attivo solo se ruolo='admin'
       try {
         const btnAdmin = document.getElementById('btnAdmin');
@@ -701,7 +712,6 @@
         const ccPages = [
           { perm: 'registra_chiamata',         url: 'moduli/call-center/registra-chiamata.html' },
           { perm: 'elenco_chiamate',           url: 'moduli/call-center/elenco-chiamate.html' },
-          { perm: 'anagrafiche',                url: 'moduli/call-center/anagrafiche.html', fallbackPerm: 'elenco_chiamate' },
           { perm: 'rilavorazione',             url: 'moduli/call-center/rilavorazione.html' },
           { perm: 'call_center_lead_outbound', url: 'moduli/call-center/call-center-lead-outbound.html' },
           { perm: 'appuntamenti',              url: 'moduli/call-center/appuntamenti.html' },
