@@ -180,6 +180,7 @@
 const PAGINE_LABELS = {
   registra_chiamata: 'Registra chiamata',
   elenco_chiamate: 'Elenco chiamate',
+  anagrafiche: 'Anagrafiche',
   rilavorazione: 'Rilavorazione',
   call_center_lead_outbound: 'Lead Outbound (business)',
   appuntamenti: 'Appuntamenti',
@@ -248,7 +249,10 @@ async function caricaUtenti() {
 
   for (const u of utenti) {
     const isMe = u.id === currentProfilo.id;
-    const permCount = Object.values(u.pagine_accessibili || {}).filter(v => v).length;
+    const userPerms = u.pagine_accessibili || {};
+    const permCount = Object.keys(PAGINE_LABELS).filter((key) => (
+      userPerms[key] === true || (key === 'anagrafiche' && userPerms[key] === undefined && userPerms.elenco_chiamate === true)
+    )).length;
     const ruolo = u.ruolo || 'operatore';
     // Dropdown alias_di: opzioni tutti i profili attivi tranne se stesso e i profili che sono gia' alias di qualcun altro (evita catene)
     const opzioniHtml = ['<option value="">— Nessuno (canonico) —</option>'].concat(
@@ -401,7 +405,8 @@ function apriPermessi(id) {
   const perms = u.pagine_accessibili || {};
   let html = '';
   for (const [key, label] of Object.entries(PAGINE_LABELS)) {
-    html += `<div class="perm-item"><input type="checkbox" id="perm_${key}" ${perms[key] ? 'checked' : ''}><label for="perm_${key}">${escapeHtml(label)}</label></div>`;
+    const enabled = perms[key] === true || (key === 'anagrafiche' && perms[key] === undefined && perms.elenco_chiamate === true);
+    html += `<div class="perm-item"><input type="checkbox" id="perm_${key}" ${enabled ? 'checked' : ''}><label for="perm_${key}">${escapeHtml(label)}</label></div>`;
   }
   document.getElementById('permGrid').innerHTML = html;
   openModal('modalPermessi');

@@ -701,6 +701,7 @@
         const ccPages = [
           { perm: 'registra_chiamata',         url: 'moduli/call-center/registra-chiamata.html' },
           { perm: 'elenco_chiamate',           url: 'moduli/call-center/elenco-chiamate.html' },
+          { perm: 'anagrafiche',                url: 'moduli/call-center/anagrafiche.html', fallbackPerm: 'elenco_chiamate' },
           { perm: 'rilavorazione',             url: 'moduli/call-center/rilavorazione.html' },
           { perm: 'call_center_lead_outbound', url: 'moduli/call-center/call-center-lead-outbound.html' },
           { perm: 'appuntamenti',              url: 'moduli/call-center/appuntamenti.html' },
@@ -709,7 +710,9 @@
           { perm: 'esiti_appuntamenti',        url: 'moduli/call-center/esiti-appuntamenti.html' },
           { perm: 'blacklist',                 url: 'moduli/call-center/blacklist.html' }
         ];
-        const prima = ccPages.find(p => isAdmin || (!p.adminOnly && perms[p.perm] === true));
+        const prima = ccPages.find(p => isAdmin || (!p.adminOnly && (
+          perms[p.perm] === true || (perms[p.perm] === undefined && p.fallbackPerm && perms[p.fallbackPerm] === true)
+        )));
         const btn = document.getElementById('btnCallCenter');
         if (btn && prima) {
           btn.classList.remove('disabled');

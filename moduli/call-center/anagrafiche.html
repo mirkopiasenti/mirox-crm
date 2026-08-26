@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="../../assets/favicon.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anagrafiche - Mirox</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../css/style.css">
+    <style>
+        .anagrafiche-header-actions { display:flex; gap:10px; align-items:center; }
+        .filters-grid { display:grid; grid-template-columns:minmax(240px,2fr) minmax(160px,1fr) minmax(180px,1fr) auto; gap:14px; align-items:end; }
+        .filters-grid .form-group { margin:0; }
+        .results-toolbar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:12px; }
+        .result-count { color:var(--text-secondary); font-size:13px; font-weight:600; }
+        .anagrafiche-table th:last-child, .anagrafiche-table td:last-child { text-align:right; }
+        .row-subtitle { display:block; margin-top:3px; color:var(--text-secondary); font-size:12px; font-weight:400; }
+        .cluster-pill { display:inline-flex; align-items:center; padding:4px 9px; border-radius:999px; font-size:12px; font-weight:700; background:var(--border-light); color:var(--text-secondary); }
+        .cluster-consumer { color:#9a4a00; background:#fff1e5; }
+        .cluster-business { color:#2456a6; background:#edf4ff; }
+        .pagination { display:flex; justify-content:flex-end; align-items:center; gap:10px; padding-top:16px; border-top:1px solid var(--border-light); }
+        .page-info { min-width:110px; text-align:center; color:var(--text-secondary); font-size:13px; font-weight:600; }
+        .detail-modal { max-width:720px; }
+        .detail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+        .detail-field { min-width:0; padding:12px 14px; background:var(--bg); border:1px solid var(--border-light); border-radius:10px; }
+        .detail-field-wide { grid-column:1/-1; }
+        .detail-field span { display:block; margin-bottom:4px; color:var(--text-secondary); font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
+        .detail-field strong { display:block; color:var(--text); font-size:14px; font-weight:600; line-height:1.4; overflow-wrap:anywhere; }
+        @media (max-width:900px) {
+            .filters-grid { grid-template-columns:1fr 1fr; }
+            .filters-search { grid-column:1/-1; }
+        }
+        @media (max-width:640px) {
+            .page-header { flex-direction:column; }
+            .anagrafiche-header-actions, .anagrafiche-header-actions .btn { width:100%; }
+            .filters-grid { grid-template-columns:1fr; }
+            .filters-search { grid-column:auto; }
+            .results-toolbar { align-items:flex-start; flex-direction:column; }
+            .detail-grid { grid-template-columns:1fr; }
+            .detail-field-wide { grid-column:auto; }
+            .pagination { justify-content:center; }
+        }
+    </style>
+    <script src="../../js/mirox-safe.js"></script>
+</head>
+<body>
+<div class="cc-layout">
+    <div id="ccHeader"></div>
+    <main class="cc-main">
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">Anagrafiche</h1>
+                <p class="page-subtitle">Elenco completo dei clienti anagrafati nel CRM</p>
+            </div>
+            <div class="anagrafiche-header-actions">
+                <button class="btn btn-primary" id="btnExport" type="button">Scarica Excel</button>
+            </div>
+        </div>
+
+        <section class="card" aria-label="Filtri anagrafiche">
+            <div class="filters-grid">
+                <div class="form-group filters-search">
+                    <label class="form-label" for="searchName">Cerca nominativo</label>
+                    <input class="form-control" id="searchName" type="search" placeholder="Ragione sociale o nome referente" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="filterCluster">Cluster</label>
+                    <select class="form-control" id="filterCluster">
+                        <option value="">Tutti i cluster</option>
+                        <option value="Consumer">Consumer</option>
+                        <option value="Business">Business</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="filterComune">Comune</label>
+                    <input class="form-control" id="filterComune" type="search" placeholder="Tutti i comuni" autocomplete="off">
+                </div>
+                <button class="btn btn-secondary" id="btnReset" type="button">Azzera filtri</button>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="results-toolbar">
+                <div>
+                    <h2 class="card-title" style="margin-bottom:3px">Clienti</h2>
+                    <div class="result-count" id="resultCount" aria-live="polite">Caricamento...</div>
+                </div>
+                <span class="badge badge-neutral">50 righe per pagina</span>
+            </div>
+
+            <div id="loading" style="text-align:center;padding:48px"><div class="spinner"></div></div>
+            <div id="emptyState" class="hidden empty-state">
+                <h3>Nessuna anagrafica trovata</h3>
+                <p>Modifica o azzera i filtri per ampliare la ricerca.</p>
+            </div>
+            <div id="tablePanel" class="hidden">
+                <div class="table-container">
+                    <table class="anagrafiche-table">
+                        <thead><tr><th>Cluster</th><th>Ragione sociale</th><th>Numero di contatto</th><th>Comune</th><th></th></tr></thead>
+                        <tbody id="anagraficheBody"></tbody>
+                    </table>
+                </div>
+                <nav class="pagination" aria-label="Paginazione anagrafiche">
+                    <button class="btn btn-sm btn-secondary" id="btnPrev" type="button">Precedente</button>
+                    <span class="page-info" id="pageInfo">Pagina 1 di 1</span>
+                    <button class="btn btn-sm btn-secondary" id="btnNext" type="button">Successiva</button>
+                </nav>
+            </div>
+        </section>
+    </main>
+</div>
+
+<div class="modal-overlay" id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+    <div class="modal detail-modal">
+        <div class="modal-header">
+            <h3 class="modal-title" id="detailTitle">Dettaglio anagrafica</h3>
+            <button class="modal-close" id="detailClose" type="button" aria-label="Chiudi dettaglio">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="detail-grid" id="detailGrid"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="detailDone" type="button">Chiudi</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script src="js/notifiche.js"></script>
+<script src="../../js/cc-header.js"></script>
+<script src="../../js/mirox-ui.js"></script>
+<script src="../../js/mirox-api.js"></script>
+<script src="js/anagrafiche.js"></script>
+</body>
+</html>

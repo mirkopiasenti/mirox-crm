@@ -104,6 +104,8 @@ Modifiche a schema / RLS / RPC / trigger su queste tabelle hanno rischio di **ro
 
 Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pubblica esclusivamente `dist/`, generata copiando gli HTML root e le directory `assets/`, `css/`, `js/`, `moduli/`; `dist/` è ignorata da Git. La build sostituisce il guard sorgente `js/config.js` con la configurazione Supabase dell'ambiente, espone soltanto commit/deploy non sensibili per correlare la telemetria e inietta `js/mirox-telemetry.js` nelle pagine che caricano `mirox-api.js`. Genera inoltre `dist/_headers` con una CSP limitata allo stesso host. Ogni branch Netlify diversa da `main` e' staging: senza `MIROX_PUBLIC_SUPABASE_URL` e `MIROX_PUBLIC_SUPABASE_ANON_KEY` dedicate la build fallisce, e il project ref produzione `lbgwamhjkjjfwgusafbi` e' sempre rifiutato. `imposta-password.html` e' il callback Auth degli inviti: scambia code/token con una sessione, rimuove i token dalla URL, richiede almeno 12 caratteri e salva la password con `auth.updateUser()` senza mostrarla agli amministratori. Backend, migration, test, script, file Markdown e configurazioni non devono mai essere aggiunti alla lista pubblica. `/moduli/call-center/` contiene il modulo CC integrato (Fase 1, vedi sezione dedicata). `dashboard.html` contiene anche il sottomenu Applicazioni: il bottone topbar `#btnApplicazioni`, collocato prima di Appuntamenti Oggi, espande `#applicationsDrawer` tra topbar e saluto e sposta il contenuto sottostante senza sovrapporlo; i riquadri applicazione mantengono le dimensioni dei bottoni topbar. La prima voce è `Compilatore disdette` e collega a `moduli/compilatore_disdette.html`, che offre scelta fra quattro moduli, compilazione guidata, ricerca anagrafica CRM, duplicazione SIM/Fisso nello stesso cluster e storico PDF con numero cessato. L'azione flottante `#btnSegnalaProblema` mostra la mascotte intera di dimensioni ridotte `assets/kona-guardian-robot.png` con una nuvoletta di chat compatta alla sua sinistra e apre `moduli/segnala-problema.html`, chat guidata autenticata del primo agente KONA AI Guardian. Le pagine `admin*.html` alla root costituiscono il **Pannello Admin Mirox** (`admin.html` hub + configurazioni + gare + KPI Consumer/Business), tutte gated da `profili.ruolo='admin'`. La shell condivisa dell'area Admin è generata da `js/admin-shell.js` e stilizzata da `css/admin-shell.css`: sidebar sinistra persistente su desktop, drawer su mobile e area operativa a destra. Le due pagine KPI aggiungono `css/admin-kpi.css` e condividono `js/admin-kpi-vendita-consumer.js`, parametrizzato tramite `data-kpi-cluster`. JS condiviso Mirox esposto su `window`:
 
+`moduli/call-center/anagrafiche.html` è la pagina Back Office per la consultazione dell'intera tabella `anagrafica`: mostra cluster, ragione sociale, cellulare e comune, apre gli altri campi in un popup, applica filtri server-side e pagina a 50 righe. Il browser non legge direttamente la tabella: usa `gestisci-anagrafiche`, che valida JWT e permesso e genera anche l'export `.xlsx` completo tramite `fflate@0.8.2`.
+
 | File JS | Espone | Uso |
 |---|---|---|
 | `js/config.js` | `window.db`, `window.MiroxEnvironment` | Guard nel sorgente; la build genera il client con URL + publishable/anon key dell'ambiente |
@@ -140,6 +142,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `ocr-pda.js` (POST multipart, max 20MB) — OCR del PDA via Claude API (`claude-haiku-4-5-20251001`). **Dati cliente**: cf_piva, ragione_sociale, nome_referente, cellulare, email, provincia, comune, via, civico. **Codice Rivenditore** (dal 2026-07-18, migration `050`): `codice_rivenditore` estratto dal "Codice POS" WindTre, valori ammessi solo `'9001415852'` (Legnago) o `'9000822241'` (Cerea), altrimenti `null`. **Dati dispositivo** (dal 2026-06-26, PDA WindTre Mobile/Customer Base): `dispositivo_presente` (bool), `tipo_acquisto` ('VAR' o 'Finanziamento'), `imei` (15 cifre), `prezzo_device` (stringa numerica es. "399.9"), `smartphone_reload` (bool nullable: true=SI[X], false=NO[X], null=sezione assente). Riconoscimento VAR vs Finanziamento via 3 segnali concordi nel PDA: titolo pagina ("Offerta con Finanziamento" vs "Offerta Vendita a Rate"), header sezione ("OFFERTA CON FINANZIAMENTO" vs "VENDITA A RATE"), riga Opzioni/servizi della SIM ("Vendita con Finanziamento" vs "Vendita a rate"). Validazione server-side: tipo_acquisto solo enum, imei regex 15 cifre, prezzo_device regex numerico (altrimenti `null` per evitare di sporcare il form). `finanziaria` e `kolme` NON sono estratti (non presenti nel PDA, compilazione manuale operatore). 200 con `data: {...}` se l'OCR estrae (campi `null` se parziale). In caso di errore "hard" l'errore Anthropic viene classificato in `error_code` strutturato: `ocr_credit_exhausted` (credit balance low → 503), `ocr_rate_limited` (429 → 503), `ocr_unavailable` (5xx/529 → 503), `ocr_auth_error` (401/403 → 503), `ocr_generic_error` (default → 500). Payload errore: `{success:false, error, error_code, http_status, provider_status, provider_message}`. Il client decide il popup in base a `error_code`. Richiede `ANTHROPIC_API_KEY`.
 - **Compatibilità cellulare OCR**: il prompt di `ocr-pda` deve accettare ed estrarre numerazioni mobili italiane di 9 o 10 cifre; non reintrodurre l'assunzione rigida delle sole 10 cifre.
 - `search-anagrafica.js` (GET) — lookup CF/PIVA
+- `gestisci-anagrafiche.js` (GET) — lettura server-side paginata di `anagrafica`, filtri `cluster`/`comune`/nominativo e `action=export` per il file `.xlsx` completo. Richiede admin oppure `pagine_accessibili.anagrafiche=true`; se la chiave non è ancora presente eredita `elenco_chiamate` per compatibilità con i profili esistenti. Non modifica lo schema condiviso né i record cliente.
 - `mirox-send-email.js` (POST) — mailer autenticato
 - `guardian-incidents.js` (GET/POST action-based) — endpoint autenticato della pagina `Segnala Problema`. Ogni richiesta nasce come `problema` o `miglioria`; la raccolta Structured Outputs usa domande e criteri diversi per i due tipi. Gli operatori creano/proseguono solo le proprie richieste; gli admin possono elencarle tutte. Identita', contesto sicuro e ownership sono derivati lato server; tabelle Guardian mai accessibili direttamente dal browser. Il fallback deterministico non blocca l'operatore.
 - `guardian-telemetry-ingest.js` (POST) — endpoint autenticato per batch di massimo 20 eventi e 64 KB. Ripulisce nuovamente il payload, forza l'ambiente server, calcola fingerprint, deduplica gli `event_id` e aggiorna `kona_ai_eventi_tecnici`/`kona_ai_segnali`.
@@ -486,7 +489,7 @@ Quando una pratica va in KO post-vendita (o `Rifiutata`/`Annullata`/`In lavorazi
 
 ## Modulo Call Center integrato (Fase 1, dal 2026-06-20)
 
-Le 11 pagine CC + asset stanno in `moduli/call-center/` (la 12esima — `configurazione.html` — è stata spostata sotto Admin Mirox il 2026-06-24, vedi sezione "Pannello Admin Mirox"). Sono **port pragmatico** dalle pagine prod del CC: logica interna invariata (è testata in produzione da mesi), modifiche minimali per integrarle in Mirox.
+Le 11 pagine CC storiche e la nuova pagina `anagrafiche.html` stanno in `moduli/call-center/` (`configurazione.html` è stata spostata sotto Admin Mirox il 2026-06-24). Le pagine storiche restano un **port pragmatico** dal CC prod; Anagrafiche è un modulo Mirox additivo e non richiede modifiche allo schema condiviso.
 
 ### Cosa è stato modificato nel port (Fase 1 + harmonization 2026-06-24 + Admin split 2026-06-24)
 
@@ -502,7 +505,7 @@ Le 11 pagine CC + asset stanno in `moduli/call-center/` (la 12esima — `configu
 
 Esposto globalmente come `window.CcHeader`. API: `CcHeader.render(paginaChiavePerm)`. Genera in `#ccHeader`:
 - **Topbar**: bottone "Dashboard" arancione (a sinistra) + logo Mirox (centro) + user chip + bottone logout (a destra)
-- **Tab nav orizzontale**: 9 voci CC, filtrate per `profili.pagine_accessibili[perm]` (admin vede tutte). Tab corrente in evidenza arancione. La voce `configurazione` è stata rimossa il 2026-06-24 quando la pagina è migrata sotto Admin Mirox
+- **Tab nav orizzontale**: 10 voci CC, filtrate per `profili.pagine_accessibili[perm]` (admin vede tutte). Tab corrente in evidenza arancione. `Anagrafiche` usa la nuova chiave omonima con fallback a `elenco_chiamate` se la chiave non è ancora presente nel JSON del profilo
 
 ### Compatibilità UI ancora presente (debito tecnico non bloccante)
 
@@ -514,13 +517,13 @@ La creazione anagrafica in `registra-chiamata.html` passa da `AnagraficaHelper.c
 ### Accesso dalla dashboard Mirox
 
 - **Solo via bottone topbar** "Call Center" — niente tab/card nella dashboard (scelta UX dell'utente: la dashboard è focus Vendita/Post-Vendita, il CC ha la sua sidebar interna come navigazione)
-- **Redirect dinamico runtime**: al caricamento dashboard, il JS calcola la **prima pagina CC accessibile** per l'utente (ordine: registra_chiamata → elenco_chiamate → rilavorazione → call_center_lead_outbound → appuntamenti → prenota_interno → appuntamenti_oggi → esiti_appuntamenti → blacklist) e imposta `href` del bottone topbar a quell'URL diretto
+- **Redirect dinamico runtime**: al caricamento dashboard, il JS calcola la **prima pagina CC accessibile** per l'utente (ordine: registra_chiamata → elenco_chiamate → anagrafiche → rilavorazione → call_center_lead_outbound → appuntamenti → prenota_interno → appuntamenti_oggi → esiti_appuntamenti → blacklist) e imposta `href` del bottone topbar a quell'URL diretto
 - **Disabilitato se nessun permesso**: se l'utente non ha **nessuna** delle chiavi CC in `pagine_accessibili` (e non è admin), il bottone resta in classe `.disabled` (come nasce nell'HTML statico) e il click è bloccato
 - **Bottone "Torna alla dashboard Mirox"** in cima a ogni pagina CC integrata: arancione, ben visibile (era un breadcrumb piccolo, ora è un bottone stilizzato — eccetto `prenota.html` pubblica)
 
 ### Chiavi permessi (riusate identiche al CC prod)
 
-`registra_chiamata`, `elenco_chiamate`, `rilavorazione`, `call_center_lead_outbound`, `appuntamenti`, `prenota_interno`, `appuntamenti_oggi`, `esiti_appuntamenti`, `blacklist`. La chiave `configurazione` resta valida in DB (CC prod la usa) ma da Mirox la pagina è sotto Admin (gated da `ruolo='admin'`, NON da `pagine_accessibili`).
+`registra_chiamata`, `elenco_chiamate`, `anagrafiche`, `rilavorazione`, `call_center_lead_outbound`, `appuntamenti`, `prenota_interno`, `appuntamenti_oggi`, `esiti_appuntamenti`, `blacklist`. `anagrafiche` è additiva e, solo quando assente, eredita `elenco_chiamate`; il salvataggio dalla pagina Admin rende poi il valore esplicito. La chiave `configurazione` resta valida in DB (CC prod la usa) ma da Mirox la pagina è sotto Admin.
 
 → Zero migrazione utenti: chi ha permesso `'registra_chiamata'` su `mirox-crm.netlify.app` vede la stessa card anche qua.
 
@@ -530,7 +533,7 @@ Form esterno per prenotazioni dal sito/social. **NON in dashboard** (non ha auth
 
 ### Rischi e limiti noti
 
-- **Permessi granulari Mirox solo per CC**: la modale "Permessi CC" in `admin-utenti.html` lista solo le 9 chiavi CC (le pagine Vendita/Post-Vendita sono accessibili a tutti gli utenti attivi, non c'è ancora granularità). Da estendere quando serve gating per modulo Vendita/Post-Vendita
+- **Permessi granulari Mirox solo per CC**: la modale "Permessi CC" in `admin-utenti.html` lista le 10 chiavi CC (le pagine Vendita/Post-Vendita sono accessibili a tutti gli utenti attivi, non c'è ancora granularità)
 - **`vw_elenco_chiamate_unificate` / `vw_rilavorazione_ricontatti_unificata`**: usate dalle pagine CC, dipendono dalla colonna `chiamate.rilavorazione_stato` (esiste) e dalle viste già createSE — verificate online in Fase 1
 - **`get_slot_disponibili` RPC**: usata da `prenota.html`, `prenota-interno.html`, `appuntamenti.html` (per spostamento). Confermata esistente nel DB
 
@@ -545,7 +548,7 @@ Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile
 | Pagina | Scopo |
 |---|---|
 | `admin.html` | Landing della shell Admin con riepilogo dei reparti Configurazioni e KPI |
-| `admin-utenti.html` | CRUD su `profili`: cambio ruolo admin↔operatore con conferma, abilita/disabilita, modale permessi granulari CC (9 chiavi). Un admin non può togliersi il ruolo né disabilitarsi |
+| `admin-utenti.html` | CRUD su `profili`: cambio ruolo admin↔operatore con conferma, abilita/disabilita, modale permessi granulari CC (10 chiavi). Un admin non può togliersi il ruolo né disabilitarsi |
 | `admin-call-center-config.html` | Configurazione CC (orari settimanali, blocchi/chiusure, parametri sistema). Spostata da `moduli/call-center/configurazione.html` (eliminata). NON dipende da `CcHeader` o dai JS del CC: usa solo `js/config.js` + `js/auth.js` + `js/mirox-ui.js` Mirox |
 | `admin-vendita-config.html` | CRUD cataloghi vendita. Check `ruolo='admin'`; la navigazione verso gli altri moduli passa dalla shell condivisa |
 | `admin-gare.html` | Configurazione metriche, obiettivi mensili, compensi e operatori in gara |

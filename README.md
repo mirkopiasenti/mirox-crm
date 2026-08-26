@@ -5,7 +5,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 ## Stack
 
 - **Frontend**: HTML statico + JavaScript vanilla (no bundler), Inter via Google Fonts, client Supabase `@supabase/supabase-js@2.110.8` da CDN con Subresource Integrity
-- **Backend serverless**: Netlify Functions (Node >=22 + esbuild), librerie versionate esattamente (`@supabase/supabase-js@2.110.8`, `nodemailer@9.0.3`, `busboy`, `pdfkit`, `pdf-lib@1.17.1`)
+- **Backend serverless**: Netlify Functions (Node >=22 + esbuild), librerie versionate esattamente (`@supabase/supabase-js@2.110.8`, `nodemailer@9.0.3`, `busboy`, `pdfkit`, `pdf-lib@1.17.1`, `fflate@0.8.2` per gli export `.xlsx`)
 - **Database**: Supabase Postgres (Auth + Storage + RLS + RPC + Trigger), 10 bucket Storage (`moduli-template` pubblico + 9 privati con signed URL on-demand)
 - **Email**: Gmail SMTP via nodemailer + template DB (`email_template` + `email_log`)
 - **SMS transactional**: Smshosting REST API (consensi privacy via OTP — vedi `docs/SMSHOSTING_SETUP.md`)
@@ -28,7 +28,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `admin-kpi-vendita-consumer.html` | KPI **Vendita - Consumer**. Tab Mobile, Fisso, Luce & Gas, Allarmi e Assicurazioni con tabelle mensili e confronto operatori; filtri anno e punto vendita. Solo admin |
 | `admin-kpi-vendita-business.html` | KPI **Vendita - Business**. Replica struttura e metriche della pagina Consumer leggendo esclusivamente i contratti Business. Solo admin |
 | `moduli/` | 18 pagine funzionali Vendita / Post-Vendita / Applicazioni / KONA AI (`apri_chiudi`, `switch_sim`, `ordini_smartphone`, `dispositivi_comodato`, `gestione_rimborsi`, `segnalazioni`, `simulatore_protecta`, `storico_cliente`, `ticket`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `dashboard_pezzi` (3 tab: Day by Day + Gare Individuali + Avanzamento Mensile, con export PNG), `upload-contratti-vendita`, `compilatore_disdette`, `segnala-problema`) |
-| `moduli/call-center/` | **Modulo Call Center integrato (Fase 1)** — 11 pagine (`registra-chiamata`, `elenco-chiamate`, `rilavorazione`, `appuntamenti`, `appuntamenti-oggi`, `prenota-interno`, `esiti-appuntamenti`, `blacklist`, `call-center-lead-outbound`, `prenota-interno-outbound`, `registra-chiamata-outbound`) + `prenota.html` (form pubblico). La pagina `configurazione` è stata spostata sotto Admin Mirox (`admin-call-center-config.html`). Vedi sezione "Modulo Call Center" sotto e [CLAUDE.md](CLAUDE.md) per i dettagli di coordinamento col CC prod |
+| `moduli/call-center/` | **Modulo Call Center integrato** — 12 pagine autenticate (`registra-chiamata`, `elenco-chiamate`, `anagrafiche`, `rilavorazione`, `appuntamenti`, `appuntamenti-oggi`, `prenota-interno`, `esiti-appuntamenti`, `blacklist`, `call-center-lead-outbound`, `prenota-interno-outbound`, `registra-chiamata-outbound`) + `prenota.html` (form pubblico). `anagrafiche.html` elenca i clienti con filtri, dettaglio ed export Excel completo; `configurazione` è sotto Admin Mirox (`admin-call-center-config.html`) |
 | `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-safe` (escape HTML, URL/ID/colori sicuri), `mirox-storage`, `mirox-storage-upload`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `anagrafica-helper`, `vendita-storage-helper`, `admin-shell`; logica pagina KPI in `admin-kpi-vendita-consumer.js`. Il vecchio `mirox-error-reporter` email e' stato rimosso |
 | `css/` | `style.css`, `mirox-modules.css`, `admin-shell.css`, `admin-kpi.css` |
 | `assets/` | Logo, favicon e mascotte trasparente `kona-guardian-robot.png` |
@@ -69,6 +69,7 @@ Tutte le functions, eccetto i due cron Netlify, l'endpoint anon intenzionale `pu
 | `elimina-vendita-contratto` | POST | **admin** | Eliminazione definitiva da Verifica Contratti: cancella il contratto, i record collegati, gli allegati Storage e la pratica se resta vuota |
 | `ocr-pda` | POST multipart | authenticated | OCR del PDA (Pratica di Adesione PDF) via Claude API — pre-compila l'anagrafica. In caso di errore Anthropic ritorna `error_code` strutturato (`ocr_credit_exhausted`, `ocr_rate_limited`, `ocr_unavailable`, `ocr_auth_error`, `ocr_generic_error`) per popup mirato lato client |
 | `search-anagrafica` | GET | authenticated | Ricerca cliente per CF/PIVA |
+| `gestisci-anagrafiche` | GET | permesso CC `anagrafiche` o **admin** | Elenco paginato e filtrato delle anagrafiche; `action=export` genera un file `.xlsx` completo con gli stessi filtri. Per compatibilità, finché la nuova chiave non è salvata nel profilo eredita `elenco_chiamate` |
 | `mirox-send-email` | POST | authenticated | Invio email con template DB |
 | `guardian-incidents` | GET / POST | authenticated | Crea e prosegue richieste KONA AI di tipo `problema` o `miglioria`, con raccolta AI dedicata. Gli operatori vedono solo le proprie; gli admin possono elencarle tutte. Nessun accesso browser diretto alle tabelle Guardian |
 | `guardian-telemetry-ingest` | POST | authenticated | Riceve batch tecnici ripuliti dal frontend, calcola fingerprint e aggiorna i segnali aggregati; non accetta body applicativi, allegati o segreti |
@@ -217,10 +218,11 @@ A partire dal 2026-06-20 il progetto Call Center — fino a quel momento deploya
 
 ### Cosa c'è in `moduli/call-center/`
 
-11 pagine portate dal CC + i loro asset (`js/`, `css/`, `assets/`):
+11 pagine portate dal CC, la nuova pagina Anagrafiche e i loro asset (`js/`, `assets/`):
 
 - `registra-chiamata.html` (cuore CC: cerca CF/PIVA → registra esito)
 - `elenco-chiamate.html`, `rilavorazione.html` (rilettura via viste unificate `vw_elenco_chiamate_unificate` / `vw_rilavorazione_ricontatti_unificata`)
+- `anagrafiche.html` (una riga per record `anagrafica`; filtri server-side per cluster, comune e nominativo, dettaglio completo in popup, paginazione a 50 righe ed export `.xlsx` di tutte le righe filtrate)
 - `appuntamenti.html`, `appuntamenti-oggi.html`, `prenota-interno.html`, `esiti-appuntamenti.html` (gestione appuntamenti)
 - `blacklist.html` (clienti da non contattare)
 - `call-center-lead-outbound.html`, `prenota-interno-outbound.html`, `registra-chiamata-outbound.html` (flusso outbound business)
@@ -241,7 +243,7 @@ Le pagine sono state copiate **mantenendo la loro logica interna** (testata in p
 
 - **Solo bottone topbar** "Call Center" (la dashboard ha solo tab Vendita / Post-Vendita; il CC non ha tab/card dedicate, la sua sidebar interna è già la navigazione)
 - Al login, il JS calcola la prima pagina CC accessibile in `profilo.pagine_accessibili` e imposta l'`href` del bottone topbar a quell'URL. Se l'utente non ha nessun permesso CC (e non è admin), il bottone resta `disabled`
-- Chiavi permessi riutilizzate identiche al CC prod: `registra_chiamata`, `elenco_chiamate`, `rilavorazione`, `call_center_lead_outbound`, `appuntamenti`, `prenota_interno`, `appuntamenti_oggi`, `esiti_appuntamenti`, `blacklist`. La vecchia chiave `configurazione` resta in DB per compatibilità col CC prod ma non è più usata da Mirox (la configurazione CC è sotto Admin, gated dal ruolo)
+- Chiavi permessi del CC: `registra_chiamata`, `elenco_chiamate`, `anagrafiche`, `rilavorazione`, `call_center_lead_outbound`, `appuntamenti`, `prenota_interno`, `appuntamenti_oggi`, `esiti_appuntamenti`, `blacklist`. `anagrafiche` è una chiave Mirox additiva: sui profili che non l'hanno ancora salvata eredita il valore di `elenco_chiamate`, evitando una migrazione distruttiva. La vecchia chiave `configurazione` resta in DB per compatibilità col CC prod ma non è più usata da Mirox
 - Dentro ogni pagina CC: bottone arancione "← Torna alla dashboard Mirox" in cima
 
 ## Pannello Admin Mirox
