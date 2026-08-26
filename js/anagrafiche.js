@@ -12,7 +12,10 @@
     comuni: [],
     comuniOptions: [],
     loading: false,
-    exporting: false
+    exporting: false,
+    mutating: false,
+    currentId: null,
+    isAdmin: false
   };
 
   function el(id) {
@@ -233,6 +236,7 @@
   function openDetail(id) {
     const row = state.rows.find((item) => item.id === id);
     if (!row) return;
+    state.currentId = id;
     el('detailTitle').textContent = row.ragione_sociale || 'Dettaglio anagrafica';
     el('detailGrid').innerHTML = [
       detailField('Cluster', row.cluster),
@@ -250,12 +254,152 @@
       detailField('Aggiornato il', formatDateTime(row.updated_at)),
       detailField('ID anagrafica', row.id, true)
     ].join('');
+    el('btnDeleteAnagrafica').classList.toggle('hidden', !state.isAdmin);
     el('detailModal').classList.add('active');
-    el('detailClose').focus();
+    el('btnEditAnagrafica').focus();
   }
 
   function closeDetail() {
     el('detailModal').classList.remove('active');
+  }
+
+  function currentRow() {
+    return state.rows.find((item) => item.id === state.currentId) || null;
+  }
+
+  function setEditValue(id, value) {
+    el(id).value = value == null ? '' : String(value);
+  }
+
+  function openEdit() {
+    const row = currentRow();
+    if (!row) return;
+    setEditValue('editCluster', row.cluster || 'Consumer');
+    setEditValue('editCfPiva', row.cf_piva);
+    setEditValue('editRagioneSociale', row.ragione_sociale);
+    setEditValue('editNomeReferente', row.nome_referente);
+    setEditValue('editCellulare', row.cellulare);
+    setEditValue('editEmail', row.email);
+    setEditValue('editProvincia', row.provincia);
+    setEditValue('editComune', row.comune);
+    setEditValue('editVia', row.via);
+    setEditValue('editCivico', row.civico);
+    closeDetail();
+    el('editModal').classList.add('active');
+    el('editCluster').focus();
+  }
+
+  function closeEdit({ reopenDetail = false } = {}) {
+    el('editModal').classList.remove('active');
+    if (reopenDetail && currentRow()) openDetail(state.currentId);
+  }
+
+  function editPayload() {
+    return {
+      cf_piva: el('editCfPiva').value,
+      cluster: el('editCluster').value,
+      ragione_sociale: el('editRagioneSociale').value,
+      nome_referente: el('editNomeReferente').value,
+      cellulare: el('editCellulare').value,
+      email: el('editEmail').value,
+      provincia: el('editProvincia').value,
+      comune: el('editComune').value,
+      via: el('editVia').value,
+      civico: el('editCivico').value
+    };
+  }
+
+  async function postAction(payload) {
+    const response = await window.MiroxApi.fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    let result;
+    try {
+      result = await response.json();
+    } catch (_) {
+      result = {};
+    }
+    if (!response.ok) {
+      const error = new Error(result.error || `Errore HTTP ${response.status}`);
+      error.status = response.status;
+      error.dependencies = result.dependencies || [];
+      throw error;
+    }
+    return result;
+  }
+
+  async function submitEdit(event) {
+    event.preventDefault();
+    const form = el('editForm');
+    const row = currentRow();
+    if (!row || state.mutating || !form.reportValidity()) return;
+    const displayName = el('editRagioneSociale').value.trim() || el('editNomeReferente').value.trim() || row.cf_piva;
+    const confirmed = await window.MiroxUI.confirm(
+      `Confermi la modifica dei dati di ${displayName}? I nuovi valori saranno condivisi in tutto il CRM.`,
+      { title: 'Conferma modifica', okText: 'Salva modifiche' }
+    );
+    if (!confirmed) return;
+
+    state.mutating = true;
+    el('editSave').disabled = true;
+    const loading = window.MiroxUI.loading.show('Salvataggio modifiche...');
+    try {
+      const result = await postAction({
+        action: 'update',
+        id: row.id,
+        expected_updated_at: row.updated_at,
+        data: editPayload()
+      });
+      const index = state.rows.findIndex((item) => item.id === row.id);
+      if (index >= 0 && result.data) state.rows[index] = result.data;
+      closeEdit();
+      loading.hide();
+      window.MiroxUI.toast('Anagrafica modificata correttamente', 'success');
+      await Promise.all([loadComuniOptions(), loadRows()]);
+    } catch (error) {
+      loading.hide();
+      await window.MiroxUI.alert(error.message || 'Errore durante la modifica', { type: 'error', title: 'Modifica non eseguita' });
+    } finally {
+      state.mutating = false;
+      el('editSave').disabled = false;
+    }
+  }
+
+  async function deleteCurrent() {
+    const row = currentRow();
+    if (!row || !state.isAdmin || state.mutating) return;
+    const displayName = row.ragione_sociale || row.nome_referente || row.cf_piva;
+    const confirmed = await window.MiroxUI.confirm(
+      `Confermi l’eliminazione definitiva di ${displayName}? L’operazione sarà bloccata se esistono pratiche, contratti o altri dati collegati.`,
+      { title: 'Elimina anagrafica', okText: 'Elimina definitivamente', danger: true }
+    );
+    if (!confirmed) return;
+
+    state.mutating = true;
+    el('btnDeleteAnagrafica').disabled = true;
+    const loading = window.MiroxUI.loading.show('Eliminazione anagrafica...');
+    try {
+      await postAction({ action: 'delete', id: row.id });
+      closeDetail();
+      state.currentId = null;
+      loading.hide();
+      window.MiroxUI.toast('Anagrafica eliminata', 'success');
+      await Promise.all([loadComuniOptions(), loadRows()]);
+    } catch (error) {
+      loading.hide();
+      const linked = error.dependencies.length
+        ? `\nCollegamenti trovati: ${error.dependencies.map((item) => `${item.label} (${item.count})`).join(', ')}.`
+        : '';
+      await window.MiroxUI.alert(`${error.message || 'Errore durante l’eliminazione'}${linked}`, {
+        type: error.status === 409 ? 'warning' : 'error',
+        title: 'Eliminazione non eseguita'
+      });
+    } finally {
+      state.mutating = false;
+      el('btnDeleteAnagrafica').disabled = false;
+    }
   }
 
   async function exportRows() {
@@ -297,6 +441,7 @@
   async function init() {
     const profilo = await Auth.richiediAuth();
     if (!profilo) return;
+    state.isAdmin = profilo.ruolo === 'admin';
 
     const debouncedLoad = debounce(resetAndLoad, 350);
     el('searchName').addEventListener('input', debouncedLoad);
@@ -334,8 +479,16 @@
     });
     el('detailClose').addEventListener('click', closeDetail);
     el('detailDone').addEventListener('click', closeDetail);
+    el('btnEditAnagrafica').addEventListener('click', openEdit);
+    el('btnDeleteAnagrafica').addEventListener('click', deleteCurrent);
+    el('editForm').addEventListener('submit', submitEdit);
+    el('editClose').addEventListener('click', () => closeEdit({ reopenDetail: true }));
+    el('editCancel').addEventListener('click', () => closeEdit({ reopenDetail: true }));
     el('detailModal').addEventListener('click', (event) => {
       if (event.target === el('detailModal')) closeDetail();
+    });
+    el('editModal').addEventListener('click', (event) => {
+      if (event.target === el('editModal')) closeEdit({ reopenDetail: true });
     });
     document.addEventListener('click', (event) => {
       const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
@@ -346,6 +499,8 @@
       if (el('comuniTrigger').getAttribute('aria-expanded') === 'true') {
         setComuniMenu(false);
         el('comuniTrigger').focus();
+      } else if (el('editModal').classList.contains('active')) {
+        closeEdit({ reopenDetail: true });
       } else {
         closeDetail();
       }

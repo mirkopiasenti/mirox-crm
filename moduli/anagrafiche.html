@@ -45,6 +45,13 @@
         .detail-field-wide { grid-column:1/-1; }
         .detail-field span { display:block; margin-bottom:4px; color:var(--text-secondary); font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
         .detail-field strong { display:block; color:var(--text); font-size:14px; font-weight:600; line-height:1.4; overflow-wrap:anywhere; }
+        .detail-footer { justify-content:space-between; }
+        .detail-footer-actions { display:flex; gap:8px; }
+        .edit-modal { max-width:760px; }
+        .edit-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+        .edit-grid .form-group { margin:0; }
+        .edit-field-wide { grid-column:1/-1; }
+        .required-marker { color:var(--danger); }
         @media (max-width:900px) {
             .filters-grid { grid-template-columns:1fr 1fr; }
             .filters-search { grid-column:1/-1; }
@@ -57,6 +64,11 @@
             .results-toolbar { align-items:flex-start; flex-direction:column; }
             .detail-grid { grid-template-columns:1fr; }
             .detail-field-wide { grid-column:auto; }
+            .edit-grid { grid-template-columns:1fr; }
+            .edit-field-wide { grid-column:auto; }
+            .detail-footer { align-items:stretch; flex-direction:column-reverse; }
+            .detail-footer-actions { width:100%; }
+            .detail-footer-actions .btn, .detail-footer > .btn { flex:1; justify-content:center; }
             .pagination { justify-content:center; }
         }
     </style>
@@ -150,9 +162,75 @@
         <div class="modal-body">
             <div class="detail-grid" id="detailGrid"></div>
         </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" id="detailDone" type="button">Chiudi</button>
+        <div class="modal-footer detail-footer">
+            <button class="btn btn-danger hidden" id="btnDeleteAnagrafica" type="button">Elimina anagrafica</button>
+            <div class="detail-footer-actions">
+                <button class="btn btn-secondary" id="detailDone" type="button">Chiudi</button>
+                <button class="btn btn-primary" id="btnEditAnagrafica" type="button">Modifica dati</button>
+            </div>
         </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="editModal" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+    <div class="modal edit-modal">
+        <div class="modal-header">
+            <h3 class="modal-title" id="editTitle">Modifica anagrafica</h3>
+            <button class="modal-close" id="editClose" type="button" aria-label="Chiudi modifica">&times;</button>
+        </div>
+        <form id="editForm">
+            <div class="modal-body">
+                <div class="edit-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="editCluster">Cluster <span class="required-marker">*</span></label>
+                        <select class="form-control" id="editCluster" required>
+                            <option value="Consumer">Consumer</option>
+                            <option value="Business">Business</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editCfPiva">Codice fiscale / P.IVA <span class="required-marker">*</span></label>
+                        <input class="form-control" id="editCfPiva" maxlength="40" required autocomplete="off">
+                    </div>
+                    <div class="form-group edit-field-wide">
+                        <label class="form-label" for="editRagioneSociale">Ragione sociale</label>
+                        <input class="form-control" id="editRagioneSociale" maxlength="250" autocomplete="organization">
+                    </div>
+                    <div class="form-group edit-field-wide">
+                        <label class="form-label" for="editNomeReferente">Nome referente</label>
+                        <input class="form-control" id="editNomeReferente" maxlength="200" autocomplete="name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editCellulare">Numero di contatto</label>
+                        <input class="form-control" id="editCellulare" type="tel" maxlength="40" autocomplete="tel">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editEmail">Email</label>
+                        <input class="form-control" id="editEmail" type="email" maxlength="254" autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editProvincia">Provincia</label>
+                        <input class="form-control" id="editProvincia" maxlength="100" autocomplete="address-level2">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editComune">Comune</label>
+                        <input class="form-control" id="editComune" maxlength="100" autocomplete="address-level3">
+                    </div>
+                    <div class="form-group edit-field-wide">
+                        <label class="form-label" for="editVia">Via</label>
+                        <input class="form-control" id="editVia" maxlength="250" autocomplete="street-address">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="editCivico">Civico</label>
+                        <input class="form-control" id="editCivico" maxlength="30">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="editCancel" type="button">Annulla</button>
+                <button class="btn btn-primary" id="editSave" type="submit">Salva modifiche</button>
+            </div>
+        </form>
     </div>
 </div>
 

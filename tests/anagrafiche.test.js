@@ -91,6 +91,51 @@ test('il generatore produce un vero workbook xlsx filtrabile e neutralizza formu
   assert.match(sheet, /Via Roma &lt;centro&gt;/);
 });
 
+test('la modifica anagrafica usa una allowlist, normalizza i dati e valida i campi', () => {
+  assert.deepEqual(api.sanitizeAnagraficaUpdate({
+    cf_piva: ' rssmra80a01h501u ',
+    cluster: 'Consumer',
+    ragione_sociale: '  Mario   Rossi  ',
+    nome_referente: '',
+    cellulare: '333 123 4567',
+    email: 'mario@example.com',
+    provincia: 'VR',
+    comune: 'Legnago',
+    via: 'Via Roma',
+    civico: '1'
+  }), {
+    cf_piva: 'RSSMRA80A01H501U',
+    cluster: 'Consumer',
+    ragione_sociale: 'Mario Rossi',
+    nome_referente: null,
+    cellulare: '333 123 4567',
+    email: 'mario@example.com',
+    provincia: 'VR',
+    comune: 'Legnago',
+    via: 'Via Roma',
+    civico: '1'
+  });
+
+  assert.throws(() => api.sanitizeAnagraficaUpdate({ cluster: 'Admin', cf_piva: 'ABC' }), /campi non modificabili|Cluster non valido/);
+  assert.throws(() => api.sanitizeAnagraficaUpdate({
+    cf_piva: 'ABC', cluster: 'Business', ragione_sociale: '', nome_referente: '', cellulare: '',
+    email: 'non-valida', provincia: '', comune: '', via: '', civico: ''
+  }), /email non valido/i);
+  assert.throws(() => api.sanitizeAnagraficaUpdate({
+    cf_piva: 'ABC', cluster: 'Business', ragione_sociale: '', nome_referente: '', cellulare: '',
+    email: '', provincia: '', comune: '', via: '', civico: '', created_at: '2020-01-01'
+  }), /campi non modificabili/);
+});
+
+test('la cancellazione verifica tutte le relazioni CRM note', () => {
+  const dependencies = api.DELETE_DEPENDENCIES.map(([table, column]) => `${table}.${column}`);
+  assert.ok(dependencies.includes('vendita_pratiche.anagrafica_id'));
+  assert.ok(dependencies.includes('vendita_consensi_privacy.anagrafica_id'));
+  assert.ok(dependencies.includes('vendita_switch_sim.anagrafica_attuale_id'));
+  assert.ok(dependencies.includes('appuntamenti.anagrafica_id'));
+  assert.equal(new Set(dependencies).size, dependencies.length);
+});
+
 test('la pagina Anagrafiche usa la function autenticata e contiene filtri, popup ed export', () => {
   const html = fs.readFileSync(path.join(ROOT, 'moduli/anagrafiche.html'), 'utf8');
   const js = fs.readFileSync(path.join(ROOT, 'js/anagrafiche.js'), 'utf8');
@@ -102,8 +147,16 @@ test('la pagina Anagrafiche usa la function autenticata e contiene filtri, popup
   assert.match(html, /id="comuniOptions"/);
   assert.match(html, /aria-multiselectable="true"/);
   assert.match(html, /id="detailModal"/);
+  assert.match(html, /id="editModal"/);
+  assert.match(html, /id="editForm"/);
+  assert.match(html, /id="btnEditAnagrafica"/);
+  assert.match(html, /class="[^"]*hidden[^"]*" id="btnDeleteAnagrafica"/);
   assert.match(html, /id="btnExport"/);
   assert.match(js, /MiroxApi\.fetch/);
+  assert.match(js, /method: 'POST'/);
+  assert.match(js, /MiroxUI\.confirm/);
+  assert.match(js, /state\.isAdmin = profilo\.ruolo === 'admin'/);
+  assert.match(js, /expected_updated_at/);
   assert.match(js, /action=comuni/);
   assert.match(js, /JSON\.stringify\(state\.comuni\)/);
   assert.match(js, /action', 'export'/);
@@ -112,4 +165,14 @@ test('la pagina Anagrafiche usa la function autenticata e contiene filtri, popup
   assert.match(dashboard, /#panel-post-vendita \.grid/);
   assert.match(dashboard, /moduli\/anagrafiche\.html/);
   assert.doesNotMatch(dashboard, /moduli\/call-center\/anagrafiche\.html/);
+});
+
+test('la function protegge update e delete lato server', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'netlify/functions/gestisci-anagrafiche.js'), 'utf8');
+  assert.match(source, /\['GET', 'POST'\]\.includes\(event\.httpMethod\)/);
+  assert.match(source, /profilo\?\.ruolo !== 'admin'/);
+  assert.match(source, /findDeleteDependencies\(supabase, payload\.id\)/);
+  assert.match(source, /\.eq\('updated_at', expectedUpdatedAt\)/);
+  assert.match(source, /error\?\.code === '23505'/);
+  assert.match(source, /error\?\.code === '23503'/);
 });

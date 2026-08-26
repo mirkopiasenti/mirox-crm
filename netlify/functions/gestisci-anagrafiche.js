@@ -5,7 +5,7 @@ const { requireAuth } = require('./_lib/require-auth');
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Expose-Headers': 'Content-Disposition',
   'Cache-Control': 'no-store'
 };
@@ -35,6 +35,41 @@ const MAX_COMUNI_FILTER = 30;
 const EXPORT_BATCH_SIZE = 1000;
 const EXPORT_MAX_ROWS = 50000;
 const COMUNI_CACHE_TTL_MS = 15 * 60 * 1000;
+const MAX_BODY_BYTES = 32 * 1024;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const EDITABLE_FIELDS = new Set([
+  'cf_piva',
+  'cluster',
+  'ragione_sociale',
+  'nome_referente',
+  'cellulare',
+  'email',
+  'provincia',
+  'comune',
+  'via',
+  'civico'
+]);
+const DELETE_DEPENDENCIES = [
+  ['appuntamenti', 'anagrafica_id', 'appuntamenti'],
+  ['call_center_lead_outbound_chiamate', 'anagrafica_id', 'chiamate outbound'],
+  ['chiamate', 'anagrafica_id', 'chiamate'],
+  ['post_vendita_controllo_allarmi', 'anagrafica_id', 'controlli allarmi'],
+  ['post_vendita_controllo_assicurazioni', 'anagrafica_id', 'controlli assicurazioni'],
+  ['post_vendita_controllo_fissi', 'anagrafica_id', 'controlli fissi'],
+  ['post_vendita_controllo_lg', 'anagrafica_id', 'controlli luce e gas'],
+  ['post_vendita_dispositivi_comodato', 'anagrafica_id', 'comodati'],
+  ['post_vendita_gestione_rimborsi', 'anagrafica_id', 'rimborsi'],
+  ['vendita_apri_chiudi', 'anagrafica_nuovo_id', 'apri e chiudi (nuova anagrafica)'],
+  ['vendita_apri_chiudi', 'anagrafica_vecchio_id', 'apri e chiudi (vecchia anagrafica)'],
+  ['vendita_consensi_privacy', 'anagrafica_id', 'consensi privacy storici'],
+  ['vendita_consensi_privacy_v2', 'anagrafica_id', 'consensi privacy'],
+  ['vendita_contratti', 'anagrafica_id', 'contratti'],
+  ['vendita_documenti', 'anagrafica_id', 'documenti'],
+  ['vendita_ordini_smartphone', 'anagrafica_id', 'ordini smartphone'],
+  ['vendita_pratiche', 'anagrafica_id', 'pratiche vendita'],
+  ['vendita_switch_sim', 'anagrafica_attuale_id', 'switch SIM (anagrafica attuale)'],
+  ['vendita_switch_sim', 'anagrafica_rientro_id', 'switch SIM (anagrafica di rientro)']
+];
 let comuniCache = { expiresAt: 0, values: [] };
 
 function jsonResponse(statusCode, payload) {
@@ -139,6 +174,127 @@ async function fetchComuniOptions(supabase) {
 function readableError(error, fallback = 'Errore lettura anagrafiche') {
   if (!error) return fallback;
   return error.message || error.error_description || error.details || fallback;
+}
+
+function parseJsonBody(event) {
+  const raw = event.body || '';
+  if (Buffer.byteLength(raw, 'utf8') > MAX_BODY_BYTES) {
+    const error = new Error('Richiesta troppo grande');
+    error.statusCode = 413;
+    throw error;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error();
+    return parsed;
+  } catch (_) {
+    const error = new Error('Corpo JSON non valido');
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
+function cleanEditableText(value, maxLength, { required = false, uppercase = false } = {}) {
+  const cleaned = String(value ?? '').normalize('NFKC').replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (required && !cleaned) throw new Error('Il codice fiscale / P.IVA è obbligatorio');
+  if (cleaned.length > maxLength) throw new Error(`Un campo supera il limite di ${maxLength} caratteri`);
+  if (!cleaned) return null;
+  return uppercase ? cleaned.toLocaleUpperCase('it-IT') : cleaned;
+}
+
+function sanitizeAnagraficaUpdate(data) {
+  if (!data || Array.isArray(data) || typeof data !== 'object') throw new Error('Dati anagrafici non validi');
+  const keys = Object.keys(data);
+  if (keys.length !== EDITABLE_FIELDS.size || keys.some((key) => !EDITABLE_FIELDS.has(key))) {
+    throw new Error('Sono presenti campi non modificabili');
+  }
+  const cluster = String(data.cluster || '').trim();
+  if (!CLUSTERS.has(cluster)) throw new Error('Cluster non valido');
+  const email = cleanEditableText(data.email, 254);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Indirizzo email non valido');
+  return {
+    cf_piva: cleanEditableText(data.cf_piva, 40, { required: true, uppercase: true }),
+    cluster,
+    ragione_sociale: cleanEditableText(data.ragione_sociale, 250),
+    nome_referente: cleanEditableText(data.nome_referente, 200),
+    cellulare: cleanEditableText(data.cellulare, 40),
+    email,
+    provincia: cleanEditableText(data.provincia, 100),
+    comune: cleanEditableText(data.comune, 100),
+    via: cleanEditableText(data.via, 250),
+    civico: cleanEditableText(data.civico, 30)
+  };
+}
+
+async function updateAnagrafica(supabase, payload) {
+  if (!UUID_PATTERN.test(String(payload.id || ''))) {
+    return jsonResponse(400, { success: false, error: 'ID anagrafica non valido' });
+  }
+  const expectedUpdatedAt = String(payload.expected_updated_at || '');
+  if (Number.isNaN(Date.parse(expectedUpdatedAt))) {
+    return jsonResponse(400, { success: false, error: 'Versione anagrafica non valida: ricarica la pagina' });
+  }
+  let updates;
+  try {
+    updates = sanitizeAnagraficaUpdate(payload.data);
+  } catch (error) {
+    return jsonResponse(400, { success: false, error: error.message });
+  }
+  const { data, error } = await supabase
+    .from('anagrafica')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', payload.id)
+    .eq('updated_at', expectedUpdatedAt)
+    .select(SELECT_FIELDS)
+    .maybeSingle();
+  if (error?.code === '23505') {
+    return jsonResponse(409, { success: false, error: 'Esiste già un’altra anagrafica con questo codice fiscale / P.IVA' });
+  }
+  if (error) throw error;
+  if (!data) {
+    const { data: current, error: lookupError } = await supabase.from('anagrafica').select('id').eq('id', payload.id).maybeSingle();
+    if (lookupError) throw lookupError;
+    return jsonResponse(current ? 409 : 404, {
+      success: false,
+      error: current ? 'L’anagrafica è stata modificata da un altro utente. Ricarica i dati e riprova.' : 'Anagrafica non trovata'
+    });
+  }
+  comuniCache = { expiresAt: 0, values: [] };
+  return jsonResponse(200, { success: true, data });
+}
+
+async function findDeleteDependencies(supabase, id) {
+  const checks = await Promise.all(DELETE_DEPENDENCIES.map(async ([table, column, label]) => {
+    const { count, error } = await supabase.from(table).select('*', { count: 'exact', head: true }).eq(column, id);
+    if (error) throw error;
+    return { label, count: count || 0 };
+  }));
+  return checks.filter((item) => item.count > 0);
+}
+
+async function deleteAnagrafica(supabase, payload, profilo) {
+  if (profilo?.ruolo !== 'admin') {
+    return jsonResponse(403, { success: false, error: 'Solo gli amministratori possono eliminare un’anagrafica' });
+  }
+  if (!UUID_PATTERN.test(String(payload.id || ''))) {
+    return jsonResponse(400, { success: false, error: 'ID anagrafica non valido' });
+  }
+  const dependencies = await findDeleteDependencies(supabase, payload.id);
+  if (dependencies.length) {
+    return jsonResponse(409, {
+      success: false,
+      error: 'Impossibile eliminare: l’anagrafica è collegata allo storico CRM',
+      dependencies
+    });
+  }
+  const { data, error } = await supabase.from('anagrafica').delete().eq('id', payload.id).select('id').maybeSingle();
+  if (error?.code === '23503') {
+    return jsonResponse(409, { success: false, error: 'Impossibile eliminare: nel frattempo sono stati collegati altri dati' });
+  }
+  if (error) throw error;
+  if (!data) return jsonResponse(404, { success: false, error: 'Anagrafica non trovata' });
+  comuniCache = { expiresAt: 0, values: [] };
+  return jsonResponse(200, { success: true, deleted_id: data.id });
 }
 
 function xmlEscape(value) {
@@ -290,8 +446,8 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers: CORS_HEADERS, body: '' };
   }
-  if (event.httpMethod !== 'GET') {
-    return jsonResponse(405, { success: false, error: 'Metodo non consentito: usa GET' });
+  if (!['GET', 'POST'].includes(event.httpMethod)) {
+    return jsonResponse(405, { success: false, error: 'Metodo non consentito' });
   }
 
   const auth = await requireAuth(event);
@@ -310,6 +466,17 @@ exports.handler = async (event) => {
   });
 
   try {
+    if (event.httpMethod === 'POST') {
+      const contentType = event.headers?.['content-type'] || event.headers?.['Content-Type'] || '';
+      if (!String(contentType).toLowerCase().startsWith('application/json')) {
+        return jsonResponse(415, { success: false, error: 'Content-Type non consentito: usa application/json' });
+      }
+      const payload = parseJsonBody(event);
+      if (payload.action === 'update') return await updateAnagrafica(supabase, payload);
+      if (payload.action === 'delete') return await deleteAnagrafica(supabase, payload, auth.profilo);
+      return jsonResponse(400, { success: false, error: 'Azione non valida' });
+    }
+
     if (action === 'comuni') {
       return jsonResponse(200, { success: true, data: await fetchComuniOptions(supabase) });
     }
@@ -358,7 +525,7 @@ exports.handler = async (event) => {
       }
     });
   } catch (error) {
-    return jsonResponse(500, { success: false, error: readableError(error) });
+    return jsonResponse(error.statusCode || 500, { success: false, error: readableError(error) });
   }
 };
 
@@ -368,7 +535,11 @@ exports._test = {
   cleanFilter,
   columnName,
   createWorkbook,
+  DELETE_DEPENDENCIES,
+  findDeleteDependencies,
   parseComuni,
   parseFilters,
+  parseJsonBody,
+  sanitizeAnagraficaUpdate,
   xmlEscape
 };
