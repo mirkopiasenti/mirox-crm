@@ -51,6 +51,17 @@
         .edit-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
         .edit-grid .form-group { margin:0; }
         .edit-field-wide { grid-column:1/-1; }
+        .istat-autocomplete { position:relative; }
+        .istat-options { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:45; max-height:240px; overflow-y:auto; padding:6px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); }
+        .istat-options.hidden { display:none; }
+        .istat-option { display:flex; width:100%; align-items:flex-start; justify-content:space-between; gap:12px; padding:9px 10px; border:0; border-radius:8px; background:transparent; color:var(--text); font:inherit; text-align:left; cursor:pointer; }
+        .istat-option:hover, .istat-option:focus { background:var(--bg); outline:none; }
+        .istat-option-name { font-size:13px; font-weight:700; }
+        .istat-option-meta { color:var(--text-secondary); font-size:11px; line-height:1.4; text-align:right; }
+        .istat-status { padding:12px 10px; color:var(--text-secondary); font-size:12px; text-align:center; }
+        .istat-hint { min-height:17px; margin-top:5px; color:var(--text-secondary); font-size:11px; line-height:1.4; }
+        .istat-hint.valid { color:var(--success); font-weight:600; }
+        #editProvincia[readonly] { background:var(--bg); color:var(--text-secondary); cursor:default; }
         .required-marker { color:var(--danger); }
         @media (max-width:900px) {
             .filters-grid { grid-template-columns:1fr 1fr; }
@@ -208,13 +219,15 @@
                         <label class="form-label" for="editEmail">Email</label>
                         <input class="form-control" id="editEmail" type="email" maxlength="254" autocomplete="email">
                     </div>
-                    <div class="form-group">
-                        <label class="form-label" for="editProvincia">Provincia</label>
-                        <input class="form-control" id="editProvincia" maxlength="100" autocomplete="address-level2">
+                    <div class="form-group istat-autocomplete" id="editComunePicker">
+                        <label class="form-label" for="editComune">Comune</label>
+                        <input class="form-control" id="editComune" maxlength="100" autocomplete="off" aria-autocomplete="list" aria-controls="editComuneSuggestions" aria-expanded="false">
+                        <div class="istat-options hidden" id="editComuneSuggestions" role="listbox"></div>
+                        <div class="istat-hint" id="editComuneHint">Digita almeno 2 lettere e seleziona il comune dall’elenco ISTAT.</div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="editComune">Comune</label>
-                        <input class="form-control" id="editComune" maxlength="100" autocomplete="address-level3">
+                        <label class="form-label" for="editProvincia">Provincia automatica</label>
+                        <input class="form-control" id="editProvincia" maxlength="2" autocomplete="address-level2" readonly>
                     </div>
                     <div class="form-group edit-field-wide">
                         <label class="form-label" for="editVia">Via</label>

@@ -32,6 +32,8 @@ const CLUSTERS = new Set(['Consumer', 'Business']);
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 const MAX_COMUNI_FILTER = 30;
+const ISTAT_AUTOCOMPLETE_LIMIT = 20;
+const ISTAT_CODE_PATTERN = /^[0-9]{6}$/;
 const EXPORT_BATCH_SIZE = 1000;
 const EXPORT_MAX_ROWS = 50000;
 const COMUNI_CACHE_TTL_MS = 15 * 60 * 1000;
@@ -104,6 +106,20 @@ function cleanComuneChoice(value) {
     .slice(0, 80);
 }
 
+function normalizeLocalityForComparison(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .replace(/&(?:#0*39|apos);/gi, "'")
+    .replace(/[’‘`´]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleUpperCase('it-IT');
+}
+
+function cleanIstatQuery(value) {
+  return cleanComuneChoice(value).toLocaleUpperCase('it-IT');
+}
+
 function parseComuni(value) {
   if (!value) return [];
   let requested;
@@ -171,6 +187,20 @@ async function fetchComuniOptions(supabase) {
   return sorted;
 }
 
+async function fetchIstatComuni(supabase, rawQuery) {
+  const query = cleanIstatQuery(rawQuery);
+  if (query.length < 2) return [];
+  const { data, error } = await supabase
+    .from('mirox_comuni_istat')
+    .select('codice_istat,nome,provincia_sigla,provincia_nome,regione')
+    .like('nome', `${query}%`)
+    .order('nome', { ascending: true })
+    .order('provincia_sigla', { ascending: true })
+    .limit(ISTAT_AUTOCOMPLETE_LIMIT);
+  if (error) throw error;
+  return data || [];
+}
+
 function readableError(error, fallback = 'Errore lettura anagrafiche') {
   if (!error) return fallback;
   return error.message || error.error_description || error.details || fallback;
@@ -219,11 +249,60 @@ function sanitizeAnagraficaUpdate(data) {
     nome_referente: cleanEditableText(data.nome_referente, 200),
     cellulare: cleanEditableText(data.cellulare, 40),
     email,
-    provincia: cleanEditableText(data.provincia, 100),
-    comune: cleanEditableText(data.comune, 100),
+    provincia: cleanEditableText(data.provincia, 100, { uppercase: true }),
+    comune: cleanEditableText(data.comune, 100, { uppercase: true }),
     via: cleanEditableText(data.via, 250),
     civico: cleanEditableText(data.civico, 30)
   };
+}
+
+async function resolveIstatLocality(supabase, payload, updates, current) {
+  const requestedCode = String(payload.comune_istat_codice || '').trim();
+  if (requestedCode) {
+    if (!ISTAT_CODE_PATTERN.test(requestedCode)) {
+      const error = new Error('Codice comune ISTAT non valido');
+      error.statusCode = 400;
+      throw error;
+    }
+    const { data, error } = await supabase
+      .from('mirox_comuni_istat')
+      .select('nome,provincia_sigla')
+      .eq('codice_istat', requestedCode)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      const notFound = new Error('Comune ISTAT non trovato');
+      notFound.statusCode = 400;
+      throw notFound;
+    }
+    return { ...updates, comune: data.nome, provincia: data.provincia_sigla };
+  }
+
+  const proposedComune = normalizeLocalityForComparison(updates.comune);
+  const proposedProvincia = normalizeLocalityForComparison(updates.provincia);
+  const currentComune = normalizeLocalityForComparison(current.comune);
+  const currentProvincia = normalizeLocalityForComparison(current.provincia);
+  if (proposedComune === currentComune && proposedProvincia === currentProvincia) return updates;
+  if (!proposedComune && !proposedProvincia) return { ...updates, comune: null, provincia: null };
+  if (!proposedComune || !proposedProvincia) {
+    const incomplete = new Error('Seleziona il comune dall’elenco ISTAT per compilare anche la provincia');
+    incomplete.statusCode = 400;
+    throw incomplete;
+  }
+
+  const { data, error } = await supabase
+    .from('mirox_comuni_istat')
+    .select('nome,provincia_sigla')
+    .eq('nome', proposedComune)
+    .eq('provincia_sigla', proposedProvincia)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) {
+    const invalid = new Error('Comune e provincia non corrispondono al catalogo ISTAT: seleziona una voce dall’elenco');
+    invalid.statusCode = 400;
+    throw invalid;
+  }
+  return { ...updates, comune: data.nome, provincia: data.provincia_sigla };
 }
 
 async function updateAnagrafica(supabase, payload) {
@@ -240,6 +319,23 @@ async function updateAnagrafica(supabase, payload) {
   } catch (error) {
     return jsonResponse(400, { success: false, error: error.message });
   }
+  const { data: current, error: currentError } = await supabase
+    .from('anagrafica')
+    .select('id,comune,provincia')
+    .eq('id', payload.id)
+    .eq('updated_at', expectedUpdatedAt)
+    .maybeSingle();
+  if (currentError) throw currentError;
+  if (!current) {
+    const { data: existing, error: lookupError } = await supabase.from('anagrafica').select('id').eq('id', payload.id).maybeSingle();
+    if (lookupError) throw lookupError;
+    return jsonResponse(existing ? 409 : 404, {
+      success: false,
+      error: existing ? 'L’anagrafica è stata modificata da un altro utente. Ricarica i dati e riprova.' : 'Anagrafica non trovata'
+    });
+  }
+  updates = await resolveIstatLocality(supabase, payload, updates, current);
+
   const { data, error } = await supabase
     .from('anagrafica')
     .update({ ...updates, updated_at: new Date().toISOString() })
@@ -252,11 +348,11 @@ async function updateAnagrafica(supabase, payload) {
   }
   if (error) throw error;
   if (!data) {
-    const { data: current, error: lookupError } = await supabase.from('anagrafica').select('id').eq('id', payload.id).maybeSingle();
+    const { data: latest, error: lookupError } = await supabase.from('anagrafica').select('id').eq('id', payload.id).maybeSingle();
     if (lookupError) throw lookupError;
-    return jsonResponse(current ? 409 : 404, {
+    return jsonResponse(latest ? 409 : 404, {
       success: false,
-      error: current ? 'L’anagrafica è stata modificata da un altro utente. Ricarica i dati e riprova.' : 'Anagrafica non trovata'
+      error: latest ? 'L’anagrafica è stata modificata da un altro utente. Ricarica i dati e riprova.' : 'Anagrafica non trovata'
     });
   }
   comuniCache = { expiresAt: 0, values: [] };
@@ -460,7 +556,7 @@ exports.handler = async (event) => {
 
   const params = event.queryStringParameters || {};
   const filters = parseFilters(params);
-  const action = params.action === 'export' ? 'export' : (params.action === 'comuni' ? 'comuni' : 'list');
+  const action = ['export', 'comuni', 'comuni_istat'].includes(params.action) ? params.action : 'list';
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false }
   });
@@ -479,6 +575,10 @@ exports.handler = async (event) => {
 
     if (action === 'comuni') {
       return jsonResponse(200, { success: true, data: await fetchComuniOptions(supabase) });
+    }
+
+    if (action === 'comuni_istat') {
+      return jsonResponse(200, { success: true, data: await fetchIstatComuni(supabase, params.q) });
     }
 
     if (action === 'export') {
@@ -537,9 +637,12 @@ exports._test = {
   createWorkbook,
   DELETE_DEPENDENCIES,
   findDeleteDependencies,
+  fetchIstatComuni,
+  normalizeLocalityForComparison,
   parseComuni,
   parseFilters,
   parseJsonBody,
+  resolveIstatLocality,
   sanitizeAnagraficaUpdate,
   xmlEscape
 };

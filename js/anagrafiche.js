@@ -15,7 +15,12 @@
     exporting: false,
     mutating: false,
     currentId: null,
-    isAdmin: false
+    isAdmin: false,
+    istatComuneCode: null,
+    istatOriginalComune: '',
+    istatOriginalProvincia: '',
+    istatSuggestions: [],
+    istatSearchSequence: 0
   };
 
   function el(id) {
@@ -50,6 +55,16 @@
   function creatorName(row) {
     if (Array.isArray(row.creatore)) return row.creatore[0]?.nome || '—';
     return row.creatore?.nome || '—';
+  }
+
+  function normalizeLocality(value) {
+    return String(value || '')
+      .normalize('NFKC')
+      .replace(/&(?:#0*39|apos);/gi, "'")
+      .replace(/[’‘`´]/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLocaleUpperCase('it-IT');
   }
 
   function activeParams() {
@@ -271,6 +286,93 @@
     el(id).value = value == null ? '' : String(value);
   }
 
+  function hideIstatSuggestions() {
+    el('editComuneSuggestions').classList.add('hidden');
+    el('editComune').setAttribute('aria-expanded', 'false');
+  }
+
+  function setIstatHint(message, valid = false) {
+    const hint = el('editComuneHint');
+    hint.textContent = message;
+    hint.classList.toggle('valid', valid);
+  }
+
+  function renderIstatSuggestions(statusMessage = '') {
+    const container = el('editComuneSuggestions');
+    container.replaceChildren();
+    if (statusMessage || !state.istatSuggestions.length) {
+      const status = document.createElement('div');
+      status.className = 'istat-status';
+      status.textContent = statusMessage || 'Nessun comune ISTAT corrispondente';
+      container.appendChild(status);
+    } else {
+      for (const item of state.istatSuggestions) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'istat-option';
+        button.setAttribute('role', 'option');
+        const name = document.createElement('span');
+        name.className = 'istat-option-name';
+        name.textContent = item.nome;
+        const meta = document.createElement('span');
+        meta.className = 'istat-option-meta';
+        meta.textContent = `${item.provincia_sigla} · ${item.provincia_nome}`;
+        button.append(name, meta);
+        button.addEventListener('click', () => selectIstatComune(item));
+        container.appendChild(button);
+      }
+    }
+    container.classList.remove('hidden');
+    el('editComune').setAttribute('aria-expanded', 'true');
+  }
+
+  function selectIstatComune(item) {
+    state.istatComuneCode = item.codice_istat;
+    setEditValue('editComune', item.nome);
+    setEditValue('editProvincia', item.provincia_sigla);
+    setIstatHint(`Comune ISTAT selezionato · ${item.provincia_nome} (${item.provincia_sigla})`, true);
+    el('editComune').focus();
+    hideIstatSuggestions();
+  }
+
+  async function searchIstatComuni() {
+    const query = normalizeLocality(el('editComune').value);
+    const sequence = ++state.istatSearchSequence;
+    if (query.length < 2) {
+      state.istatSuggestions = [];
+      hideIstatSuggestions();
+      return;
+    }
+    renderIstatSuggestions('Ricerca comuni...');
+    try {
+      const params = new URLSearchParams({ action: 'comuni_istat', q: query });
+      const response = await window.MiroxApi.fetch(`${ENDPOINT}?${params.toString()}`);
+      if (!response.ok) throw new Error(await readError(response));
+      const payload = await response.json();
+      if (sequence !== state.istatSearchSequence) return;
+      state.istatSuggestions = Array.isArray(payload.data) ? payload.data : [];
+      renderIstatSuggestions();
+    } catch (error) {
+      if (sequence !== state.istatSearchSequence) return;
+      state.istatSuggestions = [];
+      hideIstatSuggestions();
+      window.MiroxUI.toast(error.message || 'Errore durante la ricerca dei comuni ISTAT', 'error');
+    }
+  }
+
+  function handleEditComuneInput() {
+    state.istatComuneCode = null;
+    const currentComune = normalizeLocality(el('editComune').value);
+    const originalComune = normalizeLocality(state.istatOriginalComune);
+    if (currentComune === originalComune) {
+      setEditValue('editProvincia', state.istatOriginalProvincia);
+      setIstatHint('Valore attuale invariato. Per correggerlo, seleziona una voce ISTAT.');
+    } else {
+      setEditValue('editProvincia', '');
+      setIstatHint(currentComune ? 'Seleziona il comune dall’elenco ISTAT per compilare la provincia.' : 'Comune e provincia possono essere lasciati vuoti.');
+    }
+  }
+
   function openEdit() {
     const row = currentRow();
     if (!row) return;
@@ -280,8 +382,15 @@
     setEditValue('editNomeReferente', row.nome_referente);
     setEditValue('editCellulare', row.cellulare);
     setEditValue('editEmail', row.email);
-    setEditValue('editProvincia', row.provincia);
+    state.istatComuneCode = null;
+    state.istatOriginalComune = row.comune || '';
+    state.istatOriginalProvincia = row.provincia || '';
+    state.istatSuggestions = [];
+    state.istatSearchSequence += 1;
     setEditValue('editComune', row.comune);
+    setEditValue('editProvincia', row.provincia);
+    setIstatHint('Valore attuale invariato. Per correggerlo, seleziona una voce ISTAT.');
+    hideIstatSuggestions();
     setEditValue('editVia', row.via);
     setEditValue('editCivico', row.civico);
     closeDetail();
@@ -290,6 +399,8 @@
   }
 
   function closeEdit({ reopenDetail = false } = {}) {
+    state.istatSearchSequence += 1;
+    hideIstatSuggestions();
     el('editModal').classList.remove('active');
     if (reopenDetail && currentRow()) openDetail(state.currentId);
   }
@@ -335,6 +446,17 @@
     const form = el('editForm');
     const row = currentRow();
     if (!row || state.mutating || !form.reportValidity()) return;
+    const proposedComune = normalizeLocality(el('editComune').value);
+    const localityChanged = proposedComune !== normalizeLocality(state.istatOriginalComune)
+      || normalizeLocality(el('editProvincia').value) !== normalizeLocality(state.istatOriginalProvincia);
+    if (proposedComune && localityChanged && !state.istatComuneCode) {
+      await window.MiroxUI.alert('Seleziona il comune dall’elenco ISTAT: la provincia verrà compilata automaticamente.', {
+        type: 'warning',
+        title: 'Comune da verificare'
+      });
+      el('editComune').focus();
+      return;
+    }
     const displayName = el('editRagioneSociale').value.trim() || el('editNomeReferente').value.trim() || row.cf_piva;
     const confirmed = await window.MiroxUI.confirm(
       `Confermi la modifica dei dati di ${displayName}? I nuovi valori saranno condivisi in tutto il CRM.`,
@@ -350,6 +472,7 @@
         action: 'update',
         id: row.id,
         expected_updated_at: row.updated_at,
+        comune_istat_codice: state.istatComuneCode,
         data: editPayload()
       });
       const index = state.rows.findIndex((item) => item.id === row.id);
@@ -444,6 +567,7 @@
     state.isAdmin = profilo.ruolo === 'admin';
 
     const debouncedLoad = debounce(resetAndLoad, 350);
+    const debouncedIstatSearch = debounce(searchIstatComuni, 250);
     el('searchName').addEventListener('input', debouncedLoad);
     el('filterCluster').addEventListener('change', resetAndLoad);
     el('comuniTrigger').addEventListener('click', () => {
@@ -481,6 +605,15 @@
     el('detailDone').addEventListener('click', closeDetail);
     el('btnEditAnagrafica').addEventListener('click', openEdit);
     el('btnDeleteAnagrafica').addEventListener('click', deleteCurrent);
+    el('editComune').addEventListener('input', () => {
+      handleEditComuneInput();
+      debouncedIstatSearch();
+    });
+    el('editComune').addEventListener('focus', () => {
+      if (normalizeLocality(el('editComune').value).length >= 2 && state.istatSuggestions.length) {
+        renderIstatSuggestions();
+      }
+    });
     el('editForm').addEventListener('submit', submitEdit);
     el('editClose').addEventListener('click', () => closeEdit({ reopenDetail: true }));
     el('editCancel').addEventListener('click', () => closeEdit({ reopenDetail: true }));
@@ -493,12 +626,16 @@
     document.addEventListener('click', (event) => {
       const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
       if (!path.includes(el('comuniPicker'))) setComuniMenu(false);
+      if (!path.includes(el('editComunePicker'))) hideIstatSuggestions();
     });
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
       if (el('comuniTrigger').getAttribute('aria-expanded') === 'true') {
         setComuniMenu(false);
         el('comuniTrigger').focus();
+      } else if (el('editComune').getAttribute('aria-expanded') === 'true') {
+        hideIstatSuggestions();
+        el('editComune').focus();
       } else if (el('editModal').classList.contains('active')) {
         closeEdit({ reopenDetail: true });
       } else {

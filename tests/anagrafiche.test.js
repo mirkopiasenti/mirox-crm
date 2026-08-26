@@ -67,7 +67,7 @@ test('il generatore produce un vero workbook xlsx filtrabile e neutralizza formu
     cellulare: '3331234567',
     email: 'mario@example.com',
     provincia: 'VR',
-    comune: 'Legnago',
+    comune: 'LEGNAGO',
     via: 'Via Roma <centro>',
     civico: '1',
     creato_da: '22222222-2222-4222-8222-222222222222',
@@ -91,6 +91,46 @@ test('il generatore produce un vero workbook xlsx filtrabile e neutralizza formu
   assert.match(sheet, /Via Roma &lt;centro&gt;/);
 });
 
+test('la normalizzazione località uniforma maiuscole, spazi, entità e apostrofi', () => {
+  assert.equal(api.normalizeLocalityForComparison('  boschi   sant&#039;anna '), "BOSCHI SANT'ANNA");
+  assert.equal(api.normalizeLocalityForComparison('Sant’Agata'), "SANT'AGATA");
+  assert.equal(api.normalizeLocalityForComparison(null), '');
+});
+
+test('la selezione ISTAT prevale sui valori liberi e compila la provincia', async () => {
+  const query = {
+    select() { return this; },
+    eq(column, value) {
+      assert.equal(column, 'codice_istat');
+      assert.equal(value, '023044');
+      return this;
+    },
+    async maybeSingle() {
+      return { data: { nome: 'LEGNAGO', provincia_sigla: 'VR' }, error: null };
+    }
+  };
+  const resolved = await api.resolveIstatLocality(
+    { from(table) { assert.equal(table, 'mirox_comuni_istat'); return query; } },
+    { comune_istat_codice: '023044' },
+    { comune: 'testo libero', provincia: 'XX', cf_piva: 'ABC' },
+    { comune: 'CEREA', provincia: 'VR' }
+  );
+  assert.equal(resolved.comune, 'LEGNAGO');
+  assert.equal(resolved.provincia, 'VR');
+  assert.equal(resolved.cf_piva, 'ABC');
+});
+
+test('i valori storici non riconciliati restano modificabili se comune e provincia non cambiano', async () => {
+  const unchanged = await api.resolveIstatLocality(
+    { from() { throw new Error('Il catalogo non deve essere interrogato'); } },
+    {},
+    { comune: 'CHIESA NUOVA', provincia: 'PD' },
+    { comune: 'Chiesa Nuova', provincia: 'pd' }
+  );
+  assert.equal(unchanged.comune, 'CHIESA NUOVA');
+  assert.equal(unchanged.provincia, 'PD');
+});
+
 test('la modifica anagrafica usa una allowlist, normalizza i dati e valida i campi', () => {
   assert.deepEqual(api.sanitizeAnagraficaUpdate({
     cf_piva: ' rssmra80a01h501u ',
@@ -100,7 +140,7 @@ test('la modifica anagrafica usa una allowlist, normalizza i dati e valida i cam
     cellulare: '333 123 4567',
     email: 'mario@example.com',
     provincia: 'VR',
-    comune: 'Legnago',
+    comune: 'LEGNAGO',
     via: 'Via Roma',
     civico: '1'
   }), {
@@ -111,7 +151,7 @@ test('la modifica anagrafica usa una allowlist, normalizza i dati e valida i cam
     cellulare: '333 123 4567',
     email: 'mario@example.com',
     provincia: 'VR',
-    comune: 'Legnago',
+    comune: 'LEGNAGO',
     via: 'Via Roma',
     civico: '1'
   });
@@ -149,6 +189,8 @@ test('la pagina Anagrafiche usa la function autenticata e contiene filtri, popup
   assert.match(html, /id="detailModal"/);
   assert.match(html, /id="editModal"/);
   assert.match(html, /id="editForm"/);
+  assert.match(html, /id="editComuneSuggestions"/);
+  assert.match(html, /id="editProvincia"[^>]*readonly/);
   assert.match(html, /id="btnEditAnagrafica"/);
   assert.match(html, /class="[^"]*hidden[^"]*" id="btnDeleteAnagrafica"/);
   assert.match(html, /id="btnExport"/);
@@ -158,6 +200,8 @@ test('la pagina Anagrafiche usa la function autenticata e contiene filtri, popup
   assert.match(js, /state\.isAdmin = profilo\.ruolo === 'admin'/);
   assert.match(js, /expected_updated_at/);
   assert.match(js, /action=comuni/);
+  assert.match(js, /action: 'comuni_istat'/);
+  assert.match(js, /comune_istat_codice: state\.istatComuneCode/);
   assert.match(js, /JSON\.stringify\(state\.comuni\)/);
   assert.match(js, /action', 'export'/);
   assert.doesNotMatch(js, /\.from\(['"]anagrafica['"]\)/);
@@ -175,4 +219,18 @@ test('la function protegge update e delete lato server', () => {
   assert.match(source, /\.eq\('updated_at', expectedUpdatedAt\)/);
   assert.match(source, /error\?\.code === '23505'/);
   assert.match(source, /error\?\.code === '23503'/);
+  assert.match(source, /\.from\('mirox_comuni_istat'\)/);
+  assert.match(source, /resolveIstatLocality/);
+});
+
+test('la migration ISTAT è server-only, completa e aggiunge il trigger non bloccante', () => {
+  const sql = fs.readFileSync(path.join(ROOT, 'database/070_comuni_istat_normalizzazione_anagrafica.sql'), 'utf8');
+  const catalogRows = sql.match(/^    \('[0-9]{6}',/gm) || [];
+  assert.equal(catalogRows.length, 7893);
+  assert.match(sql, /CREATE TABLE public\.mirox_comuni_istat/);
+  assert.match(sql, /ALTER TABLE public\.mirox_comuni_istat ENABLE ROW LEVEL SECURITY/);
+  assert.match(sql, /REVOKE ALL ON TABLE public\.mirox_comuni_istat FROM PUBLIC, anon, authenticated/);
+  assert.match(sql, /CREATE TRIGGER trg_anagrafica_normalizza_localita/);
+  assert.match(sql, /BEFORE INSERT OR UPDATE OF comune, provincia ON public\.anagrafica/);
+  assert.doesNotMatch(sql, /ALTER TABLE public\.anagrafica (?:ADD|DROP|RENAME)/i);
 });
