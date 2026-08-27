@@ -132,12 +132,18 @@ async function tryReserveBudget({ supabase, cfg, mese, attivita, importoEur, chi
   if (costo <= 0) return { ok: false, motivo: 'importo_non_valido' };
   if (disponibile < costo) return { ok: false, motivo: 'hard_stop', disponibile };
 
-  // Riserva di attivita' (dialogo/analisi vs arricchimento) rispettata.
-  const att = ['arricchimento', 'dialogo'].includes(attivita) ? attivita : null;
+  // Riserva di attivita': 'arricchimento' usa la riserva arricchimento (40),
+  // tutte le altre attivita' (dialogo/analisi/piano/altro) la riserva
+  // dialogo/analisi (10). Le attivita' non riconosciute ricadono in
+  // riserva_dialogo per non aggirare il tetto.
+  const att = attivita === 'arricchimento' ? 'arricchimento' : 'dialogo';
   if (att) {
+    const spesoRiserva = att === 'arricchimento'
+      ? Number(spesa.perAttivita.arricchimento || 0)
+      : round2(Number(spesa.perAttivita.dialogo || 0) + Number(spesa.perAttivita.analisi || 0) + Number(spesa.perAttivita.piano || 0) + Number(spesa.perAttivita.altro || 0));
     const riserva = att === 'arricchimento'
       ? { budget: Number(cfg.riserva_arricchimento_eur) || 0, speso: round2(Number(spesa.perAttivita.arricchimento || 0)) }
-      : { budget: Number(cfg.riserva_dialogo_eur) || 0, speso: round2(Number(spesa.perAttivita.dialogo || 0)) };
+      : { budget: Number(cfg.riserva_dialogo_eur) || 0, speso: spesoRiserva };
     const copertura = riservaCopre({ rimasto: round2(riserva.budget - riserva.speso) }, costo);
     if (!copertura.ok) return { ok: false, motivo: 'riserva_esaurita', riserva: att };
   }

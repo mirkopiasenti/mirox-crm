@@ -1,14 +1,15 @@
 /**
- * KONA Call Director — dialogo operatore (Isabella) e appuntamenti Business.
+ * KONA Call Director — valutazione skip e appuntamenti Business.
  *
  * Azioni:
- *   messaggio              -> suggerimento dialogo OpenAI (attivita' 'dialogo')
- *   valuta_altro           -> valuta un skip "altro" (attivita' 'altro')
+ *   valuta_altro           -> valuta uno skip "altro" (l'IA puo' contestare una sola volta)
  *   cerca_slot             -> slot Google disponibili per un lead Business
  *   proponi_appuntamento   -> crea appuntamento Business + evento Google
  *   conferma_appuntamento  -> marca confermato (sync Google se manca evento)
  *   annulla_appuntamento   -> marca annullato (+ elimina evento Google)
  *   riprogramma_appuntamento -> marca da_riprogrammare
+ *
+ * Nessuna generazione di script telefonici: l'IA non suggerisce frasi da dire.
  *
  * Privacy:
  * - A OpenAI NON finiscono mai dati Consumer identificativi. Per i lead
@@ -51,8 +52,6 @@ exports.handler = async (event) => {
 
   try {
     switch (action) {
-      case 'messaggio':
-        return await azioneMessaggio(client, cfg, body, profiloId);
       case 'valuta_altro':
         return await azioneValutaAltro(client, cfg, body);
       case 'cerca_slot':
@@ -73,67 +72,9 @@ exports.handler = async (event) => {
   }
 };
 
-// -- Dialgo (suggerimento Isabella) -------------------------------------------
-
-async function azioneMessaggio(client, cfg, body, profiloId) {
-  const leadId = String(body.lead_id || '');
-  let lead = null;
-  if (isUuid(leadId)) {
-    const { data } = await client.from('call_center_lead_outbound').select('ragione_sociale, categoria, zona, localita, provincia').eq('id', leadId).maybeSingle();
-    lead = data;
-  }
-  // Solo dati pubblici aziendali (mai dati Consumer / dati privati).
-  const contesto = cleanLog({
-    ragione_sociale: lead?.ragione_sociale || null,
-    categoria: lead?.categoria || null,
-    zona: lead?.zona || null,
-    localita: lead?.localita || null,
-    provincia: lead?.provincia || null,
-    esito_precedente: body.esito_precedente || null,
-    tipo_contatto: body.tipo_contatto || 'business'
-  });
-  const messaggioOperatore = String(body.messaggio_operatore || '').slice(0, 600);
-
-  const schema = {
-    type: 'object',
-    properties: {
-      risposta: { type: 'string' },
-      suggerimenti: {
-        type: 'array',
-        items: { type: 'string' }
-      }
-    },
-    required: ['risposta', 'suggerimenti'],
-    additionalProperties: false
-  };
-
-  const instructions = [
-    'Sei "Isabella", assistente del Call Center Mirox. Suggerisci la frase da',
-    'dire al contatto Business (azienda B2B, dati pubblici). Breve, professionale,',
-    'una sola risposta di massimo 3 frasi. Non inventare dati. La risposta va',
-    'detta da un operatore umano: evita toni artificiali o promesse non verificate.'
-  ].join(' ');
-
-  const result = await openaiStructured({
-    supabase: client,
-    cfg,
-    activity: 'dialogo',
-    name: 'kona_dialogo',
-    instructions,
-    input: JSON.stringify({ contesto, messaggio_operatore: messaggioOperatore }),
-    schema,
-    maxOutputTokens: 400,
-    webSearch: false,
-    details: { tipo_contatto: contesto.tipo_contatto }
-  });
-  if (!result.ok) return jsonOk({ suggerimento: null, motivo: result.error });
-  return jsonOk({
-    suggerimento: result.value.risposta,
-    suggerimenti: Array.isArray(result.value.suggerimenti) ? result.value.suggerimenti.slice(0, 5) : []
-  });
-}
-
 // -- Valutazione skip "Altro" -------------------------------------------------
+// (Nessuna generazione di script telefonici: l'IA puo' solo contestare o
+// chiedere chiarimenti UNA volta sullo skip "Altro", la decisione e' dell'operatrice.)
 
 async function azioneValutaAltro(client, cfg, body) {
   const spiegazione = String(body.spiegazione || '').slice(0, 500);

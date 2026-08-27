@@ -211,18 +211,13 @@ async function eseguiPianoDefault(supabase, cfg, data) {
     const esito = await applicaPianoDefault(supabase, cfg, { data, operatoreId: opId });
     applicati.push({ operatore: opId, totale: esito.totale, salvato: esito.salvato });
   }
-  // Crea comunque la sessione Business standard (piano residuo Telefoni omaggio).
+  // Crea/riapre la sessione Business standard (piano residuo Telefoni omaggio).
+  // Upsert su (data, operatore_id, tipo) coerente col vincolo unico pieno.
   for (const opId of operatori) {
-    const { data: sessione } = await supabase
-      .from('kona_call_director_sessioni')
-      .select('id')
-      .eq('data', data).eq('operatore_id', opId).eq('tipo', 'mattina').eq('stato', 'attiva')
-      .maybeSingle();
-    if (!sessione) {
-      await supabase.from('kona_call_director_sessioni').insert({
-        data, operatore_id: opId, tipo: 'mattina', stato: 'attiva', categoria: 'telefoni_omaggio'
-      });
-    }
+    await supabase.from('kona_call_director_sessioni').upsert(
+      { data, operatore_id: opId, tipo: 'mattina', stato: 'attiva', categoria: 'telefoni_omaggio' },
+      { onConflict: 'data,operatore_id,tipo' }
+    );
   }
   return { applicati };
 }

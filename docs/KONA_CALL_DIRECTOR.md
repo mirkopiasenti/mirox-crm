@@ -40,8 +40,9 @@ integrazione Google Calendar del solo calendario personale di Mirko.
   (indice unico parziale), tentativi max 3 con alternanza mattina/pomeriggio,
   sblocco del successivo solo dopo esito valido.
 - **(B) Sandbox OpenAI** (`_lib/kona-cd-openai.js`) usata SOLO per: web search
-  Business, estrazione strutturata, valutazione skip "Altro", dialogo Isabella,
-  proposta piano, analisi di giornata, report. Ogni risposta: Responses API
+  Business, estrazione strutturata, valutazione skip "Altro" (l'IA puo'
+  contestare una sola volta, decide l'operatrice), proposta piano, analisi di
+  giornata, report. Nessuno script telefonico generato. Ogni risposta: Responses API
   server-side, output strutturato JSON strict, validato, trattato come input
   non fidato, istruzioni delle pagine web ignorate, timeout + retry limitato +
   fallback deterministico, modello configurabile, costo loggato.
@@ -117,7 +118,7 @@ job a lease e la coda notifiche Telegram.
 | `kona-call-director-task` | operatore abilitato | prossimo / attivo / esito / sospendi / riprendi |
 | `kona-call-director-status` | operatore | stato, budget, riepilogo giorno |
 | `kona-call-director-admin` | admin | interruttori, operatori, config, budget, sospensione |
-| `kona-call-director-dialog` | operatore abilitato | dialogo Isabella, valuta "Altro", slot, appuntamenti Business |
+| `kona-call-director-dialog` | operatore abilitato | valuta skip "Altro", slot Google, appuntamenti Business (nessuno script) |
 | `kona-call-director-plan` | operatore | proposta/approva/applica/leggi piano |
 | `kona-call-director-google` | admin | connetti (OAuth), stato, disconnetti |
 | `kona-cc-google-callback` | pubblico (redirect OAuth) | scambio code, token cifrato |

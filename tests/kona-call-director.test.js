@@ -50,6 +50,7 @@ class Q {
     return this;
   }
   eq(k, v) { this.filters.push(['eq', k, v]); return this; }
+  is(k, v) { this.filters.push(['is', k, v]); return this; }
   in(k, v) { this.filters.push(['in', k, v]); return this; }
   not(k, v) { this.filters.push(['not', k, v]); return this; }
   gte(k, v) { this.filters.push(['gte', k, v]); return this; }
@@ -703,7 +704,12 @@ test('FLUSSO REALE: blacklist -> impossibile riproporre', async () => {
   const blacklistRows = [];
   const db = makeSupabase({
     'kona_call_director_task.select': () => ({ data: null }),
-    'blacklist.select': () => ({ data: blacklistRows }),
+    'blacklist.select': (q) => {
+      // addBlacklist usa .eq('cf_piva') per il controllo esistenza -> non esistente
+      const haFiltroCf = q.filters.some(([op, k]) => op === 'eq' && k === 'cf_piva');
+      if (haFiltroCf) return { data: null };
+      return { data: blacklistRows };
+    },
     'kona_call_director_esclusioni.select': () => ({ data: [] }),
     'kona_call_director_appuntamenti_business.select': () => ({ data: [] }),
     'chiamate.select': () => ({ data: [] }),
@@ -712,7 +718,7 @@ test('FLUSSO REALE: blacklist -> impossibile riproporre', async () => {
     }),
     'kona_call_director_task.insert': () => ({ data: { id: 't1', tipo: 'sessione_business', sorgente_id: LEAD, sorgente_tipo: 'lead', operatore_id: PROFILO, payload: { lead_id: LEAD }, stato: 'attivo' }, error: null }),
     'kona_call_director_task_eventi.insert': () => ({ data: null, error: null }),
-    'blacklist.upsert': () => { blacklistRows.push({ cf_piva: 'BARROMA01G23H456Z', cellulare: '3331234567' }); return { data: null, error: null }; },
+    'blacklist.insert': () => { blacklistRows.push({ cf_piva: 'BARROMA01G23H456Z', cellulare: '3331234567' }); return { data: null, error: null }; },
     'kona_call_director_esclusioni.insert': () => ({ data: null, error: null }),
     'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
     'call_center_lead_outbound.update': () => ({ data: [], error: null })
@@ -958,6 +964,14 @@ test('operatore: nessun ID HTML duplicato e niente "Isabella"/script telefonici'
   assert.deepEqual(duplicati, []);
   assert.ok(!/Isabella/.test(html));
   assert.ok(!/window\.(alert|confirm|prompt)/.test(html));
+});
+
+test('nessuna funzione genera script telefonici (niente azione messaggio/suggerisci)', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  const dialog = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-dialog.js'), 'utf8');
+  assert.ok(!/suggerisci/.test(js), 'nessuna funzione suggerisci nel frontend');
+  assert.ok(!/case 'messaggio'/.test(dialog), 'nessuna action messaggio nel backend');
+  assert.ok(!/Suggerisci la frase da dire/.test(dialog), 'nessuna istruzione di script al modello');
 });
 
 test('operatore JS: budget con toFixed sicuro e azioni Calendar/Consumer esposte', () => {

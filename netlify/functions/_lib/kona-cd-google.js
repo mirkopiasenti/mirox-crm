@@ -206,7 +206,8 @@ function computeSlots({
   giorni,
   busyIntervals = [],
   appuntamentiConflitto = [],
-  bufferMinuti = null
+  bufferMinuti = null,
+  now = Date.now()
 }) {
   const durata = Number(cfg.durata_appuntamento_minuti) || 45;
   const buffer = Number.isInteger(bufferMinuti) ? bufferMinuti : (Number(cfg.buffer_appuntamento_minuti) || 15);
@@ -233,7 +234,7 @@ function computeSlots({
     return false;
   };
 
-  const now = Date.now();
+  // `now` e' iniettabile per test deterministici; in produzione e' Date.now().
   for (let i = 0; i < orizzonte; i += 1) {
     const giorno = addDaysStr(dataInizio, i);
     if (!isWorkingDay(giorno, cfg.giorni_lavorativi || [1, 2, 3, 4, 5])) continue;

@@ -217,7 +217,7 @@
     show('konaTaskStoricoBox');
 
     window._konaDialogoLeadId = (c.sorgente === 'lead' || c.sorgente === 'lead_outbound_chiamata') ? (t.payload && t.payload.lead_id) || null : null;
-    setText('konaKonaLead', window._konaDialogoLeadId ? 'Lead Business: ' + esc(nome) : 'Suggerimento KONA (nessun lead collegato)');
+    setText('konaKonaLead', window._konaDialogoLeadId ? 'Lead Business: ' + esc(nome) : 'Nessun lead collegato (fasce calendario non disponibili)');
 
     // Esiti
     var esiti = ESITI_PER_TIPO[t.tipo] || [];
@@ -352,22 +352,6 @@
     await confermaEsito({ action: 'esito', esito: 'blacklist' });
   }
 
-  // -- KONA (suggerimento) ----------------------------------------------------
-
-  async function suggerisci() {
-    var input = document.getElementById('konaKonaInput');
-    var testo = (input.value || '').trim();
-    var leadId = window._konaDialogoLeadId || null;
-    var box = document.getElementById('konaKonaOut');
-    box.textContent = '...';
-    try {
-      var res = await apiFetch(DIALOG, jsonBody({ action: 'messaggio', lead_id: leadId, messaggio_operatore: testo }));
-      box.textContent = res.suggerimento ? res.suggerimento : 'Suggerimento non disponibile.';
-    } catch (e) {
-      box.textContent = e.message;
-    }
-  }
-
   // -- Azioni Calendar --------------------------------------------------------
 
   async function caricaSlot() {
@@ -480,7 +464,6 @@
     prossimo: prossimo,
     segnalaBlacklist: segnalaBlacklist,
     selezionaModalitaConsumer: selezionaModalitaConsumer,
-    suggerisci: suggerisci,
     toggleSpiegazioneSkip: toggleSpiegazioneSkip
   };
 })(window);

@@ -96,13 +96,25 @@ function pureBlacklisted(blacklistRows, { cf_piva, telefoni }) {
 
 // Inserisce nella blacklist REALE. Una riga per numero (cf_piva NOT NULL).
 // Ritorna { ok, error }.
+// La tabella `blacklist` e' CONDIVISA col Call Center prod e NON ha un vincolo
+// UNIQUE su (cf_piva, cellulare): niente upsert/onConflict. Dedup manuale
+// (select-then-insert) per non duplicare e per non alterare la tabella condivisa.
 async function addBlacklist(supabase, { cfPiva, nome, telefoni }) {
   const cf = String(cfPiva || '').trim().toUpperCase();
   if (!cf) return { ok: false, error: 'blacklist_richiede_cf' };
+  const nomeCognome = String(nome || '').slice(0, 200) || null;
   const teles = telefoniUnici(telefoni);
-  const righe = teles.length ? teles.map((t) => ({ cf_piva: cf, nome_cognome: String(nome || '').slice(0, 200) || null, cellulare: t })) : [{ cf_piva: cf, nome_cognome: String(nome || '').slice(0, 200) || null, cellulare: null }];
+  const righe = teles.length
+    ? teles.map((t) => ({ cf_piva: cf, nome_cognome: nomeCognome, cellulare: t }))
+    : [{ cf_piva: cf, nome_cognome: nomeCognome, cellulare: null }];
   for (const riga of righe) {
-    const { error } = await supabase.from('blacklist').upsert(riga, { onConflict: 'cf_piva,cellulare', ignoreDuplicates: true });
+    let esistenteQuery = supabase.from('blacklist').select('id').eq('cf_piva', cf);
+    esistenteQuery = riga.cellulare === null
+      ? esistenteQuery.is('cellulare', null)
+      : esistenteQuery.eq('cellulare', riga.cellulare);
+    const { data: esistente } = await esistenteQuery.limit(1).maybeSingle();
+    if (esistente) continue;
+    const { error } = await supabase.from('blacklist').insert(riga);
     if (error) return { ok: false, error };
   }
   return { ok: true };

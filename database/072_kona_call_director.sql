@@ -174,9 +174,12 @@ CREATE TABLE IF NOT EXISTS public.kona_call_director_sessioni (
   note jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS ux_kona_call_director_sessioni_attiva
-  ON public.kona_call_director_sessioni(data, operatore_id, tipo)
-  WHERE stato = 'attiva';
+-- Una sola sessione per (data, operatore, tipo): il vincolo e' PIENO (non
+-- parziale) cosi' l'ON CONFLICT (data, operatore_id, tipo) degli upsert del
+-- backend trova un constraint corrispondente. La sessione transita da
+-- 'attiva' a 'chiusa' nello stesso record.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_kona_call_director_sessioni_data_operatore_tipo
+  ON public.kona_call_director_sessioni(data, operatore_id, tipo);
 
 COMMENT ON TABLE public.kona_call_director_sessioni IS
   'Sessione mattina/pomeriggio dell''operatore. Una sola attiva per tipo/giorno.';
