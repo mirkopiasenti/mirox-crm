@@ -1133,7 +1133,6 @@
  const escapeHtml = (value) => window.MiroxSafe.escapeHtml(value);
  const APRI_CHIUDI_BUCKET = 'apri-chiudi-files';
  const POST_VENDITA_FUNCTION = '/.netlify/functions/gestisci-operazioni-post-vendita';
- let apriChiudiAdmin = false;
 
  async function callPostVendita(action, payload = {}) {
  const result = await window.MiroxApi.fetch(POST_VENDITA_FUNCTION, {
@@ -1152,7 +1151,6 @@
  (async () => {
  const p = window.__profilo || await Auth.getSessione();
  if (p) {
- apriChiudiAdmin = p.ruolo === 'admin';
  const el = document.getElementById('operatore');
  if (el) el.value = (p.nome || p.email || 'Operatore').toUpperCase();
  }
@@ -1303,10 +1301,6 @@
 
  // Validazione numero sim — solo quella resta utile (la validazione CF è nell'helper)
  document.addEventListener('DOMContentLoaded', function() {
-   (async () => {
-     const profilo = window.__profilo || await Auth.getSessione();
-     apriChiudiAdmin = profilo?.ruolo === 'admin';
-   })();
    const numeroSim = document.getElementById('numero-sim');
    if (!numeroSim) return;
    numeroSim.addEventListener('input', function() {
@@ -1575,6 +1569,10 @@
  let azioniHtml = `
 <button type="button" class="btn-action"style="background: #2196F3; margin-right: 5px;"onclick="apriModalDettagli(${safeRowId || 0})" ${safeRowId ? '' : 'disabled'}>Dettagli
 </button> `;
+ if (d.stato === 'IN CORSO') {
+ azioniHtml += `
+<button type="button" class="btn-action" style="background:#dc2626;" onclick="apriModalKO(${safeRowId || 0})" ${safeRowId ? '' : 'disabled'}>KO</button>`;
+ }
  
  html += `
 <tr>
@@ -1767,11 +1765,8 @@
 
  if (d.stato === 'IN CORSO') {
  footerHtml += `
-<button type="button" class="btn btn-primary" style="background:#FF6600;" onclick="chiudiModalDettagli(); apriModalDisdetta(${safeRowId || 0})" ${safeRowId ? '' : 'disabled'}>Disdetta</button>`;
- if (apriChiudiAdmin) {
- footerHtml += `
-<button type="button" class="btn btn-primary" style="background:#dc2626;" onclick="chiudiModalDettagli(); apriModalKO(${safeRowId || 0})" title="Operazione riservata agli amministratori" ${safeRowId ? '' : 'disabled'}>KO</button>`;
- }
+<button type="button" class="btn btn-primary" style="background:#FF6600;" onclick="chiudiModalDettagli(); apriModalDisdetta(${safeRowId || 0})" ${safeRowId ? '' : 'disabled'}>Disdetta</button>
+<button type="button" class="btn btn-primary" style="background:#dc2626;" onclick="chiudiModalDettagli(); apriModalKO(${safeRowId || 0})" ${safeRowId ? '' : 'disabled'}>KO</button>`;
  }
 
  footer.innerHTML = footerHtml;
@@ -2157,13 +2152,7 @@
  }
 
  // ===== GESTIONE MODAL KO =====
- async function apriModalKO(rowIndex) {
- const profilo = window.__profilo || await Auth.getSessione();
- apriChiudiAdmin = profilo?.ruolo === 'admin';
- if (!apriChiudiAdmin) {
-   await mxAlert('Questa operazione è riservata agli amministratori.', 'err');
-   return;
- }
+ function apriModalKO(rowIndex) {
  praticaSelezionata = rowIndex;
  document.getElementById('modal-ko').classList.add('active');
  }

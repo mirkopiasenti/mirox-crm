@@ -665,24 +665,25 @@ test('nessuna password operativa fissa resta nei moduli corretti', () => {
   assert.match(rimborsi, /profilo\?\.ruolo !== 'admin'/);
   assert.match(rimborsi, /action,\s*\.\.\.payload/);
   assert.match(rimborsi, /create_rimborso_manuale/);
-  assert.match(apriChiudi, /apriChiudiAdmin = profilo\?\.ruolo === 'admin'/);
+  assert.doesNotMatch(apriChiudi, /apriChiudiAdmin|riservata agli amministratori/);
+  assert.match(apriChiudi, /d\.stato === 'IN CORSO'[\s\S]*apriModalKO/);
   assert.match(apriChiudi, /mark_apri_chiudi_ko/);
   assert.doesNotMatch(rimborsi, /\.from\(['"]post_vendita_gestione_rimborsi['"]\)\s*\.insert\(/);
   assert.doesNotMatch(rimborsi, /\.from\(['"]post_vendita_gestione_rimborsi['"]\)\s*\.update\(/);
   assert.doesNotMatch(apriChiudi, /\.from\(['"]vendita_apri_chiudi['"]\)\s*\.update\(\{\s*stato:\s*['"]KO['"]/);
 });
 
-test('le operazioni sensibili post-vendita sono protette lato server e database', () => {
-  const functionSource = fs.readFileSync(
-    path.join(ROOT, 'netlify/functions/gestisci-operazioni-post-vendita.js'),
-    'utf8'
-  );
+test('le operazioni post-vendita applicano i ruoli lato server e proteggono le scritture dirette', () => {
+  const functionPath = path.join(ROOT, 'netlify/functions/gestisci-operazioni-post-vendita.js');
+  const functionSource = fs.readFileSync(functionPath, 'utf8');
+  const { _test } = require(functionPath);
   const migration = fs.readFileSync(
     path.join(ROOT, 'database/056_operazioni_sensibili_admin.sql'),
     'utf8'
   );
 
-  assert.match(functionSource, /ADMIN_ACTIONS = new Set\(\[\s*'create_rimborso_manuale',\s*'mark_apri_chiudi_ko'/);
+  assert.deepEqual(Array.from(_test.ADMIN_ACTIONS), ['create_rimborso_manuale']);
+  assert.equal(_test.AUTHENTICATED_ACTIONS.has('mark_apri_chiudi_ko'), true);
   assert.match(functionSource, /requireAuth\(event,\s*\{\s*adminOnly:\s*ADMIN_ACTIONS\.has\(action\)\s*\}\)/);
   assert.match(functionSource, /stato:\s*'Aperto'/);
   assert.match(functionSource, /stato:\s*'Consegnato'/);
