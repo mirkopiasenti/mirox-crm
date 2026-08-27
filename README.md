@@ -79,6 +79,15 @@ Tutte le functions, eccetto i due cron Netlify, l'endpoint anon intenzionale `pu
 | `cron-rientro-sim` | scheduled | nessuna (cron Netlify) | Notifica giornaliera rientro SIM; termina senza operazioni quando `MIROX_DEPLOY_ENV=staging` |
 | `cron-pulizia-operativa` | scheduled | nessuna (cron Netlify) | Scade OTP pending, elimina contatori rate-limit scaduti, rimuove bozze vendita oltre 24 ore con relativi PDF e pulisce il contesto tecnico Guardian oltre 90 giorni; termina senza operazioni quando `MIROX_DEPLOY_ENV=staging` |
 | `public-prenota` | GET / POST | nessuna (form pubblico) | Endpoint per `prenota.html`: rate limit persistente su Postgres e POST atomica tramite RPC con lock e nuovo controllo dello slot nella stessa transazione |
+| `kona-call-director-dispatcher` | cron (`*/5 * * * *`) | nessuna (cron Netlify) | Orchestratore idempotente KONA Call Director: eventi giornalieri data+evento (02:00 arricchimento, 03:30 retention, 08:00 reminder mattina, 08:30 piano default, 19:10 report sera, 20:00 reminder sera), materializzazione task nelle finestre conferme/orario operativo, job a lease e coda notifiche Telegram. Termina senza operazioni in staging |
+| `kona-call-director-task` | POST | operatore KONA abilitato | `prossimo` / `attivo` / `esito` / `sospendi` / `riprendi`. Gli esiti passano dal motore deterministico (blacklist, esclusioni, tentativi, skip motivati) |
+| `kona-call-director-status` | GET | operatore KONA abilitato | Stato abilitazione, modalita' osservazione, budget del mese e riepilogo della giornata |
+| `kona-call-director-admin` | POST | **admin** | Interruttore globale, modalita' osservazione, abilitazione per profilo, config allowlist, budget, sospensione immediata |
+| `kona-call-director-dialog` | POST | operatore KONA abilitato | Suggerimento dialogo Isabella (OpenAI, mai dati Consumer), valutazione skip "Altro", ricerca slot Google e CRUD appuntamenti Business con sync |
+| `kona-call-director-plan` | POST | operatore KONA abilitato / **admin** per approva | Proposta piano giornaliero (deterministico per zona + OpenAI su aggregati), approva, applica default, legge piano |
+| `kona-call-director-google` | POST | authenticated / **admin** per connetti/disconnetti | URL OAuth Google (state firmato HMAC), stato connessione, rimozione token |
+| `kona-cc-google-callback` | GET | pubblico (redirect OAuth) | Scambia il code, cifra il refresh token (AES-256-GCM, chiave env separata) e redirige all'admin |
+| `kona-call-director-telegram-webhook` | POST | secret timing-safe + `KONA_CALL_DIRECTOR_OWNER_CHAT_ID` | Bot Telegram separato dal Guardian: `/aiuto` `/stato` `/report` `/piano` `/approva` `/sospendi` `/riattiva`, conversazione server-side e audit decisioni |
 | `garantisci-anagrafica` | POST | authenticated | Upsert anagrafica (lookup CF/PIVA, update campi vuoti / cambiati o insert). Usato dal wizard prima della raccolta consenso; per `Turista` salva `Consumer` su `anagrafica` e non richiede email |
 | `check-consenso-privacy` | GET | authenticated | Dedupe 24 mesi: cerca per `anagrafica_id` una dichiarazione corrente valida; con `include_history=true` restituisce inoltre l'esito privacy più recente e l'ultimo PDF archiviato per badge e download da Storico Cliente |
 | `richiedi-otp-privacy` | POST | authenticated | Richiede la scelta esplicita ACCONSENTO/NON ACCONSENTO, accetta cellulari italiani correnti o legacy di 9–10 cifre, genera OTP 6 cifre, salva hash+salt e invia SMS via Smshosting. Rate-limit 3 invii/ora per anagrafica + cooldown 60s |
@@ -211,6 +220,18 @@ Dettagli e regole complete in [`AGENTS.md`](AGENTS.md); [`CLAUDE.md`](CLAUDE.md)
 | `GUARDIAN_OBSERVER_REF` | no | Ref GitHub osservato dal cron; default `GUARDIAN_STAGING_BRANCH` |
 | `GUARDIAN_OBSERVER_WEEKLY_SCAN` | no | Default `true`; abilita la scansione preventiva settimanale delle migliorie |
 | `GUARDIAN_TELEMETRY_HASH_SECRET` | consigliata | Segreto HMAC server-side per anonimizzare gli attori negli eventi tecnici; fallback temporaneo a `GUARDIAN_WORKER_SECRET` |
+| `KONA_CALL_DIRECTOR_ENABLED` | no | Kill-switch KONA Call Director: `false` = mai attivo, qualunque sia la config DB. Default: attivo se assente (decide `kona_call_director_config.attivo_globale`, che nasce `false`) |
+| `KONA_CALL_DIRECTOR_OPENAI_API_KEY` | sì (per KONA CD) | Chiave del progetto OpenAI dedicato a KONA Call Director (fallback `OPENAI_API_KEY`); solo server-side, mai nel frontend |
+| `KONA_CALL_DIRECTOR_OPENAI_MODEL` | no | Override del modello (default in `kona_call_director_config.modello_openai`) |
+| `KONA_CALL_DIRECTOR_GOOGLE_CLIENT_ID` | sì (per calendario) | OAuth Client ID Google per Calendar (scope minimi free/busy + events) |
+| `KONA_CALL_DIRECTOR_GOOGLE_CLIENT_SECRET` | sì (per calendario) | OAuth Client Secret Google |
+| `KONA_CALL_DIRECTOR_GOOGLE_REDIRECT_URI` | sì (per calendario) | URI di redirect OAuth (es. `https://mirox-crm.it/.netlify/functions/kona-cc-google-callback`) |
+| `KONA_CALL_DIRECTOR_GOOGLE_TOKEN_KEY` | sì (per calendario) | Chiave AES-256-GCM (64 caratteri hex) per cifrare il refresh token Google in DB; separata dalle altre credenziali |
+| `KONA_CALL_DIRECTOR_TELEGRAM_BOT_TOKEN` | sì (per Telegram KONA CD) | Token del bot Telegram dedicato (separato da quello del Guardian) |
+| `KONA_CALL_DIRECTOR_TELEGRAM_WEBHOOK_SECRET` | sì (per Telegram KONA CD) | Segreto casuale del webhook (confronto timing-safe nell'header) |
+| `KONA_CALL_DIRECTOR_OWNER_CHAT_ID` | sì (per Telegram KONA CD) | Unico `chat_id` autorizzato (Mirko); nessun dato personale nel testo |
+| `KONA_CALL_DIRECTOR_CRON_SECRET` | no | Segreto opzionale di protezione dell'endpoint cron (confronto timing-safe) |
+| `KONA_CALL_DIRECTOR_STAGING_RUN` | sì in staging per i cron | Opt-in esplicito `true` per eseguire i cron KONA CD in staging |
 
 ## Modulo Call Center (integrato, Fase 1)
 
@@ -225,6 +246,7 @@ A partire dal 2026-06-20 il progetto Call Center — fino a quel momento deploya
 - `appuntamenti.html`, `appuntamenti-oggi.html`, `prenota-interno.html`, `esiti-appuntamenti.html` (gestione appuntamenti)
 - `blacklist.html` (clienti da non contattare)
 - `call-center-lead-outbound.html`, `prenota-interno-outbound.html`, `registra-chiamata-outbound.html` (flusso outbound business)
+- `kona-call-director.html` (operatore KONA Call Director, vedi sezione dedicata)
 - `prenota.html` (form pubblico per prenotazioni da sito/social — **non in dashboard**, raggiungibile solo via URL diretto)
 
 La pagina di configurazione del CC (utenti, orari, blocchi, parametri) è stata spostata fuori dal modulo in [`admin-call-center-config.html`](admin-call-center-config.html) sotto il pannello Admin Mirox.
@@ -308,6 +330,12 @@ Se l'analisi automatica non dispone dei dati minimi per proporre una correzione,
 
 Guardian e' attivo sul CRM ufficiale `mirox-crm.it`, branch `main` e Supabase production `lbgwamhjkjjfwgusafbi`; ogni sviluppo viene validato prima sullo staging `mirox-crm-staging.netlify.app` e sul Supabase separato `blwgxrszvsoqcmcmhhqr`. Le migration `067` e `068` e le variabili Observer sono configurate in entrambi gli ambienti. Il bot production `@MiroxAiGuardianBot` e il bot staging `@KonaAiGuardianBot` restano separati. Setup completo, env vars, limiti e confini sono in [`docs/KONA_AI_GUARDIAN_SETUP.md`](docs/KONA_AI_GUARDIAN_SETUP.md).
 
+## KONA Call Director (implementazione completa, NON attiva — 2026-08-27)
+
+Modulo che coordina la giornata dell'operatore autorizzato del Call Center: un contatto alla volta, priorita' note (conferme appuntamenti Business di domani → ricontatti → auto non risposti → passa a Cerea → passa in negozio → campagne urgenti → sessione Business), arricchimento notturno dei lead Business da fonti pubbliche, ottimizzazione appuntamenti per giorno/zona e pianificazione con Mirko via bot Telegram separato. **Stato**: codice completo (lib condivise, 9 Netlify Functions, cron, pagine operatore e admin, 61 test dedicati) ma **non attivo** — la migration `072` non e' stata applicata e nessuna env var production e' stata configurata. Richiede la review DeepSeek Pro, lo staging e l'abilitazione esplicita dal pannello Admin (nasce `attivo_globale=false`, primi giorni in modalita' osservazione). Setup completo, env vars, privacy, budget e checklist in [`docs/KONA_CALL_DIRECTOR.md`](docs/KONA_CALL_DIRECTOR.md).
+
+Pagine: `moduli/call-center/kona-call-director.html` (operatore, tab "KONA CD" nel `cc-header`, gate per-profilo server-side) e `admin-kona-call-director.html` (pannello Admin). Test: `tests/kona-call-director.test.js` (61 test: tempo DST, validazioni, scoring, finestre conferme, budget/riserve, crypto, arricchimento "mai sovrascrivere", retention, job lease, motore blacklist/esclusioni/esiti/skip, OpenAI fetch mockato, webhook Telegram, outbox notifiche, slot Google, piano).
+
 ## Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
 - Sicurezza deploy 26/07/2026: Netlify non pubblica più la root del repository. La build a lista consentita include soltanto pagine e asset frontend; migration SQL, Functions, test, script, configurazioni e documentazione sono esclusi e coperti da test automatico.
@@ -328,6 +356,7 @@ Guardian e' attivo sul CRM ufficiale `mirox-crm.it`, branch `main` e Supabase pr
 - `cron-rientro-sim`: ogni giorno alle **07:00 UTC** (09:00 ora italiana estate / 08:00 inverno). Cerca pratiche `vendita_switch_sim` con `giorno_rientro = oggi` e `mail_rientro_inviata_at IS NULL`, invia notifica via template `rientro_sim`, imposta `mail_rientro_inviata_at = now()`. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o inviare email.
 - `cron-pulizia-operativa`: ogni giorno alle **02:30 UTC**. Scade gli OTP pending oltre termine, elimina i contatori del rate limit pubblico scaduti, recupera fino a 100 pratiche `bozza` più vecchie di 24 ore cancellando prima i PDF Storage e poi la pratica, rimuove dopo 90 giorni il contesto tecnico degli incidenti Guardian ed elimina gli eventi Observer oltre `expires_at`. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o modificare dati.
 - `cron-guardian-observer`: ogni **5 minuti**. Legge eventi Guardian già ripuliti, aggiorna i gruppi, apre incidenti sopra soglia, avvia al massimo il budget giornaliero di analisi Codex read-only e consegna le notifiche Telegram dalla coda persistente. Non modifica codice o produzione; se il workflow non è configurato registra l'incidente e ritenta.
+- `kona-call-director-dispatcher`: ogni **5 minuti** (orologio Europe/Rome, DST-safe). Esegue ogni evento giornaliero una sola volta (registro `data+evento`): 02:00 arricchimento notturno lead Business, 03:30 retention (180/365/730 gg), 08:00 reminder mattina, 08:30 piano default, 19:10 report serale (solo aggregati), 20:00 reminder sera. Ogni tick materializza i task nelle finestre conferme (09:00/11:30/15:30/18:00) e in orario operativo, processa i job a lease (piccoli batch, mai 50 ricerche in una funzione) e la coda notifiche Telegram. **NON attivo**: richiede la migration `072` e l'abilitazione globale (vedi sezione KONA Call Director).
 
 ## Link utili
 

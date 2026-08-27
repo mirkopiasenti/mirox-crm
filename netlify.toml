@@ -44,3 +44,10 @@
 # processa la coda Telegram. Tutte le azioni di scrittura restano approvate da Mirko.
 [functions."cron-guardian-observer"]
   schedule = "*/5 * * * *"
+
+# KONA Call Director — dispatcher idempotente ogni 5 minuti (orologio Rome,
+# eventi giornalieri data+evento, job a lease, coda notifiche Telegram).
+# Nasce disattivato: opera solo se KONA_CALL_DIRECTOR_ENABLED != false e
+# kona_call_director_config.attivo_globale=true.
+[functions."kona-call-director-dispatcher"]
+  schedule = "*/5 * * * *"

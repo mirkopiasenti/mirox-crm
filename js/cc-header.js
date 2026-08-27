@@ -29,7 +29,10 @@
     { perm: 'prenota_interno',           label: 'Nuovo Appuntamento', href: 'prenota-interno.html' },
     { perm: 'appuntamenti_oggi',         label: 'Appuntamenti Oggi',  href: 'appuntamenti-oggi.html' },
     { perm: 'esiti_appuntamenti',        label: 'Esiti Appuntamenti', href: 'esiti-appuntamenti.html' },
-    { perm: 'blacklist',                 label: 'Black List',         href: 'blacklist.html' }
+    { perm: 'blacklist',                 label: 'Black List',         href: 'blacklist.html' },
+    // KONA Call Director: sempre visibile ai CC user; la pagina applica il
+    // gate per-profilo (kona_call_director_profili.abilitato) server-side.
+    { perm: 'kona_call_director',        label: 'KONA CD',            href: 'kona-call-director.html', always: true }
   ];
 
   function escapeHtml(str) {
@@ -109,6 +112,7 @@
 
     // Filtra le tab in base ai permessi
     const tabsAccessibili = CC_PAGES.filter((p) => {
+      if (p.always) return true;
       if (isAdmin) return true;
       if (p.adminOnly) return false;
       if (perms[p.perm] === true) return true;

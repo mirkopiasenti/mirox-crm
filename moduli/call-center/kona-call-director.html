@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="../../assets/favicon.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KONA Call Director - Mirox</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../css/style.css">
+    <style>
+        .kona-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 16px; }
+        .kona-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+        .kona-task-nome { font-weight: 700; font-size: 18px; }
+        .kona-task-meta { font-size: 13px; color: var(--text-secondary); margin: 6px 0 12px; }
+        .kona-task-tipo { font-weight: 600; }
+        .kona-storico { background: var(--bg); border-radius: var(--radius); padding: 10px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; margin-bottom: 10px; }
+        .kona-kona-out { background: var(--bg); border-radius: var(--radius); padding: 12px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; min-height: 60px; }
+        .kona-slot-out { margin-top: 8px; }
+        .kona-piano-out { background: var(--bg); border-radius: var(--radius); padding: 12px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+        .kona-status-line { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); }
+        .kona-consumer-opt { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    </style>
+<script src="../../js/mirox-safe.js"></script>
+</head>
+<body>
+<div class="cc-layout">
+    <div id="ccHeader"></div>
+    <main class="cc-main">
+        <div class="page-header">
+            <div>
+                <h1 class="page-title">KONA Call Director</h1>
+                <p class="page-subtitle">Coordinamento giornata Call Center: un contatto alla volta</p>
+            </div>
+        </div>
+
+        <div id="konaNonAbilitato" class="hidden">
+            <div class="kona-card" style="border-color: var(--warning)">
+                <p style="font-weight:600;margin-bottom:8px">KONA Call Director non e' attivo per il tuo profilo</p>
+                <p id="konaMotivo" style="color:var(--text-secondary)"></p>
+            </div>
+        </div>
+
+        <div id="konaArea" class="hidden">
+            <div class="kona-toolbar">
+                <span id="konaStatoBadge" class="badge badge-info">Stato</span>
+                <button class="btn btn-primary" id="btnProssimo" onclick="KonaCD.prossimo()">Prossimo contatto</button>
+                <button class="btn btn-secondary" onclick="KonaCD.mostraPiano()">Piano di oggi</button>
+            </div>
+            <div class="kona-status-line">
+                <span id="konaBudget"></span>
+                <span id="konaOggi"></span>
+            </div>
+
+            <div class="kona-card hidden" id="konaTaskCard">
+                <div class="kona-task-tipo" id="konaTaskTipo"></div>
+                <div style="color:var(--text-secondary);font-size:13px" id="konaTaskDesc"></div>
+                <div class="kona-task-nome" id="konaTaskNome" style="margin-top:10px"></div>
+                <div class="kona-task-meta" id="konaTaskDettagli"></div>
+                <div class="kona-task-meta" id="konaTaskTentativi"></div>
+                <div class="kona-storico hidden" id="konaTaskStoricoBox">
+                    <b>Storico / ultima nota / motivo</b>
+                    <div id="konaTaskStorico" style="margin-top:4px"></div>
+                </div>
+                <div id="konaEsiti" style="margin-bottom:12px"></div>
+                <div id="konaCalActions" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+                    <button class="btn btn-secondary btn-sm" onclick="KonaCD.azioneAppuntamento('conferma', this.closest('#konaCalActions').getAttribute('data-app-id'))">Conferma appuntamento</button>
+                    <button class="btn btn-secondary btn-sm" onclick="KonaCD.azioneAppuntamento('annulla', this.closest('#konaCalActions').getAttribute('data-app-id'))">Annulla appuntamento</button>
+                    <button class="btn btn-secondary btn-sm" onclick="KonaCD.azioneAppuntamento('riprogramma', this.closest('#konaCalActions').getAttribute('data-app-id'))">Riprogramma</button>
+                </div>
+                <div>
+                    <button class="btn btn-secondary btn-sm" id="btnSkip" onclick="KonaCD.apriSkip(false)" style="display:none">Motivo di esclusione</button>
+                    <button class="btn btn-danger btn-sm" id="btnBlacklist" onclick="KonaCD.segnalaBlacklist()" style="display:none">Segnala in blacklist</button>
+                </div>
+            </div>
+
+            <div class="kona-card">
+                <div class="kona-task-tipo" style="margin-bottom:8px">KONA - suggerimento operativo</div>
+                <div class="form-group" style="display:flex;gap:8px">
+                    <input type="text" id="konaKonaInput" class="form-control" placeholder="Cosa hai risposto finora (facoltativo)...">
+                    <button class="btn btn-primary" onclick="KonaCD.suggerisci()">Suggerisci</button>
+                </div>
+                <div style="margin-top:8px">
+                    <span id="konaKonaLead" style="font-size:12px;color:var(--text-secondary)"></span>
+                    <div class="kona-kona-out" id="konaKonaOut" style="margin-top:6px"></div>
+                </div>
+                <div style="margin-top:10px">
+                    <button class="btn btn-secondary btn-sm" onclick="KonaCD.caricaSlot()">Fasce libere calendario (solo slot, mai dettagli privati)</button>
+                    <div class="kona-slot-out" id="konaSlotOut"></div>
+                </div>
+            </div>
+
+            <div class="kona-card">
+                <div class="kona-task-tipo" style="margin-bottom:8px">Modalita' Consumer manuale</div>
+                <div class="kona-card-sub" style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">
+                    KONA dirige la sessione e raccoglie metriche ma NON propone lead Consumer:
+                    inserisci i contatti da lista cartacea con il flusso corrente (Registra Chiamata / codice fiscale).
+                </div>
+                <div class="kona-consumer-opt">
+                    <button class="btn btn-secondary btn-sm" onclick="KonaCD.selezionaModalitaConsumer('telefoni_omaggio')">Telefoni omaggio</button>
+                    <button class="btn btn-secondary btn-sm" onclick="KonaCD.selezionaModalitaConsumer('fibra_fwa')">Fibra/FWA</button>
+                </div>
+            </div>
+
+            <div class="kona-card">
+                <div class="kona-task-tipo" style="margin-bottom:8px">Piano Business</div>
+                <div class="kona-piano-out" id="konaPianoOut"></div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modale skip -->
+<div class="modal-overlay hidden" id="modalSkip">
+    <div class="modal" style="max-width:480px">
+        <div class="modal-header">
+            <h3 class="modal-title">Motivo di esclusione</h3>
+            <button class="modal-close" onclick="KonaCD.chiudiSkip()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Motivo</label>
+                <select id="skipReason" class="form-control" onchange="KonaCD.toggleSpiegazioneSkip()"></select>
+            </div>
+            <div class="form-group" id="skipSpiegazioneBox" style="display:none">
+                <label>Spiegazione (obbligatoria per "Altro")</label>
+                <textarea id="skipSpiegazioneInput" class="form-control" rows="3" placeholder="Descrivi il motivo..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="KonaCD.chiudiSkip()">Annulla</button>
+            <button class="btn btn-primary" onclick="KonaCD.confermaSkip()">Conferma</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script>
+    // MiroxApi legge la sessione da window.db (client Supabase condiviso).
+    if (window.supabase) { window.db = db; }
+</script>
+<script src="../../js/cc-header.js"></script>
+<script src="../../js/mirox-api.js"></script>
+<script src="../../js/mirox-ui.js"></script>
+<script src="js/kona-call-director.js"></script>
+</body>
+</html>

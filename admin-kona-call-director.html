@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin - KONA Call Director - Mirox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #FF6600; --primary-dark: #E55A00; --primary-light: #FF8533;
+    --primary-bg: #FFF3E0; --text: #0A2540; --text-secondary: #697386;
+    --border: #E3E8EE; --bg: #F6F9FC; --bg-card: #ffffff;
+    --success: #16a34a; --danger: #dc2626; --warn: #ca8a04;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--text); background: var(--bg); min-height: 100vh;
+    display: flex; flex-direction: column; font-size: 13px;
+  }
+  .topbar {
+    background: #fff; border-bottom: 1px solid var(--border); padding: 6px 36px;
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar-left { display: flex; align-items: center; justify-self: start; gap: 12px; }
+  .topbar-center { display: flex; justify-content: center; justify-self: center; }
+  .topbar-actions { justify-self: end; display: flex; align-items: center; gap: 12px; }
+  .back-button {
+    display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+    color: var(--text); font-weight: 600; font-size: 13px; padding: 6px 10px;
+    border-radius: 8px; background: var(--primary-bg);
+  }
+  .topbar-logo img { height: 26px; }
+  .user-chip { display: flex; align-items: center; gap: 8px; }
+  .user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+  .btn-logout {
+    background: none; border: 1px solid var(--border); color: var(--text-secondary);
+    padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  #mainContent { max-width: 960px; margin: 0 auto; padding: 28px 36px 60px; width: 100%; }
+  .hero h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+  .hero h1 span { color: var(--primary); }
+  .hero p { color: var(--text-secondary); margin-top: 4px; }
+  .content { margin-top: 22px; display: flex; flex-direction: column; gap: 18px; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+  .card h2 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .card-sub { color: var(--text-secondary); font-size: 12px; margin-bottom: 14px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+  .form-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .03em; }
+  .form-field input, .form-field select {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #fff; color: var(--text);
+  }
+  .switch-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border-light, #EEF3F8); }
+  .switch-row:last-child { border-bottom: none; }
+  .switch-label b { font-size: 13px; }
+  .switch-label small { display: block; color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+  .switch { position: relative; width: 40px; height: 22px; display: inline-block; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider { position: absolute; cursor: pointer; inset: 0; background: #CBD5E1; border-radius: 22px; transition: .2s; }
+  .slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+  input:checked + .slider { background: var(--success); }
+  input:checked + .slider:before { transform: translateX(18px); }
+  .btn { border: none; padding: 9px 16px; border-radius: 9px; font-weight: 600; font-size: 13px; cursor: pointer; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-secondary { background: var(--primary-bg); color: var(--primary-dark); }
+  .btn-danger { background: #FEE2E2; color: var(--danger); }
+  .op-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-light, #EEF3F8); }
+  .op-name { font-weight: 600; }
+  .op-meta { color: var(--text-secondary); font-size: 12px; }
+  .empty { color: var(--text-secondary); padding: 12px 0; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .badge-ok { background: #DCFCE7; color: #15803D; }
+  .badge-off { background: #F1F5F9; color: #64748B; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+</style>
+<link rel="stylesheet" href="css/admin-shell.css">
+<script src="js/mirox-safe.js"></script>
+<script src="js/admin-shell.js" defer></script>
+</head>
+<body class="mx-admin-shell">
+<div class="topbar">
+  <div class="topbar-left">
+    <a href="admin.html" class="back-button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      Admin
+    </a>
+  </div>
+  <div class="topbar-center"><div class="topbar-logo"><img src="assets/logo.png" alt="Mirox"></div></div>
+  <div class="topbar-actions">
+    <div class="user-chip">
+      <div class="user-avatar" id="userAvatar">A</div>
+      <div class="user-name" id="userName">...</div>
+    </div>
+    <button class="btn-logout" id="btnLogout">Esci</button>
+  </div>
+</div>
+
+<div id="mainContent" style="display:none">
+  <div class="hero">
+    <h1>KONA <span>Call Director</span></h1>
+    <p>Interruttori di sicurezza, abilitazione operatori, configurazione e calendario Google</p>
+  </div>
+  <div class="content">
+
+    <div class="card">
+      <h2>Stato globale</h2>
+      <div class="card-sub">KONA nasce disattivato e resta osservazione per le prime due settimane.</div>
+      <div class="switch-row">
+        <div class="switch-label"><b>Attivo globalmente</b><small>Interruttore principale di sicurezza</small></div>
+        <label class="switch"><input type="checkbox" id="swGlobale"><span class="slider"></span></label>
+      </div>
+      <div class="switch-row">
+        <div class="switch-label"><b>Modalita' osservazione</b><small>Nessun giudizio negativo nelle prime due settimane</small></div>
+        <label class="switch"><input type="checkbox" id="swOsservazione"><span class="slider"></span></label>
+      </div>
+      <div class="row">
+        <span id="budgetBadge" class="badge badge-off">Budget: -</span>
+        <button class="btn btn-danger" id="btnSospendi">Sospensione immediata</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Google Calendar</h2>
+      <div class="card-sub">Connessione OAuth admin: il token resta cifrato lato server. Il browser riceve solo slot pre-calcolati.</div>
+      <div class="row">
+        <span id="googleBadge" class="badge badge-off">Non collegato</span>
+        <button class="btn btn-primary" id="btnGoogleConnetti">Collega calendario</button>
+        <button class="btn btn-danger" id="btnGoogleDisconnetti">Rimuovi collegamento</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Operatori abilitati</h2>
+      <div class="card-sub">Solo i profili abilitati possono usare KONA Call Director (un contatto alla volta).</div>
+      <div id="operatoriWrap"><div class="empty">Caricamento...</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Configurazione</h2>
+      <div class="card-sub">Budget OpenAI, riserve, orari operativi, tentativi, conferme e retention.</div>
+      <div class="form-grid" id="configGrid"></div>
+      <div class="row"><button class="btn btn-primary" id="btnSalvaConfig">Salva configurazione</button></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="accessDenied" class="access-denied" style="display:none">
+  <h1>Accesso negato</h1>
+  <p>Questa area e' riservata agli amministratori.</p>
+  <a href="dashboard.html" class="back-button">Torna alla dashboard</a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/mirox-ui.js"></script>
+<script src="js/mirox-api.js"></script>
+<script>
+(function () {
+  'use strict';
+  const ADMIN = '/.netlify/functions/kona-call-director-admin';
+  const GOOGLE = '/.netlify/functions/kona-call-director-google';
+
+  let State = { config: {}, operatori: [] };
+
+  async function api(url, opts) {
+    const res = await window.MiroxApi.fetch(url, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ('Errore ' + res.status));
+    return data;
+  }
+
+  function esc(s) {
+    return window.MiroxSafe ? window.MiroxSafe.escapeHtml(String(s == null ? '' : s)) : String(s == null ? '' : s);
+  }
+
+  async function boot() {
+    const profilo = await Auth.richiediAuth();
+    if (!profilo) return;
+    document.getElementById('userName').textContent = profilo.nome || profilo.email || '';
+    document.getElementById('userAvatar').textContent = String(profilo.nome || 'A').trim().charAt(0).toUpperCase();
+    document.getElementById('btnLogout').addEventListener('click', () => Auth.logout());
+    if (profilo.ruolo !== 'admin') {
+      document.getElementById('accessDenied').style.display = 'flex';
+      return;
+    }
+    document.getElementById('mainContent').style.display = 'block';
+    await loadStato();
+    await loadGoogle();
+  }
+
+  async function loadStato() {
+    const res = await api(ADMIN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'stato' }) });
+    State = { config: res.config || {}, operatori: res.operatori || [] };
+    document.getElementById('swGlobale').checked = !!res.attivo_globale;
+    document.getElementById('swOsservazione').checked = !!res.modalita_osservazione;
+    const b = res.budget || {};
+    document.getElementById('budgetBadge').textContent = 'Budget ' + b.mese + ': ' + Number(b.speso || 0).toFixed(2) + ' / ' + Number(b.budget || 0).toFixed(2) + ' euro';
+    document.getElementById('budgetBadge').className = 'badge ' + (b.rimasto > 0 ? 'badge-ok' : 'badge-off');
+    renderOperatori();
+    renderConfig();
+  }
+
+  function renderOperatori() {
+    const wrap = document.getElementById('operatoriWrap');
+    wrap.textContent = '';
+    if (!State.operatori.length) { wrap.innerHTML = '<div class="empty">Nessun operatore.</div>'; return; }
+    State.operatori.forEach((op) => {
+      const row = document.createElement('div');
+      row.className = 'op-row';
+      const info = document.createElement('div');
+      info.innerHTML = '<div class="op-name">' + esc(op.nome) + '</div><div class="op-meta">' + (op.attivo_crm ? 'attivo' : 'disabilitato') + ' | ultimo task: ' + (op.ultimo_task_at ? new Date(op.ultimo_task_at).toLocaleString('it-IT') : 'mai') + '</div>';
+      const sw = document.createElement('label');
+      sw.className = 'switch';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = !!op.abilitato;
+      input.addEventListener('change', () => setAbilitato(op.profilo_id, input.checked));
+      sw.appendChild(input);
+      const slider = document.createElement('span');
+      slider.className = 'slider';
+      sw.appendChild(slider);
+      row.appendChild(info);
+      row.appendChild(sw);
+      wrap.appendChild(row);
+    });
+  }
+
+  async function setAbilitato(profiloId, abilitato) {
+    try {
+      await api(ADMIN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'abilita_profilo', profilo_id: profiloId, abilitato: abilitato }) });
+      window.MiroxUI.toast(abilitato ? 'Operatore abilitato' : 'Operatore disabilitato', 'success');
+    } catch (e) {
+      window.MiroxUI.alert('Errore: ' + e.message);
+      loadStato();
+    }
+  }
+
+  const CONFIG_FIELDS = [
+    { key: 'budget_mensile_eur', label: 'Budget mensile (euro)', type: 'number' },
+    { key: 'riserva_arricchimento_eur', label: 'Riserva arricchimento (euro)', type: 'number' },
+    { key: 'riserva_dialogo_eur', label: 'Riserva dialogo (euro)', type: 'number' },
+    { key: 'modello_openai', label: 'Modello OpenAI', type: 'text' },
+    { key: 'tentativi_massimi', label: 'Tentativi normali', type: 'number' },
+    { key: 'durata_appuntamento_minuti', label: 'Durata appuntamento (min)', type: 'number' },
+    { key: 'distanza_km_indicativa', label: 'Distanza indicativa (km)', type: 'number' },
+    { key: 'orario_mattina.inizio', label: 'Inizio mattina', type: 'text' },
+    { key: 'orario_mattina.fine', label: 'Fine mattina', type: 'text' },
+    { key: 'orario_pomeriggio.inizio', label: 'Inizio pomeriggio', type: 'text' },
+    { key: 'orario_pomeriggio.fine', label: 'Fine pomeriggio', type: 'text' },
+    { key: 'conferme_ore', label: 'Ore conferme (JSON)', type: 'text' },
+    { key: 'orario_stop_business', label: 'Stop Business (HH:MM)', type: 'text' },
+    { key: 'ferie', label: 'Ferie (JSON array date)', type: 'text' },
+    { key: 'soglia_affidabilita_arricchimento', label: 'Soglia affidabilita' + ' arricchimento', type: 'number' },
+    { key: 'max_chiamate_openai_ora', label: 'Max chiamate OpenAI/ora', type: 'number' },
+    { key: 'localita_riferimento', label: 'Localita' + ' riferimento', type: 'text' },
+    { key: 'localita_partenza', label: 'Localita' + ' partenza', type: 'text' },
+    { key: 'lead_notte_obiettivo', label: 'Lead notte obiettivo', type: 'number' },
+    { key: 'soglia_lead_minime', label: 'Soglia lead minime', type: 'number' },
+    { key: 'retention_arricchimenti_giorni', label: 'Retention arricchimenti (gg)', type: 'number' },
+    { key: 'retention_attivita_giorni', label: 'Retention attivita' + ' (gg)', type: 'number' },
+    { key: 'retention_aggregati_giorni', label: 'Retention aggregati (gg)', type: 'number' }
+  ];
+
+  function renderConfig() {
+    const grid = document.getElementById('configGrid');
+    grid.textContent = '';
+    CONFIG_FIELDS.forEach((f) => {
+      const div = document.createElement('div');
+      div.className = 'form-field';
+      const label = document.createElement('label');
+      label.textContent = f.label;
+      const input = document.createElement('input');
+      input.type = f.type === 'number' ? 'number' : 'text';
+      input.dataset.key = f.key;
+      input.value = getNested(State.config, f.key);
+      if (f.key === 'conferme_ore' && Array.isArray(State.config.conferme_ore)) {
+        input.value = State.config.conferme_ore.join(',');
+      }
+      div.appendChild(label);
+      div.appendChild(input);
+      grid.appendChild(div);
+    });
+  }
+
+  function getNested(obj, path) {
+    return path.split('.').reduce((o, k) => (o && o[k] !== undefined ? o[k] : ''), obj);
+  }
+
+  async function salvaConfig() {
+    const body = { action: 'config' };
+    document.querySelectorAll('#configGrid input').forEach((input) => {
+      const key = input.dataset.key;
+      if (!key) return;
+      if (key === 'conferme_ore') {
+        const list = input.value.split(',').map((s) => s.trim()).filter(Boolean);
+        body[key] = list;
+        return;
+      }
+      if (key.startsWith('orario_')) {
+        const [grp, sub] = key.split('.');
+        if (!body[grp]) body[grp] = {};
+        body[grp][sub] = input.value;
+        return;
+      }
+      body[key] = input.type === 'number' ? Number(input.value) : input.value;
+    });
+    try {
+      const res = await api(ADMIN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      window.MiroxUI.toast('Configurazione salvata (' + res.aggiornati.length + ' campi)', 'success');
+      await loadStato();
+    } catch (e) {
+      window.MiroxUI.alert('Errore: ' + e.message);
+    }
+  }
+
+  async function sospendi() {
+    const ok = await window.MiroxUI.confirm('Sospendere immediatamente KONA Call Director (globale off + task in pausa)?');
+    if (!ok) return;
+    await api(ADMIN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sospensione' }) });
+    window.MiroxUI.toast('Sospeso', 'success');
+    await loadStato();
+  }
+
+  async function setGlobale(checked) {
+    await api(ADMIN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle_globale', attivo: checked }) });
+    window.MiroxUI.toast(checked ? 'KONA attivo' : 'KONA disattivato', 'success');
+  }
+
+  async function setOsservazione(checked) {
+    await api(ADMIN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'modalita_osservazione', attivo: checked }) });
+    window.MiroxUI.toast('Modalita' + ' osservazione ' + (checked ? 'attiva' : 'disattivata'), 'success');
+  }
+
+  async function loadGoogle() {
+    try {
+      const res = await api(GOOGLE, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'stato_connessione' }) });
+      const badge = document.getElementById('googleBadge');
+      badge.textContent = res.collegato ? 'Collegato' : 'Non collegato';
+      badge.className = 'badge ' + (res.collegato ? 'badge-ok' : 'badge-off');
+      document.getElementById('btnGoogleDisconnetti').style.display = res.collegato ? '' : 'none';
+    } catch (e) { /* silenzioso */ }
+  }
+
+  async function connettiGoogle() {
+    try {
+      const res = await api(GOOGLE, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'connetti' }) });
+      if (res.auth_url) window.location.href = res.auth_url;
+    } catch (e) {
+      window.MiroxUI.alert('Errore: ' + e.message);
+    }
+  }
+
+  async function disconnettiGoogle() {
+    const ok = await window.MiroxUI.confirm('Rimuovere il collegamento Google Calendar?');
+    if (!ok) return;
+    await api(GOOGLE, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'disconnetti' }) });
+    window.MiroxUI.toast('Collegamento rimosso', 'success');
+    loadGoogle();
+  }
+
+  document.getElementById('swGlobale').addEventListener('change', (e) => setGlobale(e.target.checked));
+  document.getElementById('swOsservazione').addEventListener('change', (e) => setOsservazione(e.target.checked));
+  document.getElementById('btnSospendi').addEventListener('click', sospendi);
+  document.getElementById('btnSalvaConfig').addEventListener('click', salvaConfig);
+  document.getElementById('btnGoogleConnetti').addEventListener('click', connettiGoogle);
+  document.getElementById('btnGoogleDisconnetti').addEventListener('click', disconnettiGoogle);
+
+  document.addEventListener('DOMContentLoaded', boot);
+})();
+</script>
+</body>
+</html>

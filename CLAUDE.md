@@ -707,6 +707,44 @@ Guardian e' attivo sul production `mirox-crm.it` con Supabase `lbgwamhjkjjfwgusa
 - `netlify/functions/_lib/mailer.js`: i link CTA delle email operative vengono normalizzati a `https://www.mirox-crm.it`.
 
 ---
+
+## KONA Call Director (dal 2026-08-27, migration 072 — NON applicata)
+
+Modulo **server-only** che coordina la giornata dell'operatore autorizzato del Call Center: un contatto alla volta, priorita' note, conferme appuntamenti Business del giorno successivo, arricchimento notturno dei lead Business e pianificazione con Mirko via bot Telegram separato. **Non ancora attivo**: migration `072` da applicare solo dopo la review DeepSeek Pro e l'ok esplicito; nessuna env var production configurata. Setup completo in `docs/KONA_CALL_DIRECTOR.md`.
+
+### Regole fisse
+
+- **Nessuna funzionalita' AI blocca il Call Center manuale**: tutto e' additivo, il motore di priorita' e' deterministico.
+- **Mai dati identificativi dei clienti su Telegram** (nomi, CF/PIVA, telefoni, indirizzi). Solo aggregati.
+- **Mai dati Consumer identificativi a OpenAI**. L'arricchimento web usa solo dati pubblici Business gia' in Mirox.
+- **Nessun segreto nel frontend**: OAuth Google, refresh token cifrato (chiave env separata), OpenAI e service role restano lato server.
+- **Nessun UUID hardcodato**: Isabella/Mirko derivati da `kona_call_director_profili.abilitato` e `KONA_CALL_DIRECTOR_OWNER_CHAT_ID`.
+- **Mai 50 ricerche sequenziali in una funzione**: job a lease (piccolo batch per lead).
+- **Nessuna coordinata inventata**: `kona_call_director_comuni` va popolata da un dataset autorevole; finche' e' vuota le distanze sono `null` (banda "unknown").
+- **Nessun prezzo hardcodato**: stime in `kona_call_director_config.prezzi_openai` (seed configurabile).
+
+### Priorita' contatti (motore deterministico)
+
+1. conferma appuntamenti Business di domani (finestre 09:00/11:30/15:30/18:00, top of queue; dopo 4 non risposti **nessun annullamento automatico** + notifica Telegram senza PII);
+2. ricontatti programmati; 3. auto non risposti; 4. "Passa a Cerea"; 5. "Passa in negozio"; 6. campagne urgenti (`pinned`); 7. sessione Business.
+
+### Tabelle (prefisso dedicato `kona_call_director_*`, 22 tabelle server-only)
+
+`config` (id=1, nasce spento), `profili` (abilitazione per profilo), `task` (lease "un contatto alla volta", indice unico parziale su `stato='attivo'`), `task_eventi`, `sessioni`, `esclusioni`, `conferme`, `appuntamenti_business` (sync Google), `google_token` (cifrato), `budget_log`, `telegram` (stato conversazione), `notifiche` (outbox), `jobs` (lease + backoff), `arricchimenti` + `arricchimento_fonti`, `comuni` (FK `mirox_comuni_istat`), `esecuzioni_programmate` (idempotenza data+evento), `piani`, `budget_riserve` (prenotazioni atomiche budget), `lead_telefoni` (numeri multipli), `oauth_stati` (nonce single-use), `audit`. RPC additive: `kona_cd_try_advisory_lock` e `kona_cd_prenota_slot_v1` (lock + ricontrollo + INSERT atomico). Nessun SECURITY DEFINER.
+
+### Cron
+
+`kona-call-director-dispatcher` (`*/5 * * * *`, idempotente per data+evento, orologio Europe/Rome DST-safe). Sequenza: 02:00 arricchimento, 03:30 retention, 08:00 reminder mattina, 08:30 piano default, 19:10 report sera, 20:00 reminder sera. Ogni tick materializza task nelle finestre conferme/orario operativo, processa job a lease e la coda notifiche.
+
+### Functions e pagine
+
+Functions: `kona-call-director-{dispatcher,task,status,admin,dialog,plan,google}` + `kona-cc-google-callback` + `kona-call-director-telegram-webhook`. Pagine: `moduli/call-center/kona-call-director.html` (operatore, tab "KONA CD" in `js/cc-header.js` sempre visibile ai CC user; gate per-profilo server-side) e `admin-kona-call-director.html` (pannello Admin, registrata in `js/admin-shell.js`).
+
+### Env vars
+
+`KONA_CALL_DIRECTOR_ENABLED`, `KONA_CALL_DIRECTOR_OPENAI_API_KEY` (fallback `OPENAI_API_KEY`), `KONA_CALL_DIRECTOR_OPENAI_MODEL`, `KONA_CALL_DIRECTOR_GOOGLE_CLIENT_ID`/`_SECRET`/`_REDIRECT_URI`, `KONA_CALL_DIRECTOR_GOOGLE_TOKEN_KEY` (64 hex, cifratura token), `KONA_CALL_DIRECTOR_TELEGRAM_BOT_TOKEN`, `KONA_CALL_DIRECTOR_TELEGRAM_WEBHOOK_SECRET`, `KONA_CALL_DIRECTOR_OWNER_CHAT_ID`, `KONA_CALL_DIRECTOR_CRON_SECRET` (protezione cron), `KONA_CALL_DIRECTOR_STAGING_RUN` (opt-in cron staging). Dettagli in `docs/KONA_CALL_DIRECTOR.md`. Nessun valore reale documentato.
+
+---
 ## Sistema consensi privacy GDPR (dal 2026-06-26)
 
 Mirox archivia nel CRM di proprietà/gestione Kona Tech dati e documenti consegnati per la specifica pratica. Prima dell'invio il wizard registra la presa visione dell'informativa ex artt. 13-14 GDPR e, separatamente, l'eventuale consenso facoltativo ai ricontatti promozionali. I contatti di servizio sulla pratica specifica possono avvenire tramite chiamata, WhatsApp o email e non dipendono dal flag marketing. Il modulo non disciplina il contratto WindTre/altro fornitore né sostituisce la relativa informativa.
@@ -802,6 +840,7 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 
 - **Edge Functions Supabase**: non in uso, non aggiungerne senza discutere prima
 - **Guardian prima versione**: analizza soltanto i dati della richiesta; non ha accesso al repository, non esegue Codex, non prepara patch e non effettua deploy. Ogni sviluppo successivo passa prima da Netlify + Supabase staging separati. Sentry e worker Codex vengono dopo la prova reale del flusso.
+- **KONA Call Director (dal 2026-08-27)**: modulo completo lato codice ma **NON ATTIVO** — migration `072` non applicata, nessun webhook/OAuth/env production configurato. Non "sistemare" le scelte apparentemente strane senza leggere la sezione dedicata + `docs/KONA_CALL_DIRECTOR.md`. Le distanze sono `null` finche' `kona_call_director_comuni` non viene popolata da un dataset autorevole (mai inventare coordinate). La tab "KONA CD" nel `cc-header` e' volutamente sempre visibile ai CC user: e' la pagina che applica il gate per-profilo (nessun cambio ai permessi CC condivisi).
 - **Cluster `Turista`**: è un cluster di vendita, non un cluster anagrafico condiviso. `garantisci-anagrafica.js` e `crea-vendita-pratica-carrello.js` lo accettano dal wizard, mantengono `Turista` su pratica/contratti, salvano `anagrafica.cluster='Consumer'` e non richiedono email.
 - **File SQL in `/database/`**: parziali, NON riflettono lo stato attuale del DB (vedi `database/README.md`)
 - **Modulo `simulatore_protecta.html`**: ~960 KB, molto pesante perché contiene asset embedded. Modificare con cautela.

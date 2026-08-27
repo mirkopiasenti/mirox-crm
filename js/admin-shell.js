@@ -20,6 +20,7 @@
     'admin-call-center-config.html': { title: 'Configurazione Call Center', key: 'call-center' },
     'admin-vendita-config.html': { title: 'Catalogo Vendita', key: 'vendita' },
     'admin-gare.html': { title: 'Gare & Avanzamento', key: 'gare' },
+    'admin-kona-call-director.html': { title: 'KONA Call Director', key: 'kona-cd' },
     'admin-kpi-vendita-consumer.html': { title: 'Vendita - Consumer', key: 'kpi-vendita-consumer' },
     'admin-kpi-vendita-business.html': { title: 'Vendita - Business', key: 'kpi-vendita-business' }
   };
@@ -58,6 +59,7 @@
                 navLink('admin-call-center-config.html', 'call-center', 'Configurazione Call Center', icons.phone),
                 navLink('admin-vendita-config.html', 'vendita', 'Catalogo Vendita', icons.package),
                 navLink('admin-gare.html', 'gare', 'Gare & Avanzamento', icons.trophy),
+                navLink('admin-kona-call-director.html', 'kona-cd', 'KONA Call Director', icons.chart),
               '</div></div>',
             '</div>',
           '</section>',
