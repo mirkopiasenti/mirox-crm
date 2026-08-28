@@ -27,6 +27,11 @@ e' stata rimossa, quindi la sessione Auth test resta valida entrando dal
 dashboard staging. Anche il caricamento profilo usa esplicitamente quel client
 condiviso (`db`), evitando di invocare direttamente il namespace della libreria.
 
+Dal 2026-08-29 il collaudo controllato e' attivo esclusivamente nello staging:
+i due env switch e il toggle globale sono `true`, un solo profilo test e'
+abilitato, la modalità osservazione resta `true` e Google Calendar e' collegato
+con ultimo sync `ok`. Production resta invariata.
+
 ## Funzione operativa
 
 KONA Call Director coordina l'operatore autorizzato del Call Center con un

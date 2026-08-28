@@ -608,7 +608,7 @@ Il bottone "Admin" dentro `moduli/upload-contratti-vendita.html` è stato **rimo
 - I permessi granulari Vendita/Post-Vendita NON esistono ancora: tutte queste pagine sono accessibili a chiunque sia loggato e attivo. Quando serviranno, estendere la mappa `PAGINE_LABELS` in `admin-utenti.html`
 
 ---
-## KONA Call Director (staging isolato pubblicato, non attivo — 2026-08-28)
+## KONA Call Director (staging isolato attivo in osservazione — 2026-08-29)
 
 KONA Call Director vive nelle tabelle server-only `kona_call_director_*`, nelle
 function `kona-call-director-*` e nelle due pagine operatore/admin. Prima di
@@ -616,6 +616,11 @@ modificarlo o attivarlo leggere `docs/KONA_CALL_DIRECTOR.md` e la migration
 `database/072_kona_call_director.sql`.
 
 Regole permanenti:
+
+- dal 2026-08-29 il collaudo e' attivo soltanto su
+  `mirox-kona-call-director-test.netlify.app`: entrambi gli env switch e il
+  toggle globale sono `true`, un solo profilo test e' abilitato e la modalità
+  osservazione resta `true`; Google Calendar e' collegato con sync `ok`;
 
 - l'attivazione richiede insieme `KONA_CALL_DIRECTOR_ENABLED=true`, toggle
   globale DB e profilo operatore abilitato; l'env assente deve restare spento;
