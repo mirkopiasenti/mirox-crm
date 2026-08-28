@@ -49,7 +49,7 @@ body {
   align-items: end;
 }
 .filters-card.verificati-filters {
-  grid-template-columns: minmax(190px, 1fr) minmax(230px, 1fr) 160px 160px 110px;
+  grid-template-columns: minmax(180px, 1fr) minmax(190px, 1fr) 140px 140px 140px 105px;
 }
 @media (max-width: 800px) { .filters-card { grid-template-columns: 1fr; } }
 @media (max-width: 1100px) and (min-width: 801px) {
@@ -278,6 +278,15 @@ body {
       <select id="filterCategoriaVerificati"><option value="">Tutte</option></select>
     </div>
     <div>
+      <label for="filterClusterVerificati">Cluster</label>
+      <select id="filterClusterVerificati">
+        <option value="">Tutti</option>
+        <option value="Consumer">Consumer</option>
+        <option value="Business">Business</option>
+        <option value="Turista">Turista</option>
+      </select>
+    </div>
+    <div>
       <label>Giorno</label>
       <input type="date" id="filterDataVerificati">
     </div>
@@ -305,6 +314,7 @@ const VCState = {
   categorie: [],
   filtroCatDaVerificare: '',
   filtroCatVerificati: '',
+  filtroClusterVerificati: '',
   filtroDataDaVerificare: '',
   filtroDataVerificati: '',
   searchDaVerificare: '',
@@ -345,6 +355,9 @@ function toRomeDateFilterValue(iso) {
 }
 function normalizeImei(value) {
   return String(value || '').replace(/\s+/g, '');
+}
+function getContrattoCluster(contratto) {
+  return String(contratto.cluster_cliente || (contratto.anagrafica && contratto.anagrafica.cluster) || '').trim();
 }
 // Converte un ISO timestamptz nel formato richiesto da <input type="datetime-local">
 // (YYYY-MM-DDTHH:mm) usando l'ora locale del browser (Europe/Rome).
@@ -506,9 +519,11 @@ function applicaFiltri(items, stateKey) {
     ? normalizeImei(VCState.searchImeiVerificati)
     : '';
   const cat = VCState[catKey] || '';
+  const cluster = stateKey === 'verificati' ? VCState.filtroClusterVerificati : '';
   const day = VCState[dateKey] || '';
   return items.filter(c => {
     if (cat && c.categoria_id !== cat) return false;
+    if (cluster && getContrattoCluster(c) !== cluster) return false;
     if (day && toRomeDateFilterValue(c.data_contratto) !== day) return false;
     const ana = c.anagrafica || {};
     if (imeiQuery && normalizeImei(c.imei) !== imeiQuery) return false;
@@ -550,7 +565,7 @@ function renderListaContratti(stateKey) {
     const operatoreNome = (c.operatore && c.operatore.nome) || '-';
     const offertaTxt = c.nome_offerta_snapshot || '-';
     const categoriaTxt = c.categoria_snapshot || '-';
-    const cluster = ana.cluster || c.cluster_cliente || '-';
+    const cluster = getContrattoCluster(c) || '-';
     // Solo per contratti Fisso mostro sotto l'offerta un chip con la convergenza scelta,
     // cosi' l'operatore la vede a colpo d'occhio senza dover aprire il popup dettagli.
     const isFisso = String(categoriaTxt).toLowerCase().includes('fisso');
@@ -1577,6 +1592,10 @@ document.getElementById('filterCategoriaDaVerificare').addEventListener('change'
 });
 document.getElementById('filterCategoriaVerificati').addEventListener('change', (e) => {
   VCState.filtroCatVerificati = e.target.value;
+  renderListaContratti('verificati');
+});
+document.getElementById('filterClusterVerificati').addEventListener('change', (e) => {
+  VCState.filtroClusterVerificati = e.target.value;
   renderListaContratti('verificati');
 });
 document.getElementById('filterDataDaVerificare').addEventListener('input', (e) => {
