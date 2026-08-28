@@ -1054,6 +1054,15 @@ test('salvaPiano e pianoDi', async () => {
 // Frontend: ID HTML univoci, budget toFixed guard
 // =============================================================================
 
+test('prossimo contatto restituisce il task gia attivo senza svuotare la UI', () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-task.js'),
+    'utf8'
+  );
+  assert.match(source, /esito\.reason === 'task_attivo'/);
+  assert.match(source, /task: corrente\.dettaglio, motivo: 'task_attivo'/);
+});
+
 test('operatore: nessun ID HTML duplicato e niente "Isabella"/script telefonici', () => {
   const html = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/kona-call-director.html'), 'utf8');
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);

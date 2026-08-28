@@ -636,6 +636,8 @@ Regole permanenti:
   riga `profili` per completare il login CRM;
 - le chiamate Business standard richiedono almeno una categoria esplicitamente
   approvata nel piano; nessuna categoria significa nessuna chiamata standard;
+- `Prossimo contatto` e' idempotente: se esiste gia' un task attivo restituisce
+  quel task, senza svuotare la UI o materializzarne un secondo;
 - credenziali, integrazioni e deploy vanno validati prima sul test dedicato;
 - non inviare PII a Telegram, dati Consumer a OpenAI o dettagli privati del
   calendario Google all'operatore;

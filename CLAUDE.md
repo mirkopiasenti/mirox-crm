@@ -716,7 +716,7 @@ Guardian e' attivo sul production `mirox-crm.it` con Supabase `lbgwamhjkjjfwgusa
 
 ## KONA Call Director (dal 2026-08-27; staging isolato attivo in osservazione)
 
-Modulo **server-only** per il Call Center: un contatto alla volta, conferme Business, arricchimento notturno e pianificazione Telegram. Codice verificato localmente (73/73 test KONA, 190/190 suite completa). Il Supabase test dedicato `Mirox CRM - Test KONA Call Director` (`yyorullxmdxhnunsfwwa`, `eu-west-3`) contiene bootstrap minimo senza dati production, migration `072` e seed fail-closed. Dal 2026-08-29 il sito `mirox-kona-call-director-test.netlify.app` esegue il collaudo controllato con entrambi gli interruttori env e toggle globale a `true`, un solo profilo test abilitato, modalità osservazione `true` e Google Calendar collegato con sync `ok`. Production e' invariata.
+Modulo **server-only** per il Call Center: un contatto alla volta, conferme Business, arricchimento notturno e pianificazione Telegram. Codice verificato localmente (74/74 test KONA, 191/191 suite completa). Il Supabase test dedicato `Mirox CRM - Test KONA Call Director` (`yyorullxmdxhnunsfwwa`, `eu-west-3`) contiene bootstrap minimo senza dati production, migration `072` e seed fail-closed. Dal 2026-08-29 il sito `mirox-kona-call-director-test.netlify.app` esegue il collaudo controllato con entrambi gli interruttori env e toggle globale a `true`, un solo profilo test abilitato, modalità osservazione `true` e Google Calendar collegato con sync `ok`. Production e' invariata.
 
 ### Regole fisse
 

@@ -3,8 +3,8 @@
 ## Stato verificato
 
 Il modulo e' completo lato codice ed e' stato riesaminato localmente dopo le
-correzioni di chiusura. La suite dedicata passa 73/73 test; la suite completa
-del CRM passa 190/190 test. La build statica e i controlli di sintassi sono
+correzioni di chiusura. La suite dedicata passa 74/74 test; la suite completa
+del CRM passa 191/191 test. La build statica e i controlli di sintassi sono
 verdi.
 
 Il Supabase test dedicato `Mirox CRM - Test KONA Call Director`
@@ -156,6 +156,8 @@ Il collaudo staging deve coprire almeno:
 
 - blacklist per CF e per tutti i numeri disponibili;
 - un solo contatto attivo per operatore e sblocco dopo esito;
+- pressione ripetuta di `Prossimo contatto` restituisce lo stesso task attivo
+  senza nascondere la scheda o crearne un secondo;
 - skip motivato, contestazione una sola volta e decisione finale operatrice;
 - tre tentativi ordinari e quattro tentativi per le conferme;
 - conferma di venerdi proposta per lunedi, salvo ferie configurate;
@@ -209,7 +211,7 @@ dipendenze. Non eseguire DROP durante il normale arresto.
 
 ## Verifica locale conclusiva
 
-- `node --test tests/kona-call-director.test.js`: 73/73 pass.
-- `npm test`: 190/190 pass, inclusa build statica production.
+- `node --test tests/kona-call-director.test.js`: 74/74 pass.
+- `npm test`: 191/191 pass, inclusa build statica production.
 - Nessuna migration applicata, nessun commit, push o deploy eseguito durante
   questa chiusura.

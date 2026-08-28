@@ -47,6 +47,12 @@ exports.handler = async (event) => {
       case 'prossimo': {
         const esito = await materializeNextTask({ supabase: client, cfg, profiloId, oggi: null });
         if (!esito.ok) {
+          if (esito.reason === 'task_attivo') {
+            const corrente = await verificaTaskAttivo({ supabase: client, profiloId });
+            if (corrente.task && corrente.dettaglio) {
+              return jsonOk({ task: corrente.dettaglio, motivo: 'task_attivo' });
+            }
+          }
           return jsonOk({ task: null, motivo: esito.reason || 'nessun_candidato' });
         }
         const dettaglio = await getTaskDettaglio(client, esito.task);
