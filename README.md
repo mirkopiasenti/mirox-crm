@@ -347,6 +347,7 @@ Pagine: `moduli/call-center/kona-call-director.html` (operatore, tab "KONA CD" n
 - `moduli/verifica_contratti.html`: nel popup dettaglio contratto e' presente il tasto "Elimina definitivamente". Gli operatori lo vedono disabilitato; gli admin possono usarlo con doppia conferma. La cancellazione passa dalla function admin-only `elimina-vendita-contratto`.
 - `moduli/verifica_contratti.html`: aggiunto filtro `Giorno` nelle tab Da Verificare e Verificati per isolare i contratti caricati in una data specifica.
 - `moduli/verifica_contratti.html`: nella tab `Verificati` la barra dedicata `IMEI dispositivo` filtra per corrispondenza esatta dell'IMEI salvato sul contratto, ignorando eventuali spazi, così si può aprire la pratica corretta e consultare il PDF associato.
+- `moduli/verifica_contratti.html`: nella tab `Verificati` il filtro `Cluster` permette di isolare Consumer, Business o Turista e usa come fonte primaria `vendita_contratti.cluster_cliente`, preservando quindi il cluster Turista anche quando l'anagrafica condivisa è Consumer.
 - `moduli/verifica_contratti.html`: per i contratti Fisso il popup dettaglio mostra anche la convergenza scelta, accanto al prezzo di vendita Fisso.
 - `js/mirox-upload.js`: prima di accettare un PDF selezionato o trascinato apre un popup di anteprima con `X` per rimuovere il file e `Conferma` per mantenerlo. La regola vale per Upload Contratti, Switch SIM, Apri/Chiudi, Verifica Contratti, Segnalazioni e Dispositivo Comodato.
 - Favicon Mirox standard (`assets/favicon.png`) allineata sulle pagine HTML che ne erano prive.

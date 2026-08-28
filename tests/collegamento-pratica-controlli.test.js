@@ -54,3 +54,17 @@ test('Verificati filtra l IMEI dispositivo con corrispondenza esatta', () => {
   assert.doesNotMatch(source, /normalizeImei\(c\.imei\)[^\n]*\.includes\(imeiQuery\)/);
   assert.doesNotMatch(source, /searchEmailVerificati|E-mail dispositivo/);
 });
+
+test('Verificati filtra per cluster del contratto preservando Turista', () => {
+  const source = fs.readFileSync(
+    path.join(ROOT, 'moduli', 'verifica_contratti.html'),
+    'utf8'
+  );
+
+  assert.match(source, /id="filterClusterVerificati"/);
+  assert.match(source, /<option value="Consumer">Consumer<\/option>/);
+  assert.match(source, /<option value="Business">Business<\/option>/);
+  assert.match(source, /<option value="Turista">Turista<\/option>/);
+  assert.match(source, /contratto\.cluster_cliente \|\| \(contratto\.anagrafica && contratto\.anagrafica\.cluster\)/);
+  assert.match(source, /getContrattoCluster\(c\) !== cluster/);
+});
