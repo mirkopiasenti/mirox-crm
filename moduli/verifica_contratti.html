@@ -270,8 +270,8 @@ body {
       <input type="text" id="searchVerificati" placeholder="Ragione sociale, CF, offerta...">
     </div>
     <div>
-      <label for="searchEmailVerificati">E-mail dispositivo</label>
-      <input type="search" id="searchEmailVerificati" inputmode="email" autocomplete="off" placeholder="nome@dominio.it">
+      <label for="searchImeiVerificati">IMEI dispositivo</label>
+      <input type="search" id="searchImeiVerificati" inputmode="numeric" autocomplete="off" placeholder="IMEI completo (15 cifre)">
     </div>
     <div>
       <label>Categoria</label>
@@ -309,7 +309,7 @@ const VCState = {
   filtroDataVerificati: '',
   searchDaVerificare: '',
   searchVerificati: '',
-  searchEmailVerificati: ''
+  searchImeiVerificati: ''
 };
 
 // ============================================================
@@ -342,6 +342,9 @@ function toRomeDateFilterValue(iso) {
     return acc;
   }, {});
   return `${parts.year}-${parts.month}-${parts.day}`;
+}
+function normalizeImei(value) {
+  return String(value || '').replace(/\s+/g, '');
 }
 // Converte un ISO timestamptz nel formato richiesto da <input type="datetime-local">
 // (YYYY-MM-DDTHH:mm) usando l'ora locale del browser (Europe/Rome).
@@ -453,7 +456,7 @@ async function caricaContratti(statoControllo) {
         punteggio_offerta, punteggio_opzione, punteggio_extra, punteggio_totale,
         stato_controllo, controllato_da, controllato_at, note_controllo,
         data_contratto, created_at, updated_at,
-        anagrafica:anagrafica_id ( id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, email, provincia, comune, via, civico )
+        anagrafica:anagrafica_id ( id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, provincia, comune, via, civico )
       `)
       .eq('stato_controllo', statoControllo)
       .order('data_contratto', { ascending: false });
@@ -499,8 +502,8 @@ function applicaFiltri(items, stateKey) {
   const catKey = stateKey === 'daVerificare' ? 'filtroCatDaVerificare' : 'filtroCatVerificati';
   const dateKey = stateKey === 'daVerificare' ? 'filtroDataDaVerificare' : 'filtroDataVerificati';
   const q = (VCState[searchKey] || '').toLowerCase().trim();
-  const emailQuery = stateKey === 'verificati'
-    ? (VCState.searchEmailVerificati || '').toLowerCase().trim()
+  const imeiQuery = stateKey === 'verificati'
+    ? normalizeImei(VCState.searchImeiVerificati)
     : '';
   const cat = VCState[catKey] || '';
   const day = VCState[dateKey] || '';
@@ -508,7 +511,7 @@ function applicaFiltri(items, stateKey) {
     if (cat && c.categoria_id !== cat) return false;
     if (day && toRomeDateFilterValue(c.data_contratto) !== day) return false;
     const ana = c.anagrafica || {};
-    if (emailQuery && String(ana.email || '').toLowerCase().trim() !== emailQuery) return false;
+    if (imeiQuery && normalizeImei(c.imei) !== imeiQuery) return false;
     if (!q) return true;
     const haystack = [
       ana.ragione_sociale, ana.cf_piva, ana.nome_referente, ana.cellulare,
@@ -558,7 +561,7 @@ function renderListaContratti(stateKey) {
       <tr>
         <td><div class="cell-cliente">${escapeHtml(ana.ragione_sociale || '(senza nome)')}</div>
             <div class="cell-meta">${escapeHtml(fmtDateTime(c.data_contratto))}</div>
-            ${ana.email ? `<div class="cell-meta">${escapeHtml(ana.email)}</div>` : ''}</td>
+            ${c.imei ? `<div class="cell-meta">IMEI: ${escapeHtml(c.imei)}</div>` : ''}</td>
         <td>${escapeHtml(ana.cf_piva || '-')}</td>
         <td>${escapeHtml(operatoreNome)}</td>
         <td><span class="stato-pill ${escapeHtml(String(cluster).toLowerCase())}">${escapeHtml(cluster)}</span></td>
@@ -1564,8 +1567,8 @@ document.getElementById('searchVerificati').addEventListener('input', (e) => {
   VCState.searchVerificati = e.target.value;
   renderListaContratti('verificati');
 });
-document.getElementById('searchEmailVerificati').addEventListener('input', (e) => {
-  VCState.searchEmailVerificati = e.target.value;
+document.getElementById('searchImeiVerificati').addEventListener('input', (e) => {
+  VCState.searchImeiVerificati = e.target.value;
   renderListaContratti('verificati');
 });
 document.getElementById('filterCategoriaDaVerificare').addEventListener('change', (e) => {
