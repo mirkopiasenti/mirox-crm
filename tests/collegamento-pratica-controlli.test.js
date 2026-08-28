@@ -41,15 +41,16 @@ test('Verifica Contratti valida il deep-link e apre il contratto nella tab corre
   );
 });
 
-test('Verificati filtra l e-mail dispositivo con corrispondenza esatta', () => {
+test('Verificati filtra l IMEI dispositivo con corrispondenza esatta', () => {
   const source = fs.readFileSync(
     path.join(ROOT, 'moduli', 'verifica_contratti.html'),
     'utf8'
   );
 
-  assert.match(source, /id="searchEmailVerificati"/);
-  assert.match(source, /anagrafica:anagrafica_id \([^)]*\bemail\b[^)]*\)/);
-  assert.match(source, /VCState\.searchEmailVerificati \|\| ''\)\.toLowerCase\(\)\.trim\(\)/);
-  assert.match(source, /String\(ana\.email \|\| ''\)\.toLowerCase\(\)\.trim\(\) !== emailQuery/);
-  assert.doesNotMatch(source, /String\(ana\.email \|\| ''\)[^\n]*\.includes\(emailQuery\)/);
+  assert.match(source, /id="searchImeiVerificati"/);
+  assert.match(source, /function normalizeImei\(value\)/);
+  assert.match(source, /normalizeImei\(VCState\.searchImeiVerificati\)/);
+  assert.match(source, /normalizeImei\(c\.imei\) !== imeiQuery/);
+  assert.doesNotMatch(source, /normalizeImei\(c\.imei\)[^\n]*\.includes\(imeiQuery\)/);
+  assert.doesNotMatch(source, /searchEmailVerificati|E-mail dispositivo/);
 });
