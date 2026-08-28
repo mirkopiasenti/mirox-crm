@@ -3,8 +3,8 @@
 ## Stato verificato
 
 Il modulo e' completo lato codice ed e' stato riesaminato localmente dopo le
-correzioni di chiusura. La suite dedicata passa 72/72 test; la suite completa
-del CRM passa 187/187 test. La build statica e i controlli di sintassi sono
+correzioni di chiusura. La suite dedicata passa 73/73 test; la suite completa
+del CRM passa 189/189 test. La build statica e i controlli di sintassi sono
 verdi.
 
 Il Supabase test dedicato `Mirox CRM - Test KONA Call Director`
@@ -18,6 +18,13 @@ bootstrap e' pubblicato con le env staging, la service role protetta del solo
 Supabase test e i due interruttori KONA a `false`. L'invocazione HTTP diretta
 del dispatcher e' bloccata da Netlify con `403`.
 Production non contiene oggetti KONA Call Director e resta invariata.
+Il login staging usa una sola policy browser su `profili`: ogni utente
+autenticato puo' leggere esclusivamente la propria riga (`id=auth.uid()`);
+scritture, altre righe e tabelle KONA restano server-only.
+Le pagine Call Center caricano il client Supabase generato dalla build per
+l'ambiente corrente; la vecchia configurazione interna fissata al production
+e' stata rimossa, quindi la sessione Auth test resta valida entrando dal
+dashboard staging.
 
 ## Funzione operativa
 
@@ -196,7 +203,7 @@ dipendenze. Non eseguire DROP durante il normale arresto.
 
 ## Verifica locale conclusiva
 
-- `node --test tests/kona-call-director.test.js`: 72/72 pass.
-- `npm test`: 187/187 pass, inclusa build statica production.
+- `node --test tests/kona-call-director.test.js`: 73/73 pass.
+- `npm test`: 189/189 pass, inclusa build statica production.
 - Nessuna migration applicata, nessun commit, push o deploy eseguito durante
   questa chiusura.

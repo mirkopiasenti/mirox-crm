@@ -362,6 +362,13 @@ test('migration 072: la config aggiorna aggiornato_at senza cercare updated_at',
   assert.match(migrazione, /trg_kona_cd_config_updated_at[\s\S]*?EXECUTE FUNCTION public\.kona_call_director_touch_config_aggiornato_at\(\);/);
 });
 
+test('bootstrap staging: il login legge solo il proprio profilo', () => {
+  const sql = fs.readFileSync(path.join(__dirname, '..', 'database', 'staging', '003_kona_call_director_bootstrap.sql'), 'utf8');
+  assert.match(sql, /GRANT SELECT ON TABLE public\.profili TO authenticated/i);
+  assert.match(sql, /CREATE POLICY profili_select_proprio_staging[\s\S]*FOR SELECT[\s\S]*TO authenticated[\s\S]*USING \(id = auth\.uid\(\)\)/i);
+  assert.doesNotMatch(sql, /GRANT (?:SELECT|ALL) ON TABLE public\.kona_call_director_/i);
+});
+
 test('tryReserveBudget: hard stop quando il budget totale e\' esaurito', async () => {
   let chiamate = 0;
   const db = makeSupabase({

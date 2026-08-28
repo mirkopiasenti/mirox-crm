@@ -337,6 +337,16 @@ BEGIN
 END;
 $$;
 
+-- Il client CRM autenticato deve poter caricare soltanto il proprio profilo
+-- per completare il login. Tutte le scritture e le altre righe restano
+-- server-only; le tabelle KONA non ricevono policy browser.
+GRANT SELECT ON TABLE public.profili TO authenticated;
+CREATE POLICY profili_select_proprio_staging
+ON public.profili
+FOR SELECT
+TO authenticated
+USING (id = auth.uid());
+
 REVOKE ALL ON TABLE public.vw_rilavorazione_ricontatti_unificata FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON TABLE public.vw_rilavorazione_ricontatti_unificata TO service_role;
 REVOKE ALL ON FUNCTION public.kona_cd_staging_touch_updated_at() FROM PUBLIC, anon, authenticated;

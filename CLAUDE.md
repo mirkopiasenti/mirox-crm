@@ -102,6 +102,12 @@ Modifiche a schema / RLS / RPC / trigger su queste tabelle hanno rischio di **ro
 
 ### 1. Frontend (`/`, `/moduli/`, `/moduli/call-center/`, `/js/`, `/css/`)
 
+**Configurazione Call Center per ambiente**: tutte le pagine in
+`/moduli/call-center/` caricano prima `../../js/config.js`, generato dalla
+build, e poi il proprio `js/config.js`, che contiene soltanto `APP_CONFIG`.
+Il file interno non deve creare un secondo client Supabase né contenere
+URL/chiavi: staging perderebbe la sessione e potrebbe puntare al DB sbagliato.
+
 Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pubblica esclusivamente `dist/`, generata copiando gli HTML root e le directory `assets/`, `css/`, `js/`, `moduli/`; `dist/` è ignorata da Git. La build sostituisce il guard sorgente `js/config.js` con la configurazione Supabase dell'ambiente e genera `dist/_headers` con una CSP limitata allo stesso host. Ogni branch Netlify diversa da `main` e' staging: senza `MIROX_PUBLIC_SUPABASE_URL` e `MIROX_PUBLIC_SUPABASE_ANON_KEY` dedicate la build fallisce, e il project ref produzione `lbgwamhjkjjfwgusafbi` e' sempre rifiutato. `imposta-password.html` gestisce il callback Auth degli inviti, rimuove i token dalla URL e salva una password di almeno 12 caratteri tramite `auth.updateUser()`. Backend, migration, test, script, file Markdown e configurazioni non devono mai essere aggiunti alla lista pubblica. `/moduli/call-center/` contiene il modulo CC integrato (Fase 1, vedi sezione dedicata). `dashboard.html` espone `Segnala Problema`, collegato alla chat autenticata `moduli/segnala-problema.html` del primo agente KONA AI Guardian. Le pagine `admin*.html` alla root costituiscono il **Pannello Admin Mirox** (`admin.html` hub + `admin-utenti.html` + `admin-call-center-config.html` + `admin-vendita-config.html` + `admin-gare.html`), tutte gated da `profili.ruolo='admin'`. JS condiviso Mirox esposto su `window`:
 
 | File JS | Espone | Uso |
@@ -710,7 +716,7 @@ Guardian e' attivo sul production `mirox-crm.it` con Supabase `lbgwamhjkjjfwgusa
 
 ## KONA Call Director (dal 2026-08-27; staging isolato pubblicato, non attivo)
 
-Modulo **server-only** per il Call Center: un contatto alla volta, conferme Business, arricchimento notturno e pianificazione Telegram. Codice verificato localmente (72/72 test KONA, 187/187 suite completa) ma non attivo. Il Supabase test dedicato `Mirox CRM - Test KONA Call Director` (`yyorullxmdxhnunsfwwa`, `eu-west-3`) contiene bootstrap minimo senza dati production, migration `072` e seed fail-closed; nessun profilo e' abilitato e `attivo_globale=false`. Il sito `mirox-kona-call-director-test.netlify.app` e' collegato alla branch `kona-call-director`: il commit staging `b4cf578` con correzioni, test e bootstrap e' pubblicato con service role protetta del solo Supabase test e con entrambi gli interruttori env KONA a `false`. Production e' invariata.
+Modulo **server-only** per il Call Center: un contatto alla volta, conferme Business, arricchimento notturno e pianificazione Telegram. Codice verificato localmente (73/73 test KONA, 189/189 suite completa) ma non attivo. Il Supabase test dedicato `Mirox CRM - Test KONA Call Director` (`yyorullxmdxhnunsfwwa`, `eu-west-3`) contiene bootstrap minimo senza dati production, migration `072` e seed fail-closed; nessun profilo e' abilitato e `attivo_globale=false`. Il sito `mirox-kona-call-director-test.netlify.app` e' collegato alla branch `kona-call-director`: il commit staging `b4cf578` con correzioni, test e bootstrap e' pubblicato con service role protetta del solo Supabase test e con entrambi gli interruttori env KONA a `false`. Production e' invariata.
 
 ### Regole fisse
 

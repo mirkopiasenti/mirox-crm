@@ -1,4 +1,6 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 
 const { _test } = require('../scripts/build-static');
@@ -74,4 +76,21 @@ test('la service role viene rifiutata dalla configurazione pubblica', () => {
     }),
     /non deve mai essere pubblicata/
   );
+});
+
+test('tutte le pagine Call Center caricano la configurazione Supabase dell\'ambiente', () => {
+  const directory = path.join(__dirname, '..', 'moduli', 'call-center');
+  const pages = fs.readdirSync(directory).filter((name) => name.endsWith('.html'));
+  const legacyConfig = fs.readFileSync(path.join(directory, 'js', 'config.js'), 'utf8');
+
+  assert.doesNotMatch(legacyConfig, new RegExp(_test.PRODUCTION_PROJECT_REF));
+  for (const page of pages) {
+    const source = fs.readFileSync(path.join(directory, page), 'utf8');
+    if (!source.includes('<script src="js/config.js"></script>')) continue;
+    assert.match(
+      source,
+      /<script src="\.\.\/\.\.\/js\/config\.js"><\/script>\s*<script src="js\/config\.js"><\/script>/,
+      `${page} deve inizializzare db dalla configurazione generata prima di APP_CONFIG`
+    );
+  }
 });
