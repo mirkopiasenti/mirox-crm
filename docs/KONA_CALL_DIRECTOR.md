@@ -13,11 +13,10 @@ minimo ricostruito senza dati production, la migration `072` e il seed
 fail-closed. Le 23 tabelle KONA sono vuote salvo la config; non esistono
 profili abilitati e `attivo_globale=false`. Il sito Netlify isolato
 `mirox-kona-call-director-test.netlify.app` e' collegato alla branch
-`kona-call-director`; il redeploy del commit remoto `f358698` e' riuscito con
-le env staging, la service role protetta del solo Supabase test e i due
-interruttori KONA a `false`. L'invocazione HTTP diretta del dispatcher e'
-bloccata da Netlify con `403`. Le modifiche locali non pubblicate non sono
-ancora nel deploy.
+`kona-call-director`; il commit staging `b4cf578` con correzioni, test e
+bootstrap e' pubblicato con le env staging, la service role protetta del solo
+Supabase test e i due interruttori KONA a `false`. L'invocazione HTTP diretta
+del dispatcher e' bloccata da Netlify con `403`.
 Production non contiene oggetti KONA Call Director e resta invariata.
 
 ## Funzione operativa
@@ -77,7 +76,6 @@ Prima del collaudo operativo servono:
 - OAuth Google Calendar per il calendario personale di Mirko Piasenti;
 - bot Telegram separato e relativo `chat_id` proprietario;
 - dataset autorevole delle coordinate dei comuni;
-- pubblicazione esplicita delle modifiche locali sulla branch `kona-call-director`.
 
 La migration `070` deve essere gia' presente, perche'
 `kona_call_director_comuni` referenzia `mirox_comuni_istat`.
@@ -118,10 +116,10 @@ esterno controllato.
    ma la priorita' geografica resta degradata a `unknown`.
 5. Configurare le env dello staging mantenendo
    `KONA_CALL_DIRECTOR_ENABLED=false` e `KONA_CALL_DIRECTOR_STAGING_RUN=false`.
-6. Il sito `mirox-kona-call-director-test.netlify.app` e' gia' stato creato e
-   il primo deploy del commit remoto `f358698` e' riuscito. Pubblicare le
-   modifiche locali autorizzate e aprire il pannello Admin KONA mantenendo i
-   due interruttori KONA a `false`.
+6. Stato completato il 2026-08-28: il sito
+   `mirox-kona-call-director-test.netlify.app` pubblica il commit staging
+   `b4cf578` con service role del solo database test e con entrambi gli
+   interruttori KONA a `false`.
 7. Salvare e ricontrollare: budget 50 euro, riserve 40/10, cambio USD/EUR,
    prezzo del modello, 50 lead/notte, due web search massime, sessione Business
    90 minuti, durata appuntamento 45 minuti, raggio indicativo 20 km e orari.
