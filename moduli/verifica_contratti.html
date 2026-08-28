@@ -48,7 +48,13 @@ body {
   gap: 12px;
   align-items: end;
 }
+.filters-card.verificati-filters {
+  grid-template-columns: minmax(190px, 1fr) minmax(230px, 1fr) 160px 160px 110px;
+}
 @media (max-width: 800px) { .filters-card { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) and (min-width: 801px) {
+  .filters-card.verificati-filters { grid-template-columns: 1fr 1fr; }
+}
 .filters-card label { font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;display:block; }
 .filters-card input, .filters-card select {
   width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13.5px;font-family:inherit;background:#fff;
@@ -258,10 +264,14 @@ body {
 
 <!-- TAB: Verificati -->
 <div id="tab-verificati" class="tab-content">
-  <div class="filters-card">
+  <div class="filters-card verificati-filters">
     <div>
       <label>Cerca</label>
       <input type="text" id="searchVerificati" placeholder="Ragione sociale, CF, offerta...">
+    </div>
+    <div>
+      <label for="searchEmailVerificati">E-mail dispositivo</label>
+      <input type="search" id="searchEmailVerificati" inputmode="email" autocomplete="off" placeholder="nome@dominio.it">
     </div>
     <div>
       <label>Categoria</label>
@@ -298,7 +308,8 @@ const VCState = {
   filtroDataDaVerificare: '',
   filtroDataVerificati: '',
   searchDaVerificare: '',
-  searchVerificati: ''
+  searchVerificati: '',
+  searchEmailVerificati: ''
 };
 
 // ============================================================
@@ -442,7 +453,7 @@ async function caricaContratti(statoControllo) {
         punteggio_offerta, punteggio_opzione, punteggio_extra, punteggio_totale,
         stato_controllo, controllato_da, controllato_at, note_controllo,
         data_contratto, created_at, updated_at,
-        anagrafica:anagrafica_id ( id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, provincia, comune, via, civico )
+        anagrafica:anagrafica_id ( id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, email, provincia, comune, via, civico )
       `)
       .eq('stato_controllo', statoControllo)
       .order('data_contratto', { ascending: false });
@@ -488,13 +499,17 @@ function applicaFiltri(items, stateKey) {
   const catKey = stateKey === 'daVerificare' ? 'filtroCatDaVerificare' : 'filtroCatVerificati';
   const dateKey = stateKey === 'daVerificare' ? 'filtroDataDaVerificare' : 'filtroDataVerificati';
   const q = (VCState[searchKey] || '').toLowerCase().trim();
+  const emailQuery = stateKey === 'verificati'
+    ? (VCState.searchEmailVerificati || '').toLowerCase().trim()
+    : '';
   const cat = VCState[catKey] || '';
   const day = VCState[dateKey] || '';
   return items.filter(c => {
     if (cat && c.categoria_id !== cat) return false;
     if (day && toRomeDateFilterValue(c.data_contratto) !== day) return false;
-    if (!q) return true;
     const ana = c.anagrafica || {};
+    if (emailQuery && String(ana.email || '').toLowerCase().trim() !== emailQuery) return false;
+    if (!q) return true;
     const haystack = [
       ana.ragione_sociale, ana.cf_piva, ana.nome_referente, ana.cellulare,
       c.categoria_snapshot, c.nome_offerta_snapshot, c.nome_opzione_snapshot,
@@ -542,7 +557,8 @@ function renderListaContratti(stateKey) {
     return `
       <tr>
         <td><div class="cell-cliente">${escapeHtml(ana.ragione_sociale || '(senza nome)')}</div>
-            <div class="cell-meta">${escapeHtml(fmtDateTime(c.data_contratto))}</div></td>
+            <div class="cell-meta">${escapeHtml(fmtDateTime(c.data_contratto))}</div>
+            ${ana.email ? `<div class="cell-meta">${escapeHtml(ana.email)}</div>` : ''}</td>
         <td>${escapeHtml(ana.cf_piva || '-')}</td>
         <td>${escapeHtml(operatoreNome)}</td>
         <td><span class="stato-pill ${escapeHtml(String(cluster).toLowerCase())}">${escapeHtml(cluster)}</span></td>
@@ -1546,6 +1562,10 @@ document.getElementById('searchDaVerificare').addEventListener('input', (e) => {
 });
 document.getElementById('searchVerificati').addEventListener('input', (e) => {
   VCState.searchVerificati = e.target.value;
+  renderListaContratti('verificati');
+});
+document.getElementById('searchEmailVerificati').addEventListener('input', (e) => {
+  VCState.searchEmailVerificati = e.target.value;
   renderListaContratti('verificati');
 });
 document.getElementById('filterCategoriaDaVerificare').addEventListener('change', (e) => {
