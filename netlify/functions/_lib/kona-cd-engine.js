@@ -1,8 +1,10 @@
 'use strict';
 
-const { addDaysStr, nowRomeParts, parseHHmm, romeDayRange, todayRomeStr } = require('./kona-cd-time');
+const { addDaysStr, isWorkingDay, nextWorkingDay, nowRomeParts, parseHHmm, romeDayRange, romeToUtc, todayRomeStr } = require('./kona-cd-time');
 const { cleanLog, isUuid } = require('./kona-cd-util');
 const { finestraAttiva, tentativoEsaurito } = require('./kona-cd-conferme');
+const { distanzaKm } = require('./kona-cd-distances');
+const { scoreLead } = require('./kona-cd-scoring');
 
 // Motore deterministico KONA Call Director (nessuna AI).
 // Responsabilita':
@@ -127,8 +129,8 @@ async function loadEsclusioniAttive(supabase) {
     .from('kona_call_director_esclusioni')
     .select('id, lead_id, anagrafica_id, chiamata_id')
     .eq('stato', 'attiva');
-  if (error || !Array.isArray(data)) return [];
-  return data;
+  if (error || !Array.isArray(data)) return { ok: false, rows: [] };
+  return { ok: true, rows: data };
 }
 
 function pureEscluso(exclusionRows, { leadId, anagraficaId, chiamataId }) {
@@ -175,28 +177,50 @@ function fasciaDaOra(hhmm) {
   return min < 15 * 60 ? 'Mattina' : 'Pomeriggio';
 }
 
+function isOperationalNow(cfg, data = todayRomeStr(), parts = nowRomeParts()) {
+
+  if (!isWorkingDay(data, cfg.giorni_lavorativi || [1, 2, 3, 4, 5])) return false;
+  if ((cfg.ferie || []).includes(data)) return false;
+  const minute = parts.hh * 60 + parts.mm;
+  const mattinaInizio = parseHHmm(cfg.orario_mattina?.inizio) ?? 540;
+  const mattinaFine = parseHHmm(cfg.orario_mattina?.fine) ?? 750;
+  const pomeriggioInizio = parseHHmm(cfg.orario_pomeriggio?.inizio) ?? 930;
+  const pomeriggioFine = parseHHmm(cfg.orario_pomeriggio?.fine) ?? 1140;
+  return (minute >= mattinaInizio && minute < mattinaFine)
+    || (minute >= pomeriggioInizio && minute < pomeriggioFine);
+}
+function followupIso(cfg, prossimo) {
+  const hhmm = prossimo.fascia === 'Pomeriggio'
+    ? (cfg.orario_pomeriggio?.inizio || '15:30')
+    : (cfg.orario_mattina?.inizio || '09:00');
+  return romeToUtc(prossimo.data, hhmm).toISOString();
+}
+
 // -- Tentativi persistenti ----------------------------------------------------
 
 // Conta i task completati con esito non_risposto per lo STESSO sorgente negli
 // ultimi N giorni: i tentativi NON ripartono da zero tra un task e l'altro.
-async function tentativiGiorni(supabase, { operatoreId, sorgenteId, giorni }) {
-  if (!isUuid(sorgenteId)) return 0;
+async function tentativiGiorni(supabase, { operatoreId, sorgenteId, chiaveTentativi, giorni }) {
+  if (!chiaveTentativi && !isUuid(sorgenteId)) return 0;
   const since = addDaysStr(todayRomeStr(), -Number(giorni || 30));
-  const { data, error } = await supabase
+  let query = supabase
     .from('kona_call_director_task')
     .select('id')
     .eq('operatore_id', operatoreId)
-    .eq('sorgente_id', sorgenteId)
     .eq('stato', 'completato')
     .gte('data', since)
     .filter('esito->>esito', 'eq', 'non_risposto');
+  query = chiaveTentativi
+    ? query.eq('chiave_tentativi', chiaveTentativi)
+    : query.eq('sorgente_id', sorgenteId);
+  const { data, error } = await query;
   return !error && Array.isArray(data) ? data.length : 0;
 }
 
 // Numero di tentativo persistente del contatto: 1 + tentativi gia' esauriti.
-async function tentativoPersistente(supabase, { operatoreId, sorgenteId, tipo }) {
+async function tentativoPersistente(supabase, { operatoreId, sorgenteId, chiaveTentativi, tipo }) {
   const giorni = tipo === 'conferma_appuntamento_business' ? 10 : 30;
-  const n = await tentativiGiorni(supabase, { operatoreId, sorgenteId, giorni });
+  const n = await tentativiGiorni(supabase, { operatoreId, sorgenteId, chiaveTentativi, giorni });
   return n + 1;
 }
 
@@ -250,7 +274,7 @@ async function candidatiConfermaBusiness(supabase, cfg, { profiloId, oggi }) {
   // Solo dentro una finestra di conferma attiva si materializza (top of queue).
   const attiva = finestraAttiva(cfg);
   if (!attiva) return [];
-  const domani = addDaysStr(oggi, 1);
+  const domani = nextWorkingDay(oggi, cfg.giorni_lavorativi, cfg.ferie);
   const range = romeDayRange(domani);
   const { data, error } = await supabase
     .from('kona_call_director_appuntamenti_business')
@@ -264,13 +288,13 @@ async function candidatiConfermaBusiness(supabase, cfg, { profiloId, oggi }) {
 
   // Esclusione: niente conferma se creato/riprogrammato IL GIORNO PRIMA per
   // il giorno successivo (gia' concordato il giorno stesso).
-  const ieriInizio = romeDayRange(addDaysStr(oggi, -1)).start.toISOString();
+  const oggiInizio = romeDayRange(oggi).start.toISOString();
   const senzaConferma = data.filter((a) => {
     const creato = a.creato_at ? new Date(a.creato_at) : null;
     const riprogrammato = a.riprogrammato_at ? new Date(a.riprogrammato_at) : null;
     const ultimo = riprogrammato || creato;
     if (!ultimo) return true;
-    return ultimo.toISOString() < ieriInizio; // solo se creato prima di ieri
+    return ultimo.toISOString() < oggiInizio; // salta solo appuntamenti creati oggi per domani
   });
 
   const ids = senzaConferma.map((a) => a.id);
@@ -299,9 +323,10 @@ async function candidatiRilavorazione(supabase, { profiloId, oggi, fascia }) {
   const out = [];
   const mkStandard = (row, tipo, priority, descrizione) => ({
     tipo,
-    sorgenteId: row.id,
+    sorgenteId: row.origine_id || row.id,
     sorgenteTipo: 'chiamata',
-    payload: { chiamata_id: row.id, anagrafica_id: row.anagrafica_id },
+    chiaveTentativi: 'standard:' + (row.anagrafica_id || row.cf_piva || row.origine_id || row.id),
+    payload: { chiamata_id: row.origine_id || row.id, anagrafica_id: row.anagrafica_id },
     cf_piva: row.cf_piva,
     nome: row.nome_cliente,
     cellulare: row.cellulare,
@@ -315,6 +340,7 @@ async function candidatiRilavorazione(supabase, { profiloId, oggi, fascia }) {
     tipo,
     sorgenteId: row.origine_id,
     sorgenteTipo: 'lead_outbound_chiamata',
+    chiaveTentativi: 'outbound:' + row.lead_id,
     payload: { lead_id: row.lead_id, chiamata_outbound_id: row.origine_id, anagrafica_id: row.anagrafica_id },
     leadId: row.lead_id,
     cf_piva: row.cf_piva,
@@ -350,56 +376,91 @@ async function candidatiRilavorazione(supabase, { profiloId, oggi, fascia }) {
 }
 
 async function candidatiLead(supabase, cfg, { profiloId, oggi, pinnedOnly }) {
-  // Business standard bloccato alle 18:00 (orario_stop_business configurabile).
   if (!pinnedOnly && cfg?.orario_stop_business) {
     const stop = parseHHmm(cfg.orario_stop_business);
     const nowMin = nowRomeParts().hh * 60 + nowRomeParts().mm;
     if (stop !== null && nowMin >= stop) return [];
   }
+
+  let categorieApprovate = [];
+  if (!pinnedOnly) {
+    const { data: piano, error: pianoError } = await supabase
+      .from('kona_call_director_piani').select('contenuto, stato')
+      .eq('data', oggi).eq('operatore_id', profiloId)
+      .in('stato', ['approvato', 'applicato']).limit(1).maybeSingle();
+    if (pianoError) return [];
+    const raw = piano?.contenuto?.categorie_approvate || piano?.contenuto?.categorie || [];
+    categorieApprovate = Array.isArray(raw) ? raw.map((v) => String(v).trim().toLowerCase()).filter(Boolean) : [];
+    if (categorieApprovate.length === 0) return [];
+  }
+
   const stati = ['nuovo', 'da_contattare', 'ricontattare', 'in_lavorazione'];
   const statiCampionabili = pinnedOnly ? stati : stati.filter((s) => s !== 'in_lavorazione');
   let query = supabase
     .from('call_center_lead_outbound')
-    .select('id, ragione_sociale, localita, provincia, categoria, telefono_norm, telefono_raw, telefono_tipo, email, partita_iva, codice_fiscale, zona, stato_lead, pinned, do_not_call, ultimo_contatto_at, times_seen, first_import_at, prossimo_followup_at')
-    .eq('do_not_call', false)
-    .in('stato_lead', statiCampionabili)
-    .limit(50);
-  query = pinnedOnly
-    ? query.eq('pinned', true)
-    : query.or(`assegnato_a.is.null,assegnato_a.eq.${encodeURIComponent(profiloId)}`);
+    .select('id, ragione_sociale, localita, provincia, categoria, indirizzo, telefono_norm, telefono_raw, telefono_tipo, email, partita_iva, codice_fiscale, zona, stato_lead, pinned, do_not_call, ultimo_contatto_at, times_seen, first_import_at, prossimo_followup_at')
+    .eq('do_not_call', false).in('stato_lead', statiCampionabili).limit(100);
+  query = pinnedOnly ? query.eq('pinned', true) : query.or(`assegnato_a.is.null,assegnato_a.eq.${encodeURIComponent(profiloId)}`);
   const { data, error } = await query;
   if (error || !Array.isArray(data)) return [];
-  return data
-    .filter((row) => {
-      // Rispetta prossimo_followup_at: non riproporre prima della data prevista.
-      if (row.prossimo_followup_at) {
-        const due = new Date(row.prossimo_followup_at);
-        if (!Number.isNaN(due.getTime()) && due.getTime() > Date.now()) return false;
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      const aSeen = a.times_seen || 0;
-      const bSeen = b.times_seen || 0;
-      if (aSeen !== bSeen) return aSeen - bSeen;
-      return String(a.first_import_at).localeCompare(String(b.first_import_at));
-    })
-    .map((row) => ({
-      tipo: pinnedOnly ? 'campagna_urgente' : 'sessione_business',
-      sorgenteId: row.id,
-      sorgenteTipo: 'lead',
-      payload: { lead_id: row.id, zona: row.zona, localita: row.localita },
-      leadId: row.id,
-      nome: row.ragione_sociale,
-      cellulare: row.telefono_norm || row.telefono_raw,
-      telefoni: [row.telefono_norm, row.telefono_raw],
-      cf_piva: row.codice_fiscale || row.partita_iva,
-      storico: { esito: row.stato_lead, ultimo_contatto_at: row.ultimo_contatto_at, times_seen: row.times_seen },
-      descrizione: pinnedOnly ? 'Campagna urgente approvata' : 'Sessione Business',
-      priority: pinnedOnly ? 6 : 7
-    }));
-}
 
+  const filtrati = data.filter((row) => {
+    if (row.prossimo_followup_at) {
+      const due = new Date(row.prossimo_followup_at);
+      if (!Number.isNaN(due.getTime()) && due.getTime() > Date.now()) return false;
+    }
+    if (!pinnedOnly) {
+      const categoria = String(row.categoria || '').trim().toLowerCase();
+      if (!categoria || !categorieApprovate.some((c) => categoria.includes(c) || c.includes(categoria))) return false;
+    }
+    return true;
+  });
+  if (filtrati.length === 0) return [];
+
+  const leadIds = filtrati.map((r) => r.id);
+  const orizzonte = romeDayRange(addDaysStr(oggi, Number(cfg.giorni_orizzonte_calendario) || 14)).end.toISOString();
+  const [{ data: appuntamenti }, { data: arricchimenti }] = await Promise.all([
+    supabase.from('kona_call_director_appuntamenti_business').select('zona, data_ora, stato')
+      .eq('operatore_id', profiloId).in('stato', ['proposto', 'confermato'])
+      .gte('data_ora', new Date().toISOString()).lt('data_ora', orizzonte),
+    supabase.from('kona_call_director_arricchimenti').select('lead_id, affidabilita, data')
+      .in('lead_id', leadIds).order('data', { ascending: false })
+  ]);
+  const confByLead = new Map();
+  for (const a of arricchimenti || []) if (!confByLead.has(a.lead_id)) confByLead.set(a.lead_id, a.affidabilita);
+
+  const scored = await Promise.all(filtrati.map(async (row) => {
+    const km = await distanzaKm(supabase, row.localita, cfg.localita_riferimento, row.provincia, 'VR');
+    const score = await scoreLead({ lead: row, distanzaKmLegnago: km, confidenteArricchimento: confByLead.get(row.id), cfg });
+    const zona = String(row.zona || row.localita || '').trim().toLowerCase();
+    const zonaAppuntamenti = (appuntamenti || []).filter((a) => String(a.zona || '').trim().toLowerCase() === zona);
+    return { row, score: score.score, km, zonaAppuntamenti };
+  }));
+  scored.sort((a, b) => b.zonaAppuntamenti.length - a.zonaAppuntamenti.length
+    || b.score - a.score
+    || (a.row.times_seen || 0) - (b.row.times_seen || 0)
+    || String(a.row.first_import_at || '').localeCompare(String(b.row.first_import_at || '')));
+
+  return scored.map(({ row, score, km, zonaAppuntamenti }) => ({
+    tipo: pinnedOnly ? 'campagna_urgente' : 'sessione_business',
+    sorgenteId: row.id,
+    sorgenteTipo: 'lead',
+    chiaveTentativi: 'outbound:' + row.id,
+    payload: {
+      lead_id: row.id, zona: row.zona, localita: row.localita,
+      score, distanza_km: km,
+      appuntamenti_zona: zonaAppuntamenti.map((a) => ({ data_ora: a.data_ora, zona: a.zona }))
+    },
+    leadId: row.id,
+    nome: row.ragione_sociale,
+    cellulare: row.telefono_norm || row.telefono_raw,
+    telefoni: [row.telefono_norm, row.telefono_raw],
+    cf_piva: row.codice_fiscale || row.partita_iva,
+    storico: { esito: row.stato_lead, ultimo_contatto_at: row.ultimo_contatto_at, times_seen: row.times_seen },
+    descrizione: pinnedOnly ? 'Campagna urgente approvata' : 'Sessione Business',
+    priority: pinnedOnly ? 6 : 7
+  }));
+}
 async function buildCandidates(supabase, cfg, { profiloId, oggi }) {
   const fascia = fasciaCorrente(cfg);
   const candidates = [];
@@ -458,19 +519,29 @@ async function scadenzaTask(supabase, profiloId) {
 }
 
 // Materializza il prossimo task per l'operatrice. Ritorna { ok, task, noop, reason }.
-async function materializeNextTask({ supabase, cfg, profiloId, oggi }) {
+async function materializeNextTask({ supabase, cfg, profiloId, oggi, oraParts }) {
   if (!isUuid(profiloId)) return { ok: false, noop: true, reason: 'profilo_invalido' };
+  const dataOperativa = oggi || todayRomeStr();
+  if (!isOperationalNow(cfg, dataOperativa, oraParts || nowRomeParts())) return { ok: false, noop: true, reason: 'fuori_orario' };
   await scadenzaTask(supabase, profiloId);
   const lavorabile = await getTaskLavorabile(supabase, profiloId);
   if (lavorabile) return { ok: false, noop: true, reason: 'task_attivo' };
 
   // BLACKLIST FAIL-CLOSED: errore di lettura -> nessun contatto proposto.
-  const [blacklistRes, exclusionRows] = await Promise.all([loadBlacklistSet(supabase), loadEsclusioniAttive(supabase)]);
-  if (!blacklistRes.ok) return { ok: false, noop: true, reason: 'blacklist_check_failed' };
+  const [blacklistRes, exclusionRes] = await Promise.all([loadBlacklistSet(supabase), loadEsclusioniAttive(supabase)]);
+  if (!blacklistRes.ok || !exclusionRes.ok) return { ok: false, noop: true, reason: 'blacklist_check_failed' };
   const blacklistRows = blacklistRes.rows;
+  const exclusionRows = exclusionRes.rows;
 
   const candidates = await buildCandidates(supabase, cfg, { profiloId, oggi: oggi || todayRomeStr() });
   for (const candidate of candidates) {
+    const leadId = candidate.leadId || candidate.payload?.lead_id;
+    if (isUuid(leadId)) {
+      const { data: extra, error: extraError } = await supabase
+        .from('kona_call_director_lead_telefoni').select('telefono, telefono_norm').eq('lead_id', leadId);
+      if (extraError) return { ok: false, noop: true, reason: 'telefoni_check_failed' };
+      candidate.telefoni = [...(candidate.telefoni || []), ...(extra || []).flatMap((r) => [r.telefono_norm, r.telefono])];
+    }
     const block = await isBlacklistedOrEscluso(candidate, blacklistRows, exclusionRows);
     if (block.blocked) continue; // salta in silenzio i candidati bloccati
 
@@ -481,6 +552,7 @@ async function materializeNextTask({ supabase, cfg, profiloId, oggi }) {
       tipo: candidate.tipo,
       sorgente_id: candidate.sorgenteId,
       sorgente_tipo: candidate.sorgenteTipo,
+      chiave_tentativi: candidate.chiaveTentativi || (candidate.sorgenteTipo + ':' + candidate.sorgenteId),
       descrizione: candidate.descrizione,
       payload: candidate.payload,
       stato: 'attivo',
@@ -504,8 +576,8 @@ async function materializeNextTask({ supabase, cfg, profiloId, oggi }) {
 async function verificaTaskAttivo({ supabase, profiloId }) {
   const task = await getActiveTask(supabase, profiloId);
   if (!task?.data) return { task: null, blocked: false };
-  const [blacklistRes, exclusionRows] = await Promise.all([loadBlacklistSet(supabase), loadEsclusioniAttive(supabase)]);
-  if (!blacklistRes.ok) return { task: null, blocked: true, reason: 'blacklist_check_failed' };
+  const [blacklistRes, exclusionRes] = await Promise.all([loadBlacklistSet(supabase), loadEsclusioniAttive(supabase)]);
+  if (!blacklistRes.ok || !exclusionRes.ok) return { task: null, blocked: true, reason: 'blacklist_check_failed' };
   const dettaglio = await getTaskDettaglio(supabase, task.data);
   const c = dettaglio?.contatto || {};
   const candidate = {
@@ -516,7 +588,7 @@ async function verificaTaskAttivo({ supabase, profiloId }) {
     sorgenteTipo: task.data.sorgente_tipo,
     sorgenteId: task.data.sorgente_id
   };
-  const block = await isBlacklistedOrEscluso(candidate, blacklistRes.rows, exclusionRows);
+  const block = await isBlacklistedOrEscluso(candidate, blacklistRes.rows, exclusionRes.rows);
   if (block.blocked) {
     await supabase.from('kona_call_director_task').update({ stato: 'annullato', esito: cleanLog({ esito: 'blacklist' }) }).eq('id', task.data.id);
     await logEvent(supabase, { taskId: task.data.id, tipo: 'blacklist', dettagli: { motivo: block.motivo } });
@@ -532,6 +604,7 @@ async function getTaskDettaglio(supabase, task) {
   let chiamata = null;
   let biz = null;
   let outboundChiamata = null;
+  let telefoniExtra = [];
   if (task.sorgente_tipo === 'lead' && isUuid(task.sorgente_id)) {
     const { data } = await supabase.from('call_center_lead_outbound').select('*').eq('id', task.sorgente_id).maybeSingle();
     lead = data;
@@ -557,7 +630,11 @@ async function getTaskDettaglio(supabase, task) {
     }
   }
 
-  const contatto = buildContatto({ task, lead, chiamata, biz, outboundChiamata });
+  if (lead?.id) {
+    const { data: extra } = await supabase.from('kona_call_director_lead_telefoni').select('telefono, telefono_norm').eq('lead_id', lead.id);
+    telefoniExtra = Array.isArray(extra) ? extra.flatMap((r) => [r.telefono_norm, r.telefono]) : [];
+  }
+  const contatto = buildContatto({ task, lead, chiamata, biz, outboundChiamata, telefoniExtra });
   return {
     task: {
       id: task.id,
@@ -573,13 +650,13 @@ async function getTaskDettaglio(supabase, task) {
   };
 }
 
-function buildContatto({ task, lead, chiamata, biz, outboundChiamata }) {
+function buildContatto({ task, lead, chiamata, biz, outboundChiamata, telefoniExtra = [] }) {
   if (task.tipo === 'conferma_appuntamento_business' && biz) {
     return {
       sorgente: 'appuntamento_business',
       nome: lead?.ragione_sociale || 'Azienda',
       cellulare: lead?.telefono_norm || lead?.telefono_raw || outboundChiamata?.telefono_snapshot,
-      telefoni: [lead?.telefono_norm, lead?.telefono_raw],
+      telefoni: [lead?.telefono_norm, lead?.telefono_raw, ...telefoniExtra],
       email: lead?.email || null,
       localita: lead?.localita || null,
       provincia: lead?.provincia || null,
@@ -600,7 +677,7 @@ function buildContatto({ task, lead, chiamata, biz, outboundChiamata }) {
       sorgente: task.sorgente_tipo === 'lead' ? 'lead' : 'lead_outbound_chiamata',
       nome: lead.ragione_sociale,
       cellulare: lead.telefono_norm || lead.telefono_raw,
-      telefoni: [lead.telefono_norm, lead.telefono_raw],
+      telefoni: [lead.telefono_norm, lead.telefono_raw, ...telefoniExtra],
       email: lead.email,
       localita: lead.localita,
       provincia: lead.provincia,
@@ -636,48 +713,52 @@ function buildContatto({ task, lead, chiamata, biz, outboundChiamata }) {
 async function registraChiamataOutbound(supabase, { task, esito, cfg, oggi, dettagli, tentativo }) {
   const payload = task.payload || {};
   const leadId = payload.lead_id;
-  if (!isUuid(leadId)) return;
+  if (!isUuid(leadId)) throw new Error('lead_outbound_non_valido');
+  const { data: lead, error: leadError } = await supabase
+    .from('call_center_lead_outbound')
+    .select('ragione_sociale, telefono_raw, telefono_norm, localita, provincia')
+    .eq('id', leadId)
+    .maybeSingle();
+  if (leadError || !lead) throw new Error('lead_outbound_non_trovato');
+
   const prossimo = esito === 'non_risposto' || (esito === 'skip' && ['cliente_momentaneamente_indisponibile', 'problema_tecnico'].includes(dettagli.skip_reason))
     ? prossimaFascia(fasciaCorrente(cfg), oggi)
     : null;
-
   let operatoreNome = payload.operatore_nome || null;
   if (!operatoreNome) {
     const { data: profilo } = await supabase.from('profili').select('nome').eq('id', task.operatore_id).maybeSingle();
     operatoreNome = profilo?.nome || null;
   }
-
   const row = {
     lead_id: leadId,
     anagrafica_id: payload.anagrafica_id || null,
     operatore_id: task.operatore_id,
     operatore_nome: String(operatoreNome || 'Operatore').slice(0, 120),
+    ragione_sociale_snapshot: String(lead.ragione_sociale || '-').slice(0, 300),
+    telefono_snapshot: lead.telefono_norm || lead.telefono_raw || null,
+    localita_snapshot: lead.localita || null,
+    provincia_snapshot: lead.provincia || null,
     esito: mappaEsitoOutbound(esito, dettagli),
     note: String(dettagli.motivo || dettagli.spiegazione || '').slice(0, 1000) || null,
     data_ricontatto: prossimo ? prossimo.data : null,
     fascia_ricontatto: prossimo ? prossimo.fascia : null,
-    appuntamento_tipo: esito === 'appuntamento' ? (dettagli.appuntamento_tipo === 'negozio' ? 'negozio' : 'esterno') : null
+    appuntamento_tipo: esito === 'appuntamento' ? (dettagli.appuntamento_tipo === 'negozio' ? 'negozio' : 'esterno') : null,
+    rilavorazione_stato: esito === 'non_risposto' && tentativo < (cfg.tentativi_massimi || 3) ? 'da_lavorare' : 'completato'
   };
-  // Stato rilavorazione coerente con il flusso outbound.
-  if (esito === 'non_risposto') {
-    row.rilavorazione_stato = tentativo >= (cfg.tentativi_massimi || 3) ? 'completato' : 'da_lavorare';
-  } else if (esito === 'skip' && !['cliente_momentaneamente_indisponibile', 'problema_tecnico'].includes(dettagli.skip_reason)) {
-    row.rilavorazione_stato = 'completato';
-  } else if (esito !== 'non_risposto') {
-    row.rilavorazione_stato = 'completato';
-  }
-
-  const { data: inserita, error } = await supabase.from('call_center_lead_outbound_chiamate').insert(row).select('id').single();
-  if (error || !inserita) return;
-  await supabase.from('call_center_lead_outbound_attivita').insert({
+  const { data: inserita, error } = await supabase
+    .from('call_center_lead_outbound_chiamate').insert(row).select('id').single();
+  if (error || !inserita) throw new Error(error?.message || 'scrittura_chiamata_outbound_fallita');
+  const { error: attivitaError } = await supabase.from('call_center_lead_outbound_attivita').insert({
     lead_id: leadId,
     tipo: esito === 'non_risposto' ? 'chiamata' : 'esito',
     testo: row.note || String(esito || ''),
     stato_precedente: null,
     stato_nuovo: row.esito,
     operatore_id: task.operatore_id,
-    meta: cleanLog({ task_id: task.id, esito, skip_reason: dettagli.skip_reason || null })
+    meta: cleanLog({ task_id: task.id, chiamata_id: inserita.id, esito, skip_reason: dettagli.skip_reason || null })
   });
+  if (attivitaError) throw new Error(attivitaError.message || 'scrittura_attivita_outbound_fallita');
+  return inserita.id;
 }
 
 function mappaEsitoOutbound(esito, dettagli) {
@@ -691,13 +772,81 @@ function mappaEsitoOutbound(esito, dettagli) {
   return esito;
 }
 
+function mappaEsitoStandard(esito, dettagli) {
+  if (esito === 'skip' || esito === 'blacklist') {
+    return ['cliente_momentaneamente_indisponibile', 'problema_tecnico'].includes(dettagli.skip_reason)
+      ? 'ricontattare' : 'non_interessato';
+  }
+  return CHIAMATE_ESITI.includes(esito) ? esito : 'non_interessato';
+}
+
+async function registraChiamataStandard(supabase, { task, esito, cfg, oggi, dettagli, tentativo }) {
+  const { data: origine, error: origineError } = await supabase
+    .from('chiamate').select('*').eq('id', task.sorgente_id).maybeSingle();
+  if (origineError || !origine) throw new Error('chiamata_origine_non_trovata');
+  let operatoreNome = task.payload?.operatore_nome || null;
+  if (!operatoreNome) {
+    const { data: profilo } = await supabase.from('profili').select('nome').eq('id', task.operatore_id).maybeSingle();
+    operatoreNome = profilo?.nome || origine.operatore_nome || null;
+  }
+  const esitoStandard = mappaEsitoStandard(esito, dettagli);
+  const richiedeRicontatto = ['non_risposto', 'ricontattare'].includes(esitoStandard);
+  const prossimo = richiedeRicontatto ? prossimaFascia(fasciaCorrente(cfg), oggi) : null;
+  const esaurito = esitoStandard === 'non_risposto' && tentativo >= (cfg.tentativi_massimi || 3);
+  const nuova = {
+    operatore_id: task.operatore_id,
+    operatore_nome: String(operatoreNome || 'Operatore').slice(0, 120),
+    anagrafica_id: origine.anagrafica_id || null,
+    cf_piva: origine.cf_piva,
+    nome_cliente: origine.nome_cliente,
+    cellulare: origine.cellulare || null,
+    copertura: origine.copertura || null,
+    motivo_chiamata: origine.motivo_chiamata || null,
+    esito: esitoStandard,
+    note: String(dettagli.motivo || dettagli.spiegazione || '').slice(0, 1000) || null,
+    data_ricontatto: prossimo && !esaurito ? prossimo.data : null,
+    fascia_ricontatto: prossimo && !esaurito ? prossimo.fascia : null,
+    rilavorazione_stato: richiedeRicontatto && !esaurito ? 'da_lavorare' : 'completato',
+    passaggio_stato: ['passa_in_negozio', 'passa_a_cerea'].includes(esitoStandard) ? 'in_attesa' : null,
+    esito_finale: esitoStandard === 'non_interessato' ? 'persa' : null,
+    dettagli_esito: esitoStandard === 'non_interessato' ? String(dettagli.motivo || 'Non interessato').slice(0, 500) : null,
+    esitato_at: esitoStandard === 'non_interessato' ? new Date().toISOString() : null
+  };
+  const { data: inserita, error } = await supabase.from('chiamate').insert(nuova).select('id').single();
+  if (error || !inserita) throw new Error(error?.message || 'scrittura_chiamata_fallita');
+  const chiusura = { rilavorazione_stato: 'completato' };
+  if (['passa_in_negozio', 'passa_a_cerea'].includes(origine.esito)) chiusura.passaggio_stato = 'ricontattare';
+  const { error: closeError } = await supabase.from('chiamate').update(chiusura).eq('id', task.sorgente_id);
+  if (closeError) throw new Error(closeError.message || 'chiusura_chiamata_origine_fallita');
+  return inserita.id;
+}
+
 // Aggiorna la sorgente in base all'esito. Injective per tipo di sorgente.
 async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli, tentativo }) {
   const payload = task.payload || {};
 
+  if (esito === 'blacklist') {
+    if (task.sorgente_tipo === 'lead' && isUuid(task.sorgente_id)) {
+      const { error } = await supabase.from('call_center_lead_outbound').update({
+        stato_lead: 'chiuso', do_not_call: true, prossimo_followup_at: null, ultimo_contatto_at: new Date().toISOString()
+      }).eq('id', task.sorgente_id);
+      if (error) throw new Error(error.message || 'chiusura_lead_blacklist_fallita');
+    } else if (task.sorgente_tipo === 'lead_outbound_chiamata' && isUuid(task.sorgente_id)) {
+      const { error } = await supabase.from('call_center_lead_outbound_chiamate').update({ rilavorazione_stato: 'completato' }).eq('id', task.sorgente_id);
+      if (error) throw new Error(error.message || 'chiusura_outbound_blacklist_fallita');
+    } else if (task.sorgente_tipo === 'chiamata' && isUuid(task.sorgente_id)) {
+      const { error } = await supabase.from('chiamate').update({ rilavorazione_stato: 'completato' }).eq('id', task.sorgente_id);
+      if (error) throw new Error(error.message || 'chiusura_chiamata_blacklist_fallita');
+    }
+    return;
+  }
   // Business lead / chiamata outbound: registra la lavorazione reale.
   if (task.sorgente_tipo === 'lead' || task.sorgente_tipo === 'lead_outbound_chiamata') {
     await registraChiamataOutbound(supabase, { task, esito, cfg, oggi, dettagli, tentativo });
+  }
+  if (task.sorgente_tipo === 'chiamata' && isUuid(task.sorgente_id)) {
+    await registraChiamataStandard(supabase, { task, esito, cfg, oggi, dettagli, tentativo });
+    return;
   }
 
   if (task.sorgente_tipo === 'lead' && isUuid(task.sorgente_id)) {
@@ -705,7 +854,7 @@ async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli
     if (esito === 'non_risposto') {
       const prossimo = prossimaFascia(fasciaCorrente(cfg), oggi);
       patch.stato_lead = 'ricontattare';
-      patch.prossimo_followup_at = new Date(`${prossimo.data}T12:00:00`).toISOString();
+      patch.prossimo_followup_at = followupIso(cfg, prossimo);
       if (tentativo >= (cfg.tentativi_massimi || 3)) {
         patch.stato_lead = 'chiuso'; // "Tentativi esauriti" (NON blacklist)
         patch.prossimo_followup_at = null;
@@ -720,7 +869,8 @@ async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli
       patch.prossimo_followup_at = null;
     } else if (esito === 'ricontattare') {
       patch.stato_lead = 'ricontattare';
-      patch.prossimo_followup_at = new Date().toISOString();
+      const prossimo = prossimaFascia(fasciaCorrente(cfg), oggi);
+      patch.prossimo_followup_at = followupIso(cfg, prossimo);
     } else if (esito === 'chiuso') {
       patch.stato_lead = 'chiuso';
       patch.prossimo_followup_at = null;
@@ -729,7 +879,7 @@ async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli
       if (skip === 'cliente_momentaneamente_indisponibile' || skip === 'problema_tecnico') {
         patch.stato_lead = 'ricontattare';
         const prossimo = prossimaFascia(fasciaCorrente(cfg), oggi);
-        patch.prossimo_followup_at = new Date(`${prossimo.data}T12:00:00`).toISOString();
+        patch.prossimo_followup_at = followupIso(cfg, prossimo);
       } else {
         patch.stato_lead = 'chiuso';
         patch.prossimo_followup_at = null;
@@ -740,7 +890,8 @@ async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli
         }
       }
     }
-    await supabase.from('call_center_lead_outbound').update(patch).eq('id', task.sorgente_id);
+    const { error: leadUpdateError } = await supabase.from('call_center_lead_outbound').update(patch).eq('id', task.sorgente_id);
+    if (leadUpdateError) throw new Error(leadUpdateError.message || 'aggiornamento_lead_fallito');
     return;
   }
 
@@ -758,68 +909,36 @@ async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli
     }
     if (esito === 'appuntamento') patch.appuntamento_tipo = dettagli.appuntamento_tipo === 'negozio' ? 'negozio' : 'esterno';
     if (Object.keys(patch).length > 0) {
-      await supabase.from('call_center_lead_outbound_chiamate').update(patch).eq('id', task.sorgente_id);
+      const { error: origineUpdateError } = await supabase.from('call_center_lead_outbound_chiamate').update(patch).eq('id', task.sorgente_id);
+      if (origineUpdateError) throw new Error(origineUpdateError.message || 'chiusura_outbound_origine_fallita');
     }
     return;
   }
 
-  if (task.sorgente_tipo === 'chiamata' && isUuid(task.sorgente_id)) {
-    const patch = {};
-    if (esito === 'non_risposto') {
-      const prossimo = prossimaFascia(fasciaCorrente(cfg), oggi);
-      patch.data_ricontatto = prossimo.data;
-      patch.fascia_ricontatto = prossimo.fascia;
-      if (tentativo >= (cfg.tentativi_massimi || 3)) {
-        patch.rilavorazione_stato = 'completato'; // "Tentativi esauriti"
-        patch.note = `${patch.note ? patch.note + ' ' : ''}[KONA] Tentativi esauriti (${tentativo})`;
-      }
-    } else if (esito === 'non_interessato') {
-      patch.rilavorazione_stato = 'completato';
-      patch.esito_finale = 'persa';
-      patch.dettagli_esito = String(dettagli.motivo || 'Non interessato').slice(0, 500);
-      patch.esitato_at = new Date().toISOString();
-    } else if (esito === 'appuntamento') {
-      patch.rilavorazione_stato = 'completato';
-    } else if (esito === 'passa_in_negozio' || esito === 'passa_a_cerea') {
-      patch.passaggio_stato = 'in_attesa';
-      patch.data_ricontatto = null;
-    } else if (esito === 'ricontattare') {
-      patch.data_ricontatto = oggi;
-      patch.fascia_ricontatto = fasciaCorrente(cfg);
-    } else if (esito === 'skip') {
-      const skip = dettagli.skip_reason;
-      if (skip === 'cliente_momentaneamente_indisponibile' || skip === 'problema_tecnico') {
-        const prossimo = prossimaFascia(fasciaCorrente(cfg), oggi);
-        patch.data_ricontatto = prossimo.data;
-        patch.fascia_ricontatto = prossimo.fascia;
-      } else {
-        patch.rilavorazione_stato = 'completato';
-      }
-    }
-    if (Object.keys(patch).length > 0) {
-      await supabase.from('chiamate').update(patch).eq('id', task.sorgente_id);
-    }
-    return;
-  }
 
   if (task.tipo === 'conferma_appuntamento_business' && isUuid(payload.appuntamento_business_id)) {
     const bizId = payload.appuntamento_business_id;
     const patchBiz = {};
     if (esito === 'confermato') patchBiz.stato = 'confermato';
     if (esito === 'annullato') patchBiz.stato = 'annullato';
-    if (esito === 'da_riprogrammare') patchBiz.stato = 'da_riprogrammare';
+    if (esito === 'da_riprogrammare') patchBiz.stato = dettagli.dettagli?.riprogrammato ? 'proposto' : 'da_riprogrammare';
     if (Object.keys(patchBiz).length > 0) {
-      await supabase.from('kona_call_director_appuntamenti_business').update(patchBiz).eq('id', bizId);
+      const { error: bizUpdateError } = await supabase
+        .from('kona_call_director_appuntamenti_business')
+        .update(patchBiz)
+        .eq('id', bizId);
+      if (bizUpdateError) throw new Error(bizUpdateError.message || 'aggiornamento_conferma_fallito');
     }
     // Registra la conferma (UNIQUE appuntamento_business_id, data, orario_previsto).
-    const { count } = await supabase
+    const { count, error: countError } = await supabase
       .from('kona_call_director_conferme')
       .select('id', { count: 'exact', head: true })
       .eq('appuntamento_business_id', bizId)
       .eq('data', oggi);
+    if (countError) throw new Error(countError.message || 'conteggio_conferme_fallito');
     const nTentativo = Number(count) + 1;
     const finestra = finestraAttiva(cfg)?.orario || dettagli.orario_previsto || '00:00';
-    await supabase.from('kona_call_director_conferme').insert({
+    const { error: confermaError } = await supabase.from('kona_call_director_conferme').upsert({
       appuntamento_business_id: bizId,
       data: oggi,
       orario_previsto: finestra,
@@ -827,7 +946,8 @@ async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli
       esito: esito === 'non_risposto' ? 'non_risposto' : esito === 'confermato' ? 'confermato' : esito === 'annullato' ? 'annullato' : esito === 'da_riprogrammare' ? 'da_riprogrammare' : 'errore',
       esito_at: new Date().toISOString(),
       dettagli: cleanLog(dettagli.dettagli || {})
-    }).onConflict('appuntamento_business_id,data,orario_previsto').ignore();
+    }, { onConflict: 'appuntamento_business_id,data,orario_previsto', ignoreDuplicates: true });
+    if (confermaError) throw new Error(confermaError.message || 'registrazione_conferma_fallita');
   }
 }
 
@@ -863,6 +983,7 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
     tentativo = await tentativoPersistente(supabase, {
       operatoreId: profiloId,
       sorgenteId: task.sorgente_id,
+      chiaveTentativi: task.chiave_tentativi,
       tipo: task.tipo
     });
   }
@@ -954,7 +1075,7 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
   });
 
   const notifica = esaurito && task.tipo === 'conferma_appuntamento_business' ? 'conferma_non_risposti_esauriti' : null;
-  return { ok: true, esaurito, notifica, tentativo };
+  return { ok: true, esito, esaurito, notifica, tentativo };
 }
 
 module.exports = {

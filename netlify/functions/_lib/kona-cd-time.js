@@ -114,6 +114,14 @@ function isWorkingDay(dateStr, giorniLavorativi = [1, 2, 3, 4, 5]) {
   return giorniLavorativi.includes(dow);
 }
 
+function nextWorkingDay(dateStr, giorniLavorativi = [1, 2, 3, 4, 5], ferie = [], includeStart = false) {
+  for (let i = includeStart ? 0 : 1; i <= 31; i += 1) {
+    const candidate = addDaysStr(dateStr, i);
+    if (isWorkingDay(candidate, giorniLavorativi) && !ferie.includes(candidate)) return candidate;
+  }
+  throw new Error('Nessun giorno lavorativo trovato');
+}
+
 // Confronta l'ora corrente Rome con "HH:MM".
 function nowIsBeforeHHmm(hhmm, now = new Date()) {
   const target = parseHHmm(hhmm);
@@ -146,6 +154,7 @@ module.exports = {
   nowIsAfterHHmm,
   nowIsBeforeHHmm,
   nowRomeParts,
+  nextWorkingDay,
   parseHHmm,
   romeDayRange,
   romeOffsetMs,

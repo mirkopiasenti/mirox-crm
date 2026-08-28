@@ -49,7 +49,7 @@ exports.handler = async (event) => {
   const client = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
   // Single-use: se il nonce e' gia' stato consumato, rifiuta.
-  if (!(await consumaState(client, verificato.nonce))) {
+  if (!(await consumaState(client, verificato.nonce, verificato.pid))) {
     return html('Richiesta gia' + ' elaborata: richiedi una nuova connessione.', false);
   }
 

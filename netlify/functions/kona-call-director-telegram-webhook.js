@@ -23,7 +23,7 @@ const { getConfig } = require('./_lib/kona-cd-config');
 const { budgetSnapshot } = require('./_lib/kona-cd-budget');
 const { reportGiornaliero, propostaPianoGiorno, applicaPianoDefault, pianoDi, salvaPiano } = require('./_lib/kona-cd-report');
 const { timingSafeEqualText, sendMessage, answerCallbackQuery, getOwnerChatId } = require('./_lib/kona-cd-telegram');
-const { addDaysStr, monthRomeKey, todayRomeStr } = require('./_lib/kona-cd-time');
+const { addDaysStr, monthRomeKey, nextWorkingDay, todayRomeStr } = require('./_lib/kona-cd-time');
 const { cleanLog, nowIso } = require('./_lib/kona-cd-util');
 
 const AIUTO = [
@@ -94,7 +94,7 @@ exports.handler = async (event) => {
 
     const cfg = await getConfig(client);
     const data = todayRomeStr();
-    const domani = addDaysStr(data, 1);
+    const domani = nextWorkingDay(data, cfg.giorni_lavorativi, cfg.ferie);
 
     if (callback) {
       await gestisciCallback(client, cfg, chatId, callback);
@@ -150,7 +150,7 @@ async function gestisciCallback(client, cfg, chatId, callback) {
   const dati = String(callback.data || '').split(':');
   const tipo = dati[0];
   const arg = dati[1];
-  const giorno = dati[2] || addDaysStr(todayRomeStr(), 1);
+  const giorno = dati[2] || nextWorkingDay(todayRomeStr(), cfg.giorni_lavorativi, cfg.ferie);
   let risposta = null;
 
   if (tipo === 'piano' && arg === 'vedi') risposta = await cmdPiano(client, cfg, giorno);
@@ -202,6 +202,7 @@ async function cmdReport(client, cfg, data) {
     `Task: ${report.task.totali}`,
     `Conferme: ${report.conferme.totali}`,
     `Appuntamenti Business: ${report.appuntamenti_business.totali}`,
+    `Attivita sessioni: ${report.sessioni.attivita_totali || 0}`,
     `Budget: ${report.budget.speso.toFixed(2)} euro`
   ].join('\n');
 }
@@ -270,8 +271,12 @@ async function cmdSospendi(client, chatId) {
 
 async function cmdRiattiva(client, chatId) {
   await client.from('kona_call_director_config').upsert({ id: 1, attivo_globale: true, aggiornato_at: nowIso() }, { onConflict: 'id' });
+  const { error } = await client.from('kona_call_director_task').update({
+    stato: 'attivo', lease_until: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(), lease_owner: 'telegram'
+  }).eq('stato', 'sospeso');
+  if (error) return `KONA riattivato, ma i task sospesi richiedono verifica: ${error.message}`;
   await audita(client, chatId, 'riattivazione', {});
-  return 'KONA Call Director riattivato.';
+  return 'KONA Call Director riattivato e task sospesi ripresi.';
 }
 
 // Dialogo libero: risposta alla domanda sulle categorie o sul piano.
@@ -288,12 +293,35 @@ async function gestisciDialogo(client, cfg, chatId, text, domani) {
     const operatori = await operatoriAbilitati(client);
     for (const opId of operatori) {
       const esistente = await pianoDi(client, { data: domani, operatoreId: opId });
-      if (esistente) {
-        const contenuto = { ...(esistente.contenuto || {}), categorie_approvate: categorie };
-        await client.from('kona_call_director_piani').update({ contenuto: cleanLog(contenuto) }).eq('data', domani).eq('operatore_id', opId);
-      }
+      const contenuto = { ...(esistente?.contenuto || {}), categorie_approvate: categorie };
+      const salvato = await salvaPiano(client, {
+        data: domani,
+        operatoreId: opId,
+        contenuto: cleanLog(contenuto),
+        sorgente: 'mirko',
+        stato: 'approvato'
+      });
+      if (!salvato.ok) throw new Error('Impossibile salvare le categorie approvate');
     }
     return `Categorie approvate: ${categorie.join(', ')}.`;
   }
-  return 'Messaggio ricevuto. Usa /aiuto per i comandi oppure i pulsanti del piano.';
+  const lower = text.toLowerCase();
+  const categoriaSessione = lower.includes('telefono') && lower.includes('omaggio')
+    ? 'telefoni_omaggio'
+    : (lower.includes('fibra') || lower.includes('fwa')) ? 'fibra_fwa'
+      : lower.includes('business') ? 'business' : null;
+  const operatori = await operatoriAbilitati(client);
+  for (const opId of operatori) {
+    const esistente = await pianoDi(client, { data: domani, operatoreId: opId });
+    const contenuto = {
+      ...(esistente?.contenuto || {}),
+      direttiva_mirko: text.slice(0, 1000),
+      ...(categoriaSessione ? { categoria_sessione: categoriaSessione } : {})
+    };
+    await salvaPiano(client, {
+      data: domani, operatoreId: opId, contenuto: cleanLog(contenuto), sorgente: 'mirko', stato: 'approvato'
+    });
+  }
+  await audita(client, chatId, 'direttiva_libera_approvata', { data: domani, categoria_sessione: categoriaSessione });
+  return `Direttiva registrata e approvata per ${domani}: ${text.slice(0, 500)}`;
 }

@@ -20,7 +20,7 @@ const { authAndEnabled } = require('./_lib/kona-cd-config');
 const { materializeNextTask, verificaTaskAttivo, getTaskDettaglio, registerEsito } = require('./_lib/kona-cd-engine');
 const { enqueueNotifica } = require('./_lib/kona-cd-notifiche');
 const { notificaEsauriti } = require('./_lib/kona-cd-conferme');
-const { todayRomeStr } = require('./_lib/kona-cd-time');
+const { nowRomeParts, todayRomeStr } = require('./_lib/kona-cd-time');
 const { jsonError, jsonOk, readJsonBody } = require('./_lib/kona-cd-util');
 
 exports.handler = async (event) => {
@@ -104,15 +104,18 @@ exports.handler = async (event) => {
 
       case 'sessione': {
         // Apre/chiude una sessione operativa (Consumer manuale o Business).
-        const tipo = body.tipo === 'pomeriggio' ? 'pomeriggio' : 'mattina';
+        const tipo = body.tipo === 'pomeriggio' || body.tipo === 'mattina'
+          ? body.tipo
+          : (nowRomeParts().hh >= 15 ? 'pomeriggio' : 'mattina');
         const statoSessione = body.stato === 'chiudi' ? 'chiudi' : 'apri';
         const data = todayRomeStr();
         if (statoSessione === 'apri') {
           const categoria = ['telefoni_omaggio', 'fibra_fwa', 'business'].includes(String(body.categoria || '')) ? body.categoria : null;
-          await client.from('kona_call_director_sessioni').upsert(
-            { data, operatore_id: profiloId, tipo, stato: 'attiva', categoria, aperta_at: new Date().toISOString() },
+          const { error: sessioneOpenError } = await client.from('kona_call_director_sessioni').upsert(
+            { data, operatore_id: profiloId, tipo, stato: 'attiva', categoria, aperta_at: new Date().toISOString(), chiusa_at: null, note: { obiettivo_minuti: categoria === 'business' ? (cfg.durata_sessione_business_minuti || 90) : null } },
             { onConflict: 'data,operatore_id,tipo' }
           );
+          if (sessioneOpenError) return jsonError(500, sessioneOpenError.message);
           return jsonOk({ sessione: true, tipo, categoria });
         }
         const { data: chiusa, error } = await client
@@ -123,6 +126,28 @@ exports.handler = async (event) => {
           .single();
         if (error) return jsonError(500, error.message);
         return jsonOk({ sessione_chiusa: true, tipo, id: chiusa?.id || null });
+      }
+
+      case 'registra_attivita_consumer': {
+        const categoria = String(body.categoria || '');
+        const esito = String(body.esito || '');
+        if (!['telefoni_omaggio', 'fibra_fwa'].includes(categoria)) return jsonError(400, 'Categoria Consumer non valida');
+        if (!['chiamata', 'non_risposto', 'non_interessato', 'passa_in_negozio', 'interessato', 'altro'].includes(esito)) return jsonError(400, 'Esito Consumer non valido');
+        const { data: sessione, error: sessioneError } = await client.from('kona_call_director_sessioni')
+          .select('id, categoria').eq('data', todayRomeStr()).eq('operatore_id', profiloId)
+          .eq('stato', 'attiva').eq('categoria', categoria).limit(1).maybeSingle();
+        if (sessioneError || !sessione) return jsonError(409, 'Nessuna sessione Consumer attiva per questa categoria');
+        const { data: attivita, error } = await client.from('kona_call_director_sessione_attivita').insert({
+          sessione_id: sessione.id,
+          operatore_id: profiloId,
+          categoria,
+          esito,
+          note: String(body.note || '').slice(0, 500) || null
+        }).select('id, created_at').single();
+        if (error || !attivita) return jsonError(500, error?.message || 'Registrazione attività fallita');
+        const { count } = await client.from('kona_call_director_sessione_attivita')
+          .select('id', { count: 'exact', head: true }).eq('sessione_id', sessione.id);
+        return jsonOk({ registrata: true, attivita, totale_sessione: Number(count) || 0 });
       }
 
       case 'sospendi': {

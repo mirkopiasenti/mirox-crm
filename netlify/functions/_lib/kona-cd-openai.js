@@ -2,13 +2,13 @@
 
 const { cleanLog, cleanText, env } = require('./kona-cd-util');
 const { monthRomeKey, todayRomeStr } = require('./kona-cd-time');
-const { tryReserveBudget, liberaRiserva } = require('./kona-cd-budget');
+const { tryReserveBudget, liberaRiserva, notifyBudgetThresholds } = require('./kona-cd-budget');
 
 // Wrapper OpenAI Responses API per KONA Call Director.
 // - Solo server-side, mai chiavi nel frontend.
 // - Output strutturato (JSON schema strict) trattato come NON FIDATO:
 //   validazione esplicita, istruzioni nelle pagine web ignorate.
-// - Timeout + retry limitato + fallback deterministico a cura del chiamante.
+// - Timeout senza retry inline; il retry applicativo e' gestito dai job a lease.
 // - PRENOTAZIONE BUDGET ATOMICA prima della chiamata (tryReserveBudget):
 //   hard stop totale + riserve per attivita'; mai sforamenti concorrenti.
 // - Prezzo/modello sconosciuto: fallisce in sicurezza (mai conteggiare zero).
@@ -17,7 +17,7 @@ const { tryReserveBudget, liberaRiserva } = require('./kona-cd-budget');
 // - max_tool_calls=2 per web_search (mai piu' di due ricerche per chiamata).
 
 const RESPONSES_URL = 'https://api.openai.com/v1/responses';
-const MAX_RETRIES = 1;
+const MAX_RETRIES = 0;
 const RETRY_DELAY_MS = 1200;
 
 function extractOutputText(payload) {
@@ -105,7 +105,9 @@ function estimateCost(cfg, model, usage, webCount) {
   if (![inputPrice, outputPrice, webPrice].every((n) => Number.isFinite(n) && n >= 0)) {
     return { ok: false, motivo: 'prezzo_non_valido', model };
   }
-  const eur = (usage.input_tokens || 0) * inputPrice + (usage.output_tokens || 0) * outputPrice + (webCount || 0) * webPrice;
+  const usdToEur = Number(cfg?.usd_to_eur);
+  if (!Number.isFinite(usdToEur) || usdToEur <= 0) return { ok: false, motivo: 'cambio_usd_eur_non_valido', model };
+  const eur = ((usage.input_tokens || 0) * inputPrice + (usage.output_tokens || 0) * outputPrice + (webCount || 0) * webPrice) * usdToEur;
   return { ok: true, eur: Math.round(eur * 1e6) / 1e6, note: null };
 }
 
@@ -122,7 +124,9 @@ function estimatePotential(cfg, model, { inputLen, maxOutputTokens, webCount }) 
     return { ok: false, motivo: 'prezzo_non_valido', model };
   }
   const inputTokens = Math.ceil((Number(inputLen) || 0) / 4);
-  const eur = inputTokens * inputPrice + (Number(maxOutputTokens) || 0) * outputPrice + (Number(webCount) || 0) * webPrice;
+  const usdToEur = Number(cfg?.usd_to_eur);
+  if (!Number.isFinite(usdToEur) || usdToEur <= 0) return { ok: false, motivo: 'cambio_usd_eur_non_valido', model };
+  const eur = (inputTokens * inputPrice + (Number(maxOutputTokens) || 0) * outputPrice + (Number(webCount) || 0) * webPrice) * usdToEur;
   return { ok: true, eur: Math.max(0.0001, Math.round(eur * 1e6) / 1e6) };
 }
 
@@ -140,7 +144,8 @@ async function logUsage({ supabase, cfg, activity = 'altro', model, usage, webCo
     costo_stimato_eur: costEur || 0,
     dettagli: cleanLog(details)
   };
-  await supabase.from('kona_call_director_budget_log').insert(record);
+  const { error } = await supabase.from('kona_call_director_budget_log').insert(record);
+  if (error) throw new Error('budget_log: ' + String(error.message || 'errore'));
 }
 
 // Rate limit per-ora sulle chiamate a pagamento (default 120/h).
@@ -216,7 +221,11 @@ async function openaiStructured({
     store: false,
     text: { format: { type: 'json_schema', name: String(name || 'kona_call_director').slice(0, 64), strict: true, schema } }
   };
-  if (webSearch) body.tools = [{ type: 'web_search_preview', max_tool_calls: Math.min(Number(maxToolCalls) || 2, 2) }];
+  if (webSearch) {
+    body.tools = [{ type: 'web_search_preview' }];
+    body.max_tool_calls = Math.min(Number(maxToolCalls) || 2, 2);
+    body.include = ['web_search_call.action.sources'];
+  }
 
   let lastError = null;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
@@ -303,6 +312,7 @@ async function openaiStructured({
       costEur: cost.eur,
       details: { ...details, esito: 'ok', costo_note: cost.note }
     });
+    await notifyBudgetThresholds(supabase, cfg).catch(() => null);
     await libera();
     return { ok: true, value, usage, webCount, webSources, costEur: cost.eur, note: cost.note };
   }

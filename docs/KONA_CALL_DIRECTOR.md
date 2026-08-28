@@ -1,156 +1,204 @@
-# KONA Call Director — setup e confini operativi
+# KONA Call Director — stato, setup e attivazione
 
-## Stato dell'implementazione
+## Stato verificato
 
-Modulo completo lato codice (lib condivise, Netlify Functions, cron, pagine
-operatore/admin, test, migration 072) ma **non ancora attivato**: nessuna
-migration applicata, nessun webhook/configurato, nessuna env var production
-modificata, nessun deploy. Il codice e' pronto per la review DeepSeek Pro.
+Il modulo e' completo lato codice ed e' stato riesaminato localmente dopo le
+correzioni di chiusura. La suite dedicata passa 72/72 test; la suite completa
+del CRM passa 187/187 test. La build statica e i controlli di sintassi sono
+verdi.
 
-KONA Call Director coordina la giornata dell'operatore autorizzato del Call
-Center: un contatto alla volta, priorita' note, conferme degli appuntamenti
-Business del giorno successivo, ricontatti programmati, gestione "Passa a
-Cerea" / "Passa in negozio", campagne urgenti approvate, attivita' standard,
-preparazione notturna dei lead Business (arricchimento da fonti pubbliche),
-pianificazione quotidiana con Mirko tramite un bot Telegram separato e
-integrazione Google Calendar del solo calendario personale di Mirko.
+Il Supabase test dedicato `Mirox CRM - Test KONA Call Director`
+(`yyorullxmdxhnunsfwwa`, `eu-west-3`) e' attivo e contiene il solo schema
+minimo ricostruito senza dati production, la migration `072` e il seed
+fail-closed. Le 23 tabelle KONA sono vuote salvo la config; non esistono
+profili abilitati e `attivo_globale=false`. Il sito Netlify isolato
+`mirox-kona-call-director-test.netlify.app` e' collegato alla branch
+`kona-call-director`; il redeploy del commit remoto `f358698` e' riuscito con
+le env staging, la service role protetta del solo Supabase test e i due
+interruttori KONA a `false`. L'invocazione HTTP diretta del dispatcher e'
+bloccata da Netlify con `403`. Le modifiche locali non pubblicate non sono
+ancora nel deploy.
+Production non contiene oggetti KONA Call Director e resta invariata.
 
-**Vincoli non negoziabili rispettati:**
+## Funzione operativa
 
-- nessuna funzionalita' AI blocca il Call Center manuale (tutte le funzioni
-  sono additive, il motore di priorita' e' deterministico);
-- nessun dato identificativo dei clienti su Telegram;
-- nessun dato Consumer identificativo inviato a OpenAI (l'arricchimento web
-  usa solo dati pubblici Business gia' presenti in Mirox);
-- nessuna chiave, token OAuth, refresh token, credenziale OpenAI o service
-  role nel frontend;
-- nessun UUID hardcodato (Isabella/Mirko sono derivati da profili abilitati e
-  dall'env `KONA_CALL_DIRECTOR_OWNER_CHAT_ID`);
-- mai 50 ricerche sequenziali in una funzione (job a lease, batch piccoli);
-- nessuna coordinata inventata (`kona_call_director_comuni` va popolata da un
-  dataset autorevole, vedi sotto);
-- nessun prezzo hardcodato (stime in `kona_call_director_config.prezzi_openai`);
-- nessun segreto reale documentato.
+KONA Call Director coordina l'operatore autorizzato del Call Center con un
+solo contatto visibile alla volta. Il motore delle priorita' e' deterministico;
+OpenAI e' confinato ad arricchimento Business da fonti pubbliche, valutazione
+degli skip, dialogo, proposta del piano e analisi aggregata della giornata.
+Non genera script telefonici.
 
-## Architettura
+Priorita' operative:
 
-- **(A) Motore deterministico** (`_lib/kona-cd-engine.js`): abilitazione
-  globale/per-profilo, priorita' 1..7, blacklist e esclusioni ri-verificate
-  prima della materializzazione e della vista, lease "un contatto alla volta"
-  (indice unico parziale), tentativi max 3 con alternanza mattina/pomeriggio,
-  sblocco del successivo solo dopo esito valido.
-- **(B) Sandbox OpenAI** (`_lib/kona-cd-openai.js`) usata SOLO per: web search
-  Business, estrazione strutturata, valutazione skip "Altro" (l'IA puo'
-  contestare una sola volta, decide l'operatrice), proposta piano, analisi di
-  giornata, report. Nessuno script telefonico generato. Ogni risposta: Responses API
-  server-side, output strutturato JSON strict, validato, trattato come input
-  non fidato, istruzioni delle pagine web ignorate, timeout + retry limitato +
-  fallback deterministico, modello configurabile, costo loggato.
+1. conferme degli appuntamenti Business esterni del giorno lavorativo
+   successivo, nelle finestre 09:00, 11:30, 15:30 e 18:00;
+2. ricontatti programmati;
+3. non risposti automatici;
+4. Passa a Cerea;
+5. Passa in negozio;
+6. campagne urgenti approvate;
+7. sessione Business standard.
 
-### Priorita' contatti (1..7)
+Dopo quattro tentativi di conferma senza risposta non avviene alcun
+annullamento automatico: Mirko riceve una notifica Telegram e decide.
+Le attivita' Business standard non iniziano dopo le 18:00 e non partono se il
+piano approvato non contiene almeno una categoria esplicita; il contatto gia'
+in corso puo' essere terminato.
 
-1. conferma appuntamenti Business del giorno successivo (finestre 09:00 /
-   11:30 / 15:30 / 18:00, "top of queue");
-2. ricontatti programmati (`chiamate.data_ricontatto <= oggi`);
-3. auto non risposti (rilavorazione);
-4. "Passa a Cerea";
-5. "Passa in negozio";
-6. campagne urgenti approvate (lead `pinned`);
-7. attivita' standard (sessione Business).
+## Garanzie applicate
 
-Dopo 4 non risposti sulle conferme: **nessun annullamento automatico**, lo
-stato operativo resta invariato e parte una notifica Telegram senza PII.
+- Tre interruttori indipendenti: env, globale DB e profilo operatore.
+- L'env e' fail-closed: KONA parte soltanto con
+  `KONA_CALL_DIRECTOR_ENABLED=true` esplicito.
+- Blacklist ed esclusioni sono ricontrollate prima di proporre un contatto;
+  in caso di errore la coda si ferma in sicurezza.
+- Lease, acquisizione job e prenotazione budget sono atomici.
+- La registrazione dei tentativi usa chiavi stabili e impedisce duplicati.
+- Il budget OpenAI usa riserve atomiche, conversione USD/EUR configurabile e
+  notifiche alle soglie 70/85/95/100%.
+- Ogni lead usa al massimo due web search complessive; non esiste retry inline
+  automatico che possa raddoppiare un costo incerto.
+- Google Calendar viene ricontrollato immediatamente prima della prenotazione;
+  create, modifica e annullamento hanno compensazione e riconciliazione.
+- Lo stato OAuth e' firmato, scade ed e' consumabile una sola volta.
+- Telegram accetta soltanto il bot dedicato, il secret del webhook e il
+  `chat_id` del proprietario.
+- Telegram e log non ricevono PII; gli appuntamenti privati di Mirko non sono
+  mostrati all'operatore, che vede solo le fasce disponibili.
+- I dati Consumer identificativi non vengono inviati a OpenAI.
+- Le 23 tabelle `kona_call_director_*` sono server-only con RLS e privilegi
+  riservati alla service role.
 
-## Preparazione obbligatoria (da eseguire SOLO dopo la review e l'ok esplicito)
+## Prerequisiti esterni
 
-1. **Review DeepSeek Pro** del diff e della migration `072`.
-2. **Staging** (obbligatorio): sito Netlify separato + Supabase staging
-   (`blwgxrszvsoqcmcmhhqr` gia' esistente per Guardian) + `MIROX_DEPLOY_ENV=staging`.
-3. Applicare `database/072_kona_call_director.sql` una sola volta (staging poi
-   production, mai in questa sessione).
-4. **Dataset coordinate**: `kona_call_director_comuni` e' vuota. Popolare da
-   un dataset autorevole (es. catalogo ISTAT + coordinate centroide ufficiali)
-   con un import one-shot in `database/imports/`. Le distanze restano
-   `null` (banda "unknown") finche' la tabella non e' popolata: nessuna
-   coordinata inventata.
-5. **Env vars** (vedi tabella sotto) sul sito Netlify `mirox-crm`.
-6. **Google OAuth**: creare le credenziali OAuth con redirect su
-   `KONA_CALL_DIRECTOR_GOOGLE_REDIRECT_URI`, scope minimi (free/busy + events).
-   La connessione si fa dal pannello Admin (nessun token nel frontend).
-7. **Bot Telegram** separato: creare il bot, impostare il webhook con
-   `KONA_CALL_DIRECTOR_TELEGRAM_WEBHOOK_SECRET`, permettere solo
-   `KONA_CALL_DIRECTOR_OWNER_CHAT_ID`.
-8. **Progetto OpenAI dedicato**: chiave con budget 50 euro/mese, modello
-   configurato, verifica dei prezzi seed in `prezzi_openai`.
-9. **Pilot**: attivo_globale nasce `false`; abilitare un profilo alla volta dal
-   pannello Admin; prime due settimane in `modalita_osservazione=true`.
+Prima del collaudo operativo servono:
 
-## Env vars (nessun valore reale documentato)
+- progetto OpenAI dedicato e chiave server-side;
+- OAuth Google Calendar per il calendario personale di Mirko Piasenti;
+- bot Telegram separato e relativo `chat_id` proprietario;
+- dataset autorevole delle coordinate dei comuni;
+- pubblicazione esplicita delle modifiche locali sulla branch `kona-call-director`.
 
-| Env var | Uso | Dove |
-|---|---|---|
-| `KONA_CALL_DIRECTOR_ENABLED` | Kill-switch di sicurezza (`false` = KONA mai attivo) | Netlify |
-| `KONA_CALL_DIRECTOR_OPENAI_API_KEY` | Chiave del progetto OpenAI dedicato (fallback `OPENAI_API_KEY`) | Netlify (mai frontend) |
-| `KONA_CALL_DIRECTOR_OPENAI_MODEL` | Override modello (default in config DB) | Netlify |
-| `KONA_CALL_DIRECTOR_GOOGLE_CLIENT_ID` / `_SECRET` / `_REDIRECT_URI` | OAuth Google Calendar | Netlify |
-| `KONA_CALL_DIRECTOR_GOOGLE_TOKEN_KEY` | Chiave AES-256-GCM (64 hex) per cifrare il refresh token | Netlify, separata dalle altre |
-| `KONA_CALL_DIRECTOR_TELEGRAM_BOT_TOKEN` | Bot Telegram dedicato (separato dal Guardian) | Netlify |
-| `KONA_CALL_DIRECTOR_TELEGRAM_WEBHOOK_SECRET` | Secret del webhook (confronto timing-safe) | Netlify |
-| `KONA_CALL_DIRECTOR_OWNER_CHAT_ID` | Allowlist chat proprietario (Mirko) | Netlify |
-| `KONA_CALL_DIRECTOR_CRON_SECRET` | Segreto opzionale di protezione dell'endpoint cron (timing-safe) | Netlify |
-| `KONA_CALL_DIRECTOR_STAGING_RUN` | Opt-in esplicito per eseguire i cron in staging (`true`) | Netlify staging |
+La migration `070` deve essere gia' presente, perche'
+`kona_call_director_comuni` referenzia `mirox_comuni_istat`.
+
+## Variabili Netlify
+
+| Variabile | Impostazione iniziale |
+|---|---|
+| `KONA_CALL_DIRECTOR_ENABLED` | `false`; passare a `true` solo durante il collaudo controllato |
+| `KONA_CALL_DIRECTOR_OPENAI_API_KEY` | chiave del progetto OpenAI dedicato, solo server-side |
+| `KONA_CALL_DIRECTOR_OPENAI_MODEL` | modello approvato e coerente con i prezzi configurati |
+| `KONA_CALL_DIRECTOR_GOOGLE_CLIENT_ID` | OAuth client ID |
+| `KONA_CALL_DIRECTOR_GOOGLE_CLIENT_SECRET` | OAuth client secret |
+| `KONA_CALL_DIRECTOR_GOOGLE_REDIRECT_URI` | callback dell'ambiente verso `kona-cc-google-callback` |
+| `KONA_CALL_DIRECTOR_GOOGLE_TOKEN_KEY` | 64 caratteri hex, dedicata alla cifratura AES-256-GCM |
+| `KONA_CALL_DIRECTOR_TELEGRAM_BOT_TOKEN` | token del bot KONA Call Director |
+| `KONA_CALL_DIRECTOR_TELEGRAM_WEBHOOK_SECRET` | secret casuale configurato anche nel webhook Telegram |
+| `KONA_CALL_DIRECTOR_OWNER_CHAT_ID` | solo chat di Mirko |
+| `KONA_CALL_DIRECTOR_STAGING_RUN` | `false` finche' lo staging non e' pronto; poi `true` per provare il cron |
+
+Con la Scheduled Function Netlify nativa lasciare
+`KONA_CALL_DIRECTOR_CRON_SECRET` **non impostata**: la schedulazione nativa non
+aggiunge l'header personalizzato richiesto dal controllo opzionale. Il secret
+serve soltanto se in futuro il dispatcher viene invocato da uno scheduler
+esterno controllato.
+
+## Procedura di attivazione in staging
+
+1. Stato completato il 2026-08-28: progetto test creato in `eu-west-3` e
+   bootstrap minimo `database/staging/003_kona_call_director_bootstrap.sql`
+   applicato senza copiare dati production.
+2. Stato completato il 2026-08-28: migration
+   `database/072_kona_call_director.sql` e seed disattivato applicati.
+3. Stato completato il 2026-08-28: verificate 23 tabelle KONA, cinque RPC
+   `kona_cd_*`, RLS, zero grant browser, zero dati CRM e toggle globale spento.
+4. Importare le coordinate da una fonte autorevole in
+   `kona_call_director_comuni`. Senza import il sistema continua a funzionare,
+   ma la priorita' geografica resta degradata a `unknown`.
+5. Configurare le env dello staging mantenendo
+   `KONA_CALL_DIRECTOR_ENABLED=false` e `KONA_CALL_DIRECTOR_STAGING_RUN=false`.
+6. Il sito `mirox-kona-call-director-test.netlify.app` e' gia' stato creato e
+   il primo deploy del commit remoto `f358698` e' riuscito. Pubblicare le
+   modifiche locali autorizzate e aprire il pannello Admin KONA mantenendo i
+   due interruttori KONA a `false`.
+7. Salvare e ricontrollare: budget 50 euro, riserve 40/10, cambio USD/EUR,
+   prezzo del modello, 50 lead/notte, due web search massime, sessione Business
+   90 minuti, durata appuntamento 45 minuti, raggio indicativo 20 km e orari.
+8. Collegare Google dal pannello Admin. Verificare lettura free/busy,
+   creazione, modifica e annullamento di un appuntamento di prova; controllare
+   che Isabella non veda titolo o dettagli degli eventi privati.
+9. Registrare il webhook Telegram dell'ambiente sulla function dedicata usando
+   lo stesso secret configurato in Netlify. Provare `/stato`, `/piano`,
+   `/approva`, `/sospendi`, `/riattiva` e un messaggio libero.
+10. Abilitare soltanto il profilo di Isabella e mantenere
+    `modalita_osservazione=true`; lasciare ancora spento il toggle globale.
+11. Portare `KONA_CALL_DIRECTOR_ENABLED=true` e
+    `KONA_CALL_DIRECTOR_STAGING_RUN=true`, poi attivare il toggle globale dal
+    pannello Admin. Questo ordine rende l'attivazione deliberata e reversibile.
+12. Eseguire almeno un ciclo completo di prova e verificare database, pagina
+    operatore, report Telegram, audit e consumo budget.
+
+## Collaudo obbligatorio
+
+Il collaudo staging deve coprire almeno:
+
+- blacklist per CF e per tutti i numeri disponibili;
+- un solo contatto attivo per operatore e sblocco dopo esito;
+- skip motivato, contestazione una sola volta e decisione finale operatrice;
+- tre tentativi ordinari e quattro tentativi per le conferme;
+- conferma di venerdi proposta per lunedi, salvo ferie configurate;
+- appuntamento creato, riprogrammato e annullato con Google;
+- indisponibilita' Google: nessuna doppia prenotazione e notifica;
+- sessione Business bloccata dopo le 18:00;
+- sessione Business standard bloccata senza categorie approvate e filtrata
+  esclusivamente sulle categorie del piano;
+- sessione Consumer manuale tracciata senza suggerimento automatico di lead;
+- arricchimento notturno di un piccolo lotto e fonti realmente registrate;
+- esaurimento simulato delle riserve OpenAI e notifica soglia budget;
+- report 19:10, proposta 20:05, reminder 20:00 e 08:00, piano default 08:30;
+- spegnimento immediato tramite toggle globale ed env.
 
 ## Cron
 
-`netlify.toml`: `[functions."kona-call-director-dispatcher"] schedule = "*/5 * * * *"`.
-Idempotente per registro `data+evento`; orologio Europe/Rome (DST-safe).
-Sequenza giornaliera: 02:00 arricchimento, 03:30 retention, 08:00 reminder
-mattina, 08:30 piano default, 19:10 report + domanda piano, 20:00 reminder
-sera, 20:05 proposta piano domani. Grace window 4h e retry limitato. Ogni
-tick: materializza i task nelle finestre conferme / orario operativo, processa
-job a lease e la coda notifiche Telegram.
+Il dispatcher gira ogni cinque minuti e usa l'orologio Europe/Rome. Gli eventi
+ordinari hanno una finestra di recupero di 20 minuti; arricchimento e retention
+di 60 minuti. Ogni evento e' idempotente per data e nome e ha al massimo tre
+tentativi nella propria finestra.
 
-## Funzioni
+Sequenza: 02:00 arricchimento, 03:30 retention, 08:00 reminder mattina, 08:30
+piano default, 19:10 report serale, 20:00 reminder sera e 20:05 proposta del
+piano del giorno lavorativo successivo. A ogni tick vengono inoltre gestiti
+task, conferme, piccoli batch di job, riconciliazione Google e outbox Telegram.
 
-| Function | Auth | Azioni |
-|---|---|---|
-| `kona-call-director-dispatcher` | cron | orchestratore idempotente |
-| `kona-call-director-task` | operatore abilitato | prossimo / attivo / esito / sospendi / riprendi |
-| `kona-call-director-status` | operatore | stato, budget, riepilogo giorno |
-| `kona-call-director-admin` | admin | interruttori, operatori, config, budget, sospensione |
-| `kona-call-director-dialog` | operatore abilitato | valuta skip "Altro", slot Google, appuntamenti Business (nessuno script) |
-| `kona-call-director-plan` | operatore | proposta/approva/applica/leggi piano |
-| `kona-call-director-google` | admin | connetti (OAuth), stato, disconnetti |
-| `kona-cc-google-callback` | pubblico (redirect OAuth) | scambio code, token cifrato |
-| `kona-call-director-telegram-webhook` | secret timing-safe + owner | comandi, testo libero, pulsanti e callback_query (piano/approva/categorie), /sospendi /riattiva |
+## Passaggio in production
 
-## Privacy e budget
+Passare in production soltanto dopo il collaudo staging firmato. Ripetere gli
+step 1-10 usando credenziali, callback, bot, webhook, database e calendario di
+production distinti. Effettuare il primo avvio in un giorno lavorativo
+sorvegliato, con Isabella presente, `modalita_osservazione=true` e Mirko
+raggiungibile su Telegram. Mantenere l'osservazione per almeno la prima
+settimana e confrontare chiamate, appuntamenti, scarti, anomalie e costi.
 
-- Telegram: solo aggregati (conteggi, zone, esiti). `sanitizeForTelegram` e
-  `cleanLog` rimuovono telefono/email/CF/P.IVA anche nei log.
-- OpenAI: mai dati Consumer identificativi. Per i lead Business solo dati
-  pubblici aziendali gia' in Mirox.
-- Ogni chiamata OpenAI loggata in `kona_call_director_budget_log`; il budget
-  mensile (default 50 euro) con riserve arricchimento (40) e dialogo (10):
-  un'attivita' non parte se la propria riserva non copre il costo stimato.
-- Retention: arricchimenti 180 gg, attivita' 365 gg, aggregati 730 gg.
+## Arresto e rollback operativo
 
-## Test
+Per fermare KONA senza perdere dati:
 
-`tests/kona-call-director.test.js`: 61 test (suite totale 174+ con le
-esistenti). Coprono: tempo DST, validazioni campi, scoring, finestre conferme,
-budget/riserve, crypto roundtrip, arricchimento (mai sovrascrivere), retention,
-job lease, motore (blacklist/esclusioni/lease/esiti/skip), OpenAI con fetch
-mockato (successo/web/503/JSON non valido/no chiave), webhook Telegram
-(secret/owner), outbox notifiche, Google slots, piano. I test hanno fatto
-emergere 3 bug reali corretti (mancanza `await` nella ri-verifica blacklist,
-import errato delle funzioni tempo in openai, ordine dei check nel webhook).
+1. disattivare immediatamente il toggle globale nel pannello Admin;
+2. impostare `KONA_CALL_DIRECTOR_ENABLED=false` e ridistribuire la config;
+3. disabilitare il profilo di Isabella;
+4. mettere in pausa il webhook Telegram e, se necessario, disconnettere Google;
+5. conservare tabelle e audit per diagnosi: non e' necessario alcun rollback DB.
 
-## Checklist DeepSeek Pro
+La migration e' additiva, ma rimuovere tabelle o funzioni KONA e' un'azione
+distruttiva. Un eventuale rollback strutturale va preparato separatamente,
+dopo export dei dati e approvazione esplicita, eliminando soltanto oggetti con
+prefisso `kona_call_director_*` e RPC `kona_cd_*` nell'ordine corretto delle
+dipendenze. Non eseguire DROP durante il normale arresto.
 
-- [ ] migration `072` additiva e reversibile, nessun DROP su oggetti esistenti
-- [ ] nessun SECURITY DEFINER ingiustificato, RLS server-only su tutte le tabelle
-- [ ] env vars documentate senza valori reali
-- [ ] nessun segreto nel frontend (OAuth/OpenAI/service role)
-- [ ] `git diff --check` pulito, `npm test` verde
-- [ ] nessuna migration applicata / nessun push / nessun deploy (vincolo sessione)
+## Verifica locale conclusiva
+
+- `node --test tests/kona-call-director.test.js`: 72/72 pass.
+- `npm test`: 187/187 pass, inclusa build statica production.
+- Nessuna migration applicata, nessun commit, push o deploy eseguito durante
+  questa chiusura.

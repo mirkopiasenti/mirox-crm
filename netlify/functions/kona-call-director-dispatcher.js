@@ -1,9 +1,9 @@
 /**
  * Cron KONA Call Director — schedulato ogni 5 minuti (orologio Europe/Rome).
- *
- * NON auth-gated (chiamata dal cron Netlify) ma PROTETTO: se
- * KONA_CALL_DIRECTOR_CRON_SECRET e' configurato, la richiesta deve passare il
- * confronto timing-safe (header X-Kona-Cd-Cron-Secret o query `secret`).
+ * Il dispatcher e' una Scheduled Function Netlify. Con la schedulazione nativa
+ * lasciare KONA_CALL_DIRECTOR_CRON_SECRET non impostato: Netlify non aggiunge
+ * header personalizzati alla chiamata schedulata. Il segreto resta disponibile
+ * soltanto per eventuali invocazioni controllate esterne.
  *
  * Staging: con MIROX_DEPLOY_ENV=staging il cron termina subito, SALVO
  * opt-in esplicito KONA_CALL_DIRECTOR_STAGING_RUN=true (obbligatorio per
@@ -36,15 +36,15 @@ const { analisiGiornata, applicaPianoDefault, pianoDi, propostaPianoGiorno, repo
 const { enqueueNotifica, processaNotifiche } = require('./_lib/kona-cd-notifiche');
 const { materializeNextTask } = require('./_lib/kona-cd-engine');
 const { finestraAttiva } = require('./_lib/kona-cd-conferme');
-const { findEventByKonaId, getAccessToken, insertEvent } = require('./_lib/kona-cd-google');
+const { calendarIdFor, deleteEvent, findEventByKonaId, getAccessToken, insertEvent, updateEventTime } = require('./_lib/kona-cd-google');
 const { timingSafeEqualText } = require('./_lib/kona-cd-telegram');
-const { addDaysStr, isWorkingDay, nowRomeParts, parseHHmm, todayRomeStr } = require('./_lib/kona-cd-time');
+const { addDaysStr, isWorkingDay, nextWorkingDay, nowRomeParts, parseHHmm, todayRomeStr } = require('./_lib/kona-cd-time');
 const { cleanLog, isStaging, nowIso } = require('./_lib/kona-cd-util');
 
 const RETENTION_ORA = '03:30';
 const PIANO_PROPOSTA_ORA = '20:05';
 const MAX_JOB_TICK = 5;
-const GRACE_MINUTI = 240; // 4h
+const GRACE_MINUTI = 20;
 const MAX_RETRY_EVENTO = 3;
 
 function getClient() {
@@ -161,7 +161,7 @@ async function eseguiRetention(supabase, cfg, data) {
 async function eseguiReportSera(supabase, cfg, data) {
   const report = await reportGiornaliero(supabase, cfg, { data });
   const analisi = await analisiGiornata(supabase, cfg, { data });
-  const domani = addDaysStr(data, 1);
+  const domani = nextWorkingDay(data, cfg.giorni_lavorativi, cfg.ferie);
   const piano = await propostaPianoGiorno(supabase, cfg, { data: domani });
   const lines = [
     `KONA Call Director - Report ${data}`,
@@ -184,9 +184,9 @@ async function eseguiReportSera(supabase, cfg, data) {
 async function eseguiReminder(supabase, cfg, data, slot) {
   // Reminder CONDIZIONALI: se Mirko ha gia' risposto (piano approvato o
   // conversazione in corso sul piano), non si invia il promemoria.
-  const domani = addDaysStr(data, 1);
+  const targetPiano = slot === 'mattina' ? data : nextWorkingDay(data, cfg.giorni_lavorativi, cfg.ferie);
   const operatori = await operatoriAbilitati(supabase);
-  const giaApprovato = operatori.length > 0 && (await pianoDi(supabase, { data: domani, operatoreId: operatori[0] }))?.stato === 'approvato';
+  const giaApprovato = operatori.length > 0 && (await pianoDi(supabase, { data: targetPiano, operatoreId: operatori[0] }))?.stato === 'approvato';
   if (giaApprovato) return { slot, skip: 'piano_gia_approvato' };
 
   const testo = slot === 'mattina'
@@ -224,7 +224,7 @@ async function eseguiPianoDefault(supabase, cfg, data) {
 
 // Proposta piano domani (20:05) persistita come 'proposta' sorgente 'openai'.
 async function eseguiPropostaPiano(supabase, cfg, data) {
-  const domani = addDaysStr(data, 1);
+  const domani = nextWorkingDay(data, cfg.giorni_lavorativi, cfg.ferie);
   const operatori = await operatoriAbilitati(supabase);
   let proposte = 0;
   for (const opId of operatori) {
@@ -280,39 +280,68 @@ async function riconciliaSyncGoogle(supabase, cfg) {
   if (error || !Array.isArray(daRecuperare)) return { gestiti: 0 };
   const accessToken = await getAccessToken(supabase);
   if (!accessToken) return { gestiti: 0, motivo: 'no_token' };
+  const calendarId = calendarIdFor(cfg);
   let gestiti = 0;
   for (const app of daRecuperare) {
     try {
       const timeMin = new Date(new Date(app.data_ora).getTime() - 24 * 60 * 60 * 1000).toISOString();
       const timeMax = new Date(new Date(app.data_ora).getTime() + 24 * 60 * 60 * 1000).toISOString();
-      const esistente = await findEventByKonaId(accessToken, { konaId: app.id, timeMin, timeMax });
-      if (esistente) {
-        await supabase.from('kona_call_director_appuntamenti_business').update({ google_event_id: esistente.id, sync_stato: 'sincronizzato', sync_dettagli: { html_link: esistente.htmlLink } }).eq('id', app.id);
+      const trovato = await findEventByKonaId(accessToken, { calendarId, konaId: app.id, timeMin, timeMax });
+      let eventId = app.google_event_id || trovato?.id || null;
+
+      if (app.stato === 'annullato') {
+        if (eventId) await deleteEvent(accessToken, { calendarId, eventId });
+        const { error: annullaErr } = await supabase
+          .from('kona_call_director_appuntamenti_business')
+          .update({ google_event_id: null, sync_stato: 'sincronizzato', sync_dettagli: { riconciliato_at: new Date().toISOString() } })
+          .eq('id', app.id);
+        if (annullaErr) throw annullaErr;
         gestiti += 1;
         continue;
       }
-      const { data: lead } = await supabase.from('call_center_lead_outbound').select('ragione_sociale').eq('id', app.lead_id).maybeSingle();
-      const nome = String(lead?.ragione_sociale || 'Azienda').slice(0, 80);
-      const evento = await insertEvent(accessToken, {
-        summary: `Appuntamento: ${nome}`,
-        start: app.data_ora,
-        end: new Date(new Date(app.data_ora).getTime() + (app.durata_minuti || cfg.durata_appuntamento_minuti || 45) * 60000).toISOString(),
-        description: `KONA Call Director - appuntamento Business (${app.id}).`,
-        konaId: app.id
-      });
-      await supabase.from('kona_call_director_appuntamenti_business').update({ google_event_id: evento.id, sync_stato: 'sincronizzato', sync_dettagli: { html_link: evento.htmlLink } }).eq('id', app.id);
+
+      const end = new Date(new Date(app.data_ora).getTime() + (app.durata_minuti || cfg.durata_appuntamento_minuti || 45) * 60000).toISOString();
+      let evento = eventId ? { id: eventId, htmlLink: trovato?.htmlLink || null } : null;
+      if (eventId) {
+        try {
+          await updateEventTime(accessToken, { calendarId, eventId, start: app.data_ora, end });
+        } catch (eventError) {
+          if (Number(eventError?.status) !== 404) throw eventError;
+          eventId = null;
+          evento = null;
+        }
+      }
+      if (!eventId) {
+        const { data: lead, error: leadErr } = await supabase.from('call_center_lead_outbound').select('ragione_sociale').eq('id', app.lead_id).maybeSingle();
+        if (leadErr) throw leadErr;
+        const nome = String(lead?.ragione_sociale || 'Azienda').slice(0, 80);
+        evento = await insertEvent(accessToken, {
+          calendarId,
+          summary: `Appuntamento: ${nome}`,
+          start: app.data_ora,
+          end,
+          description: `KONA Call Director - appuntamento Business (${app.id}).`,
+          konaId: app.id
+        });
+      }
+      const { error: syncErr } = await supabase
+        .from('kona_call_director_appuntamenti_business')
+        .update({ google_event_id: evento.id || eventId, sync_stato: 'sincronizzato', sync_dettagli: { html_link: evento.htmlLink || trovato?.htmlLink || null, riconciliato_at: new Date().toISOString() } })
+        .eq('id', app.id);
+      if (syncErr) throw syncErr;
       gestiti += 1;
     } catch (e) {
       const tentativi = Number(app.sync_dettagli?.tentativi || 0) + 1;
+      const update = tentativi >= 5
+        ? { sync_stato: 'errore', sync_dettagli: { tentativi, ultimo_errore: String(e?.message || 'errore').slice(0, 200) } }
+        : { sync_dettagli: { tentativi, ultimo_errore: String(e?.message || 'errore').slice(0, 200) } };
+      await supabase.from('kona_call_director_appuntamenti_business').update(update).eq('id', app.id);
       if (tentativi >= 5) {
-        await supabase.from('kona_call_director_appuntamenti_business').update({ sync_stato: 'errore', sync_dettagli: { tentativi, ultimo_errore: String(e?.message || 'errore').slice(0, 200) } }).eq('id', app.id);
         await enqueueNotifica(supabase, {
           dedupeKey: `sync_irrecuperabile_${app.id}`,
           testo: `KONA Call Director - Sync Google non riuscito dopo piu' tentativi per appuntamento (${app.id}).`,
           extra: { codice: 'sync_fallito' }
         });
-      } else {
-        await supabase.from('kona_call_director_appuntamenti_business').update({ sync_dettagli: { tentativi } }).eq('id', app.id);
       }
     }
   }
@@ -354,7 +383,11 @@ exports.handler = async (event) => {
   ];
   for (const ev of eventi) {
     if (!ev.ora) continue;
-    const decisione = await eventoDovuto(supabase, { data, evento: ev.evento, ora: ev.ora, nowParts });
+    if (!giornoOperativo(cfg, data) && !['arricchimento', 'retention'].includes(ev.evento)) continue;
+    const decisione = await eventoDovuto(supabase, {
+      data, evento: ev.evento, ora: ev.ora, nowParts,
+      finestraMinuti: ['arricchimento', 'retention'].includes(ev.evento) ? 60 : GRACE_MINUTI
+    });
     if (decisione === 'skip') continue;
     try {
       risultati[ev.evento] = await ev.fn();

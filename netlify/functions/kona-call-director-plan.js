@@ -14,7 +14,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 
-const { authAndEnabled } = require('./_lib/kona-cd-config');
+const { authAndEnabled, getConfig } = require('./_lib/kona-cd-config');
 const { requireAuth } = require('./_lib/require-auth');
 const { openaiStructured } = require('./_lib/kona-cd-openai');
 const { applicaPianoDefault, pianoDi, propostaPianoGiorno, salvaPiano } = require('./_lib/kona-cd-report');
@@ -32,12 +32,21 @@ exports.handler = async (event) => {
   if (!url || !serviceRoleKey) return jsonError(500, 'Configurazione Supabase mancante');
   const client = createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
-  const guard = await authAndEnabled(event, { supabase: client, response: jsonError });
-  if (guard.response) return guard.response;
-  const { cfg, profiloId } = guard;
-
   const body = await readJsonBody(event);
   const action = String(body.action || '');
+  let cfg;
+  let profiloId;
+  if (action === 'approva') {
+    const adminAuth = await requireAuth(event, { adminOnly: true });
+    if (!adminAuth.ok) return jsonError(adminAuth.status, adminAuth.error);
+    cfg = await getConfig(client);
+    profiloId = String(adminAuth.profilo.alias_di || adminAuth.profilo.id || adminAuth.user.id || '').toLowerCase();
+  } else {
+    const guard = await authAndEnabled(event, { supabase: client, response: jsonError });
+    if (guard.response) return guard.response;
+    cfg = guard.cfg;
+    profiloId = guard.profiloId;
+  }
 
   try {
     switch (action) {

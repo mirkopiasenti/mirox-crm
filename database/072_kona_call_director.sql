@@ -6,11 +6,11 @@
 -- ricontatti programmati, gestione "Passa a Cerea" / "Passa in negozio",
 -- campagne urgenti approvate, attivita' standard, preparazione notturna dei
 -- lead Business e pianificazione quotidiana con Mirko tramite un bot Telegram
--- separato da quello del Guardian. 22 tabelle server-only.
+-- separato da quello del Guardian. 23 tabelle server-only.
 --
 -- Regole:
---  * Migration additiva e reversibile: crea soltanto nuove tabelle, viste,
---    indici e funzioni; non modifica mai tabelle/RPC esistenti.
+--  * Migration additiva. Il rollback operativo e' documentato e va eseguito
+--    soltanto prima dell'attivazione o dopo aver esportato i dati KONA.
 --  * Nessuna SECURITY DEFINER.
 --  * Tutte le tabelle sono server-only: ENABLE ROW LEVEL SECURITY +
 --    REVOKE ALL da PUBLIC/anon/authenticated + GRANT al solo service_role.
@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS public.kona_call_director_config (
   -- {"<modello>":{"input":x,"output":y,"web_search":z}}. Valori per 1M token
   -- e per ricerca. Configurabili da admin/SQL; se assenti costo 0 + warning.
   prezzi_openai jsonb NOT NULL DEFAULT '{}'::jsonb,
+  -- I listini OpenAI sono in USD; questo fattore converte la stima nel budget EUR.
+  usd_to_eur numeric(10,6) NOT NULL DEFAULT 1.000000 CHECK (usd_to_eur > 0),
   -- Soglie percentuali di notifica budget su Telegram.
   soglie_budget jsonb NOT NULL DEFAULT '[70,85,95,100]'::jsonb,
   -- Giorni lavorativi (JS getDay: 1=Lun .. 5=Ven).
@@ -54,6 +56,7 @@ CREATE TABLE IF NOT EXISTS public.kona_call_director_config (
   orario_pomeriggio jsonb NOT NULL DEFAULT '{"inizio":"15:30","fine":"19:00"}'::jsonb,
   -- Business standard bloccato a quest'ora (default 18:00).
   orario_stop_business text NOT NULL DEFAULT '18:00',
+  durata_sessione_business_minuti integer NOT NULL DEFAULT 90 CHECK (durata_sessione_business_minuti BETWEEN 15 AND 240),
   -- Appuntamenti esterni Business.
   durata_appuntamento_minuti integer NOT NULL DEFAULT 45 CHECK (durata_appuntamento_minuti BETWEEN 10 AND 180),
   distanza_km_indicativa numeric(6,1) NOT NULL DEFAULT 20.0 CHECK (distanza_km_indicativa >= 0),
@@ -100,7 +103,7 @@ CREATE TABLE IF NOT EXISTS public.kona_call_director_config (
 INSERT INTO public.kona_call_director_config (id, prezzi_openai, soglia_lead_minime)
 VALUES (
   1,
-  '{"gpt-5.6-luna":{"input":0.20,"output":1.20,"web_search":10.00}}'::jsonb,
+  '{"gpt-5.6-luna":{"input":0.20,"output":1.20,"web_search":0.01}}'::jsonb,
   50
 )
 ON CONFLICT (id) DO NOTHING;
@@ -184,6 +187,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_kona_call_director_sessioni_data_operatore_
 COMMENT ON TABLE public.kona_call_director_sessioni IS
   'Sessione mattina/pomeriggio dell''operatore. Una sola attiva per tipo/giorno.';
 
+
+CREATE TABLE IF NOT EXISTS public.kona_call_director_sessione_attivita (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  sessione_id uuid NOT NULL REFERENCES public.kona_call_director_sessioni(id) ON DELETE CASCADE,
+  operatore_id uuid NOT NULL REFERENCES public.profili(id) ON DELETE CASCADE,
+  categoria text NOT NULL CHECK (categoria IN ('telefoni_omaggio','fibra_fwa','business')),
+  esito text NOT NULL CHECK (esito IN ('chiamata','non_risposto','non_interessato','passa_in_negozio','interessato','altro')),
+  note text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_kona_cd_sessione_attivita
+  ON public.kona_call_director_sessione_attivita(sessione_id, created_at);
 -- =============================================================================
 -- 5. Task operativi (un contatto alla volta)
 -- =============================================================================
@@ -205,6 +220,7 @@ CREATE TABLE IF NOT EXISTS public.kona_call_director_task (
   )),
   sorgente_id uuid,
   sorgente_tipo text,
+  chiave_tentativi text,
   descrizione text,
   payload jsonb NOT NULL DEFAULT '{}'::jsonb,
   stato text NOT NULL DEFAULT 'in_coda' CHECK (stato IN ('in_coda','attivo','completato','annullato','sospeso')),
@@ -320,7 +336,6 @@ CREATE TABLE IF NOT EXISTS public.kona_call_director_appuntamenti_business (
   creato_da uuid REFERENCES public.profili(id) ON DELETE SET NULL,
   creato_at timestamptz NOT NULL DEFAULT now(),
   riprogrammato_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -380,6 +395,15 @@ CREATE TABLE IF NOT EXISTS public.kona_call_director_esclusioni (
 CREATE INDEX IF NOT EXISTS idx_kona_call_director_esclusioni_attive
   ON public.kona_call_director_esclusioni(stato, lead_id, anagrafica_id, chiamata_id)
   WHERE stato = 'attiva';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_kona_cd_esclusioni_lead_attiva
+  ON public.kona_call_director_esclusioni(lead_id, tipo)
+  WHERE stato = 'attiva' AND lead_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_kona_cd_esclusioni_anagrafica_attiva
+  ON public.kona_call_director_esclusioni(anagrafica_id, tipo)
+  WHERE stato = 'attiva' AND anagrafica_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_kona_cd_esclusioni_chiamata_attiva
+  ON public.kona_call_director_esclusioni(chiamata_id, tipo)
+  WHERE stato = 'attiva' AND chiamata_id IS NOT NULL;
 
 COMMENT ON TABLE public.kona_call_director_esclusioni IS
   'Esclusioni permanenti: "trattative in corso" (record conservato), "gia'' cliente
@@ -485,7 +509,7 @@ CREATE TABLE IF NOT EXISTS public.kona_call_director_jobs (
 
 CREATE INDEX IF NOT EXISTS idx_kona_call_director_jobs_coda
   ON public.kona_call_director_jobs(stato, prossimo_tentativo_at)
-  WHERE stato IN ('in_coda','fallita');
+  WHERE stato IN ('in_coda','fallito');
 
 COMMENT ON TABLE public.kona_call_director_jobs IS
   'Job a lunga esecuzione con lease atomico (UPDATE condizionale) e retry/backoff.
@@ -590,11 +614,14 @@ COMMENT ON TABLE public.kona_call_director_lead_telefoni IS
 
 CREATE TABLE IF NOT EXISTS public.kona_call_director_oauth_stati (
   nonce text PRIMARY KEY,
-  usato_at timestamptz NOT NULL DEFAULT now()
+  profilo_id uuid NOT NULL REFERENCES public.profili(id) ON DELETE CASCADE,
+  expires_at timestamptz NOT NULL,
+  consumato_at timestamptz,
+  creato_at timestamptz NOT NULL DEFAULT now()
 );
 
 COMMENT ON TABLE public.kona_call_director_oauth_stati IS
-  'Nonce OAuth gia'' consumati: rende lo state single-use (anti replay).';
+  'State OAuth emessi dal server, con scadenza e consumo atomico single-use.';
 
 -- =============================================================================
 -- 20. Audit azioni amministrative e decisioni
@@ -630,10 +657,21 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.kona_call_director_touch_config_aggiornato_at()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  NEW.aggiornato_at := now();
+  RETURN NEW;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS trg_kona_cd_config_updated_at ON public.kona_call_director_config;
 CREATE TRIGGER trg_kona_cd_config_updated_at
 BEFORE UPDATE ON public.kona_call_director_config
-FOR EACH ROW EXECUTE FUNCTION public.kona_call_director_touch_updated_at();
+FOR EACH ROW EXECUTE FUNCTION public.kona_call_director_touch_config_aggiornato_at();
 
 DROP TRIGGER IF EXISTS trg_kona_cd_profili_updated_at ON public.kona_call_director_profili;
 CREATE TRIGGER trg_kona_cd_profili_updated_at
@@ -668,6 +706,7 @@ ALTER TABLE public.kona_call_director_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.kona_call_director_profili ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.kona_call_director_piani ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.kona_call_director_sessioni ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.kona_call_director_sessione_attivita ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.kona_call_director_task ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.kona_call_director_task_eventi ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.kona_call_director_arricchimenti ENABLE ROW LEVEL SECURITY;
@@ -696,6 +735,7 @@ BEGIN
     'kona_call_director_profili',
     'kona_call_director_piani',
     'kona_call_director_sessioni',
+    'kona_call_director_sessione_attivita',
     'kona_call_director_task',
     'kona_call_director_task_eventi',
     'kona_call_director_arricchimenti',
@@ -722,6 +762,8 @@ END $$;
 
 REVOKE ALL ON FUNCTION public.kona_call_director_touch_updated_at() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.kona_call_director_touch_updated_at() TO service_role;
+REVOKE ALL ON FUNCTION public.kona_call_director_touch_config_aggiornato_at() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.kona_call_director_touch_config_aggiornato_at() TO service_role;
 
 -- =============================================================================
 -- RPC advisory lock per la ri-verifica slot prima della conferma finale
@@ -767,7 +809,7 @@ DECLARE
   v_conflitto boolean;
   v_id uuid;
 BEGIN
-  v_chiave := 'kona_cd_slot_' || to_char(p_data_ora AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
+  v_chiave := 'kona_cd_slot_' || p_operatore_id::text || '_' || to_char(p_data_ora AT TIME ZONE 'Europe/Rome', 'YYYY-MM-DD');
   IF NOT pg_try_advisory_xact_lock(hashtextextended(v_chiave, 0)) THEN
     RETURN jsonb_build_object('ok', false, 'motivo', 'lock');
   END IF;
@@ -807,4 +849,129 @@ REVOKE ALL ON FUNCTION public.kona_cd_prenota_slot_v1(uuid, uuid, timestamptz, i
 GRANT EXECUTE ON FUNCTION public.kona_cd_prenota_slot_v1(uuid, uuid, timestamptz, integer, text, integer) TO service_role;
 
 
+
+-- Acquisizione atomica dei job con recupero retry e lease scaduti.
+CREATE OR REPLACE FUNCTION public.kona_cd_acquire_job_v1(
+  p_tipo text,
+  p_lease_owner text,
+  p_lease_minuti integer DEFAULT 10
+) RETURNS SETOF public.kona_call_director_jobs
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+  WITH candidato AS (
+    SELECT j.id
+    FROM public.kona_call_director_jobs j
+    WHERE j.tipo = p_tipo
+      AND j.prossimo_tentativo_at <= now()
+      AND (
+        j.stato IN ('in_coda','fallito')
+        OR (j.stato = 'in_corso' AND j.lease_until < now())
+      )
+    ORDER BY j.prossimo_tentativo_at, j.creato_at
+    FOR UPDATE SKIP LOCKED
+    LIMIT 1
+  )
+  UPDATE public.kona_call_director_jobs j
+  SET stato = 'in_corso',
+      lease_owner = left(COALESCE(p_lease_owner, 'dispatcher'), 120),
+      lease_until = now() + make_interval(mins => GREATEST(1, COALESCE(p_lease_minuti, 10)))
+  FROM candidato c
+  WHERE j.id = c.id
+  RETURNING j.*;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.kona_cd_acquire_job_v1(text, text, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.kona_cd_acquire_job_v1(text, text, integer) TO service_role;
+
+-- Prenotazione budget interamente atomica: lock, conteggi, limiti e INSERT
+-- avvengono nella stessa transazione PostgreSQL.
+CREATE OR REPLACE FUNCTION public.kona_cd_reserve_budget_v1(
+  p_chiave text,
+  p_mese text,
+  p_attivita text,
+  p_importo_eur numeric,
+  p_budget_totale_eur numeric,
+  p_riserva_arricchimento_eur numeric,
+  p_riserva_dialogo_eur numeric
+) RETURNS jsonb
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_speso numeric := 0;
+  v_riservato numeric := 0;
+  v_speso_gruppo numeric := 0;
+  v_riservato_gruppo numeric := 0;
+  v_limite_gruppo numeric := 0;
+  v_gruppo text;
+BEGIN
+  IF COALESCE(p_importo_eur, 0) <= 0 OR COALESCE(p_chiave, '') = '' THEN
+    RETURN jsonb_build_object('ok', false, 'motivo', 'parametri_non_validi');
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('kona_cd_budget_' || p_mese, 0));
+
+  IF EXISTS (SELECT 1 FROM public.kona_call_director_budget_riserve WHERE chiave = p_chiave) THEN
+    RETURN jsonb_build_object('ok', true, 'idempotente', true);
+  END IF;
+
+  SELECT COALESCE(sum(costo_stimato_eur), 0) INTO v_speso
+  FROM public.kona_call_director_budget_log WHERE mese = p_mese;
+  SELECT COALESCE(sum(importo_eur), 0) INTO v_riservato
+  FROM public.kona_call_director_budget_riserve
+  WHERE mese = p_mese AND stato = 'riservato' AND scadenza > now();
+
+  IF v_speso + v_riservato + p_importo_eur > COALESCE(p_budget_totale_eur, 0) THEN
+    RETURN jsonb_build_object('ok', false, 'motivo', 'hard_stop',
+      'disponibile', GREATEST(0, p_budget_totale_eur - v_speso - v_riservato));
+  END IF;
+
+  v_gruppo := CASE WHEN p_attivita = 'arricchimento' THEN 'arricchimento' ELSE 'dialogo' END;
+  v_limite_gruppo := CASE WHEN v_gruppo = 'arricchimento'
+    THEN COALESCE(p_riserva_arricchimento_eur, 0) ELSE COALESCE(p_riserva_dialogo_eur, 0) END;
+  SELECT COALESCE(sum(costo_stimato_eur), 0) INTO v_speso_gruppo
+  FROM public.kona_call_director_budget_log
+  WHERE mese = p_mese
+    AND (CASE WHEN v_gruppo = 'arricchimento' THEN attivita = 'arricchimento' ELSE attivita <> 'arricchimento' END);
+  SELECT COALESCE(sum(importo_eur), 0) INTO v_riservato_gruppo
+  FROM public.kona_call_director_budget_riserve
+  WHERE mese = p_mese AND stato = 'riservato' AND scadenza > now()
+    AND (CASE WHEN v_gruppo = 'arricchimento' THEN attivita = 'arricchimento' ELSE attivita <> 'arricchimento' END);
+
+  IF v_speso_gruppo + v_riservato_gruppo + p_importo_eur > v_limite_gruppo THEN
+    RETURN jsonb_build_object('ok', false, 'motivo', 'riserva_esaurita', 'riserva', v_gruppo);
+  END IF;
+
+  INSERT INTO public.kona_call_director_budget_riserve
+    (chiave, mese, attivita, importo_eur, stato, scadenza)
+  VALUES
+    (left(p_chiave, 120), p_mese, COALESCE(p_attivita, 'altro'), p_importo_eur,
+     'riservato', now() + interval '10 minutes');
+  RETURN jsonb_build_object('ok', true,
+    'disponibile', GREATEST(0, p_budget_totale_eur - v_speso - v_riservato - p_importo_eur));
+END;
+$$;
+REVOKE ALL ON FUNCTION public.kona_cd_reserve_budget_v1(text, text, text, numeric, numeric, numeric, numeric) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.kona_cd_reserve_budget_v1(text, text, text, numeric, numeric, numeric, numeric) TO service_role;
+
+-- Consumo atomico e single-use dello state OAuth emesso dal server.
+CREATE OR REPLACE FUNCTION public.kona_cd_consume_oauth_state_v1(p_nonce text, p_profilo_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE v_count integer;
+BEGIN
+  UPDATE public.kona_call_director_oauth_stati
+  SET consumato_at = now()
+  WHERE nonce = p_nonce AND profilo_id = p_profilo_id
+    AND consumato_at IS NULL AND expires_at > now();
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count = 1;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.kona_cd_consume_oauth_state_v1(text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.kona_cd_consume_oauth_state_v1(text, uuid) TO service_role;
 COMMIT;

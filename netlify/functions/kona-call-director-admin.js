@@ -26,6 +26,7 @@ const CONFIG_EDITABILI = {
   attivo_globale: 'bool',
   modalita_osservazione: 'bool',
   budget_mensile_eur: 'num',
+  usd_to_eur: 'num',
   riserva_arricchimento_eur: 'num',
   riserva_dialogo_eur: 'num',
   modello_openai: 'str',
@@ -61,9 +62,53 @@ const CONFIG_EDITABILI = {
   soglia_affidabilita_arricchimento: 'num',
   max_chiamate_openai_ora: 'num',
   orario_stop_business: 'str',
+  durata_sessione_business_minuti: 'num',
   ferie: 'json'
 };
 
+
+function orarioValido(value) {
+  const m = /^(\d{2}):(\d{2})$/.exec(String(value || ''));
+  return Boolean(m && Number(m[1]) <= 23 && Number(m[2]) <= 59);
+}
+
+function dataIsoValida(value) {
+  const text = String(value || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  const date = new Date(`${text}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
+}
+
+function validaConfigPatch(cfg) {
+  const nonNegative = [
+    'budget_mensile_eur', 'riserva_arricchimento_eur', 'riserva_dialogo_eur',
+    'lead_notte_obiettivo', 'soglia_lead_minime', 'distanza_km_indicativa'
+  ];
+  if (nonNegative.some((k) => !Number.isFinite(Number(cfg[k])) || Number(cfg[k]) < 0)) {
+    return 'Valore numerico negativo o non valido nella configurazione';
+  }
+  if (Number(cfg.riserva_arricchimento_eur) + Number(cfg.riserva_dialogo_eur) > Number(cfg.budget_mensile_eur)) {
+    return 'La somma delle riserve non puo superare il budget mensile';
+  }
+  if (!Number.isFinite(Number(cfg.usd_to_eur)) || Number(cfg.usd_to_eur) <= 0) return 'usd_to_eur deve essere maggiore di zero';
+  if (Number(cfg.richieste_web_max_per_lead) < 0 || Number(cfg.richieste_web_max_per_lead) > 10) return 'richieste_web_max_per_lead deve essere tra 0 e 10';
+  if (Number(cfg.soglia_affidabilita_arricchimento) < 0 || Number(cfg.soglia_affidabilita_arricchimento) > 1) return 'soglia_affidabilita_arricchimento deve essere tra 0 e 1';
+  if (Number(cfg.durata_sessione_business_minuti) < 15 || Number(cfg.durata_sessione_business_minuti) > 240) return 'durata_sessione_business_minuti deve essere tra 15 e 240';
+  const campiOrario = ['orario_stop_business', 'orario_inizio_arricchimento', 'orario_report_sera', 'orario_reminder_sera', 'orario_reminder_mattina', 'orario_piano_default', 'orario_calendario_inizio', 'orario_calendario_fine'];
+  if (campiOrario.some((k) => !orarioValido(cfg[k]))) return 'Uno o piu orari non sono validi (formato HH:MM)';
+  if (!Array.isArray(cfg.giorni_lavorativi) || cfg.giorni_lavorativi.length === 0 || new Set(cfg.giorni_lavorativi.map(Number)).size !== cfg.giorni_lavorativi.length || cfg.giorni_lavorativi.some((g) => !Number.isInteger(Number(g)) || Number(g) < 0 || Number(g) > 6)) return 'giorni_lavorativi non valido';
+  if (!Array.isArray(cfg.soglie_budget) || cfg.soglie_budget.length === 0 || cfg.soglie_budget.some((s) => !Number.isFinite(Number(s)) || Number(s) < 0 || Number(s) > 100) || cfg.soglie_budget.some((s, i) => i > 0 && Number(s) <= Number(cfg.soglie_budget[i - 1]))) return 'soglie_budget non valido';
+  if (!Array.isArray(cfg.ferie) || cfg.ferie.some((d) => !dataIsoValida(d))) return 'ferie non valido';
+  const prezzi = cfg.prezzi_openai;
+  if (!prezzi || typeof prezzi !== 'object' || Array.isArray(prezzi) || !prezzi[cfg.modello_openai]) return 'prezzi_openai deve includere il modello configurato';
+  const prezzoModello = prezzi[cfg.modello_openai];
+  if (!prezzoModello || ['input', 'output', 'web_search'].some((k) => !Number.isFinite(Number(prezzoModello[k])) || Number(prezzoModello[k]) < 0)) return 'prezzi_openai non valido';
+  if (!Array.isArray(cfg.conferme_ore) || cfg.conferme_ore.some((o) => !orarioValido(o))) return 'conferme_ore non valido';
+  for (const fascia of [cfg.orario_mattina, cfg.orario_pomeriggio]) {
+    if (!fascia || !orarioValido(fascia.inizio) || !orarioValido(fascia.fine) || fascia.inizio >= fascia.fine) return 'Fascia operativa non valida';
+  }
+  return null;
+}
 async function audita(client, adminId, azione, dettagli = {}) {
   await client.from('kona_call_director_audit').insert({
     azione,
@@ -167,6 +212,8 @@ exports.handler = async (event) => {
           }
         }
         if (Object.keys(patch).length === 0) return jsonError(400, 'Nessun campo valido da aggiornare');
+        const erroreConfig = validaConfigPatch({ ...(await getConfig(client)), ...patch });
+        if (erroreConfig) return jsonError(400, erroreConfig);
         patch.id = 1;
         patch.aggiornato_at = new Date().toISOString();
         patch.aggiornato_da = adminId;
@@ -220,21 +267,24 @@ async function elencoOperatori(client) {
   });
 }
 
-// Config esposta all'admin (mai prezzi/token: quelli stanno in DB server-only).
+// Config operativa esposta soltanto all'admin; credenziali e token restano esclusi.
 function configPublic(cfg) {
   return {
     attivo_globale: cfg.attivo_globale,
     modalita_osservazione: cfg.modalita_osservazione,
     budget_mensile_eur: cfg.budget_mensile_eur,
+    usd_to_eur: cfg.usd_to_eur,
     riserva_arricchimento_eur: cfg.riserva_arricchimento_eur,
     riserva_dialogo_eur: cfg.riserva_dialogo_eur,
     modello_openai: cfg.modello_openai,
+    prezzi_openai: cfg.prezzi_openai,
     soglie_budget: cfg.soglie_budget,
     giorni_lavorativi: cfg.giorni_lavorativi,
     ferie: cfg.ferie,
     orario_mattina: cfg.orario_mattina,
     orario_pomeriggio: cfg.orario_pomeriggio,
     orario_stop_business: cfg.orario_stop_business,
+    durata_sessione_business_minuti: cfg.durata_sessione_business_minuti,
     durata_appuntamento_minuti: cfg.durata_appuntamento_minuti,
     distanza_km_indicativa: cfg.distanza_km_indicativa,
     richieste_web_max_per_lead: cfg.richieste_web_max_per_lead,

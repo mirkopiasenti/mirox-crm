@@ -242,19 +242,25 @@
 
   const CONFIG_FIELDS = [
     { key: 'budget_mensile_eur', label: 'Budget mensile (euro)', type: 'number' },
+    { key: 'usd_to_eur', label: 'Cambio USD verso EUR', type: 'number' },
     { key: 'riserva_arricchimento_eur', label: 'Riserva arricchimento (euro)', type: 'number' },
     { key: 'riserva_dialogo_eur', label: 'Riserva dialogo (euro)', type: 'number' },
     { key: 'modello_openai', label: 'Modello OpenAI', type: 'text' },
+    { key: 'prezzi_openai', label: 'Prezzi OpenAI per modello (JSON)', type: 'text', json: true },
+    { key: 'soglie_budget', label: 'Soglie budget percentuali (JSON)', type: 'text', json: true },
     { key: 'tentativi_massimi', label: 'Tentativi normali', type: 'number' },
     { key: 'durata_appuntamento_minuti', label: 'Durata appuntamento (min)', type: 'number' },
     { key: 'distanza_km_indicativa', label: 'Distanza indicativa (km)', type: 'number' },
+    { key: 'richieste_web_max_per_lead', label: 'Web search massime per lead', type: 'number' },
+    { key: 'giorni_lavorativi', label: 'Giorni lavorativi 0-6 (JSON)', type: 'text', json: true },
     { key: 'orario_mattina.inizio', label: 'Inizio mattina', type: 'text' },
     { key: 'orario_mattina.fine', label: 'Fine mattina', type: 'text' },
     { key: 'orario_pomeriggio.inizio', label: 'Inizio pomeriggio', type: 'text' },
     { key: 'orario_pomeriggio.fine', label: 'Fine pomeriggio', type: 'text' },
-    { key: 'conferme_ore', label: 'Ore conferme (JSON)', type: 'text' },
+    { key: 'conferme_ore', label: 'Ore conferme (separate da virgola)', type: 'text' },
     { key: 'orario_stop_business', label: 'Stop Business (HH:MM)', type: 'text' },
-    { key: 'ferie', label: 'Ferie (JSON array date)', type: 'text' },
+    { key: 'durata_sessione_business_minuti', label: 'Durata sessione Business (min)', type: 'number' },
+    { key: 'ferie', label: 'Ferie (JSON array date)', type: 'text', json: true },
     { key: 'soglia_affidabilita_arricchimento', label: 'Soglia affidabilita' + ' arricchimento', type: 'number' },
     { key: 'max_chiamate_openai_ora', label: 'Max chiamate OpenAI/ora', type: 'number' },
     { key: 'localita_riferimento', label: 'Localita' + ' riferimento', type: 'text' },
@@ -277,7 +283,9 @@
       const input = document.createElement('input');
       input.type = f.type === 'number' ? 'number' : 'text';
       input.dataset.key = f.key;
-      input.value = getNested(State.config, f.key);
+      if (f.json) input.dataset.json = 'true';
+      const currentValue = getNested(State.config, f.key);
+      input.value = f.json ? JSON.stringify(currentValue) : currentValue;
       if (f.key === 'conferme_ore' && Array.isArray(State.config.conferme_ore)) {
         input.value = State.config.conferme_ore.join(',');
       }
@@ -301,7 +309,11 @@
         body[key] = list;
         return;
       }
-      if (key.startsWith('orario_')) {
+      if (input.dataset.json === 'true') {
+        body[key] = input.value;
+        return;
+      }
+      if (key.startsWith('orario_') && key.includes('.')) {
         const [grp, sub] = key.split('.');
         if (!body[grp]) body[grp] = {};
         body[grp][sub] = input.value;

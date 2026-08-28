@@ -1,6 +1,7 @@
 -- Seed staging per KONA Call Director.
--- Applicare DOPO la migration 072 sul progetto Mirox CRM - Staging
--- (project ref blwgxrszvsoqcmcmhhqr). NON applicare in produzione.
+-- Applicare DOPO la migration 072 sul progetto
+-- Mirox CRM - Test KONA Call Director (project ref yyorullxmdxhnunsfwwa).
+-- NON applicare in produzione.
 --
 -- KONA nasce disattivato anche in staging: attivo_globale resta false.
 -- Per testare con dati sintetici abilitare un operatore specifico, ad esempio:
@@ -19,8 +20,13 @@
 
 BEGIN;
 
-INSERT INTO public.kona_call_director_config (id)
-VALUES (1)
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.kona_call_director_config
+  (id, attivo_globale, modalita_osservazione)
+VALUES
+  (1, false, true)
+ON CONFLICT (id) DO UPDATE
+SET attivo_globale = false,
+    modalita_osservazione = true,
+    aggiornato_at = now();
 
 COMMIT;

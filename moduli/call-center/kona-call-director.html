@@ -95,6 +95,14 @@
                     <button class="btn btn-secondary btn-sm" onclick="KonaCD.selezionaModalitaConsumer('telefoni_omaggio')">Telefoni omaggio</button>
                     <button class="btn btn-secondary btn-sm" onclick="KonaCD.selezionaModalitaConsumer('fibra_fwa')">Fibra/FWA</button>
                 </div>
+                <div id="konaConsumerStatus" style="font-size:12px;color:var(--text-secondary);margin-top:10px"></div>
+                <div class="kona-consumer-opt" aria-label="Esito ultima chiamata Consumer">
+                    <button class="btn btn-secondary btn-sm" onclick="KonaCD.registraConsumer('non_risposto')">Non risposto</button>
+                    <button class="btn btn-secondary btn-sm" onclick="KonaCD.registraConsumer('non_interessato')">Non interessato</button>
+                    <button class="btn btn-secondary btn-sm" onclick="KonaCD.registraConsumer('passa_in_negozio')">Passa in negozio</button>
+                    <button class="btn btn-secondary btn-sm" onclick="KonaCD.registraConsumer('interessato')">Interessato</button>
+                    <button class="btn btn-secondary btn-sm" onclick="KonaCD.registraConsumer('altro')">Altro</button>
+            </div>
             </div>
 
             <div class="kona-card">

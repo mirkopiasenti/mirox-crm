@@ -25,7 +25,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { authAndEnabled } = require('./_lib/kona-cd-config');
 const { openaiStructured } = require('./_lib/kona-cd-openai');
 const {
-  computeSlots, deleteEvent, findEventByKonaId, freeBusy, getAccessToken, insertEvent, listEvents, updateEventTime
+  computeSlots, calendarIdFor, deleteEvent, findEventByKonaId, freeBusy, getAccessToken, insertEvent, listEvents, updateEventTime, verifySlotAvailability
 } = require('./_lib/kona-cd-google');
 const { addDaysStr, todayRomeStr } = require('./_lib/kona-cd-time');
 const { enqueueNotifica } = require('./_lib/kona-cd-notifiche');
@@ -141,8 +141,8 @@ async function azioneCercaSlot(client, cfg, body) {
   let eventi = [];
   try {
     [busy, eventi] = await Promise.all([
-      freeBusy(accessToken, { timeMin: start, timeMax: end }),
-      listEvents(accessToken, { timeMin: start, timeMax: end })
+      freeBusy(accessToken, { calendarId: calendarIdFor(cfg), timeMin: start, timeMax: end }),
+      listEvents(accessToken, { calendarId: calendarIdFor(cfg), timeMin: start, timeMax: end })
     ]);
   } catch {
     return jsonError(409, 'Calendario non disponibile');
@@ -174,77 +174,81 @@ async function azioneCercaSlot(client, cfg, body) {
 
 async function azioneProponi(client, cfg, body, profiloId, isAdmin) {
   const leadId = String(body.lead_id || '');
-  const startRaw = String(body.start || '');
+  const start = new Date(String(body.start || ''));
   const durata = parseNumber(body.durata_minuti, cfg.durata_appuntamento_minuti) || cfg.durata_appuntamento_minuti || 45;
   if (!isUuid(leadId)) return jsonError(400, 'lead_id non valido');
-  const start = new Date(startRaw);
-  if (Number.isNaN(start.getTime())) return jsonError(400, 'start non valido');
-  if (start.getTime() <= Date.now()) return jsonError(400, 'slot passato');
+  if (Number.isNaN(start.getTime()) || start.getTime() <= Date.now()) return jsonError(400, 'slot non valido o passato');
   const end = new Date(start.getTime() + durata * 60000);
+  const { data: lead, error: leadError } = await client.from('call_center_lead_outbound')
+    .select('id, ragione_sociale, zona, localita, provincia, telefono_norm, telefono_raw, codice_fiscale, partita_iva')
+    .eq('id', leadId).maybeSingle();
+  if (leadError || !lead) return jsonError(404, 'Lead non trovato');
+  const telefono = lead.telefono_norm || lead.telefono_raw || null;
+  if (!telefono) return jsonError(409, 'Il lead non ha un numero di telefono valido');
 
-  const { data: lead } = await client.from('call_center_lead_outbound').select('id, ragione_sociale, zona, localita, provincia').eq('id', leadId).maybeSingle();
-  if (!lead) return jsonError(404, 'Lead non trovato');
-
-  // Calendar OBBLIGATORIO: senza token o in caso di errore FreeBusy non si
-  // prenota nulla (mai appuntamenti "solo Mirox" fingendo successo).
   const accessToken = await getAccessToken(client);
   if (!accessToken) return jsonError(409, 'Calendario Google non collegato');
-  const buffer = Number(cfg.buffer_appuntamento_minuti) || 15;
-  const spanStart = new Date(start.getTime() - buffer * 60000).toISOString();
-  const spanEnd = new Date(end.getTime() + buffer * 60000).toISOString();
-  let busy = [];
-  try {
-    busy = await freeBusy(accessToken, { timeMin: spanStart, timeMax: spanEnd });
-  } catch {
-    return jsonError(409, 'Calendario non disponibile');
-  }
-  for (const b of busy) {
-    const bs = new Date(b.start).getTime();
-    const be = new Date(b.end).getTime();
-    if (start.getTime() < be && bs < end.getTime()) return jsonError(409, 'Slot occupato');
-  }
+  const conflitti = await conflittiAppuntamenti(client, {
+    start: new Date(start.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+    end: new Date(end.getTime() + 24 * 60 * 60 * 1000).toISOString()
+  });
+  const disponibile = await verifySlotAvailability({
+    supabase: client, cfg, start: start.toISOString(), end: end.toISOString(), accessToken,
+    calendarId: calendarIdFor(cfg), appuntamentiConflitto: conflitti
+  });
+  if (!disponibile.ok) return jsonError(409, 'Slot non disponibile', { motivo: disponibile.reason });
 
   const zona = String(body.zona || lead.zona || lead.localita || 'Zona non definita');
-
-  // Prenotazione ATOMICA lato DB: advisory lock + ricontrollo conflitti +
-  // INSERT nella STESSA transazione (RPC kona_cd_prenota_slot_v1).
   const { data: rpc, error: rpcErr } = await client.rpc('kona_cd_prenota_slot_v1', {
     p_lead_id: leadId,
     p_operatore_id: profiloId,
     p_data_ora: start.toISOString(),
     p_durata_minuti: durata,
     p_zona: zona,
-    p_buffer_minuti: buffer
+    p_buffer_minuti: Number(cfg.buffer_appuntamento_minuti) || 15
   });
   if (rpcErr) return jsonError(500, rpcErr.message);
-  if (!rpc?.ok) return jsonError(409, 'Slot non piu' + ' disponibile', { motivo: rpc?.motivo });
+  if (!rpc?.ok) return jsonError(409, 'Slot non piu disponibile', { motivo: rpc?.motivo });
   const bizId = rpc.id;
-
   const { data: bizRow } = await client.from('kona_call_director_appuntamenti_business').select('*').eq('id', bizId).maybeSingle();
+  if (!bizRow) return jsonError(500, 'Prenotazione KONA non riletta');
 
-  // Record condiviso `appuntamenti` (fonte per il CC) collegato al record KONA.
-  const nome = String(lead.ragione_sociale || 'Azienda').slice(0, 120);
+  const { data: profilo } = await client.from('profili').select('nome').eq('id', profiloId).maybeSingle();
+  const anagraficaId = isUuid(body.anagrafica_id) ? body.anagrafica_id : null;
   const { data: appuntamentoCondiviso, error: appErr } = await client.from('appuntamenti').insert({
-    nome,
-    telefono: lead.telefono_norm || lead.telefono_raw || null,
+    nome: String(lead.ragione_sociale || 'Azienda').slice(0, 120),
+    codice_fiscale: lead.codice_fiscale || lead.partita_iva || null,
+    telefono,
     motivo: 'Appuntamento Business esterno',
-    anagrafica_id: null,
+    anagrafica_id: anagraficaId,
     fissato_da_operatore_id: profiloId,
-    fissato_da_nome: null,
+    fissato_da_nome: profilo?.nome || null,
     data_ora: start.toISOString(),
     durata_minuti: durata,
     fonte: 'interno',
     stato: 'confermato',
     lead_outbound_id: leadId
   }).select('id').single();
-  if (!appErr && appuntamentoCondiviso) {
-    await client.from('kona_call_director_appuntamenti_business').update({ appuntamento_id: appuntamentoCondiviso.id }).eq('id', bizId);
+  if (appErr || !appuntamentoCondiviso) {
+    await client.from('kona_call_director_appuntamenti_business').delete().eq('id', bizId);
+    return jsonError(500, appErr?.message || 'Salvataggio appuntamento Mirox fallito');
+  }
+  const { error: linkError } = await client.from('kona_call_director_appuntamenti_business')
+    .update({ appuntamento_id: appuntamentoCondiviso.id, anagrafica_id: anagraficaId }).eq('id', bizId);
+  if (linkError) {
+    await client.from('appuntamenti').delete().eq('id', appuntamentoCondiviso.id);
+    await client.from('kona_call_director_appuntamenti_business').delete().eq('id', bizId);
+    return jsonError(500, 'Collegamento appuntamento fallito');
   }
 
-  // Sync Google idempotente (kona_id nelle extendedProperties private).
-  await sincronizzaGoogle(client, cfg, { ...bizRow, appuntamento_id: appuntamentoCondiviso?.id || null }, lead);
-
-  const { data: finale } = await client.from('kona_call_director_appuntamenti_business').select('*').eq('id', bizId).single();
+  const sync = await sincronizzaGoogle(client, cfg, { ...bizRow, appuntamento_id: appuntamentoCondiviso.id }, lead);
+  if (!sync.ok) {
+    await client.from('appuntamenti').delete().eq('id', appuntamentoCondiviso.id);
+    await client.from('kona_call_director_appuntamenti_business').delete().eq('id', bizId);
+    return jsonError(409, 'Appuntamento non creato: sincronizzazione Google fallita');
+  }
+  const { data: finale, error: finaleError } = await client.from('kona_call_director_appuntamenti_business').select('*').eq('id', bizId).single();
+  if (finaleError || !finale) return jsonError(500, 'Rilettura appuntamento fallita');
   return jsonOk({ appuntamento: pubblicaAppuntamento(finale), slot: true });
 }
 
@@ -252,18 +256,17 @@ async function azioneConferma(client, cfg, body, profiloId, isAdmin) {
   const id = String(body.appuntamento_business_id || '');
   const row = await caricaAppuntamento(client, id, profiloId, isAdmin);
   if (!row.ok) return row.res;
-  await client.from('kona_call_director_appuntamenti_business').update({ stato: 'confermato' }).eq('id', row.data.id);
+  const { data: leadConferma } = await client.from('call_center_lead_outbound').select('ragione_sociale').eq('id', row.data.lead_id).maybeSingle();
+  const syncConferma = await sincronizzaGoogle(client, cfg, { ...row.data, stato: 'confermato' }, leadConferma);
+  if (!syncConferma.ok) return jsonError(409, 'Conferma non completata: sincronizzazione Google non disponibile');
+  const { error: bizError } = await client.from('kona_call_director_appuntamenti_business').update({ stato: 'confermato' }).eq('id', row.data.id);
+  if (bizError) return jsonError(500, bizError.message);
   if (row.data.appuntamento_id) {
-    await client.from('appuntamenti').update({ stato: 'confermato' }).eq('id', row.data.appuntamento_id);
+    const { error: appError } = await client.from('appuntamenti').update({ stato: 'confermato' }).eq('id', row.data.appuntamento_id);
+    if (appError) return jsonError(500, appError.message);
   }
-  if (!row.data.google_event_id) {
-    const accessToken = await getAccessToken(client);
-    if (accessToken) {
-      const { data: lead } = await client.from('call_center_lead_outbound').select('ragione_sociale').eq('id', row.data.lead_id).maybeSingle();
-      await sincronizzaGoogle(client, cfg, { ...row.data, stato: 'confermato' }, lead);
-    }
-  }
-  const { data: finale } = await client.from('kona_call_director_appuntamenti_business').select('*').eq('id', id).single();
+  const { data: finale, error } = await client.from('kona_call_director_appuntamenti_business').select('*').eq('id', id).single();
+  if (error || !finale) return jsonError(500, 'Rilettura appuntamento fallita');
   return jsonOk({ appuntamento: pubblicaAppuntamento(finale) });
 }
 
@@ -271,61 +274,103 @@ async function azioneAnnulla(client, cfg, body, profiloId, isAdmin) {
   const id = String(body.appuntamento_business_id || '');
   const row = await caricaAppuntamento(client, id, profiloId, isAdmin);
   if (!row.ok) return row.res;
+  let syncDaRecuperare = false;
   if (row.data.google_event_id) {
     const accessToken = await getAccessToken(client);
-    if (accessToken) {
+    if (!accessToken) {
+      syncDaRecuperare = true;
+    } else {
       try {
-        await deleteEvent(accessToken, { eventId: row.data.google_event_id });
+        await deleteEvent(accessToken, { calendarId: calendarIdFor(cfg), eventId: row.data.google_event_id });
       } catch {
-        await enqueueNotifica(client, {
-          dedupeKey: `sync_annulla_${row.data.id}`,
-          testo: `KONA Call Director - Sync Google da recuperare: eliminazione evento per appuntamento annullato (${row.data.id}).`,
-          extra: { codice: 'sync_fallito' }
-        });
+        syncDaRecuperare = true;
       }
     }
   }
-  await client.from('kona_call_director_appuntamenti_business').update({ stato: 'annullato' }).eq('id', row.data.id);
+  const { error: bizError } = await client.from('kona_call_director_appuntamenti_business').update({
+    stato: 'annullato', sync_stato: syncDaRecuperare ? 'da_recuperare' : 'sincronizzato',
+    ...(syncDaRecuperare ? {} : { google_event_id: null })
+  }).eq('id', row.data.id);
+  if (bizError) return jsonError(500, bizError.message);
   if (row.data.appuntamento_id) {
-    await client.from('appuntamenti').update({ stato: 'annullato', motivo_modifica: 'Annullato da KONA Call Director' }).eq('id', row.data.appuntamento_id);
+    const { error: sharedError } = await client.from('appuntamenti').update({
+      stato: 'annullato', motivo_modifica: 'Annullato da KONA Call Director'
+    }).eq('id', row.data.appuntamento_id);
+    if (sharedError) return jsonError(500, sharedError.message);
   }
-  // Notifica Telegram IMMEDIATA (senza PII cliente).
+  if (syncDaRecuperare) {
+    await enqueueNotifica(client, {
+      dedupeKey: `sync_annulla_${row.data.id}`,
+      testo: `KONA Call Director - Eliminazione Google da recuperare (${row.data.id}).`,
+      extra: { codice: 'sync_fallito' }
+    });
+  }
   await enqueueNotifica(client, {
     dedupeKey: `appuntamento_annullato_${row.data.id}_${todayRomeStr()}`,
     testo: `KONA Call Director - Appuntamento Business annullato (${row.data.id}). Nessun dato personale in questo avviso.`,
     extra: { codice: 'appuntamento_annullato' }
   });
-  return jsonOk({ annullato: true });
+  return jsonOk({ annullato: true, sync_da_recuperare: syncDaRecuperare });
 }
 
 async function azioneRiprogramma(client, cfg, body, profiloId, isAdmin) {
   const id = String(body.appuntamento_business_id || '');
   const row = await caricaAppuntamento(client, id, profiloId, isAdmin);
   if (!row.ok) return row.res;
-  const startRaw = String(body.start || '');
-  const start = startRaw ? new Date(startRaw) : null;
-  if (start && (Number.isNaN(start.getTime()) || start.getTime() <= Date.now())) return jsonError(400, 'nuovo orario non valido');
-  const patch = { stato: 'da_riprogrammare' };
-  if (start) {
-    patch.data_ora = start.toISOString();
-    patch.riprogrammato_at = new Date().toISOString();
+  const start = new Date(String(body.start || ''));
+  if (Number.isNaN(start.getTime()) || start.getTime() <= Date.now()) return jsonError(400, 'nuovo orario non valido');
+  const durata = row.data.durata_minuti || cfg.durata_appuntamento_minuti || 45;
+  const end = new Date(start.getTime() + durata * 60000);
+  const accessToken = await getAccessToken(client);
+  if (!accessToken) return jsonError(409, 'Calendario Google non collegato');
+  const conflitti = await conflittiAppuntamenti(client, {
+    start: new Date(start.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+    end: new Date(end.getTime() + 24 * 60 * 60 * 1000).toISOString()
+  });
+  const disponibile = await verifySlotAvailability({
+    supabase: client, cfg, start: start.toISOString(), end: end.toISOString(), accessToken,
+    calendarId: calendarIdFor(cfg), appuntamentiConflitto: conflitti
+  });
+  if (!disponibile.ok) return jsonError(409, 'Nuovo slot non disponibile', { motivo: disponibile.reason });
+
+  const { data: leadRiprogramma } = await client.from('call_center_lead_outbound').select('ragione_sociale').eq('id', row.data.lead_id).maybeSingle();
+  const sync = await sincronizzaGoogle(client, cfg, { ...row.data, data_ora: start.toISOString() }, leadRiprogramma);
+  if (!sync.ok) return jsonError(409, 'Riprogrammazione non completata: sync Google fallito');
+
+  const { error: bizError } = await client.from('kona_call_director_appuntamenti_business').update({
+    stato: 'proposto', data_ora: start.toISOString(), riprogrammato_at: new Date().toISOString(),
+    google_event_id: sync.eventId || row.data.google_event_id, sync_stato: 'sincronizzato'
+  }).eq('id', row.data.id);
+  let sharedError = null;
+  if (!bizError && row.data.appuntamento_id) {
+    const result = await client.from('appuntamenti').update({
+      data_ora: start.toISOString(), stato: 'rischedulato', motivo_modifica: 'Riprogrammato da KONA Call Director'
+    }).eq('id', row.data.appuntamento_id);
+    sharedError = result.error;
   }
-  await client.from('kona_call_director_appuntamenti_business').update(patch).eq('id', row.data.id);
-  if (row.data.appuntamento_id) {
-    await client.from('appuntamenti').update({ data_ora: start ? start.toISOString() : row.data.data_ora, stato: 'rischedulato', motivo_modifica: 'Riprogrammato da KONA Call Director' }).eq('id', row.data.appuntamento_id);
-  }
-  if (start && row.data.google_event_id) {
-    const accessToken = await getAccessToken(client);
-    if (accessToken) {
-      try {
-        await updateEventTime(accessToken, { eventId: row.data.google_event_id, start: start.toISOString(), end: new Date(start.getTime() + (row.data.durata_minuti || 45) * 60000).toISOString() });
-      } catch {
-        await client.from('kona_call_director_appuntamenti_business').update({ sync_stato: 'da_recuperare' }).eq('id', row.data.id);
+  if (bizError || sharedError) {
+    try {
+      if (sync.created && sync.eventId) {
+        await deleteEvent(accessToken, { calendarId: calendarIdFor(cfg), eventId: sync.eventId });
+      } else if (sync.eventId) {
+        await updateEventTime(accessToken, {
+          calendarId: calendarIdFor(cfg), eventId: sync.eventId,
+          start: row.data.data_ora,
+          end: new Date(new Date(row.data.data_ora).getTime() + durata * 60000).toISOString()
+        });
       }
-    }
+    } catch { /* la riconciliazione verra notificata */ }
+    await client.from('kona_call_director_appuntamenti_business').update({ sync_stato: 'da_recuperare' }).eq('id', row.data.id);
+    await enqueueNotifica(client, {
+      dedupeKey: `sync_riprogramma_${row.data.id}`,
+      testo: `KONA Call Director - Riprogrammazione da riconciliare (${row.data.id}).`,
+      extra: { codice: 'sync_fallito' }
+    });
+    return jsonError(500, bizError?.message || sharedError?.message || 'Persistenza riprogrammazione fallita');
   }
-  const { data: finale } = await client.from('kona_call_director_appuntamenti_business').select('*').eq('id', id).single();
-  return jsonOk({ da_riprogrammare: true, appuntamento: pubblicaAppuntamento(finale) });
+  const { data: finale, error } = await client.from('kona_call_director_appuntamenti_business').select('*').eq('id', id).single();
+  if (error || !finale) return jsonError(500, 'Rilettura appuntamento fallita');
+  return jsonOk({ riprogrammato: true, appuntamento: pubblicaAppuntamento(finale) });
 }
 
 // -- Sync Google (idempotente) -------------------------------------------------
@@ -336,29 +381,53 @@ async function sincronizzaGoogle(client, cfg, row, lead) {
     await client.from('kona_call_director_appuntamenti_business').update({ sync_stato: 'da_recuperare' }).eq('id', row.id);
     return { ok: false, reason: 'no_token' };
   }
+  let evento = null;
+  let eventoCreatoOra = false;
   try {
-    // Idempotenza: se l'evento esiste gia' (kona_id) non ne crea un secondo.
+    const durata = row.durata_minuti || cfg.durata_appuntamento_minuti || 45;
+    const end = new Date(new Date(row.data_ora).getTime() + durata * 60000).toISOString();
     const timeMin = new Date(new Date(row.data_ora).getTime() - 24 * 60 * 60 * 1000).toISOString();
     const timeMax = new Date(new Date(row.data_ora).getTime() + 24 * 60 * 60 * 1000).toISOString();
-    const esistente = await findEventByKonaId(accessToken, { konaId: row.id, timeMin, timeMax });
-    let evento = esistente ? { id: esistente.id, htmlLink: esistente.htmlLink } : null;
+
+    if (row.google_event_id) {
+      try {
+        await updateEventTime(accessToken, {
+          calendarId: calendarIdFor(cfg), eventId: row.google_event_id, start: row.data_ora, end
+        });
+        evento = { id: row.google_event_id, htmlLink: null };
+      } catch (eventError) {
+        if (Number(eventError?.status) !== 404) throw eventError;
+      }
+    }
+    if (!evento) {
+      const esistente = await findEventByKonaId(accessToken, {
+        calendarId: calendarIdFor(cfg), konaId: row.id, timeMin, timeMax
+      });
+      evento = esistente ? { id: esistente.id, htmlLink: esistente.htmlLink || null } : null;
+    }
     if (!evento) {
       const nome = String(lead?.ragione_sociale || 'Azienda').slice(0, 80);
       evento = await insertEvent(accessToken, {
+        calendarId: calendarIdFor(cfg),
         summary: `Appuntamento: ${nome}`,
         start: row.data_ora,
-        end: new Date(new Date(row.data_ora).getTime() + (row.durata_minuti || cfg.durata_appuntamento_minuti || 45) * 60000).toISOString(),
+        end,
         description: `KONA Call Director - appuntamento Business (${row.id}).`,
         konaId: row.id
       });
+      eventoCreatoOra = true;
     }
-    await client.from('kona_call_director_appuntamenti_business').update({
+    const { error: syncError } = await client.from('kona_call_director_appuntamenti_business').update({
       google_event_id: evento.id,
       sync_stato: 'sincronizzato',
-      sync_dettagli: { html_link: evento.htmlLink }
+      sync_dettagli: { html_link: evento.htmlLink || null }
     }).eq('id', row.id);
-    return { ok: true };
+    if (syncError) throw new Error(syncError.message || 'persistenza_sync_fallita');
+    return { ok: true, eventId: evento.id, created: eventoCreatoOra };
   } catch (e) {
+    if (eventoCreatoOra && evento?.id) {
+      try { await deleteEvent(accessToken, { calendarId: calendarIdFor(cfg), eventId: evento.id }); } catch { /* riconciliazione manuale */ }
+    }
     await client.from('kona_call_director_appuntamenti_business').update({ sync_stato: 'da_recuperare' }).eq('id', row.id);
     await enqueueNotifica(client, {
       dedupeKey: `sync_appuntamento_${row.id}`,
@@ -415,7 +484,6 @@ function pubblicaAppuntamento(row) {
     durata_minuti: row.durata_minuti,
     zona: row.zona,
     stato: row.stato,
-    google_event_id: row.google_event_id,
     sync_stato: row.sync_stato
   };
 }

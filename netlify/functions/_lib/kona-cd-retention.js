@@ -13,11 +13,16 @@ const TABELLE = [
   { tabella: 'kona_call_director_arricchimento_fonti', giorni: 'retention_arricchimenti_giorni', via: 'created_at' },
   { tabella: 'kona_call_director_arricchimenti', giorni: 'retention_arricchimenti_giorni', via: 'created_at' },
   { tabella: 'kona_call_director_conferme', giorni: 'retention_attivita_giorni', via: 'created_at' },
+  { tabella: 'kona_call_director_sessione_attivita', giorni: 'retention_attivita_giorni', via: 'created_at' },
+  { tabella: 'kona_call_director_oauth_stati', giorni: 'retention_attivita_giorni', via: 'creato_at' },
   { tabella: 'kona_call_director_sessioni', giorni: 'retention_attivita_giorni', via: 'aperta_at' },
   { tabella: 'kona_call_director_task_eventi', giorni: 'retention_attivita_giorni', via: 'created_at' },
   { tabella: 'kona_call_director_task', giorni: 'retention_attivita_giorni', via: 'created_at' },
   { tabella: 'kona_call_director_esecuzioni_programmate', giorni: 'retention_aggregati_giorni', via: 'eseguita_at' },
-  { tabella: 'kona_call_director_budget_log', giorni: 'retention_aggregati_giorni', via: 'created_at' }
+  { tabella: 'kona_call_director_budget_log', giorni: 'retention_aggregati_giorni', via: 'created_at' },
+  { tabella: 'kona_call_director_notifiche', giorni: 'retention_aggregati_giorni', via: 'created_at' },
+  { tabella: 'kona_call_director_budget_riserve', giorni: 'retention_aggregati_giorni', via: 'creato_at' },
+  { tabella: 'kona_call_director_audit', giorni: 'retention_aggregati_giorni', via: 'creato_at' }
 ];
 
 // Ritorna il numero di giorni per la chiave di config, con fallback.

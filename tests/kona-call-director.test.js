@@ -99,7 +99,13 @@ function makeSupabase(handlers) {
   }
   return {
     _handlers: wrapped,
-    rpc: async (name, params) => ({ data: true, error: null }),
+    rpc: async (name, params) => {
+      const handler = wrapped['rpc.' + name];
+      if (handler) return handler({ name, params });
+      if (name === 'kona_cd_reserve_budget_v1') return { data: { ok: true }, error: null };
+      if (name === 'kona_cd_acquire_job_v1') return { data: [], error: null };
+      return { data: true, error: null };
+    },
     from(table) { return new Q(this, table); }
   };
 }
@@ -112,13 +118,15 @@ function baseCfg() {
     riserva_arricchimento_eur: 40,
     riserva_dialogo_eur: 10,
     modello_openai: 'gpt-5.6-luna',
-    prezzi_openai: { 'gpt-5.6-luna': { input: 0.20, output: 1.20, web_search: 10.00 } },
+    usd_to_eur: 1,
+    prezzi_openai: { 'gpt-5.6-luna': { input: 0.20, output: 1.20, web_search: 0.01 } },
     soglie_budget: [70, 85, 95, 100],
     giorni_lavorativi: [1, 2, 3, 4, 5],
     ferie: [],
     orario_mattina: { inizio: '09:00', fine: '12:30' },
     orario_pomeriggio: { inizio: '15:30', fine: '19:00' },
     orario_stop_business: '18:00',
+    durata_sessione_business_minuti: 90,
     durata_appuntamento_minuti: 45,
     distanza_km_indicativa: 20,
     richieste_web_max_per_lead: 2,
@@ -158,10 +166,10 @@ function taskAttivo(tipo, extra) {
 
 function mockFetchFor(routes) {
   const real = global.fetch;
-  global.fetch = async (url) => {
+  global.fetch = async (url, options) => {
     const key = String(url);
     for (const [match, handler] of routes) {
-      if (key.includes(match)) return handler();
+      if (key.includes(match)) return handler(url, options);
     }
     throw new Error('fetch non mockato: ' + key);
   };
@@ -264,6 +272,13 @@ test('isUuid/parseBoolean/safeProfileId', () => {
   assert.equal(util.safeProfileId({ id: CHIAMATA, alias_di: PROFILO }, {}), PROFILO);
 });
 
+test('parseJson accetta sia testo JSON sia JSONB gia deserializzato', () => {
+  const jsonb = { a: 1, nested: { ok: true } };
+  assert.equal(util.parseJson('{"a":1}').a, 1);
+  assert.equal(util.parseJson(jsonb), jsonb);
+  assert.deepEqual(util.parseJson(['lun', 'mar']), ['lun', 'mar']);
+});
+
 // =============================================================================
 // Config
 // =============================================================================
@@ -275,17 +290,20 @@ test('default: nasce disattivato, osservazione, prezzi ufficiali, soglia 50', ()
   assert.equal(config.CONFIG_DEFAULTS.soglia_lead_minime, 50);
   assert.equal(config.CONFIG_DEFAULTS.prezzi_openai['gpt-5.6-luna'].input, 0.20);
   assert.equal(config.CONFIG_DEFAULTS.prezzi_openai['gpt-5.6-luna'].output, 1.20);
-  assert.equal(config.CONFIG_DEFAULTS.prezzi_openai['gpt-5.6-luna'].web_search, 10.00);
+  assert.equal(config.CONFIG_DEFAULTS.prezzi_openai['gpt-5.6-luna'].web_search, 0.01);
   assert.equal(config.CONFIG_DEFAULTS.orario_stop_business, '18:00');
 });
 
-test('envHardEnabled: false esplicito blocca', () => {
+test('envHardEnabled: richiede true esplicito e altrimenti blocca', () => {
   const prev = process.env.KONA_CALL_DIRECTOR_ENABLED;
+  process.env.KONA_CALL_DIRECTOR_ENABLED = 'true';
+  assert.equal(config.envHardEnabled(), true);
   process.env.KONA_CALL_DIRECTOR_ENABLED = 'false';
   assert.equal(config.envHardEnabled(), false);
   delete process.env.KONA_CALL_DIRECTOR_ENABLED;
-  assert.equal(config.envHardEnabled(), true);
-  if (prev) process.env.KONA_CALL_DIRECTOR_ENABLED = prev;
+  assert.equal(config.envHardEnabled(), false);
+  if (prev === undefined) delete process.env.KONA_CALL_DIRECTOR_ENABLED;
+  else process.env.KONA_CALL_DIRECTOR_ENABLED = prev;
 });
 
 // =============================================================================
@@ -308,45 +326,66 @@ test('crypto roundtrip AES-GCM', () => {
 
 test('budgetSnapshot: DTO unico per API/UI/report/Telegram', async () => {
   const db = makeSupabase({
-    'kona_call_director_budget_log.select': () => ({ data: [{ attivita: 'arricchimento', costo_stimato_eur: 2.5, web_ricerche: 3 }, { attivita: 'dialogo', costo_stimato_eur: 1.25, web_ricerche: 0 }] }),
+    'kona_call_director_budget_log.select': () => ({ data: [
+      { attivita: 'arricchimento', costo_stimato_eur: 2.5, web_ricerche: 3 },
+      { attivita: 'dialogo', costo_stimato_eur: 1.25, web_ricerche: 0 },
+      { attivita: 'piano', costo_stimato_eur: 0.5, web_ricerche: 0 },
+      { attivita: 'analisi', costo_stimato_eur: 0.75, web_ricerche: 0 },
+      { attivita: 'altro', costo_stimato_eur: 0.25, web_ricerche: 0 }
+    ] }),
     'kona_call_director_budget_riserve.select': () => ({ data: [{ importo_eur: 0.5 }] })
   });
   const snap = await budget.budgetSnapshot(db, baseCfg(), '2026-08');
   assert.equal(snap.mese, '2026-08');
   assert.equal(snap.budget, 50);
-  assert.equal(snap.speso, 3.75);
+  assert.equal(snap.speso, 5.25);
   assert.equal(snap.riservato, 0.5);
-  assert.equal(snap.rimasto, 45.75);
-  assert.equal(snap.percentuale, 7.5);
-  assert.deepEqual(snap.per_attivita, { arricchimento: 2.5, dialogo: 1.25 });
+  assert.equal(snap.rimasto, 44.25);
+  assert.equal(snap.percentuale, 10.5);
+  assert.deepEqual(snap.per_attivita, { arricchimento: 2.5, dialogo: 1.25, piano: 0.5, analisi: 0.75, altro: 0.25 });
   assert.equal(snap.web_ricerche, 3);
   assert.equal(snap.riserva_arricchimento.rimasto, 37.5);
+  assert.equal(snap.riserva_dialogo.speso, 2.75);
+  assert.equal(snap.riserva_dialogo.rimasto, 7.25);
+  assert.deepEqual(snap.extra, { piani: 0.5, analisi: 0.75, altro: 0.25 });
+});
+
+test('migration 072: gli indici di retry rispettano fallita/fallito dei CHECK', () => {
+  const migrazione = fs.readFileSync(path.resolve(__dirname, '..', 'database/072_kona_call_director.sql'), 'utf8');
+  assert.match(migrazione, /idx_kona_call_director_notifiche_coda[\s\S]*?WHERE stato IN \('in_coda','fallita'\);/);
+  assert.match(migrazione, /idx_kona_call_director_jobs_coda[\s\S]*?WHERE stato IN \('in_coda','fallito'\);/);
+});
+
+test('migration 072: la config aggiorna aggiornato_at senza cercare updated_at', () => {
+  const migrazione = fs.readFileSync(path.resolve(__dirname, '..', 'database/072_kona_call_director.sql'), 'utf8');
+  assert.match(migrazione, /kona_call_director_touch_config_aggiornato_at\(\)[\s\S]*?NEW\.aggiornato_at := now\(\);/);
+  assert.match(migrazione, /trg_kona_cd_config_updated_at[\s\S]*?EXECUTE FUNCTION public\.kona_call_director_touch_config_aggiornato_at\(\);/);
 });
 
 test('tryReserveBudget: hard stop quando il budget totale e\' esaurito', async () => {
   let chiamate = 0;
   const db = makeSupabase({
-    'kona_call_director_budget_log.select': () => ({ data: [{ attivita: 'arricchimento', costo_stimato_eur: 50, web_ricerche: 0 }] }),
-    'kona_call_director_budget_riserve.select': () => ({ data: [] }),
-    'kona_call_director_budget_riserve.insert': () => { chiamate += 1; return { data: null, error: null }; }
+    'rpc.kona_cd_reserve_budget_v1': ({ params }) => {
+      chiamate += 1;
+      assert.equal(params.p_importo_eur, 1);
+      return { data: { ok: false, motivo: 'hard_stop' }, error: null };
+    }
   });
   const esito = await budget.tryReserveBudget({ supabase: db, cfg: baseCfg(), mese: '2026-08', attivita: 'arricchimento', importoEur: 1, chiave: 'k1' });
   assert.equal(esito.ok, false);
   assert.equal(esito.motivo, 'hard_stop');
-  assert.equal(chiamate, 0); // nessuna prenotazione creata
+  assert.equal(chiamate, 1);
 });
 
 test('tryReserveBudget: prenota e libera/consuma', async () => {
-  const inserted = [];
+  let prenotazioni = 0;
   const db = makeSupabase({
-    'kona_call_director_budget_log.select': () => ({ data: [] }),
-    'kona_call_director_budget_riserve.select': () => ({ data: [] }),
-    'kona_call_director_budget_riserve.insert': (q) => { inserted.push(q.value); return { data: { id: 'r1' }, error: null }; },
+    'rpc.kona_cd_reserve_budget_v1': () => { prenotazioni += 1; return { data: { ok: true, disponibile: 8 }, error: null }; },
     'kona_call_director_budget_riserve.update': () => ({ data: [], error: null })
   });
   const esito = await budget.tryReserveBudget({ supabase: db, cfg: baseCfg(), mese: '2026-08', attivita: 'dialogo', importoEur: 2, chiave: 'k2' });
   assert.equal(esito.ok, true);
-  assert.equal(inserted.length, 1);
+  assert.equal(prenotazioni, 1);
   await budget.liberaRiserva(db, 'k2');
 });
 
@@ -361,6 +400,7 @@ test('riservaCopre', () => {
   const r = budget.riservaCopre({ rimasto: 12.5 }, 3.2);
   assert.equal(r.ok, true);
   assert.equal(r.rimasto, 12.5);
+  assert.equal(budget.round6(0.0001234), 0.000123);
 });
 
 // =============================================================================
@@ -368,7 +408,7 @@ test('riservaCopre', () => {
 // =============================================================================
 
 test('estimateCost fail-safe per prezzo/modello sconosciuto', () => {
-  const cfg = { prezzi_openai: { 'gpt-5.6-luna': { input: 0.2, output: 1.2, web_search: 10 } } };
+  const cfg = { usd_to_eur: 1, prezzi_openai: { 'gpt-5.6-luna': { input: 0.2, output: 1.2, web_search: 0.01 } } };
   const ok = openai._test.estimateCost(cfg, 'gpt-5.6-luna', { input_tokens: 1000, output_tokens: 100 }, 1);
   assert.equal(ok.ok, true);
   assert.equal(openai._test.estimateCost({ prezzi_openai: {} }, 'unknown', { input_tokens: 1, output_tokens: 1 }, 0).ok, false);
@@ -390,7 +430,11 @@ test('validateStructured richiede i campi obbligatori', () => {
 });
 
 test('openaiStructured: successo + log budget + prenotazione', async () => {
-  const restore = mockFetchFor([['api.openai.com', () => ({ ok: true, status: 200, json: async () => openaiOkPayload() })]]);
+  let requestBody = null;
+  const restore = mockFetchFor([['api.openai.com', (_url, options) => {
+    requestBody = JSON.parse(options.body);
+    return { ok: true, status: 200, json: async () => openaiOkPayload() };
+  }]]);
   const prevKey = process.env.KONA_CALL_DIRECTOR_OPENAI_API_KEY;
   process.env.KONA_CALL_DIRECTOR_OPENAI_API_KEY = 'test-key';
   const inserted = [];
@@ -410,6 +454,9 @@ test('openaiStructured: successo + log budget + prenotazione', async () => {
   assert.ok(res.costEur > 0);
   assert.equal(inserted.length, 1);
   assert.equal(inserted[0].attivita, 'arricchimento');
+  assert.equal(requestBody.max_tool_calls, 2);
+  assert.deepEqual(requestBody.include, ['web_search_call.action.sources']);
+  assert.deepEqual(requestBody.tools, [{ type: 'web_search_preview' }]);
   restore();
   if (prevKey) process.env.KONA_CALL_DIRECTOR_OPENAI_API_KEY = prevKey; else delete process.env.KONA_CALL_DIRECTOR_OPENAI_API_KEY;
 });
@@ -419,6 +466,7 @@ test('openaiStructured: budget esaurito blocca PRIMA della chiamata', async () =
   process.env.KONA_CALL_DIRECTOR_OPENAI_API_KEY = 'test-key';
   let chiamate = 0;
   const db = makeSupabase({
+    'rpc.kona_cd_reserve_budget_v1': () => ({ data: { ok: false, motivo: 'hard_stop' }, error: null }),
     'kona_call_director_budget_log.select': () => ({ count: 0, data: null, error: null }),
     'kona_call_director_budget_log.insert': () => { chiamate += 1; return { data: null, error: null }; }
   });
@@ -543,19 +591,17 @@ test('startArricchimento: solo lead chiamabili e incompleti, dedup job, soglia 5
   assert.equal(res.anomalia, true); // 1 < soglia 50
 });
 
-test('acquireJob: pick + update condizionale + lease recovery', async () => {
+test('acquireJob: pick atomico + lease recovery', async () => {
   const db = makeSupabase({
-    'kona_call_director_jobs.select': () => ({ data: [{ id: 'j1', stato: 'in_coda' }] }),
-    'kona_call_director_jobs.update': () => ({ data: { id: 'j1', stato: 'in_corso' }, error: null })
+    'rpc.kona_cd_acquire_job_v1': () => ({ data: [{ id: 'j1', stato: 'in_corso' }], error: null })
   });
   const job = await arr.acquireJob(db, { tipo: 'arricchimento_batch', leaseOwner: 'dispatcher' });
   assert.equal(job.id, 'j1');
 });
 
-test('acquireJob: update fallito (gia\' preso) -> null', async () => {
+test('acquireJob: nessun job acquisibile -> null', async () => {
   const db = makeSupabase({
-    'kona_call_director_jobs.select': () => ({ data: [{ id: 'j1', stato: 'in_coda' }] }),
-    'kona_call_director_jobs.update': () => ({ data: null, error: { message: 'no rows', code: 'PGRST116' } })
+    'rpc.kona_cd_acquire_job_v1': () => ({ data: [], error: null })
   });
   const job = await arr.acquireJob(db, { tipo: 'arricchimento_batch', leaseOwner: 'dispatcher' });
   assert.equal(job, null);
@@ -694,7 +740,7 @@ test('materializeNextTask: errore blacklist -> FAIL-CLOSED, nessun task', async 
     'blacklist.select': () => ({ data: null, error: { message: 'db giu' } }),
     'kona_call_director_task.insert': () => ({ data: { id: 't1' }, error: null })
   });
-  const res = await engine.materializeNextTask({ supabase: db, cfg: baseCfg(), profiloId: PROFILO, oggi: '2026-08-27' });
+  const res = await engine.materializeNextTask({ supabase: db, cfg: baseCfg(), profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 10, mm: 0 } });
   assert.equal(res.ok, false);
   assert.equal(res.reason, 'blacklist_check_failed');
 });
@@ -723,7 +769,7 @@ test('FLUSSO REALE: blacklist -> impossibile riproporre', async () => {
     'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
     'call_center_lead_outbound.update': () => ({ data: [], error: null })
   });
-  const primo = await engine.materializeNextTask({ supabase: db, cfg: baseCfg(), profiloId: PROFILO, oggi: '2026-08-27' });
+  const primo = await engine.materializeNextTask({ supabase: db, cfg: baseCfg(), profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 10, mm: 0 } });
   assert.equal(primo.ok, true);
 
   // 2) l'operatrice segnala in blacklist (persistenza REALE)
@@ -733,7 +779,7 @@ test('FLUSSO REALE: blacklist -> impossibile riproporre', async () => {
   assert.equal(blacklistRows.length, 1); // inserita nella blacklist reale
 
   // 3) riproposizione -> bloccata (nessun nuovo task)
-  const secondo = await engine.materializeNextTask({ supabase: db, cfg: baseCfg(), profiloId: PROFILO, oggi: '2026-08-27' });
+  const secondo = await engine.materializeNextTask({ supabase: db, cfg: baseCfg(), profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 10, mm: 0 } });
   assert.equal(secondo.ok, false);
   assert.equal(secondo.noop, true);
 });
@@ -748,6 +794,8 @@ test('FLUSSO REALE: materializzazione -> non risposto -> esaurimento dopo 3 (ten
     },
     'kona_call_director_task_eventi.insert': () => ({ data: null, error: null }),
     'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
+    'chiamate.select': () => ({ data: { id: CHIAMATA, operatore_id: PROFILO, operatore_nome: 'Isabella', cf_piva: 'CF1', nome_cliente: 'Cliente', cellulare: '3331112222', esito: 'ricontattare', motivo_chiamata: 'Richiamo' }, error: null }),
+    'chiamate.insert': () => ({ data: { id: 'nuova-chiamata' }, error: null }),
     'chiamate.update': () => ({ data: [], error: null }),
     'blacklist.select': () => ({ data: [] }),
     'kona_call_director_esclusioni.select': () => ({ data: [] }),
@@ -774,7 +822,7 @@ test('FLUSSO REALE: conferma -> 4 tentativi -> Telegram -> NESSUN auto-cancel', 
   const db = makeSupabase({
     'kona_call_director_task.select': () => ({ data: null }),
     'kona_call_director_conferme.select': () => ({ count: confermeInserite.length, data: null, error: null }),
-    'kona_call_director_conferme.insert': (q) => { confermeInserite.push(q.value); return { data: null, error: null }; },
+    'kona_call_director_conferme.upsert': (q) => { confermeInserite.push(q.value); return { data: null, error: null }; },
     'kona_call_director_appuntamenti_business.update': (q) => { aggiornamentiBiz.push(q.value); return { data: [], error: null }; },
     'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
     'kona_call_director_task_eventi.insert': () => ({ data: null, error: null })
@@ -829,8 +877,49 @@ test('Business standard bloccato alle 18:00 (orario_stop_business)', async () =>
     'call_center_lead_outbound_chiamate.select': () => ({ data: [] }),
     'vw_rilavorazione_ricontatti_unificata.select': () => ({ data: [] })
   });
-  const candidati = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27' });
+  const candidati = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 10, mm: 0 } });
   assert.ok(!candidati.some((c) => c.tipo === 'sessione_business' && c.priority === 7));
+});
+
+test('Business standard bloccato senza categorie approvate nel piano', async () => {
+  const cfg = baseCfg();
+  cfg.orario_stop_business = null;
+  let leadQueryEseguita = false;
+  const db = makeSupabase({
+    'kona_call_director_piani.select': () => ({ data: null, error: null }),
+    'call_center_lead_outbound.select': () => {
+      leadQueryEseguita = true;
+      return { data: [{ id: LEAD, ragione_sociale: 'A', telefono_raw: '333', categoria: 'Bar', stato_lead: 'nuovo', pinned: false, do_not_call: false }] };
+    }
+  });
+  const candidati = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27' });
+  assert.equal(leadQueryEseguita, true, 'la campagna urgente continua a interrogare i lead pinned');
+  assert.ok(!candidati.some((c) => c.tipo === 'sessione_business'));
+});
+
+test('Business standard usa esclusivamente le categorie del piano approvato', async () => {
+  const cfg = baseCfg();
+  cfg.orario_stop_business = null;
+  let lettureLead = 0;
+  const db = makeSupabase({
+    'kona_call_director_piani.select': () => ({ data: { contenuto: { categorie_approvate: ['Bar'] }, stato: 'approvato' }, error: null }),
+    'call_center_lead_outbound.select': (q) => {
+      lettureLead += 1;
+      if (q.filters.some(([op, key, value]) => op === 'eq' && key === 'pinned' && value === true)) return { data: [] };
+      return { data: [
+        { id: LEAD, ragione_sociale: 'Bar A', telefono_raw: '333', localita: 'Legnago', provincia: 'VR', categoria: 'Bar', stato_lead: 'nuovo', pinned: false, do_not_call: false },
+        { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', ragione_sociale: 'Studio B', telefono_raw: '334', localita: 'Legnago', provincia: 'VR', categoria: 'Commercialista', stato_lead: 'nuovo', pinned: false, do_not_call: false }
+      ] };
+    },
+    'kona_call_director_appuntamenti_business.select': () => ({ data: [] }),
+    'kona_call_director_arricchimenti.select': () => ({ data: [] }),
+    'kona_call_director_comuni.select': () => ({ data: [] })
+  });
+  const candidati = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27' });
+  assert.ok(lettureLead >= 2);
+  const standard = candidati.filter((c) => c.tipo === 'sessione_business');
+  assert.equal(standard.length, 1);
+  assert.equal(standard[0].nome, 'Bar A');
 });
 
 test('ricontatti dalla sorgente unificata (standard + outbound business)', async () => {
@@ -847,7 +936,7 @@ test('ricontatti dalla sorgente unificata (standard + outbound business)', async
     'kona_call_director_appuntamenti_business.select': () => ({ data: [] })
   });
   const cfg = baseCfg();
-  const candidati = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27' });
+  const candidati = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 10, mm: 0 } });
   const ricontatti = candidati.filter((c) => c.tipo === 'ricontatto_programmato');
   assert.equal(ricontatti.length, 2);
   assert.ok(ricontatti.some((c) => c.sorgenteTipo === 'chiamata'));
@@ -860,6 +949,7 @@ test('esito Business: registra chiamata outbound + attivita\' + storico', async 
   const db = makeSupabase({
     'kona_call_director_task.select': () => ({ data: null }),
     'profili.select': () => ({ data: { nome: 'Isabella' } }),
+    'call_center_lead_outbound.select': () => ({ data: { id: LEAD, ragione_sociale: 'Bar Roma', telefono_raw: '3331234567', telefono_norm: '3331234567', localita: 'Legnago', provincia: 'VR' }, error: null }),
     'call_center_lead_outbound_chiamate.insert': (q) => { chiamateOutbound.push(q.value); return { data: { id: 'ch1' }, error: null }; },
     'call_center_lead_outbound_attivita.insert': (q) => { attivita.push(q.value); return { data: null, error: null }; },
     'call_center_lead_outbound.update': () => ({ data: [], error: null }),
@@ -988,6 +1078,9 @@ test('admin: DTO budget coerente (speso/budget/rimasto) e nuovi campi config', (
   assert.ok(/b\.budget/.test(js));
   assert.ok(/b\.rimasto/.test(js));
   assert.ok(/orario_stop_business/.test(js));
+  assert.ok(/prezzi_openai/.test(js));
+  assert.ok(/data-json/.test(js) || /dataset\.json/.test(js));
+  assert.ok(/richieste_web_max_per_lead/.test(js));
 });
 
 // =============================================================================

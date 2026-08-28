@@ -12,6 +12,7 @@
   var _stato = null;
   var _task = null;
   var _slots = [];
+  var _riprogrammaAppId = null;
 
   var ESITI_PER_TIPO = {
     conferma_appuntamento_business: [
@@ -268,13 +269,19 @@
       apriSkip(true);
       return;
     }
+    if (_task && _task.task && _task.task.tipo === 'conferma_appuntamento_business') {
+      var appId = _task.task.payload && _task.task.payload.appuntamento_business_id;
+      if (esito === 'da_riprogrammare') return azioneAppuntamento('riprogramma', appId);
+      if (esito === 'confermato') return azioneAppuntamento('conferma', appId);
+      if (esito === 'annullato') return azioneAppuntamento('annulla', appId);
+    }
     await confermaEsito({ action: 'esito', esito: esito });
   }
 
   async function confermaEsito(body) {
     try {
       var res = await apiFetch(TASK, jsonBody(body));
-      if (res.esito && res.esito.tentativi_esauriti) toast('Tentativi esauriti per questo contatto.');
+      if (res.esito && res.esito.esaurito) toast('Tentativi esauriti per questo contatto.');
       _task = null;
       renderTask();
       await prossimo();
@@ -369,7 +376,7 @@
         b.className = 'btn btn-secondary btn-sm';
         b.style.margin = '4px';
         b.textContent = new Date(slot.start).toLocaleString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-        b.onclick = function () { proponiSlot(slot); };
+        b.onclick = function () { return _riprogrammaAppId ? riprogrammaSlot(slot) : proponiSlot(slot); };
         box.appendChild(b);
       });
     } catch (e) {
@@ -380,9 +387,26 @@
   async function proponiSlot(slot) {
     var leadId = window._konaDialogoLeadId;
     try {
-      var res = await apiFetch(DIALOG, jsonBody({ action: 'proponi_appuntamento', lead_id: leadId, start: slot.start, durata_minuti: 45 }));
-      toast('Appuntamento proposto e sincronizzato con il calendario.');
-      await caricaAttivo();
+      await apiFetch(DIALOG, jsonBody({
+        action: 'proponi_appuntamento', lead_id: leadId, start: slot.start, durata_minuti: 45,
+        anagrafica_id: _task && _task.contatto && _task.contatto.anagrafica_id
+      }));
+      toast('Appuntamento creato e sincronizzato con il calendario.');
+      if (_task) await confermaEsito({ action: 'esito', esito: 'appuntamento', appuntamento_tipo: 'esterno' });
+      else await caricaAttivo();
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  async function riprogrammaSlot(slot) {
+    var appId = _riprogrammaAppId;
+    if (!appId) return;
+    try {
+      await apiFetch(DIALOG, jsonBody({ action: 'riprogramma_appuntamento', appuntamento_business_id: appId, start: slot.start }));
+      _riprogrammaAppId = null;
+      toast('Appuntamento riprogrammato e sincronizzato.');
+      await confermaEsito({ action: 'esito', esito: 'da_riprogrammare', dettagli: { riprogrammato: true } });
     } catch (e) {
       toast(e.message);
     }
@@ -390,6 +414,11 @@
 
   async function azioneAppuntamento(action, appId) {
     if (!appId) { toast('Appuntamento non identificato.'); return; }
+    if (action === 'riprogramma') {
+      _riprogrammaAppId = appId;
+      await caricaSlot();
+      return;
+    }
     try {
       if (action === 'annulla' && root.MiroxUI && typeof root.MiroxUI.confirm === 'function') {
         var ok = await root.MiroxUI.confirm('Annullare l\'appuntamento (evento Google incluso)?');
@@ -397,7 +426,12 @@
       }
       await apiFetch(DIALOG, jsonBody({ action: action + '_appuntamento', appuntamento_business_id: appId }));
       toast('Operazione completata.');
-      await caricaAttivo();
+      var esito = action === 'conferma' ? 'confermato' : 'annullato';
+      if (_task && _task.task && _task.task.tipo === 'conferma_appuntamento_business') {
+        await confermaEsito({ action: 'esito', esito: esito });
+      } else {
+        await caricaAttivo();
+      }
     } catch (e) {
       toast(e.message);
     }
@@ -409,9 +443,20 @@
     var current = _stato && _stato.consumer_modalita;
     if (current === mode) { toast('Modalita' + ' gia' + ' attiva.'); return; }
     try {
-      await apiFetch(TASK, jsonBody({ action: 'sessione', tipo: 'mattina', categoria: mode }));
+      await apiFetch(TASK, jsonBody({ action: 'sessione', categoria: mode }));
       toast('Modalita' + ' Consumer: ' + (mode === 'telefoni_omaggio' ? 'Telefoni omaggio' : 'Fibra/FWA'));
       await caricaStato();
+    } catch (e) {
+      toast(e.message);
+    }
+  }
+
+  async function registraConsumer(esito) {
+    var categoria = _stato && _stato.consumer_modalita;
+    if (!categoria) { toast('Attiva prima Telefoni omaggio oppure Fibra/FWA.'); return; }
+    try {
+      var res = await apiFetch(TASK, jsonBody({ action: 'registra_attivita_consumer', categoria: categoria, esito: esito }));
+      setText('konaConsumerStatus', 'Chiamate tracciate nella sessione: ' + (res.totale_sessione || 0));
     } catch (e) {
       toast(e.message);
     }
@@ -464,6 +509,7 @@
     prossimo: prossimo,
     segnalaBlacklist: segnalaBlacklist,
     selezionaModalitaConsumer: selezionaModalitaConsumer,
+    registraConsumer: registraConsumer,
     toggleSpiegazioneSkip: toggleSpiegazioneSkip
   };
 })(window);

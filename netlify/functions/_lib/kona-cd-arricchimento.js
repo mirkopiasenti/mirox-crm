@@ -153,58 +153,39 @@ function backoffMs(tentativi) {
   return BACKOFF_MIN[idx] * 60 * 1000;
 }
 
-// Prende il lease di un job (atomico). Pick di un candidato e UPDATE
-// condizionale: se un tick concorrente lo ha gia' reclamato l'UPDATE non matcha
-// e si ritorna null. Recupera anche i lease SCADUTI (job 'in_corso' orfani).
+// Prende e aggiorna il lease nella stessa transazione PostgreSQL. La RPC usa
+// FOR UPDATE SKIP LOCKED e recupera anche job falliti o lease scaduti.
 async function acquireJob(supabase, { tipo, leaseOwner }) {
-  const ora = nowIso();
-  const { data: pick } = await supabase
-    .from('kona_call_director_jobs')
-    .select('id')
-    .eq('tipo', tipo)
-    .in('stato', ['in_coda', 'in_corso'])
-    .lte('prossimo_tentativo_at', ora)
-    .order('prossimo_tentativo_at', { ascending: true })
-    .limit(5);
-  if (errorOrEmpty(pick)) return null;
-  const candidato = (pick || []).find((p) => p.stato === 'in_coda') || (pick || []).find((p) => p.lease_until && new Date(p.lease_until).getTime() < Date.now());
-  if (!candidato) return null;
-  const { data, error } = await supabase
-    .from('kona_call_director_jobs')
-    .update({
-      stato: 'in_corso',
-      lease_until: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-      lease_owner: String(leaseOwner || 'dispatcher')
-    })
-    .eq('id', candidato.id)
-    .in('stato', ['in_coda', 'in_corso'])
-    .select('*')
-    .single();
+  const { data, error } = await supabase.rpc('kona_cd_acquire_job_v1', {
+    p_tipo: tipo,
+    p_lease_owner: String(leaseOwner || 'dispatcher'),
+    p_lease_minuti: 10
+  });
   if (error || !data) return null;
-  return data;
-}
-
-function errorOrEmpty(data) {
-  return !data;
+  return Array.isArray(data) ? (data[0] || null) : data;
 }
 
 async function completeJob(supabase, job, risultato) {
-  await supabase.from('kona_call_director_jobs').update({
+  const { error } = await supabase.from('kona_call_director_jobs').update({
     stato: 'completato',
     risultato: cleanLog(risultato || {}),
-    completato_at: new Date().toISOString()
+    completato_at: new Date().toISOString(),
+    lease_until: null
   }).eq('id', job.id);
+  if (error) throw new Error(error.message || 'completamento_job_fallito');
 }
 
 async function failJob(supabase, job, message) {
   const tentativi = (job.tentativi || 0) + 1;
   const morto = tentativi >= MAX_TENTATIVI;
-  await supabase.from('kona_call_director_jobs').update({
+  const { error } = await supabase.from('kona_call_director_jobs').update({
     stato: morto ? 'annullato' : 'fallito',
     tentativi,
+    lease_until: null,
     prossimo_tentativo_at: new Date(Date.now() + backoffMs(tentativi)).toISOString(),
     risultato: cleanLog({ errore: String(message || 'errore').slice(0, 500) })
   }).eq('id', job.id);
+  if (error) throw new Error(error.message || 'fallimento_job_non_registrato');
 }
 
 // Estrae i valori mancanti via OpenAI (web_search). Schema a PROPRIETA' FISSE
@@ -260,8 +241,9 @@ async function estraiValori({ supabase, cfg, lead, campi }) {
   let affidabilita = 0;
   let fonti = [];
   const massimo = Math.min(Number(cfg.richieste_web_max_per_lead) || 2, 2);
+  let ricercheResidue = massimo;
 
-  for (let i = 0; i < massimo; i += 1) {
+  for (let i = 0; i < 2 && ricercheResidue > 0; i += 1) {
     const ancoraMancanti = campi.filter((c) => !valori[c]);
     if (ancoraMancanti.length === 0) break;
     const result = await openaiStructured({
@@ -274,13 +256,14 @@ async function estraiValori({ supabase, cfg, lead, campi }) {
       schema,
       maxOutputTokens: 800,
       webSearch: true,
-      maxToolCalls: 2,
+      maxToolCalls: ricercheResidue,
       details: { lead_id: lead.id, ricerca: ancoraMancanti }
     });
     if (!result.ok) {
       if (i === 0) return { ok: false, error: result.error, error_code: result.error_code };
       break;
     }
+    ricercheResidue -= Math.min(ricercheResidue, Math.max(1, Number(result.webCount) || 0));
     const raw = result.value || {};
     affidabilita = Math.max(affidabilita, Number(raw.affidabilita) || 0);
     // Campi estratti (fixed keys) -> validazione per-campo.
@@ -319,25 +302,34 @@ async function processArricchimento(supabase, cfg, job, { oggi } = {}) {
     return { ok: false, error: 'lead_id mancante' };
   }
 
-  // Idempotenza: gia' arricchito oggi?
-  const { data: esistente } = await supabase
+  const { data: esistente, error: esistenteError } = await supabase
     .from('kona_call_director_arricchimenti')
-    .select('id')
+    .select('id, stato')
     .eq('lead_id', leadId)
     .eq('data', data)
     .maybeSingle();
-  if (esistente) {
+  if (esistenteError) {
+    await failJob(supabase, job, esistenteError.message || 'verifica arricchimento fallita');
+    return { ok: false, error: 'verifica arricchimento fallita' };
+  }
+  if (esistente?.stato === 'fallito') {
+    const { error: deleteError } = await supabase.from('kona_call_director_arricchimenti').delete().eq('id', esistente.id);
+    if (deleteError) {
+      await failJob(supabase, job, deleteError.message || 'reset arricchimento fallito');
+      return { ok: false, error: 'reset arricchimento fallito' };
+    }
+  } else if (esistente) {
     await completeJob(supabase, job, { skip: 'gia_arricchito_oggi' });
     return { ok: true, skip: true };
   }
 
-  const { data: lead, error } = await supabase
+  const { data: lead, error: leadError } = await supabase
     .from('call_center_lead_outbound')
     .select('*')
     .eq('id', leadId)
     .maybeSingle();
-  if (error || !lead) {
-    await failJob(supabase, job, 'lead non trovato');
+  if (leadError || !lead) {
+    await failJob(supabase, job, leadError?.message || 'lead non trovato');
     return { ok: false, error: 'lead non trovato' };
   }
 
@@ -348,20 +340,15 @@ async function processArricchimento(supabase, cfg, job, { oggi } = {}) {
     return { ok: false, error: extraction.error, error_code: extraction.error_code };
   }
 
-  // Soglia di affidabilita': sotto soglia i valori non vengono applicati
-  // (mai sporcare i dati con estrazioni poco affidabili).
   const sogliaAffidabilita = Number(cfg.soglia_affidabilita_arricchimento) || 0.6;
   const affidabile = extraction.affidabilita >= sogliaAffidabilita;
-
-  // Applica SOLO i campi vuoti (mai sovrascrivere) e SOLO se affidabile.
-  const { patch, valoriApplicati } = affidabile ? applicaValori(lead, extraction.valori) : { patch: {}, valoriApplicati: {} };
-
-  // Numero extra: salvato nella tabella dedicata (piu' numeri per lead).
+  const { patch, valoriApplicati } = affidabile
+    ? applicaValori(lead, extraction.valori)
+    : { patch: {}, valoriApplicati: {} };
   const telefonoExtra = extraction.valori.telefono_extra || null;
   const telefonoPrincipale = extraction.valori.telefono_raw || null;
 
-  // Insert arricchimento (UNIQUE lead_id+data; se conflitto -> skip).
-  const { data: arricchimento, error: insErr } = await supabase
+  const { data: arricchimento, error: insertError } = await supabase
     .from('kona_call_director_arricchimenti')
     .insert({
       lead_id: leadId,
@@ -376,68 +363,82 @@ async function processArricchimento(supabase, cfg, job, { oggi } = {}) {
     })
     .select('id')
     .single();
-  if (insErr) {
-    await completeJob(supabase, job, { skip: 'gia_arricchito_oggi' });
-    return { ok: true, skip: true };
+  if (insertError || !arricchimento) {
+    if (String(insertError?.code || '') === '23505') {
+      await completeJob(supabase, job, { skip: 'gia_arricchito_oggi' });
+      return { ok: true, skip: true };
+    }
+    await failJob(supabase, job, insertError?.message || 'salvataggio arricchimento fallito');
+    return { ok: false, error: 'salvataggio arricchimento fallito' };
   }
 
-  // Applica il patch (solo campi vuoti). telefono_raw e' la sorgente: il
-  // trigger esistente deriva telefono_norm (mai scrivere telefono_norm qui).
-  if (Object.keys(patch).length > 0) {
-    await supabase.from('call_center_lead_outbound').update(patch).eq('id', leadId);
+  try {
+    if (Object.keys(patch).length > 0) {
+      const { error: patchError } = await supabase.from('call_center_lead_outbound').update(patch).eq('id', leadId);
+      if (patchError) throw new Error(patchError.message || 'aggiornamento lead fallito');
+    }
+
+    const numeriExtra = [telefonoExtra, telefonoPrincipale]
+      .filter((t) => t && t !== (lead.telefono_raw || '') && t !== (lead.telefono_norm || ''))
+      .filter((v, i, a) => a.indexOf(v) === i);
+    if (affidabile && numeriExtra.length > 0) {
+      const { error: telefoniError } = await supabase.from('kona_call_director_lead_telefoni').upsert(
+        numeriExtra.map((t) => ({
+          lead_id: leadId,
+          telefono: t,
+          telefono_norm: t.replace(/\D/g, ''),
+          fonte: extraction.fonti[0]?.url || 'web_search',
+          affidabilita: extraction.affidabilita
+        })),
+        { onConflict: 'lead_id,telefono', ignoreDuplicates: true }
+      );
+      if (telefoniError) throw new Error(telefoniError.message || 'salvataggio telefoni fallito');
+    }
+
+    if (extraction.fonti.length > 0) {
+      const { error: fontiError } = await supabase.from('kona_call_director_arricchimento_fonti').insert(
+        extraction.fonti.map((f) => ({
+          arricchimento_id: arricchimento.id,
+          tipo: 'web_search',
+          url: f.url,
+          titolo: f.titolo,
+          data_lettura: data,
+          affidabilita: f.affidabilita
+        }))
+      );
+      if (fontiError) throw new Error(fontiError.message || 'salvataggio fonti fallito');
+    }
+
+    const distanza = await distanzaKm(supabase, lead.localita, cfg.localita_riferimento);
+    const scored = await scoreLead({
+      lead: { ...lead, ...patch },
+      distanzaKmLegnago: distanza,
+      confidenteArricchimento: extraction.affidabilita,
+      cfg
+    });
+    const valoreLead = Math.round(scored.score * 100) / 100;
+    const { error: scoreError } = await supabase
+      .from('kona_call_director_arricchimenti')
+      .update({ valore_lead: valoreLead })
+      .eq('id', arricchimento.id);
+    if (scoreError) throw new Error(scoreError.message || 'salvataggio score fallito');
+
+    await completeJob(supabase, job, {
+      campi_mancanti: campi.length,
+      campi_applicati: Object.keys(valoriApplicati).length,
+      affidabilita: extraction.affidabilita,
+      fonti: extraction.fonti.length,
+      valore_lead: valoreLead
+    });
+    return { ok: true, applicati: Object.keys(valoriApplicati).length };
+  } catch (writeError) {
+    await supabase.from('kona_call_director_arricchimenti').update({
+      stato: 'fallito',
+      errore: String(writeError?.message || 'errore scrittura').slice(0, 500)
+    }).eq('id', arricchimento.id);
+    await failJob(supabase, job, writeError?.message || 'errore scrittura arricchimento');
+    return { ok: false, error: String(writeError?.message || 'errore scrittura arricchimento') };
   }
-
-  // Numeri extra nella tabella dedicata (fonte, data, affidabilita').
-  const numeriExtra = [telefonoExtra, telefonoPrincipale]
-    .filter((t) => t && t !== (lead.telefono_raw || '') && t !== (lead.telefono_norm || ''))
-    .filter((v, i, a) => a.indexOf(v) === i);
-  if (affidabile && numeriExtra.length > 0) {
-    await supabase.from('kona_call_director_lead_telefoni').upsert(
-      numeriExtra.map((t) => ({
-        lead_id: leadId,
-        telefono: t,
-        telefono_norm: t.replace(/\D/g, ''),
-        fonte: extraction.fonti[0]?.url || 'web_search',
-        affidabilita: extraction.affidabilita
-      })),
-      { onConflict: 'lead_id,telefono', ignoreDuplicates: true }
-    );
-  }
-
-  if (extraction.fonti.length > 0) {
-    await supabase.from('kona_call_director_arricchimento_fonti').insert(
-      extraction.fonti.map((f) => ({
-        arricchimento_id: arricchimento.id,
-        tipo: 'web_search',
-        url: f.url,
-        titolo: f.titolo,
-        data_lettura: data,
-        affidabilita: f.affidabilita
-      }))
-    );
-  }
-
-  // Valore lead (scoring deterministico + vicinanza Legnago).
-  const distanza = await distanzaKm(supabase, lead.localita, cfg.localita_riferimento);
-  const scored = await scoreLead({
-    lead: { ...lead, ...patch },
-    distanzaKmLegnago: distanza,
-    confidenteArricchimento: extraction.affidabilita,
-    cfg
-  });
-  await supabase
-    .from('kona_call_director_arricchimenti')
-    .update({ valore_lead: Math.round(scored.score * 100) / 100 })
-    .eq('id', arricchimento.id);
-
-  await completeJob(supabase, job, {
-    campi_mancanti: campi.length,
-    campi_applicati: Object.keys(valoriApplicati).length,
-    affidabilita: extraction.affidabilita,
-    fonti: extraction.fonti.length,
-    valore_lead: Math.round(scored.score * 100) / 100
-  });
-  return { ok: true, applicati: Object.keys(valoriApplicati).length };
 }
 
 module.exports = {

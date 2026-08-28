@@ -25,6 +25,10 @@ function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
+function round6(n) {
+  return Math.round(n * 1000000) / 1000000;
+}
+
 function clampPositive(n) {
   return n > 0 ? n : 0;
 }
@@ -39,12 +43,12 @@ async function computeSpesaMensile(supabase, mese) {
     nChiamate: 0,
     nWebSearch: 0
   };
-  if (!supabase) return out;
+  if (!supabase) throw new Error('Supabase mancante per il budget');
   const { data, error } = await supabase
     .from('kona_call_director_budget_log')
     .select('attivita, costo_stimato_eur, web_ricerche')
     .eq('mese', key);
-  if (error || !Array.isArray(data)) return out;
+  if (error || !Array.isArray(data)) throw new Error(`budget_log: ${error?.message || 'lettura fallita'}`);
   for (const row of data) {
     const costo = Number(row.costo_stimato_eur) || 0;
     out.totale = round2(out.totale + costo);
@@ -58,14 +62,14 @@ async function computeSpesaMensile(supabase, mese) {
 
 // Somma delle prenotazioni attive (non scadute) del mese.
 async function sommaRiserve(supabase, mese) {
-  if (!supabase) return 0;
+  if (!supabase) throw new Error('Supabase mancante per il budget');
   const { data, error } = await supabase
     .from('kona_call_director_budget_riserve')
     .select('importo_eur')
     .eq('mese', mese)
     .eq('stato', 'riservato')
     .gt('scadenza', new Date().toISOString());
-  if (error || !Array.isArray(data)) return 0;
+  if (error || !Array.isArray(data)) throw new Error(`budget_riserve: ${error?.message || 'lettura fallita'}`);
   return round2(data.reduce((sum, r) => sum + (Number(r.importo_eur) || 0), 0));
 }
 
@@ -79,7 +83,10 @@ async function budgetSnapshot(supabase, cfg, mese) {
   const rimasto = round2(clampPositive(budget - speso - riservato));
   const percentuale = budget > 0 ? round2((speso / budget) * 100) : 0;
   const arricchimento = Number(spesa.perAttivita.arricchimento || 0);
-  const dialogo = Number(spesa.perAttivita.dialogo || 0);
+  const piano = Number(spesa.perAttivita.piano || 0);
+  const analisi = Number(spesa.perAttivita.analisi || 0);
+  const altro = Number(spesa.perAttivita.altro || 0);
+  const dialogo = round2(Number(spesa.perAttivita.dialogo || 0) + piano + analisi + altro);
   return {
     mese: key,
     budget,
@@ -87,6 +94,7 @@ async function budgetSnapshot(supabase, cfg, mese) {
     riservato,
     rimasto,
     percentuale,
+    soglie_budget: Array.isArray(cfg.soglie_budget) ? cfg.soglie_budget : [],
     per_attivita: spesa.perAttivita,
     n_chiamate: spesa.nChiamate,
     web_ricerche: spesa.nWebSearch,
@@ -101,9 +109,9 @@ async function budgetSnapshot(supabase, cfg, mese) {
       rimasto: round2(clampPositive((Number(cfg.riserva_dialogo_eur) || 0) - dialogo))
     },
     extra: {
-      piani: round2(Number(spesa.perAttivita.piano || 0)),
-      analisi: round2(Number(spesa.perAttivita.analisi || 0)),
-      altro: round2(Number(spesa.perAttivita.altro || 0))
+      piani: round2(piano),
+      analisi: round2(analisi),
+      altro: round2(altro)
     }
   };
 }
@@ -121,43 +129,19 @@ function riservaCopre(riserva, costoCandidato) {
 async function tryReserveBudget({ supabase, cfg, mese, attivita, importoEur, chiave }) {
   if (!supabase) return { ok: false, motivo: 'supabase_mancante' };
   const key = mese || monthRomeKey(todayRomeStr());
-  const { data: locked } = await supabase.rpc('kona_cd_try_advisory_lock', { p_chiave: `kona_cd_budget_${key}` });
-  if (!locked) return { ok: false, motivo: 'lock' };
-
-  const budget = Number(cfg.budget_mensile_eur) || 0;
-  const spesa = await computeSpesaMensile(supabase, key);
-  const riservato = await sommaRiserve(supabase, key);
-  const disponibile = round2(clampPositive(budget - spesa.totale - riservato));
   const costo = Number(importoEur) || 0;
   if (costo <= 0) return { ok: false, motivo: 'importo_non_valido' };
-  if (disponibile < costo) return { ok: false, motivo: 'hard_stop', disponibile };
-
-  // Riserva di attivita': 'arricchimento' usa la riserva arricchimento (40),
-  // tutte le altre attivita' (dialogo/analisi/piano/altro) la riserva
-  // dialogo/analisi (10). Le attivita' non riconosciute ricadono in
-  // riserva_dialogo per non aggirare il tetto.
-  const att = attivita === 'arricchimento' ? 'arricchimento' : 'dialogo';
-  if (att) {
-    const spesoRiserva = att === 'arricchimento'
-      ? Number(spesa.perAttivita.arricchimento || 0)
-      : round2(Number(spesa.perAttivita.dialogo || 0) + Number(spesa.perAttivita.analisi || 0) + Number(spesa.perAttivita.piano || 0) + Number(spesa.perAttivita.altro || 0));
-    const riserva = att === 'arricchimento'
-      ? { budget: Number(cfg.riserva_arricchimento_eur) || 0, speso: round2(Number(spesa.perAttivita.arricchimento || 0)) }
-      : { budget: Number(cfg.riserva_dialogo_eur) || 0, speso: spesoRiserva };
-    const copertura = riservaCopre({ rimasto: round2(riserva.budget - riserva.speso) }, costo);
-    if (!copertura.ok) return { ok: false, motivo: 'riserva_esaurita', riserva: att };
-  }
-
-  const { error } = await supabase.from('kona_call_director_budget_riserve').insert({
-    chiave: String(chiave || '').slice(0, 120),
-    mese: key,
-    attivita: attivita || 'altro',
-    importo_eur: round2(costo),
-    stato: 'riservato',
-    scadenza: new Date(Date.now() + 10 * 60 * 1000).toISOString()
+  const { data, error } = await supabase.rpc('kona_cd_reserve_budget_v1', {
+    p_chiave: String(chiave || '').slice(0, 120),
+    p_mese: key,
+    p_attivita: attivita || 'altro',
+    p_importo_eur: round6(costo),
+    p_budget_totale_eur: Number(cfg.budget_mensile_eur) || 0,
+    p_riserva_arricchimento_eur: Number(cfg.riserva_arricchimento_eur) || 0,
+    p_riserva_dialogo_eur: Number(cfg.riserva_dialogo_eur) || 0
   });
-  if (error) return { ok: false, motivo: String(error.message || 'errore') };
-  return { ok: true, disponibile: round2(clampPositive(disponibile - costo)) };
+  if (error || !data) return { ok: false, motivo: error?.message || 'rpc_budget_fallita' };
+  return typeof data === 'object' ? data : { ok: false, motivo: 'risposta_budget_non_valida' };
 }
 
 // Consuma (a fine chiamata riuscita) o libera (a fallimento) una prenotazione.
@@ -183,6 +167,22 @@ function newlyCrossedThresholds(snapshot, soglieNotificate = []) {
   return crossed;
 }
 
+async function notifyBudgetThresholds(supabase, cfg) {
+  if (!cfg?.notifiche_immediate?.budget) return [];
+  const snapshot = await budgetSnapshot(supabase, cfg);
+  const crossed = newlyCrossedThresholds(snapshot, []);
+  if (crossed.length === 0) return [];
+  const { enqueueNotifica } = require('./kona-cd-notifiche');
+  for (const soglia of crossed) {
+    await enqueueNotifica(supabase, {
+      dedupeKey: `budget_${snapshot.mese}_${soglia}`,
+      testo: `KONA Call Director: budget OpenAI al ${snapshot.percentuale}% (soglia ${soglia}%). Rimangono EUR ${snapshot.rimasto}.`,
+      extra: { mese: snapshot.mese, soglia, percentuale: snapshot.percentuale, rimasto: snapshot.rimasto }
+    });
+  }
+  return crossed;
+}
+
 module.exports = {
   budgetSnapshot,
   clampPositive,
@@ -190,8 +190,10 @@ module.exports = {
   consumaRiserva,
   liberaRiserva,
   newlyCrossedThresholds,
+  notifyBudgetThresholds,
   riservaCopre,
   round2,
+  round6,
   sommaRiserve,
   tryReserveBudget,
   _test: { newlyCrossedThresholds, riservaCopre }

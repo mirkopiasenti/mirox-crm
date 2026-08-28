@@ -112,6 +112,8 @@ function isUuid(value) {
 
 function parseJson(value, fallback = null) {
   if (value === undefined || value === null || value === '') return fallback;
+  // Supabase restituisce JSONB gia' deserializzato: non tentare un secondo parse.
+  if (typeof value === 'object') return value;
   try {
     return JSON.parse(value);
   } catch {

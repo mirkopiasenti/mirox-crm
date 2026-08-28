@@ -14,12 +14,13 @@ const { cleanLog, isUuid, nowIso } = require('./kona-cd-util');
 async function reportGiornaliero(supabase, cfg, { data } = {}) {
   const giorno = data || todayRomeStr();
   const mese = monthRomeKey(giorno);
-  const [taskRows, confermeRows, bizRows, budget, sessioniRows] = await Promise.all([
+  const [taskRows, confermeRows, bizRows, budget, sessioniRows, attivitaRows] = await Promise.all([
     supabase.from('kona_call_director_task').select('tipo, stato, esito').eq('data', giorno),
     supabase.from('kona_call_director_conferme').select('esito').eq('data', giorno),
     supabase.from('kona_call_director_appuntamenti_business').select('stato').gte('data_ora', romeDayRange(giorno).start.toISOString()).lt('data_ora', romeDayRange(giorno).end.toISOString()),
     budgetSnapshot(supabase, cfg, mese),
-    supabase.from('kona_call_director_sessioni').select('tipo, stato').eq('data', giorno)
+    supabase.from('kona_call_director_sessioni').select('tipo, stato').eq('data', giorno),
+    supabase.from('kona_call_director_sessione_attivita').select('categoria, esito').gte('created_at', romeDayRange(giorno).start.toISOString()).lt('created_at', romeDayRange(giorno).end.toISOString())
   ]);
 
   const tasks = taskRows.data || [];
@@ -42,13 +43,20 @@ async function reportGiornaliero(supabase, cfg, { data } = {}) {
 
   const sessioni = sessioniRows.data || [];
   const attive = sessioni.filter((s) => s.stato === 'attiva').length;
+  const attivita = attivitaRows.data || [];
+  const perCategoria = {};
+  for (const a of attivita) {
+    if (!perCategoria[a.categoria]) perCategoria[a.categoria] = { totali: 0, esiti: {} };
+    perCategoria[a.categoria].totali += 1;
+    perCategoria[a.categoria].esiti[a.esito] = (perCategoria[a.categoria].esiti[a.esito] || 0) + 1;
+  }
 
   return {
     data: giorno,
     task: { totali: tasks.length, perTipo },
     conferme: { totali: conferme.length, esiti: esitiConferme },
     appuntamenti_business: { totali: biz.length, stati: statoAppuntamenti },
-    sessioni: { attive },
+    sessioni: { attive, attivita_totali: attivita.length, per_categoria: perCategoria },
     budget: {
       mese,
       budget: budget.budget,

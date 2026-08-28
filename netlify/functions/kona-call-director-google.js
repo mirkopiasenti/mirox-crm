@@ -47,13 +47,11 @@ function verifyState(state) {
 }
 
 // Single-use: registra il nonce; se gia' usato ritorna false.
-async function consumaState(client, nonce) {
-  const { error } = await client.from('kona_call_director_oauth_stati').upsert(
-    { nonce, usato_at: new Date().toISOString() },
-    { onConflict: 'nonce' }
-  );
-  if (error) return false;
-  return true;
+async function consumaState(client, nonce, profiloId) {
+  const { data, error } = await client.rpc('kona_cd_consume_oauth_state_v1', {
+    p_nonce: nonce, p_profilo_id: profiloId
+  });
+  return !error && data === true;
 }
 
 exports.handler = async (event) => {
@@ -80,7 +78,15 @@ exports.handler = async (event) => {
         if (auth.profilo.ruolo !== 'admin') return jsonError(403, 'Accesso riservato agli amministratori.');
         const conf = oauthConfig();
         if (!conf.isConfigured) return jsonError(409, 'Google OAuth non configurato (env)');
-        const urlAuth = buildAuthUrl({ state: signState(profiloId) });
+        const state = signState(profiloId);
+        const [, nonce, exp] = state.split('.');
+        const { error: stateError } = await client.from('kona_call_director_oauth_stati').insert({
+          nonce,
+          profilo_id: profiloId,
+          expires_at: new Date(Number(exp)).toISOString()
+        });
+        if (stateError) return jsonError(500, 'Impossibile iniziare la connessione OAuth');
+        const urlAuth = buildAuthUrl({ state });
         return jsonOk({ auth_url: urlAuth });
       }
 

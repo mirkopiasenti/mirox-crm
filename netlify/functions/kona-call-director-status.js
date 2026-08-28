@@ -37,7 +37,7 @@ exports.handler = async (event) => {
     const [budget, report, sessione] = await Promise.all([
       budgetSnapshot(client, cfg, monthRomeKey(data)),
       reportGiornaliero(client, cfg, { data }),
-      client.from('kona_call_director_sessioni').select('categoria, tipo').eq('data', data).eq('operatore_id', profiloId).eq('stato', 'attiva').limit(1).maybeSingle()
+      client.from('kona_call_director_sessioni').select('categoria, tipo').eq('data', data).eq('operatore_id', check.profiloId).eq('stato', 'attiva').limit(1).maybeSingle()
     ]);
 
     return jsonOk({
@@ -58,7 +58,8 @@ exports.handler = async (event) => {
       oggi: {
         task_totali: report.task.totali,
         conferme_totali: report.conferme.totali,
-        appuntamenti: report.appuntamenti_business.totali
+        appuntamenti: report.appuntamenti_business.totali,
+        attivita_sessioni: report.sessioni.attivita_totali || 0
       },
       config: {
         tentativi_massimi: cfg.tentativi_massimi,

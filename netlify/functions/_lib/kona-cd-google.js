@@ -19,6 +19,10 @@ const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
 const CALENDAR_ID = 'primary';
 
+function calendarIdFor(cfg) {
+  return String(cfg?.calendario_google_id || CALENDAR_ID).trim() || CALENDAR_ID;
+}
+
 function oauthConfig() {
   const clientId = String(process.env.KONA_CALL_DIRECTOR_GOOGLE_CLIENT_ID || '').trim();
   const clientSecret = String(process.env.KONA_CALL_DIRECTOR_GOOGLE_CLIENT_SECRET || '').trim();
@@ -191,9 +195,13 @@ async function updateEventTime(accessToken, { calendarId = CALENDAR_ID, eventId,
 }
 
 async function deleteEvent(accessToken, { calendarId = CALENDAR_ID, eventId }) {
-  await googleRequest(accessToken, `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
-    method: 'DELETE'
-  });
+  try {
+    await googleRequest(accessToken, `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
+      method: 'DELETE'
+    });
+  } catch (error) {
+    if (Number(error?.status) !== 404) throw error;
+  }
   return true;
 }
 
@@ -271,18 +279,19 @@ async function verifySlotAvailability({ supabase, cfg, start, end, accessToken, 
   for (const b of busy) {
     const bs = new Date(b.start).getTime();
     const be = new Date(b.end).getTime();
-    if (startMs < be && bs < endMs) return { ok: false, reason: 'busy' };
+    if (new Date(spanStart).getTime() < be && bs < new Date(spanEnd).getTime()) return { ok: false, reason: 'busy' };
   }
   for (const a of appuntamentiConflitto) {
     const as = new Date(a.data_ora).getTime();
     const ae = new Date(a.data_ora_fine).getTime();
-    if (startMs < ae && as < endMs) return { ok: false, reason: 'conflitto_mirox' };
+    if (new Date(spanStart).getTime() < ae && as < new Date(spanEnd).getTime()) return { ok: false, reason: 'conflitto_mirox' };
   }
   return { ok: true };
 }
 
 module.exports = {
   CALENDAR_ID,
+  calendarIdFor,
   SCOPES,
   buildAuthUrl,
   computeSlots,

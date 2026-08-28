@@ -708,9 +708,9 @@ Guardian e' attivo sul production `mirox-crm.it` con Supabase `lbgwamhjkjjfwgusa
 
 ---
 
-## KONA Call Director (dal 2026-08-27, migration 072 — NON applicata)
+## KONA Call Director (dal 2026-08-27; staging isolato pubblicato, non attivo)
 
-Modulo **server-only** che coordina la giornata dell'operatore autorizzato del Call Center: un contatto alla volta, priorita' note, conferme appuntamenti Business del giorno successivo, arricchimento notturno dei lead Business e pianificazione con Mirko via bot Telegram separato. **Non ancora attivo**: migration `072` da applicare solo dopo la review DeepSeek Pro e l'ok esplicito; nessuna env var production configurata. Setup completo in `docs/KONA_CALL_DIRECTOR.md`.
+Modulo **server-only** per il Call Center: un contatto alla volta, conferme Business, arricchimento notturno e pianificazione Telegram. Codice verificato localmente (72/72 test KONA, 187/187 suite completa) ma non attivo. Il Supabase test dedicato `Mirox CRM - Test KONA Call Director` (`yyorullxmdxhnunsfwwa`, `eu-west-3`) contiene bootstrap minimo senza dati production, migration `072` e seed fail-closed; nessun profilo e' abilitato e `attivo_globale=false`. Il sito `mirox-kona-call-director-test.netlify.app` e' collegato alla branch `kona-call-director`: il redeploy del commit remoto `f358698` e' riuscito con service role protetta del solo Supabase test e con entrambi gli interruttori env KONA a `false`. Le modifiche locali non pubblicate restano fuori dal deploy; production e' invariata.
 
 ### Regole fisse
 
@@ -726,15 +726,15 @@ Modulo **server-only** che coordina la giornata dell'operatore autorizzato del C
 ### Priorita' contatti (motore deterministico)
 
 1. conferma appuntamenti Business di domani (finestre 09:00/11:30/15:30/18:00, top of queue; dopo 4 non risposti **nessun annullamento automatico** + notifica Telegram senza PII);
-2. ricontatti programmati; 3. auto non risposti; 4. "Passa a Cerea"; 5. "Passa in negozio"; 6. campagne urgenti (`pinned`); 7. sessione Business.
+2. ricontatti programmati; 3. auto non risposti; 4. "Passa a Cerea"; 5. "Passa in negozio"; 6. campagne urgenti (`pinned`); 7. sessione Business, avviabile soltanto con categorie esplicitamente approvate nel piano.
 
-### Tabelle (prefisso dedicato `kona_call_director_*`, 22 tabelle server-only)
+### Tabelle (prefisso dedicato `kona_call_director_*`, 23 tabelle server-only)
 
-`config` (id=1, nasce spento), `profili` (abilitazione per profilo), `task` (lease "un contatto alla volta", indice unico parziale su `stato='attivo'`), `task_eventi`, `sessioni`, `esclusioni`, `conferme`, `appuntamenti_business` (sync Google), `google_token` (cifrato), `budget_log`, `telegram` (stato conversazione), `notifiche` (outbox), `jobs` (lease + backoff), `arricchimenti` + `arricchimento_fonti`, `comuni` (FK `mirox_comuni_istat`), `esecuzioni_programmate` (idempotenza data+evento), `piani`, `budget_riserve` (prenotazioni atomiche budget), `lead_telefoni` (numeri multipli), `oauth_stati` (nonce single-use), `audit`. RPC additive: `kona_cd_try_advisory_lock` e `kona_cd_prenota_slot_v1` (lock + ricontrollo + INSERT atomico). Nessun SECURITY DEFINER.
+Oltre a config, profili, piani, sessioni e attivita' sessione, il dominio include task/eventi, esclusioni, conferme, appuntamenti Business, token Google cifrato, budget/log/riserve, stato Telegram, notifiche, job, arricchimenti/fonti, comuni, esecuzioni programmate, telefoni lead, stati OAuth e audit. Cinque RPC `kona_cd_*` gestiscono lock, prenotazione slot, claim job, riserva budget e consumo OAuth atomici. Nessuna funzione usa `SECURITY DEFINER`; RLS e grant sono server-only.
 
 ### Cron
 
-`kona-call-director-dispatcher` (`*/5 * * * *`, idempotente per data+evento, orologio Europe/Rome DST-safe). Sequenza: 02:00 arricchimento, 03:30 retention, 08:00 reminder mattina, 08:30 piano default, 19:10 report sera, 20:00 reminder sera. Ogni tick materializza task nelle finestre conferme/orario operativo, processa job a lease e la coda notifiche.
+`kona-call-director-dispatcher` (`*/5 * * * *`, Europe/Rome, idempotente). Eventi: 02:00 arricchimento, 03:30 retention, 08:00 reminder, 08:30 default, 19:10 report, 20:00 reminder e 20:05 proposta piano. Finestra 20 minuti, 60 per arricchimento/retention; ogni tick gestisce task, conferme, job, sync Google e notifiche.
 
 ### Functions e pagine
 
@@ -742,7 +742,7 @@ Functions: `kona-call-director-{dispatcher,task,status,admin,dialog,plan,google}
 
 ### Env vars
 
-`KONA_CALL_DIRECTOR_ENABLED`, `KONA_CALL_DIRECTOR_OPENAI_API_KEY` (fallback `OPENAI_API_KEY`), `KONA_CALL_DIRECTOR_OPENAI_MODEL`, `KONA_CALL_DIRECTOR_GOOGLE_CLIENT_ID`/`_SECRET`/`_REDIRECT_URI`, `KONA_CALL_DIRECTOR_GOOGLE_TOKEN_KEY` (64 hex, cifratura token), `KONA_CALL_DIRECTOR_TELEGRAM_BOT_TOKEN`, `KONA_CALL_DIRECTOR_TELEGRAM_WEBHOOK_SECRET`, `KONA_CALL_DIRECTOR_OWNER_CHAT_ID`, `KONA_CALL_DIRECTOR_CRON_SECRET` (protezione cron), `KONA_CALL_DIRECTOR_STAGING_RUN` (opt-in cron staging). Dettagli in `docs/KONA_CALL_DIRECTOR.md`. Nessun valore reale documentato.
+`KONA_CALL_DIRECTOR_ENABLED` e' fail-closed: solo `true` consente l'avvio; si aggiungono chiave/modello OpenAI, credenziali/redirect/chiave token Google, token/secret/owner Telegram e `KONA_CALL_DIRECTOR_STAGING_RUN`. Con la Scheduled Function Netlify nativa lasciare `KONA_CALL_DIRECTOR_CRON_SECRET` non impostata. Dettagli e ordine di attivazione in `docs/KONA_CALL_DIRECTOR.md`; nessun valore reale va documentato.
 
 ---
 ## Sistema consensi privacy GDPR (dal 2026-06-26)
@@ -840,7 +840,7 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 
 - **Edge Functions Supabase**: non in uso, non aggiungerne senza discutere prima
 - **Guardian prima versione**: analizza soltanto i dati della richiesta; non ha accesso al repository, non esegue Codex, non prepara patch e non effettua deploy. Ogni sviluppo successivo passa prima da Netlify + Supabase staging separati. Sentry e worker Codex vengono dopo la prova reale del flusso.
-- **KONA Call Director (dal 2026-08-27)**: modulo completo lato codice ma **NON ATTIVO** — migration `072` non applicata, nessun webhook/OAuth/env production configurato. Non "sistemare" le scelte apparentemente strane senza leggere la sezione dedicata + `docs/KONA_CALL_DIRECTOR.md`. Le distanze sono `null` finche' `kona_call_director_comuni` non viene popolata da un dataset autorevole (mai inventare coordinate). La tab "KONA CD" nel `cc-header` e' volutamente sempre visibile ai CC user: e' la pagina che applica il gate per-profilo (nessun cambio ai permessi CC condivisi).
+- **KONA Call Director (dal 2026-08-27)**: codice verificato ma **NON ATTIVO** — migration `072` non applicata, nessun webhook/OAuth/env production configurato. L'avvio deve seguire `docs/KONA_CALL_DIRECTOR.md`: staging, E2E reali e triplo consenso (`KONA_CALL_DIRECTOR_ENABLED=true`, toggle globale, profilo abilitato). Le distanze sono `null` finche' `kona_call_director_comuni` non viene popolata da un dataset autorevole. La tab "KONA CD" resta volutamente visibile ai CC user e applica il gate per-profilo lato server.
 - **Cluster `Turista`**: è un cluster di vendita, non un cluster anagrafico condiviso. `garantisci-anagrafica.js` e `crea-vendita-pratica-carrello.js` lo accettano dal wizard, mantengono `Turista` su pratica/contratti, salvano `anagrafica.cluster='Consumer'` e non richiedono email.
 - **File SQL in `/database/`**: parziali, NON riflettono lo stato attuale del DB (vedi `database/README.md`)
 - **Modulo `simulatore_protecta.html`**: ~960 KB, molto pesante perché contiene asset embedded. Modificare con cautela.

@@ -4,11 +4,11 @@ const { requireAuth } = require('./require-auth');
 const { isUuid, parseJson } = require('./kona-cd-util');
 
 // Interruttore di sicurezza a livello env (kill-switch indipendente dal DB).
-// Se esplicitamente "false" KONA non parte mai, qualunque sia la config DB.
+// Fail closed: KONA parte solo con valore esplicito "true"; variabile assente,
+// vuota o diversa da true significa spento, qualunque sia la config DB.
 function envHardEnabled() {
   const value = String(process.env.KONA_CALL_DIRECTOR_ENABLED || '').trim().toLowerCase();
-  if (value === '') return true; // non impostato: la config DB decide
-  return value !== 'false';
+  return value === 'true';
 }
 
 const CONFIG_DEFAULTS = {
@@ -21,7 +21,9 @@ const CONFIG_DEFAULTS = {
   // Prezzi ufficiali OpenAI al 2026-08-27: GPT-5.6 Luna input $0.20/M,
   // output $1.20/M, web search reasoning $10.00/1000 chiamate. Verificabili
   // da admin in kona_call_director_config.prezzi_openai.
-  prezzi_openai: { 'gpt-5.6-luna': { input: 0.20, output: 1.20, web_search: 10.00 } },
+  prezzi_openai: { 'gpt-5.6-luna': { input: 0.20, output: 1.20, web_search: 0.01 } },
+  // Fattore conservativo per convertire i prezzi OpenAI in USD nel budget EUR.
+  usd_to_eur: 1,
   soglie_budget: [70, 85, 95, 100],
   max_chiamate_openai_ora: 120,
   giorni_lavorativi: [1, 2, 3, 4, 5],
@@ -29,6 +31,7 @@ const CONFIG_DEFAULTS = {
   orario_mattina: { inizio: '09:00', fine: '12:30' },
   orario_pomeriggio: { inizio: '15:30', fine: '19:00' },
   orario_stop_business: '18:00',
+  durata_sessione_business_minuti: 90,
   durata_appuntamento_minuti: 45,
   distanza_km_indicativa: 20,
   richieste_web_max_per_lead: 2,
@@ -90,6 +93,7 @@ async function getConfig(supabase) {
     cfg.riserva_dialogo_eur = num(row.riserva_dialogo_eur, cfg.riserva_dialogo_eur);
     cfg.modello_openai = String(row.modello_openai || cfg.modello_openai);
     cfg.prezzi_openai = parseJson(row.prezzi_openai, cfg.prezzi_openai) || {};
+    cfg.usd_to_eur = num(row.usd_to_eur, cfg.usd_to_eur);
     cfg.soglie_budget = Array.isArray(row.soglie_budget) ? row.soglie_budget : cfg.soglie_budget;
     cfg.max_chiamate_openai_ora = num(row.max_chiamate_openai_ora, cfg.max_chiamate_openai_ora);
     cfg.giorni_lavorativi = Array.isArray(row.giorni_lavorativi) ? row.giorni_lavorativi : cfg.giorni_lavorativi;
@@ -97,6 +101,7 @@ async function getConfig(supabase) {
     cfg.orario_mattina = parseJson(row.orario_mattina, cfg.orario_mattina) || cfg.orario_mattina;
     cfg.orario_pomeriggio = parseJson(row.orario_pomeriggio, cfg.orario_pomeriggio) || cfg.orario_pomeriggio;
     cfg.orario_stop_business = String(row.orario_stop_business || cfg.orario_stop_business);
+    cfg.durata_sessione_business_minuti = num(row.durata_sessione_business_minuti, cfg.durata_sessione_business_minuti);
     cfg.durata_appuntamento_minuti = num(row.durata_appuntamento_minuti, cfg.durata_appuntamento_minuti);
     cfg.distanza_km_indicativa = num(row.distanza_km_indicativa, cfg.distanza_km_indicativa);
     cfg.richieste_web_max_per_lead = num(row.richieste_web_max_per_lead, cfg.richieste_web_max_per_lead);

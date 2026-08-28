@@ -602,6 +602,38 @@ Il bottone "Admin" dentro `moduli/upload-contratti-vendita.html` è stato **rimo
 - I permessi granulari Vendita/Post-Vendita NON esistono ancora: tutte queste pagine sono accessibili a chiunque sia loggato e attivo. Quando serviranno, estendere la mappa `PAGINE_LABELS` in `admin-utenti.html`
 
 ---
+## KONA Call Director (staging isolato pubblicato, non attivo — 2026-08-28)
+
+KONA Call Director vive nelle tabelle server-only `kona_call_director_*`, nelle
+function `kona-call-director-*` e nelle due pagine operatore/admin. Prima di
+modificarlo o attivarlo leggere `docs/KONA_CALL_DIRECTOR.md` e la migration
+`database/072_kona_call_director.sql`.
+
+Regole permanenti:
+
+- l'attivazione richiede insieme `KONA_CALL_DIRECTOR_ENABLED=true`, toggle
+  globale DB e profilo operatore abilitato; l'env assente deve restare spento;
+- la migration `072` e' applicata soltanto al Supabase test dedicato
+  `yyorullxmdxhnunsfwwa`; production non contiene tabelle KONA Call Director;
+- il sito Netlify test `mirox-kona-call-director-test.netlify.app` e' collegato
+  alla branch `kona-call-director`; il primo deploy del commit remoto `f358698`
+  e' riuscito con entrambi gli interruttori env KONA a `false`; la service role
+  protetta del solo Supabase test e' configurata e il redeploy e' riuscito,
+  mentre le modifiche locali non pubblicate restano fuori dal deploy;
+- il bootstrap test e' `database/staging/003_kona_call_director_bootstrap.sql`:
+  schema minimo service-role-only, nessun dato production;
+- le chiamate Business standard richiedono almeno una categoria esplicitamente
+  approvata nel piano; nessuna categoria significa nessuna chiamata standard;
+- credenziali, integrazioni e deploy vanno validati prima sul test dedicato;
+- non inviare PII a Telegram, dati Consumer a OpenAI o dettagli privati del
+  calendario Google all'operatore;
+- con il cron Netlify nativo non impostare `KONA_CALL_DIRECTOR_CRON_SECRET`;
+- non inventare coordinate dei comuni e non modificare tabelle Call Center
+  condivise per aggirare il dominio KONA;
+- arresto ordinario = toggle globale off + env false; non eseguire DROP.
+
+---
+
 
 ## KONA AI Guardian (prima versione, dal 2026-08-10)
 
