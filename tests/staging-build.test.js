@@ -94,3 +94,13 @@ test('tutte le pagine Call Center caricano la configurazione Supabase dell\'ambi
     );
   }
 });
+
+test('l\'autenticazione Call Center usa il client Supabase condiviso', () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', 'moduli', 'call-center', 'js', 'auth.js'),
+    'utf8'
+  );
+
+  assert.match(source, /await db\s*\.from\('profili'\)/);
+  assert.doesNotMatch(source, /await supabase\s*\.from\(/);
+});

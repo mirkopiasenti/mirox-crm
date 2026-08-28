@@ -4,7 +4,7 @@
 
 Il modulo e' completo lato codice ed e' stato riesaminato localmente dopo le
 correzioni di chiusura. La suite dedicata passa 73/73 test; la suite completa
-del CRM passa 189/189 test. La build statica e i controlli di sintassi sono
+del CRM passa 190/190 test. La build statica e i controlli di sintassi sono
 verdi.
 
 Il Supabase test dedicato `Mirox CRM - Test KONA Call Director`
@@ -24,7 +24,8 @@ scritture, altre righe e tabelle KONA restano server-only.
 Le pagine Call Center caricano il client Supabase generato dalla build per
 l'ambiente corrente; la vecchia configurazione interna fissata al production
 e' stata rimossa, quindi la sessione Auth test resta valida entrando dal
-dashboard staging.
+dashboard staging. Anche il caricamento profilo usa esplicitamente quel client
+condiviso (`db`), evitando di invocare direttamente il namespace della libreria.
 
 ## Funzione operativa
 
@@ -204,6 +205,6 @@ dipendenze. Non eseguire DROP durante il normale arresto.
 ## Verifica locale conclusiva
 
 - `node --test tests/kona-call-director.test.js`: 73/73 pass.
-- `npm test`: 189/189 pass, inclusa build statica production.
+- `npm test`: 190/190 pass, inclusa build statica production.
 - Nessuna migration applicata, nessun commit, push o deploy eseguito durante
   questa chiusura.

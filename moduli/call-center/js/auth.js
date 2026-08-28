@@ -52,7 +52,7 @@ const Auth = {
      * Carica profilo dal database
      */
     async caricaProfilo(userId) {
-        const { data, error } = await supabase
+        const { data, error } = await db
             .from('profili')
             .select('*')
             .eq('id', userId)
