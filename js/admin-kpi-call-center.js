@@ -2,7 +2,11 @@
   'use strict';
 
   const MONTHS = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
-  const METRIC_KEYS = ['calls', 'answered_calls', 'appointments_set', 'appointments_scheduled', 'presented', 'won', 'lost', 'no_show', 'cancelled'];
+  const METRIC_KEYS = [
+    'calls', 'consumer_calls', 'business_outbound_calls', 'answered_calls',
+    'appointments_set', 'appointments_rescheduled', 'appointments_scheduled',
+    'presented', 'won', 'lost', 'pending_outcome', 'no_show', 'cancelled', 'converted_early'
+  ];
   const state = { payload: null };
 
   const els = {};
@@ -108,12 +112,13 @@
   function renderSummary(metrics) {
     const bookingRate = percent(metrics.appointments_set, metrics.calls);
     const cards = [
-      ['Chiamate fatte', metrics.calls, `${formatNumber(metrics.answered_calls)} con risposta`],
-      ['Appuntamenti fissati', metrics.appointments_set, `${formatPercent(bookingRate)} sulle chiamate`],
-      ['Chiusi / vinti', metrics.won, 'Esito finale positivo'],
+      ['Chiamate fatte', metrics.calls, `${formatNumber(metrics.consumer_calls)} Consumer · ${formatNumber(metrics.business_outbound_calls)} Business outbound`],
+      ['Appuntamenti fissati', metrics.appointments_set, `${formatNumber(metrics.appointments_rescheduled)} rischedulati · ${formatPercent(bookingRate)} sulle chiamate`],
+      ['Vinti', metrics.won, `${formatNumber(metrics.converted_early)} convertiti anticipatamente`],
       ['Persi', metrics.lost, 'Esito finale negativo'],
+      ['Da esitare', metrics.pending_outcome, 'Presentati senza esito finale'],
       ['Non presentati', metrics.no_show, `${formatNumber(metrics.presented)} presentati`],
-      ['Annullati', metrics.cancelled, 'Appuntamenti annullati']
+      ['Annullati', metrics.cancelled, 'Esclusi i convertiti anticipatamente']
     ];
     els.summary.innerHTML = cards.map(([label, value, note]) => `
       <article class="cc-kpi-card">
@@ -124,7 +129,7 @@
   }
 
   function tableHeader() {
-    return '<thead><tr><th>Periodo</th><th>Chiamate</th><th>Con risposta</th><th>Fissati</th><th>Presentati</th><th>Chiusi / vinti</th><th>Persi</th><th>Non presentati</th><th>Annullati</th><th>Fissati / chiamate</th><th>Chiusura</th></tr></thead>';
+    return '<thead><tr><th>Periodo</th><th>Chiamate</th><th>Consumer</th><th>Business outbound</th><th>Con risposta</th><th>Fissati</th><th>Rischedulati</th><th>Presentati</th><th>Vinti</th><th>Conv. anticipati</th><th>Persi</th><th>Da esitare</th><th>Non presentati</th><th>Annullati</th><th>Fissati / chiamate</th><th>Chiusura</th></tr></thead>';
   }
 
   function metricRow(label, metrics, className = '') {
@@ -133,11 +138,16 @@
     return `<tr${className ? ` class="${className}"` : ''}>
       <td>${MiroxSafe.escapeHtml(label)}</td>
       <td>${formatNumber(metrics.calls)}</td>
+      <td>${formatNumber(metrics.consumer_calls)}</td>
+      <td>${formatNumber(metrics.business_outbound_calls)}</td>
       <td>${formatNumber(metrics.answered_calls)}</td>
       <td>${formatNumber(metrics.appointments_set)}</td>
+      <td>${formatNumber(metrics.appointments_rescheduled)}</td>
       <td>${formatNumber(metrics.presented)}</td>
       <td>${formatNumber(metrics.won)}</td>
+      <td>${formatNumber(metrics.converted_early)}</td>
       <td>${formatNumber(metrics.lost)}</td>
+      <td>${formatNumber(metrics.pending_outcome)}</td>
       <td>${formatNumber(metrics.no_show)}</td>
       <td>${formatNumber(metrics.cancelled)}</td>
       <td>${formatPercent(bookingRate)}</td>
@@ -169,16 +179,19 @@
       .map(({ operator, metrics }) => metricRow(operator.nome, metrics, operator.id === els.operator.value ? 'cc-kpi-selected-row' : ''))
       .join('');
 
-    els.operatorTable.innerHTML = `<table class="kpi-table cc-kpi-table">${tableHeader()}<tbody>${rows || '<tr class="kpi-empty-row"><td colspan="11">Nessun dato nel periodo selezionato.</td></tr>'}</tbody></table>`;
+    els.operatorTable.innerHTML = `<table class="kpi-table cc-kpi-table">${tableHeader()}<tbody>${rows || '<tr class="kpi-empty-row"><td colspan="16">Nessun dato nel periodo selezionato.</td></tr>'}</tbody></table>`;
     els.operatorDescription.textContent = `Risultati di ${range.label}, divisi per operatrice.`;
   }
 
   function renderRates(metrics) {
+    const outcomeBase = metrics.presented + metrics.converted_early;
     const rates = [
       ['Tasso di risposta', percent(metrics.answered_calls, metrics.calls), 'Chiamate con esito diverso da non risposto'],
-      ['Tasso appuntamento', percent(metrics.appointments_set, metrics.calls), 'Appuntamenti fissati sulle chiamate'],
+      ['Tasso appuntamento', percent(metrics.appointments_set, metrics.calls), 'Nuovi appuntamenti fissati su tutte le chiamate'],
+      ['Tasso su risposte', percent(metrics.appointments_set, metrics.answered_calls), 'Nuovi appuntamenti fissati sulle chiamate con risposta'],
       ['Tasso presenza', percent(metrics.presented, metrics.presented + metrics.no_show), 'Presentati sugli appuntamenti con presenza definita'],
-      ['Tasso chiusura', percent(metrics.won, metrics.won + metrics.lost), 'Vinti sugli appuntamenti con esito finale']
+      ['Tasso chiusura', percent(metrics.won, metrics.won + metrics.lost), 'Vinti, inclusi gli anticipati, sugli appuntamenti esitati'],
+      ['Completamento esiti', percent(metrics.won + metrics.lost, outcomeBase), 'Vinti e persi sui clienti gestiti; evidenzia quelli ancora da esitare']
     ];
 
     els.rates.innerHTML = rates.map(([label, value, note]) => `

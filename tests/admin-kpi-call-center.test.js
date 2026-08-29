@@ -11,6 +11,7 @@ const {
   addCall,
   addScheduledAppointment,
   buildProfileResolver,
+  isEarlyConversion,
   parseYear,
   romeDateKey
 } = kpiModule._test;
@@ -25,7 +26,7 @@ test('le date KPI sono attribuite al giorno Europe/Rome', () => {
   assert.equal(romeDateKey('valore-non-valido'), null);
 });
 
-test('le chiamate standard e outbound condividono conteggi e risposta', () => {
+test('le chiamate distinguono Consumer e lead Business outbound', () => {
   const resolver = buildProfileResolver([{ id: 'op-1', nome: 'Ada', alias_di: null }]);
   const fixture = createSeriesFixture();
 
@@ -34,20 +35,25 @@ test('le chiamate standard e outbound condividono conteggi e risposta', () => {
   });
   addCall(fixture.totals, fixture.operators, resolver, {
     operatore_id: 'op-1', data_ora: '2026-08-12T09:00:00Z', esito: 'appuntamento'
-  });
+  }, 'business_outbound');
 
   const metrics = fixture.totals.get('2026-08-12');
   assert.equal(metrics.calls, 2);
+  assert.equal(metrics.consumer_calls, 1);
+  assert.equal(metrics.business_outbound_calls, 1);
   assert.equal(metrics.answered_calls, 1);
   assert.deepEqual(Object.keys(metrics), METRIC_KEYS);
 });
 
-test('appuntamenti fissati ed esiti usano le rispettive date operative', () => {
+test('appuntamenti fissati e rischedulati sono distinti nel giorno di creazione', () => {
   const resolver = buildProfileResolver([{ id: 'op-1', nome: 'Ada', alias_di: null }]);
   const fixture = createSeriesFixture();
 
   addAppointmentSet(fixture.totals, fixture.operators, resolver, {
-    fissato_da_operatore_id: 'op-1', created_at: '2026-08-10T10:00:00Z'
+    fissato_da_operatore_id: 'op-1', created_at: '2026-08-10T10:00:00Z', originato_da_id: null
+  });
+  addAppointmentSet(fixture.totals, fixture.operators, resolver, {
+    fissato_da_operatore_id: 'op-1', created_at: '2026-08-10T11:00:00Z', originato_da_id: 'app-originale'
   });
   addScheduledAppointment(fixture.totals, fixture.operators, resolver, {
     fissato_da_operatore_id: 'op-1',
@@ -58,12 +64,13 @@ test('appuntamenti fissati ed esiti usano le rispettive date operative', () => {
   });
 
   assert.equal(fixture.totals.get('2026-08-10').appointments_set, 1);
+  assert.equal(fixture.totals.get('2026-08-10').appointments_rescheduled, 1);
   assert.equal(fixture.totals.get('2026-08-14').appointments_scheduled, 1);
   assert.equal(fixture.totals.get('2026-08-14').presented, 1);
   assert.equal(fixture.totals.get('2026-08-14').won, 1);
 });
 
-test('non presentati, persi e annullati restano metriche distinte', () => {
+test('non presentati, persi, da esitare e annullati restano metriche distinte', () => {
   const resolver = buildProfileResolver([]);
   const fixture = createSeriesFixture();
   const base = { fissato_da_operatore_id: null, data_ora: '2026-08-15T10:00:00Z' };
@@ -77,11 +84,36 @@ test('non presentati, persi e annullati restano metriche distinte', () => {
   addScheduledAppointment(fixture.totals, fixture.operators, resolver, {
     ...base, stato: 'annullato', presentato: null, esito_finale: null
   });
+  addScheduledAppointment(fixture.totals, fixture.operators, resolver, {
+    ...base, stato: 'confermato', presentato: 'si', esito_finale: null
+  });
 
   const metrics = fixture.totals.get('2026-08-15');
   assert.equal(metrics.no_show, 1);
   assert.equal(metrics.lost, 1);
+  assert.equal(metrics.pending_outcome, 1);
   assert.equal(metrics.cancelled, 1);
+});
+
+test('le conversioni anticipate sono vinte e non annullate', () => {
+  const resolver = buildProfileResolver([{ id: 'op-1', nome: 'Ada', alias_di: null }]);
+  const fixture = createSeriesFixture();
+  const row = {
+    fissato_da_operatore_id: 'op-1',
+    data_ora: '2026-08-16T10:00:00Z',
+    stato: 'annullato',
+    motivo_modifica: 'Chiuso automaticamente: cliente passato in anticipo, pratica vendita creata',
+    presentato: null,
+    esito_finale: null
+  };
+
+  assert.equal(isEarlyConversion(row), true);
+  addScheduledAppointment(fixture.totals, fixture.operators, resolver, row);
+
+  const metrics = fixture.totals.get('2026-08-16');
+  assert.equal(metrics.converted_early, 1);
+  assert.equal(metrics.won, 1);
+  assert.equal(metrics.cancelled, 0);
 });
 
 test('gli alias operatrice confluiscono nel profilo canonico', () => {
@@ -108,5 +140,8 @@ test('l’endpoint limita l’anno e la pagina usa auth, API wrapper e shell con
   assert.match(html, /profilo\.ruolo !== 'admin'/);
   assert.match(client, /MiroxApi\.fetch/);
   assert.doesNotMatch(client, /window\.fetch|globalThis\.fetch/);
+  assert.match(client, /Business outbound/);
+  assert.match(client, /Rischedulati/);
+  assert.match(client, /Da esitare/);
   assert.match(shell, /admin-kpi-call-center\.html/);
 });

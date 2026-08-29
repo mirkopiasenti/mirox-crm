@@ -379,7 +379,7 @@
 
 .cc-kpi-summary {
   display: grid;
-  grid-template-columns: repeat(6, minmax(150px, 1fr));
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
   gap: 12px;
 }
 
@@ -417,7 +417,7 @@
 }
 
 .cc-kpi-table {
-  min-width: 1160px;
+  min-width: 1680px;
 }
 
 .cc-kpi-table th:first-child,
@@ -438,7 +438,7 @@
 
 .cc-kpi-rates {
   display: grid;
-  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
   gap: 16px;
   padding: 20px 22px 22px;
 }

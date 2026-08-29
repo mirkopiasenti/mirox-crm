@@ -13,16 +13,22 @@ const CORS_HEADERS = {
 const PAGE_SIZE = 1000;
 const PROFILE_SELECT = 'id, nome, alias_di';
 const UNASSIGNED_OPERATOR = '__unassigned__';
+const AUTO_CONVERSION_PREFIX = 'chiuso automaticamente: cliente passato in anticipo';
 const METRIC_KEYS = [
   'calls',
+  'consumer_calls',
+  'business_outbound_calls',
   'answered_calls',
   'appointments_set',
+  'appointments_rescheduled',
   'appointments_scheduled',
   'presented',
   'won',
   'lost',
+  'pending_outcome',
   'no_show',
-  'cancelled'
+  'cancelled',
+  'converted_early'
 ];
 
 function response(statusCode, payload) {
@@ -112,13 +118,18 @@ function ensureOperatorSeries(operatorSeries, operatorId) {
   return operatorSeries.get(operatorId);
 }
 
-function addCall(totalSeries, operatorSeries, resolver, row) {
+function addCall(totalSeries, operatorSeries, resolver, row, channel = 'consumer') {
   const dateKey = romeDateKey(row?.data_ora);
   const operatorId = resolver.canonicalId(row?.operatore_id);
   const target = ensureOperatorSeries(operatorSeries, operatorId);
+  const channelMetric = channel === 'business_outbound'
+    ? 'business_outbound_calls'
+    : 'consumer_calls';
 
   increment(totalSeries, dateKey, 'calls');
   increment(target, dateKey, 'calls');
+  increment(totalSeries, dateKey, channelMetric);
+  increment(target, dateKey, channelMetric);
   if (String(row?.esito || '').toLowerCase() !== 'non_risposto') {
     increment(totalSeries, dateKey, 'answered_calls');
     increment(target, dateKey, 'answered_calls');
@@ -128,8 +139,14 @@ function addCall(totalSeries, operatorSeries, resolver, row) {
 function addAppointmentSet(totalSeries, operatorSeries, resolver, row) {
   const dateKey = romeDateKey(row?.created_at);
   const operatorId = resolver.canonicalId(row?.fissato_da_operatore_id);
-  increment(totalSeries, dateKey, 'appointments_set');
-  increment(ensureOperatorSeries(operatorSeries, operatorId), dateKey, 'appointments_set');
+  const metric = row?.originato_da_id ? 'appointments_rescheduled' : 'appointments_set';
+  increment(totalSeries, dateKey, metric);
+  increment(ensureOperatorSeries(operatorSeries, operatorId), dateKey, metric);
+}
+
+function isEarlyConversion(row) {
+  return row?.stato === 'annullato'
+    && String(row?.motivo_modifica || '').trim().toLowerCase().startsWith(AUTO_CONVERSION_PREFIX);
 }
 
 function addScheduledAppointment(totalSeries, operatorSeries, resolver, row) {
@@ -141,13 +158,20 @@ function addScheduledAppointment(totalSeries, operatorSeries, resolver, row) {
     increment(totalSeries, dateKey, metric);
     increment(target, dateKey, metric);
   };
+  const convertedEarly = isEarlyConversion(row);
 
   if (row?.stato === 'confermato') add('appointments_scheduled');
   if (row?.presentato === 'si') add('presented');
   if (row?.presentato === 'no') add('no_show');
-  if (row?.esito_finale === 'vinta') add('won');
-  if (row?.esito_finale === 'persa') add('lost');
-  if (row?.stato === 'annullato') add('cancelled');
+  if (convertedEarly) {
+    add('converted_early');
+    add('won');
+  } else {
+    if (row?.esito_finale === 'vinta') add('won');
+    if (row?.esito_finale === 'persa') add('lost');
+    if (row?.presentato === 'si' && !row?.esito_finale) add('pending_outcome');
+    if (row?.stato === 'annullato') add('cancelled');
+  }
 }
 
 async function fetchPaged(supabase, table, selectFields, dateColumn, year) {
@@ -181,11 +205,11 @@ async function buildKpiPayload(supabase, year) {
   const [standardCalls, outboundCalls, appointmentsSet, appointmentsScheduled, profilesResult] = await Promise.all([
     fetchPaged(supabase, 'chiamate', 'id, operatore_id, data_ora, esito', 'data_ora', year),
     fetchPaged(supabase, 'call_center_lead_outbound_chiamate', 'id, operatore_id, data_ora, esito', 'data_ora', year),
-    fetchPaged(supabase, 'appuntamenti', 'id, fissato_da_operatore_id, created_at', 'created_at', year),
+    fetchPaged(supabase, 'appuntamenti', 'id, fissato_da_operatore_id, created_at, originato_da_id', 'created_at', year),
     fetchPaged(
       supabase,
       'appuntamenti',
-      'id, fissato_da_operatore_id, data_ora, stato, presentato, esito_finale',
+      'id, fissato_da_operatore_id, data_ora, stato, motivo_modifica, presentato, esito_finale',
       'data_ora',
       year
     ),
@@ -200,7 +224,8 @@ async function buildKpiPayload(supabase, year) {
   const totals = new Map();
   const operatorSeries = new Map();
 
-  [...standardCalls, ...outboundCalls].forEach((row) => addCall(totals, operatorSeries, resolver, row));
+  standardCalls.forEach((row) => addCall(totals, operatorSeries, resolver, row, 'consumer'));
+  outboundCalls.forEach((row) => addCall(totals, operatorSeries, resolver, row, 'business_outbound'));
   appointmentsSet.forEach((row) => addAppointmentSet(totals, operatorSeries, resolver, row));
   appointmentsScheduled.forEach((row) => addScheduledAppointment(totals, operatorSeries, resolver, row));
 
@@ -213,9 +238,10 @@ async function buildKpiPayload(supabase, year) {
     filters: { year },
     generated_at: new Date().toISOString(),
     definitions: {
-      calls: 'Chiamate standard e outbound registrate nel giorno.',
-      appointments_set: 'Appuntamenti creati nel giorno.',
-      outcomes: 'Presenze ed esiti attribuiti alla data prevista dell’appuntamento.'
+      calls: 'Chiamate Consumer standard e lead Business outbound registrate nel giorno.',
+      appointments_set: 'Nuovi appuntamenti creati nel giorno; gli spostamenti sono separati.',
+      outcomes: 'Presenze ed esiti attribuiti alla data prevista dell’appuntamento.',
+      early_conversions: 'Le chiusure automatiche per cliente passato in anticipo sono vinte, non annullate.'
     },
     totals: { by_day: serializeSeries(totals) },
     operators
@@ -251,6 +277,7 @@ exports._test = {
   addScheduledAppointment,
   buildProfileResolver,
   emptyMetrics,
+  isEarlyConversion,
   parseYear,
   romeDateKey,
   serializeSeries,
