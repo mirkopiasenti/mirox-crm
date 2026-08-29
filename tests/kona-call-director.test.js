@@ -1403,6 +1403,8 @@ test('frontend unificato: Consumer, ricerca inbound, storico e correzione restan
   assert.match(js, /action: 'cerca_inbound'/);
   assert.match(js, /action: 'correggi_esito'/);
   assert.match(js, /action: 'attiva_failover'/);
+  assert.match(js, /classList\.contains\('modal-overlay'\)[\s\S]*classList\.add\('active'\)/);
+  assert.match(js, /classList\.contains\('modal-overlay'\)[\s\S]*classList\.remove\('active'\)/);
   assert.doesNotMatch(js, /root\.location\.href = 'registra-chiamata\.html'/);
 });
 

@@ -126,12 +126,18 @@
 
   function show(elId) {
     var el = document.getElementById(elId);
-    if (el) el.classList.remove('hidden');
+    if (el) {
+      el.classList.remove('hidden');
+      if (el.classList.contains('modal-overlay')) el.classList.add('active');
+    }
   }
 
   function hide(elId) {
     var el = document.getElementById(elId);
-    if (el) el.classList.add('hidden');
+    if (el) {
+      el.classList.add('hidden');
+      if (el.classList.contains('modal-overlay')) el.classList.remove('active');
+    }
   }
 
   function toast(message, kind) {
