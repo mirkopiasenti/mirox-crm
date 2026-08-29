@@ -31,7 +31,10 @@ exports.handler = async (event) => {
 
   try {
     const check = await canUse(client, auth.profilo, auth.user);
-    if (!check.ok) return jsonOk({ abilitato: false, motivo: check.reason });
+    const isAdmin = auth.profilo?.ruolo === 'admin';
+    // kona_only: KONA globalmente attivo + profilo abilitato + NON admin.
+    // L'admin mantiene il sistema manuale e un controllo KONA dedicato.
+    if (!check.ok) return jsonOk({ abilitato: false, kona_only: false, admin: isAdmin, motivo: check.reason });
 
     const cfg = check.cfg;
     const data = todayRomeStr();
@@ -44,6 +47,8 @@ exports.handler = async (event) => {
 
     return jsonOk({
       abilitato: true,
+      kona_only: !isAdmin,
+      admin: isAdmin,
       modalita_osservazione: cfg.modalita_osservazione !== false,
       data,
       nome: auth.profilo?.nome || null,

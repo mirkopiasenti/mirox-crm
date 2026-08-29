@@ -17,7 +17,7 @@
  */
 
 const { authAndEnabled } = require('./_lib/kona-cd-config');
-const { categoriaConsumerPiano, materializeNextTask, verificaTaskAttivo, getTaskDettaglio, registerEsito } = require('./_lib/kona-cd-engine');
+const { categoriaConsumerPiano, materializeNextTask, verificaTaskAttivo, getTaskDettaglio, registerEsito, registraChiamataConsumerCanonica } = require('./_lib/kona-cd-engine');
 const { enqueueNotifica } = require('./_lib/kona-cd-notifiche');
 const { notificaEsauriti } = require('./_lib/kona-cd-conferme');
 const { nowRomeParts, todayRomeStr } = require('./_lib/kona-cd-time');
@@ -173,6 +173,32 @@ exports.handler = async (event) => {
           .select('id, categoria').eq('data', todayRomeStr()).eq('operatore_id', profiloId)
           .eq('stato', 'attiva').eq('categoria', categoria).limit(1).maybeSingle();
         if (sessioneError || !sessione) return jsonError(409, 'Nessuna sessione Consumer attiva per questa categoria');
+
+        const cfPiva = String(body.cf_piva || '').trim();
+        const nome = String(body.nome || '').trim();
+        const telefono = String(body.telefono || '').trim();
+        const motivo = String(body.motivo || '').trim();
+        if (!cfPiva || !nome || !telefono || !motivo) {
+          return jsonError(400, 'Il flusso Consumer integrato richiede cliente, telefono e motivo completi');
+        }
+
+        // Scrittura CANONICA: la chiamata Consumer va nella tabella `chiamate`
+        // (stessa del Call Center manuale), cosi' l'esito e' visibile in Elenco
+        // Chiamate. L'attivita' di sessione resta come audit.
+        let chiamataId = null;
+        const { data: profilo } = await client.from('profili').select('nome').eq('id', profiloId).maybeSingle();
+        chiamataId = await registraChiamataConsumerCanonica(client, cfg, {
+          operatoreId: profiloId,
+          operatoreNome: profilo?.nome || null,
+          cfPiva,
+          nomeCliente: nome,
+          cellulare: telefono,
+          copertura: String(body.copertura || '').trim(),
+          esito,
+          motivo,
+          note: String(body.note || '').slice(0, 500) || null
+        });
+
         const { data: attivita, error } = await client.from('kona_call_director_sessione_attivita').insert({
           sessione_id: sessione.id,
           operatore_id: profiloId,
@@ -180,10 +206,13 @@ exports.handler = async (event) => {
           esito,
           note: String(body.note || '').slice(0, 500) || null
         }).select('id, created_at').single();
-        if (error || !attivita) return jsonError(500, error?.message || 'Registrazione attività fallita');
+        if (error || !attivita) {
+          await client.from('chiamate').delete().eq('id', chiamataId);
+          return jsonError(500, error?.message || 'Registrazione attività fallita');
+        }
         const { count } = await client.from('kona_call_director_sessione_attivita')
           .select('id', { count: 'exact', head: true }).eq('sessione_id', sessione.id);
-        return jsonOk({ registrata: true, attivita, totale_sessione: Number(count) || 0 });
+        return jsonOk({ registrata: true, attivita, chiamata_id: chiamataId, totale_sessione: Number(count) || 0 });
       }
 
       case 'sospendi': {

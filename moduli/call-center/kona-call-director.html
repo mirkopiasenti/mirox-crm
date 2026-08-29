@@ -9,11 +9,23 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../../css/style.css">
     <style>
-        .kona-wrap { max-width: 720px; margin: 0 auto; }
+        body { background: radial-gradient(circle at 80% 0, #e8f2ff 0, transparent 34%), #f4f7fb; }
+        .kona-wrap { max-width: 1040px; margin: 0 auto; }
         .kona-screen { display: none; }
         .kona-screen.active { display: block; animation: kona-fade .18s ease; }
         @keyframes kona-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-        .kona-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 16px; }
+        .kona-card { background: rgba(255,255,255,.96); border: 1px solid #dbe5f0; border-radius: 22px; padding: 24px; margin-bottom: 16px; box-shadow: 0 18px 45px rgba(26,54,93,.08); }
+        .kona-agent-bar { display:flex; align-items:center; gap:14px; padding:16px 18px; margin-bottom:16px; color:#fff; background:linear-gradient(135deg,#0b2748,#154d78); border-radius:22px; box-shadow:0 18px 42px rgba(11,39,72,.2); }
+        .kona-agent-core { width:44px; height:44px; flex:0 0 44px; border-radius:15px; display:grid; place-items:center; background:linear-gradient(135deg,#57d1ff,#7f8cff); font-weight:800; color:#071b33; }
+        .kona-agent-copy { flex:1; min-width:0; }
+        .kona-agent-copy strong { display:block; font-size:15px; }
+        .kona-agent-copy span { display:block; color:#c7d7ea; font-size:12px; margin-top:3px; }
+        .kona-tools { display:flex; flex-wrap:wrap; gap:8px; }
+        .kona-tool { border:1px solid rgba(255,255,255,.28); background:rgba(255,255,255,.1); color:#fff; border-radius:12px; padding:9px 12px; font:inherit; font-size:12px; font-weight:650; cursor:pointer; }
+        .kona-tool:hover { background:rgba(255,255,255,.18); }
+        .kona-progress { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin:0 0 18px; }
+        .kona-progress span { height:5px; border-radius:99px; background:#dce5ef; transition:.2s ease; }
+        .kona-progress span.done,.kona-progress span.current { background:linear-gradient(90deg,#2d8cff,#675cff); }
         .kona-hero { text-align: center; padding: 28px 20px 8px; }
         .kona-hero h2 { font-size: 22px; font-weight: 700; margin: 8px 0 4px; }
         .kona-hero p { color: var(--text-secondary); font-size: 14px; margin: 0 auto; max-width: 520px; }
@@ -44,6 +56,26 @@
         .kona-field { margin-bottom: 12px; }
         .kona-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .03em; }
         .kona-budget { font-size: 12px; color: var(--text-secondary); text-align: center; margin-top: 12px; }
+        .kona-consumer-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+        .kona-consumer-grid .kona-field { margin:0; }
+        .kona-consumer-grid .wide { grid-column:1/-1; }
+        .kona-inline-search { display:flex; gap:10px; align-items:flex-end; }
+        .kona-inline-search .kona-field { flex:1; margin:0; }
+        .kona-client-summary { margin:16px 0; padding:16px; border-radius:16px; background:#f1f6fc; border:1px solid #dce7f3; }
+        .kona-call-block { margin-top:18px; padding-top:18px; border-top:1px solid #dce5ef; }
+        .kona-result-list { display:grid; gap:10px; }
+        .kona-result { padding:14px; border:1px solid #dce5ef; border-radius:14px; background:#fff; }
+        .kona-result-head { display:flex; justify-content:space-between; gap:12px; font-size:13px; }
+        .kona-result-meta { margin-top:5px; color:var(--text-secondary); font-size:12px; line-height:1.5; }
+        .kona-empty { padding:20px; text-align:center; color:var(--text-secondary); }
+        @media (max-width:760px) {
+          .kona-agent-bar { align-items:flex-start; flex-wrap:wrap; }
+          .kona-tools { width:100%; }
+          .kona-tool { flex:1; }
+          .kona-consumer-grid { grid-template-columns:1fr; }
+          .kona-consumer-grid .wide { grid-column:auto; }
+          .kona-inline-search { align-items:stretch; flex-direction:column; }
+        }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
     </style>
 <script src="../../js/mirox-safe.js"></script>
@@ -59,6 +91,22 @@
                     <p class="page-subtitle">La giornata e' guidata da KONA: un contatto alla volta</p>
                 </div>
                 <span id="konaStatoBadge" class="badge badge-info">Osservazione</span>
+            </div>
+
+            <div class="kona-agent-bar">
+                <div class="kona-agent-core" aria-hidden="true">K</div>
+                <div class="kona-agent-copy">
+                    <strong id="konaAgentStatus">KONA e' pronto</strong>
+                    <span id="konaAgentHint">Ti accompagno in ogni passaggio della giornata.</span>
+                </div>
+                <div class="kona-tools">
+                    <button type="button" class="kona-tool" onclick="KonaCD.apriRicercaInbound()">Ricerca numero</button>
+                    <button type="button" class="kona-tool" onclick="KonaCD.apriStorico()">Chiamate di oggi</button>
+                    <button type="button" class="kona-tool" id="konaPauseBtn" onclick="KonaCD.togglePausa()">Pausa</button>
+                </div>
+            </div>
+            <div class="kona-progress" aria-label="Avanzamento lavorazione">
+                <span id="konaProgress1" class="current"></span><span id="konaProgress2"></span><span id="konaProgress3"></span><span id="konaProgress4"></span>
             </div>
 
             <div id="konaViewport" aria-live="polite">
@@ -188,19 +236,36 @@
                     <div class="kona-card">
                         <div class="kona-title" id="konaConsumerTitolo">Contatti Consumer</div>
                         <div class="kona-subtitle" id="konaConsumerSottotitolo"></div>
-                        <p style="font-size:13px;color:var(--text-secondary);line-height:1.55">
-                            KONA non propone contatti Consumer: inserisci il contatto dal flusso Registra Chiamata
-                            (codice fiscale) e poi registra qui l'esito della chiamata.
-                        </p>
-                        <div class="kona-actions" id="konaConsumerEsiti"></div>
-                        <div class="kona-field" style="margin-top:12px">
-                            <label for="konaConsumerNota">Nota (facoltativa)</label>
-                            <input type="text" id="konaConsumerNota" class="form-control" placeholder="Eventuale nota sulla chiamata...">
+                        <p style="font-size:13px;color:var(--text-secondary);line-height:1.55">Inserisci il CF o la P.IVA: KONA cerca il cliente, completa l'anagrafica e registra la chiamata senza uscire dall'agente.</p>
+                        <div class="kona-inline-search">
+                            <div class="kona-field">
+                                <label for="konaConsumerCf">Codice fiscale / P.IVA</label>
+                                <input type="text" id="konaConsumerCf" class="form-control uppercase" maxlength="16" placeholder="Inserisci il dato fiscale">
+                            </div>
+                            <button class="btn btn-primary" type="button" onclick="KonaCD.cercaConsumer()">Cerca cliente</button>
                         </div>
-                        <div class="kona-actions" style="margin-top:4px">
-                            <button class="btn btn-secondary btn-sm" onclick="KonaCD.apriRegistraChiamata()">Apri Registra Chiamata</button>
-                            <button class="btn btn-secondary btn-sm" onclick="KonaCD.terminaGiornata()">Termina giornata</button>
+                        <div id="konaConsumerForm" class="hidden">
+                            <div id="konaConsumerLookupStatus" class="kona-client-summary"></div>
+                            <div class="kona-consumer-grid">
+                                <div class="kona-field"><label for="konaConsumerRagione">Ragione sociale</label><input id="konaConsumerRagione" class="form-control uppercase"></div>
+                                <div class="kona-field"><label for="konaConsumerReferente">Nome referente</label><input id="konaConsumerReferente" class="form-control uppercase"></div>
+                                <div class="kona-field"><label for="konaConsumerTelefono">Cellulare</label><input id="konaConsumerTelefono" class="form-control" inputmode="tel"></div>
+                                <div class="kona-field"><label for="konaConsumerEmail">Email (facoltativa)</label><input id="konaConsumerEmail" class="form-control" type="email"></div>
+                                <div class="kona-field"><label for="konaConsumerProvincia">Provincia</label><input id="konaConsumerProvincia" class="form-control uppercase" maxlength="2"></div>
+                                <div class="kona-field"><label for="konaConsumerComune">Comune</label><input id="konaConsumerComune" class="form-control uppercase"></div>
+                                <div class="kona-field"><label for="konaConsumerVia">Via</label><input id="konaConsumerVia" class="form-control uppercase"></div>
+                                <div class="kona-field"><label for="konaConsumerCivico">Civico</label><input id="konaConsumerCivico" class="form-control uppercase"></div>
+                            </div>
+                            <div class="kona-call-block">
+                                <div class="kona-consumer-grid">
+                                    <div class="kona-field"><label for="konaConsumerCopertura">Copertura</label><select id="konaConsumerCopertura" class="form-control"><option value="">Seleziona</option><option value="FTTH">FTTH</option><option value="FWA">FWA</option><option value="FTTC">FTTC</option></select></div>
+                                    <div class="kona-field"><label for="konaConsumerMotivo">Motivo chiamata</label><select id="konaConsumerMotivo" class="form-control"><option value="">Seleziona</option><option value="Telefono CB">Telefono CB</option><option value="Fisso">Fisso</option><option value="P.iva">P.iva</option><option value="Energy">Energy</option><option value="Duferco">Duferco</option><option value="Altro">Altro</option></select></div>
+                                    <div class="kona-field wide"><label for="konaConsumerNota">Note (facoltative)</label><textarea id="konaConsumerNota" class="form-control" rows="2"></textarea></div>
+                                </div>
+                                <div class="kona-actions" id="konaConsumerEsiti"></div>
+                            </div>
                         </div>
+                        <div class="kona-actions"><button class="btn btn-secondary btn-sm" onclick="KonaCD.terminaGiornata()">Termina giornata</button></div>
                         <div id="konaConsumerStatus" style="font-size:12px;color:var(--text-secondary);margin-top:10px"></div>
                     </div>
                 </section>
@@ -210,22 +275,7 @@
                     <div class="kona-card">
                         <div class="kona-title">Calendario del negozio (appuntamento Consumer)</div>
                         <div class="kona-subtitle">Il contatto Consumer viene prenotato nel calendario del negozio gia' usato dal Call Center.</div>
-                        <div class="kona-field">
-                            <label for="konaNegozioNome">Nome o ragione sociale</label>
-                            <input type="text" id="konaNegozioNome" class="form-control" placeholder="Nome cliente...">
-                        </div>
-                        <div class="kona-field">
-                            <label for="konaNegozioCf">C.F. / P.IVA</label>
-                            <input type="text" id="konaNegozioCf" class="form-control" placeholder="Codice fiscale o partita IVA...">
-                        </div>
-                        <div class="kona-field">
-                            <label for="konaNegozioTelefono">Telefono</label>
-                            <input type="text" id="konaNegozioTelefono" class="form-control" placeholder="Numero di telefono...">
-                        </div>
-                        <div class="kona-field">
-                            <label for="konaNegozioMotivo">Motivo</label>
-                            <input type="text" id="konaNegozioMotivo" class="form-control" placeholder="Motivo appuntamento...">
-                        </div>
+                        <div id="konaNegozioCliente" class="kona-client-summary"></div>
                         <div class="kona-title" style="font-size:14px;margin-top:12px" id="konaNegozioGiorni"></div>
                         <div id="konaNegozioSlotWrap" class="hidden">
                             <div id="konaNegozioSlot" class="kona-slotlist"></div>
@@ -285,6 +335,39 @@
             <button class="btn btn-secondary" onclick="KonaCD.chiudiSkip()">Annulla</button>
             <button class="btn btn-primary" onclick="KonaCD.confermaSkip()">Conferma</button>
         </div>
+    </div>
+</div>
+
+<div class="modal-overlay hidden" id="modalKonaRicerca">
+    <div class="modal" style="max-width:760px">
+        <div class="modal-header">
+            <div><h3 class="modal-title" id="konaRicercaTitolo">Ricerca numero</h3><div class="kona-subtitle" style="margin:3px 0 0">Trova subito cliente, motivo del contatto e ultima chiamata.</div></div>
+            <button class="modal-close" onclick="KonaCD.chiudiRicerca()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="kona-inline-search">
+                <div class="kona-field"><label for="konaRicercaInput">Numero o nominativo</label><input id="konaRicercaInput" class="form-control" placeholder="Inserisci un numero di telefono"></div>
+                <button type="button" class="btn btn-primary" onclick="KonaCD.eseguiRicercaInbound()">Cerca</button>
+            </div>
+            <div id="konaRicercaRisultati" class="kona-result-list" style="margin-top:16px"></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" onclick="KonaCD.chiudiRicerca()">Chiudi</button></div>
+    </div>
+</div>
+
+<div class="modal-overlay hidden" id="modalKonaCorrezione">
+    <div class="modal" style="max-width:520px">
+        <div class="modal-header"><h3 class="modal-title">Correggi esito della chiamata</h3><button class="modal-close" onclick="KonaCD.chiudiCorrezione()">&times;</button></div>
+        <div class="modal-body">
+            <input type="hidden" id="konaCorrezioneId">
+            <div class="form-group"><label for="konaCorrezioneEsito">Nuovo esito</label><select id="konaCorrezioneEsito" class="form-control" onchange="KonaCD.toggleCorrezioneRicontatto()"><option value="">Seleziona</option><option value="non_risposto">Non risposto</option><option value="non_interessato">Non interessato</option><option value="ricontattare">Ricontattare</option><option value="passa_in_negozio">Passa in negozio</option><option value="passa_a_cerea">Passa a Cerea</option></select></div>
+            <div id="konaCorrezioneRicontatto" class="kona-consumer-grid hidden">
+                <div class="kona-field"><label for="konaCorrezioneData">Data ricontatto</label><input type="date" id="konaCorrezioneData" class="form-control"></div>
+                <div class="kona-field"><label for="konaCorrezioneFascia">Fascia</label><select id="konaCorrezioneFascia" class="form-control"><option value="">Seleziona</option><option value="Mattina">Mattina</option><option value="Pomeriggio">Pomeriggio</option></select></div>
+            </div>
+            <div class="form-group"><label for="konaCorrezioneMotivo">Motivazione</label><textarea id="konaCorrezioneMotivo" class="form-control" rows="3" placeholder="Esempio: il cliente ha richiamato"></textarea></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" onclick="KonaCD.chiudiCorrezione()">Annulla</button><button class="btn btn-primary" onclick="KonaCD.confermaCorrezione()">Salva correzione</button></div>
     </div>
 </div>
 

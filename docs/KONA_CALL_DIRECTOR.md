@@ -3,20 +3,19 @@
 ## Stato verificato
 
 Il modulo e' completo lato codice ed e' stato riesaminato localmente dopo le
-correzioni di chiusura. La suite dedicata passa 74/74 test; la suite completa
-del CRM passa 191/191 test. La build statica e i controlli di sintassi sono
+correzioni di chiusura. La suite dedicata passa 98/98 test; la suite completa
+del CRM passa 221/221 test. La build statica e i controlli di sintassi sono
 verdi.
 
 Il Supabase test dedicato `Mirox CRM - Test KONA Call Director`
 (`yyorullxmdxhnunsfwwa`, `eu-west-3`) e' attivo e contiene il solo schema
-minimo ricostruito senza dati production, la migration `072` e il seed
-fail-closed. Le 23 tabelle KONA sono vuote salvo la config; non esistono
-profili abilitati e `attivo_globale=false`. Il sito Netlify isolato
+minimo ricostruito senza dati production, le migration `072`-`074` e il seed
+fail-closed. Le 25 tabelle KONA sono vuote salvo config e configurazioni di
+collaudo; i due nuovi registri di correzione/failover sono vuoti. Il sito Netlify isolato
 `mirox-kona-call-director-test.netlify.app` e' collegato alla branch
-`kona-call-director`; il commit staging `b4cf578` con correzioni, test e
-bootstrap e' pubblicato con le env staging, la service role protetta del solo
-Supabase test e i due interruttori KONA a `false`. L'invocazione HTTP diretta
-del dispatcher e' bloccata da Netlify con `403`.
+`kona-call-director`, con env staging e service role protetta del solo
+Supabase test. L'invocazione HTTP diretta del dispatcher e' bloccata da
+Netlify con `403`.
 Production non contiene oggetti KONA Call Director e resta invariata.
 Il login staging usa una sola policy browser su `profili`: ogni utente
 autenticato puo' leggere esclusivamente la propria riga (`id=auth.uid()`);
@@ -57,6 +56,44 @@ Le attivita' Business standard non iniziano dopo le 18:00 e non partono se il
 piano approvato non contiene almeno una categoria esplicita; il contatto gia'
 in corso puo' essere terminato.
 
+## Doppia interfaccia e dati canonici condivisi
+
+KONA Call Director non e' un modulo aggiuntivo del Call Center manuale: quando
+e' attivo per un'operatrice, diventa la sua unica interfaccia operativa.
+
+- KONA globalmente disattivato: tutti usano il sistema manuale.
+- KONA attivo + profilo non abilitato: il profilo usa il sistema manuale.
+- KONA attivo + operatrice non-admin abilitata: vede **solo** KONA, senza
+  navigazione delle vecchie sezioni; l'accesso diretto a una pagina manuale
+  reindirizza a `kona-call-director.html`.
+- Admin: mantiene l'accesso manuale e vede la tab `KONA CD` + il pannello
+  `admin-kona-call-director.html` per attivare/disattivare/abilitare.
+
+Il routing e' deciso server-side da `kona-call-director-route` (ruolo +
+`kona_call_director_profili.abilitato` + toggle globale): il controllo non e'
+cosmetico. `js/cc-header.js` applica la decisione nascondendo le tab o
+reindirizzando. Se il routing non e' verificabile, un profilo non-admin vede un
+blocco temporaneo e non il sistema manuale: un errore di rete non diventa un
+bypass di KONA.
+
+**Una sola fonte di verita' per i dati operativi.** Gli esiti KONA scrivono
+nelle stesse tabelle canoniche del Call Center manuale:
+
+- gli esiti Consumer vengono registrati in `chiamate` (oltre che nell'audit di
+  sessione `kona_call_director_sessione_attivita`), con `registraChiamataConsumerCanonica`;
+- gli appuntamenti Consumer vanno in `appuntamenti` (fonte `interno`) e la
+  chiamata collegata in `chiamate` con esito `appuntamento`;
+- Business/rilavorazioni scrivono gia' `call_center_lead_outbound_chiamate` /
+  `chiamate`; la Black List e' la tabella condivisa `blacklist`.
+- la ricerca istantanea per numero legge anagrafiche, chiamate e lead Business
+  canonici; la correzione dello stesso esito entro la giornata aggiorna
+  `chiamate` in transazione e aggiunge una riga immutabile in
+  `kona_call_director_correzioni_esito`.
+
+Le tabelle `kona_call_director_*` contengono solo orchestrazione, sessioni,
+task/lease, briefing/piani, audit, dialogo e telemetria: mai una seconda copia
+dei dati definitivi.
+
 ## Esperienza operatore (macchina a stati)
 
 La pagina `moduli/call-center/kona-call-director.html` e' una macchina a stati
@@ -86,23 +123,33 @@ Stati:
    eventi privati.
 7. `consumer` — fase automatica quando il piano prevede Consumer e non restano
    task materializzabili: KONA **avvia da solo la sessione Consumer dal piano**
-   (`avvia_consumer`) e registra gli esiti delle chiamate da lista cartacea,
-   senza proporre lead. L'esito `Appuntamento` apre lo schermo `negozio`, che
-   riusa `get_slot_disponibili` + prenotazione nel calendario del negozio
-   (nessun Google Calendar personale).
+   (`avvia_consumer`), cerca il CF/P.IVA, mostra o raccoglie l'anagrafica completa
+   e registra l'esito canonico senza aprire `registra-chiamata.html`. L'esito
+   `Appuntamento` apre lo schermo `negozio`, che riusa
+   `get_slot_disponibili` + prenotazione nel calendario del negozio (nessun
+   Google Calendar personale).
 
 La modalita' Consumer del piano usa il campo canonico `consumer`; per i piani
 Telegram gia' esistenti resta compatibile anche con `categoria_sessione`. La
 prenotazione negozio e la registrazione dell'esito sono compensate: se l'esito
 non viene salvato, l'appuntamento appena creato viene rimosso.
-8. `negozio` — calendario del negozio per i contatti Consumer (nome, CF/PIVA,
-   telefono, motivo, slot e conferma). Reusa API, disponibilita' e prenotazione
-   del flusso Call Center esistente, senza duplicare la logica backend.
+8. `negozio` — calendario del negozio per il contatto Consumer gia' caricato
+   nella scheda agente (anagrafica, motivo, slot e conferma). Reusa API,
+   disponibilita' e prenotazione del flusso Call Center esistente, senza
+   duplicare la logica backend.
 9. `transition` — breve passaggio quando cambia **famiglia** (conferme,
    rilavorazioni, Business, campagne urgenti, Consumer), mai fra task della
    stessa famiglia. L'ingresso nel Consumer e il completamento sono gestiti.
-9. `completed` — fine delle attivita' previste, con `Ricontrolla`.
-10. `error` — errore con `Riprova`, senza perdere il task corrente.
+10. `completed` — fine delle attivita' previste, con `Ricontrolla`.
+11. `error` — errore con `Riprova`, senza perdere il task corrente.
+
+La barra agente mostra avanzamento e fase corrente. Gli strumenti persistenti
+`Ricerca numero`, `Chiamate di oggi` e `Pausa` restano nella stessa pagina:
+la ricerca apre immediatamente cliente, motivo e storico; le chiamate
+modificabili nello stesso giorno espongono una correzione motivata e auditata.
+Un errore reale del servizio AI, riconosciuto da una allowlist server-side,
+blocca il flusso KONA e abilita per 30 minuti il sistema manuale soltanto per
+quel profilo, accodando a Mirko una notifica Telegram priva di PII.
 
 Separazione calendari: Business usa il Google Calendar personale collegato a
 KONA; Consumer rimanda al calendario del negozio gia' usato dal flusso Call
@@ -134,8 +181,13 @@ piano, esiti) resta la fonte di verita': il frontend non simula completamenti.
 - Telegram e log non ricevono PII; gli appuntamenti privati di Mirko non sono
   mostrati all'operatore, che vede solo le fasce disponibili.
 - I dati Consumer identificativi non vengono inviati a OpenAI.
-- Le 23 tabelle `kona_call_director_*` sono server-only con RLS e privilegi
+- Le 25 tabelle `kona_call_director_*` sono server-only con RLS e privilegi
   riservati alla service role.
+- Le correzioni esito sono atomiche e ammesse solo nella giornata corrente
+  all'operatore proprietario o a un admin; il relativo audit non consente
+  UPDATE o DELETE.
+- Il failover non e' un interruttore globale: scade automaticamente ed e'
+  limitato al solo profilo coinvolto.
 
 ## Prerequisiti esterni
 
@@ -176,19 +228,22 @@ esterno controllato.
 1. Stato completato il 2026-08-28: progetto test creato in `eu-west-3` e
    bootstrap minimo `database/staging/003_kona_call_director_bootstrap.sql`
    applicato senza copiare dati production.
-2. Stato completato il 2026-08-28: migration
-   `database/072_kona_call_director.sql` e seed disattivato applicati.
-3. Stato completato il 2026-08-28: verificate 23 tabelle KONA, cinque RPC
-   `kona_cd_*`, RLS, zero grant browser, zero dati CRM e toggle globale spento.
+2. Stato completato: migration `database/072_kona_call_director.sql`,
+   `database/073_kona_call_director_consumer_appuntamento.sql` e
+   `database/074_kona_call_director_agente_unificato.sql` applicate soltanto
+   al progetto test; seed disattivato applicato.
+3. Stato completato il 2026-08-29: verificate 25 tabelle KONA, sei RPC
+   `kona_cd_*`, RLS, zero grant browser sui nuovi oggetti, zero dati personali
+   nei registri 074 e nessuna funzione `SECURITY DEFINER`.
 4. Importare le coordinate da una fonte autorevole in
    `kona_call_director_comuni`. Senza import il sistema continua a funzionare,
    ma la priorita' geografica resta degradata a `unknown`.
 5. Configurare le env dello staging mantenendo
    `KONA_CALL_DIRECTOR_ENABLED=false` e `KONA_CALL_DIRECTOR_STAGING_RUN=false`.
-6. Stato completato il 2026-08-28: il sito
-   `mirox-kona-call-director-test.netlify.app` pubblica il commit staging
-   `b4cf578` con service role del solo database test e con entrambi gli
-   interruttori KONA a `false`.
+6. Stato completato: il sito `mirox-kona-call-director-test.netlify.app`
+   pubblica la branch `kona-call-director` con service role del solo database
+   test. Dal 2026-08-29 i due interruttori sono attivi esclusivamente per il
+   collaudo controllato.
 7. Salvare e ricontrollare: budget 50 euro, riserve 40/10, cambio USD/EUR,
    prezzo del modello, 50 lead/notte, due web search massime, sessione Business
    90 minuti, durata appuntamento 45 minuti, raggio indicativo 20 km e orari.
@@ -223,6 +278,14 @@ Il collaudo staging deve coprire almeno:
 - sessione Business standard bloccata senza categorie approvate e filtrata
   esclusivamente sulle categorie del piano;
 - sessione Consumer manuale tracciata senza suggerimento automatico di lead;
+- lookup/creazione anagrafica Consumer, esito canonico visibile anche nel
+  sistema manuale e appuntamento sul calendario negozio;
+- ricerca istantanea di una chiamata in entrata per numero e apertura del
+  relativo motivo/storico;
+- correzione motivata di un esito nella stessa giornata, con audit append-only,
+  e rifiuto della correzione oltre la giornata o su chiamate altrui;
+- guasto AI simulato: bypass manuale limitato al profilo, scadenza 30 minuti e
+  notifica Telegram senza PII;
 - arricchimento notturno di un piccolo lotto e fonti realmente registrate;
 - esaurimento simulato delle riserve OpenAI e notifica soglia budget;
 - report 19:10, proposta 20:05, reminder 20:00 e 08:00, piano default 08:30;
@@ -243,7 +306,7 @@ task, conferme, piccoli batch di job, riconciliazione Google e outbox Telegram.
 ## Passaggio in production
 
 Passare in production soltanto dopo il collaudo staging firmato. Ripetere gli
-step 1-10 usando credenziali, callback, bot, webhook, database e calendario di
+step 1-12 usando credenziali, callback, bot, webhook, database e calendario di
 production distinti. Effettuare il primo avvio in un giorno lavorativo
 sorvegliato, con Isabella presente, `modalita_osservazione=true` e Mirko
 raggiungibile su Telegram. Mantenere l'osservazione per almeno la prima
@@ -267,7 +330,7 @@ dipendenze. Non eseguire DROP durante il normale arresto.
 
 ## Verifica locale conclusiva
 
-- `node --test tests/kona-call-director.test.js`: 74/74 pass.
-- `npm test`: 191/191 pass, inclusa build statica production.
+- `node --test tests/kona-call-director.test.js`: 98/98 pass.
+- `npm test`: 221/221 pass, inclusa build statica production.
 - Nessuna migration applicata, nessun commit, push o deploy eseguito durante
   questa chiusura.

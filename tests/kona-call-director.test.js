@@ -1293,3 +1293,124 @@ test('frontend: ricontatto assegnato dal backend mostrato (ricontattoAssegnato)'
   assert.ok(/Ricontatto pianificato/.test(js), 'messaggio di conferma follow-up');
   assert.ok(/res\.esito && res\.esito\.ricontatto/.test(js), 'legge il ricontatto dal backend');
 });
+
+// =============================================================================
+// Routing per profilo + scrittura canonica Consumer
+// =============================================================================
+
+test('mappaEsitoConsumer: esiti Consumer -> esiti canonici chiamate', () => {
+  assert.equal(engine.mappaEsitoConsumer('non_risposto'), 'non_risposto');
+  assert.equal(engine.mappaEsitoConsumer('non_interessato'), 'non_interessato');
+  assert.equal(engine.mappaEsitoConsumer('passa_in_negozio'), 'passa_in_negozio');
+  assert.equal(engine.mappaEsitoConsumer('interessato'), 'ricontattare');
+  assert.equal(engine.mappaEsitoConsumer('appuntamento'), 'appuntamento');
+  assert.equal(engine.mappaEsitoConsumer('altro'), 'non_interessato');
+});
+
+test('registraChiamataConsumerCanonica scrive nella tabella canonica chiamate', async () => {
+  const inserted = [];
+  const db = makeSupabase({
+    'anagrafica.select': () => ({ data: null }),
+    'chiamate.insert': (q) => { inserted.push(q.value); return { data: { id: 'ch-canonica' }, error: null }; }
+  });
+  const id = await engine.registraChiamataConsumerCanonica(db, baseCfg(), {
+    operatoreId: PROFILO,
+    operatoreNome: 'Isabella',
+    cfPiva: 'RSSMRA80A01H501U',
+    nomeCliente: 'Mario Rossi',
+    cellulare: '3331234567',
+    esito: 'non_risposto',
+    motivo: 'Telefoni omaggio'
+  });
+  assert.equal(id, 'ch-canonica');
+  assert.equal(inserted.length, 1);
+  assert.equal(inserted[0].cf_piva, 'RSSMRA80A01H501U');
+  assert.equal(inserted[0].esito, 'non_risposto');
+  assert.equal(inserted[0].rilavorazione_stato, undefined, 'lascia al trigger canonico la classificazione rilavorazione');
+});
+
+test('registraChiamataConsumerCanonica: ricontattare assegna data/fascia', async () => {
+  const inserted = [];
+  const db = makeSupabase({
+    'anagrafica.select': () => ({ data: null }),
+    'chiamate.insert': (q) => { inserted.push(q.value); return { data: { id: 'ch-2' }, error: null }; }
+  });
+  await engine.registraChiamataConsumerCanonica(db, baseCfg(), {
+    operatoreId: PROFILO, operatoreNome: 'Isabella',
+    cfPiva: 'CF1', nomeCliente: 'X', cellulare: '333', esito: 'interessato'
+  });
+  assert.equal(inserted[0].esito, 'ricontattare');
+  assert.ok(inserted[0].data_ricontatto);
+  assert.ok(inserted[0].fascia_ricontatto);
+});
+
+test('kona-call-director-route: routing per ruolo e abilitazione', () => {
+  const route = require(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-route.js'));
+  const d = route._test.decideRoute;
+  // operatrice abilitata NON admin -> kona_only
+  assert.deepEqual(d({ isAdmin: false, canUseOk: true }), { kona_only: true, admin: false, abilitato: true, manual_fallback: false });
+  // admin (anche se abilitato) -> manuale + controllo KONA
+  assert.deepEqual(d({ isAdmin: true, canUseOk: true }), { kona_only: false, admin: true, abilitato: true, manual_fallback: false });
+  // profilo non abilitato -> manuale
+  assert.deepEqual(d({ isAdmin: false, canUseOk: false }), { kona_only: false, admin: false, abilitato: false, manual_fallback: false });
+  assert.deepEqual(d({ isAdmin: false, canUseOk: true, manualFallback: true }), { kona_only: false, admin: false, abilitato: true, manual_fallback: true });
+});
+
+test('cc-header: operatrice KONA non vede la navigazione manuale (redirect + adminOnly)', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'js/cc-header.js'), 'utf8');
+  assert.ok(/ROUTE_URL/.test(js));
+  assert.ok(/route\.kona_only/.test(js));
+  assert.ok(/kona-call-director\.html/.test(js) && /root\.location\.href/.test(js));
+  // KONA CD visibile solo agli admin
+  assert.ok(/perm: 'kona_call_director'[\s\S]*adminOnly: true/.test(js));
+  // nessuna tab manuale nel ramo kona_only (renderMinimal)
+  assert.ok(/renderMinimal/.test(js));
+  assert.ok(/MiroxApi\.fetch/.test(js), 'routing usa il wrapper autenticato');
+  assert.ok(!/await\s+fetch\(ROUTE_URL/.test(js), 'nessun fetch diretto per il routing');
+  assert.ok(/!isAdmin && !route\.resolved/.test(js), 'routing non verificato blocca il manuale per i non-admin');
+  assert.ok(/document\.querySelectorAll\('\.cc-main'\)[\s\S]*main\.hidden = true/.test(js));
+});
+
+test('migration 074: audit esiti append-only, failover server-only e RPC atomica', () => {
+  const sql = fs.readFileSync(path.resolve(__dirname, '..', 'database/074_kona_call_director_agente_unificato.sql'), 'utf8');
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.kona_call_director_correzioni_esito/);
+  assert.match(sql, /trg_kona_cd_correzioni_no_update/);
+  assert.match(sql, /trg_kona_cd_correzioni_no_delete/);
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.kona_call_director_failover/);
+  assert.match(sql, /CREATE OR REPLACE FUNCTION public\.kona_cd_correggi_esito_v1/);
+  assert.match(sql, /REVOKE ALL ON TABLE public\.kona_call_director_correzioni_esito FROM PUBLIC, anon, authenticated/);
+  assert.doesNotMatch(sql, /DROP\s+(?:TABLE|COLUMN)/i);
+});
+
+test('operazioni unificate: validazione CF/PIVA e failover solo per errori AI ammessi', () => {
+  const operator = require(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-operator.js'))._test;
+  assert.equal(operator.validaCfPiva('RSSMRA80A01H501U'), 'RSSMRA80A01H501U');
+  assert.equal(operator.validaCfPiva('01234567890'), '01234567890');
+  assert.equal(operator.validaCfPiva('non-valido'), null);
+  assert.equal(operator.AI_FAILOVER_CODES.has('unavailable'), true);
+  assert.equal(operator.AI_FAILOVER_CODES.has('invalid_request'), false);
+});
+
+test('frontend unificato: Consumer, ricerca inbound, storico e correzione restano dentro KONA', () => {
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/kona-call-director.html'), 'utf8');
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  assert.match(html, /id="konaConsumerCf"/);
+  assert.match(html, /id="modalKonaRicerca"/);
+  assert.match(html, /id="modalKonaCorrezione"/);
+  assert.doesNotMatch(html, /Apri Registra Chiamata/);
+  assert.match(js, /action: 'cerca_consumer'/);
+  assert.match(js, /action: 'salva_consumer'/);
+  assert.match(js, /action: 'cerca_inbound'/);
+  assert.match(js, /action: 'correggi_esito'/);
+  assert.match(js, /action: 'attiva_failover'/);
+  assert.doesNotMatch(js, /root\.location\.href = 'registra-chiamata\.html'/);
+});
+
+test('Consumer canonico: upsert anagrafica e rollback di chiamata/appuntamento sono espliciti', () => {
+  const operator = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-operator.js'), 'utf8');
+  const dialog = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-dialog.js'), 'utf8');
+  assert.match(operator, /upsertAnagraficaConsumer/);
+  assert.match(operator, /from\('chiamate'\)\.delete\(\)\.eq\('id', chiamataId\)/);
+  assert.match(dialog, /upsertAnagraficaConsumer/);
+  assert.match(dialog, /if \(attivitaError\)[\s\S]*from\('chiamate'\)\.delete\(\)\.eq\('id', chiamataId\)/);
+});

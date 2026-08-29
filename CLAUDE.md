@@ -716,7 +716,7 @@ Guardian e' attivo sul production `mirox-crm.it` con Supabase `lbgwamhjkjjfwgusa
 
 ## KONA Call Director (dal 2026-08-27; staging isolato attivo in osservazione)
 
-Modulo **server-only** per il Call Center: un contatto alla volta, conferme Business, arricchimento notturno e pianificazione Telegram. Codice verificato localmente (74/74 test KONA, 191/191 suite completa). Il Supabase test dedicato `Mirox CRM - Test KONA Call Director` (`yyorullxmdxhnunsfwwa`, `eu-west-3`) contiene bootstrap minimo senza dati production, migration `072` e seed fail-closed. Dal 2026-08-29 il sito `mirox-kona-call-director-test.netlify.app` esegue il collaudo controllato con entrambi gli interruttori env e toggle globale a `true`, un solo profilo test abilitato, modalità osservazione `true` e Google Calendar collegato con sync `ok`. Production e' invariata.
+Modulo **server-only** per il Call Center: un contatto alla volta, conferme Business, arricchimento notturno e pianificazione Telegram. Codice verificato localmente (98/98 test KONA, 221/221 suite completa). Il Supabase test dedicato `Mirox CRM - Test KONA Call Director` (`yyorullxmdxhnunsfwwa`, `eu-west-3`) contiene bootstrap minimo senza dati production, migration `072`-`074` e seed fail-closed. Dal 2026-08-29 il sito `mirox-kona-call-director-test.netlify.app` esegue il collaudo controllato con entrambi gli interruttori env e toggle globale a `true`, un solo profilo test abilitato, modalità osservazione `true` e Google Calendar collegato con sync `ok`. Production e' invariata.
 
 ### Regole fisse
 
@@ -734,9 +734,9 @@ Modulo **server-only** per il Call Center: un contatto alla volta, conferme Busi
 1. conferma appuntamenti Business di domani (finestre 09:00/11:30/15:30/18:00, top of queue; dopo 4 non risposti **nessun annullamento automatico** + notifica Telegram senza PII);
 2. ricontatti programmati; 3. auto non risposti; 4. "Passa a Cerea"; 5. "Passa in negozio"; 6. campagne urgenti (`pinned`); 7. sessione Business, avviabile soltanto con categorie esplicitamente approvate nel piano.
 
-### Tabelle (prefisso dedicato `kona_call_director_*`, 23 tabelle server-only)
+### Tabelle (prefisso dedicato `kona_call_director_*`, 25 tabelle server-only)
 
-Oltre a config, profili, piani, sessioni e attivita' sessione, il dominio include task/eventi, esclusioni, conferme, appuntamenti Business, token Google cifrato, budget/log/riserve, stato Telegram, notifiche, job, arricchimenti/fonti, comuni, esecuzioni programmate, telefoni lead, stati OAuth e audit. Cinque RPC `kona_cd_*` gestiscono lock, prenotazione slot, claim job, riserva budget e consumo OAuth atomici. Nessuna funzione usa `SECURITY DEFINER`; RLS e grant sono server-only.
+Oltre a config, profili, piani, sessioni e attivita' sessione, il dominio include task/eventi, esclusioni, conferme, appuntamenti Business, token Google cifrato, budget/log/riserve, stato Telegram, notifiche, job, arricchimenti/fonti, comuni, esecuzioni programmate, telefoni lead, stati OAuth, audit, correzioni esito append-only e failover per profilo. Sei RPC `kona_cd_*` gestiscono lock, prenotazione slot, claim job, riserva budget, consumo OAuth e correzione atomica in giornata. Nessuna funzione usa `SECURITY DEFINER`; RLS e grant sono server-only.
 
 ### Cron
 
@@ -744,7 +744,9 @@ Oltre a config, profili, piani, sessioni e attivita' sessione, il dominio includ
 
 ### Functions e pagine
 
-Functions: `kona-call-director-{dispatcher,task,status,admin,dialog,plan,google}` + `kona-cc-google-callback` + `kona-call-director-telegram-webhook`. Pagine: `moduli/call-center/kona-call-director.html` (operatore, tab "KONA CD" in `js/cc-header.js` sempre visibile ai CC user; gate per-profilo server-side) e `admin-kona-call-director.html` (pannello Admin, registrata in `js/admin-shell.js`).
+Functions: `kona-call-director-{dispatcher,task,status,admin,dialog,plan,google,operator,route}` + `kona-cc-google-callback` + `kona-call-director-telegram-webhook`. Pagine: `moduli/call-center/kona-call-director.html` (operatore, unica interfaccia quando il profilo e' abilitato e non-admin) e `admin-kona-call-director.html` (pannello Admin, registrata in `js/admin-shell.js`).
+
+Routing per profilo (server-side via `kona-call-director-route` + `js/cc-header.js`): KONA disattivato → tutti usano il manuale; KONA attivo + profilo non abilitato → manuale; KONA attivo + operatrice non-admin abilitata → **solo KONA** (nessuna tab manuale, accesso diretto a una pagina manuale reindirizza a `kona-call-director.html`); admin → manuale + tab `KONA CD` + pannello admin. La tab `KONA CD` in `cc-header.js` e' `adminOnly`. **Una sola fonte di verita'**: gli esiti Consumer scrivono in `chiamate` (via `registraChiamataConsumerCanonica`) oltre che nell'audit di sessione; gli appuntamenti Consumer scrivono in `appuntamenti` + `chiamate` (esito `appuntamento`). Ricerca numero, storico e correzione esito in giornata passano da `kona-call-director-operator`; l'audit e' append-only. Un guasto AI allowlisted abilita per 30 minuti il solo profilo al manuale e accoda un avviso Telegram senza PII. Le tabelle `kona_call_director_*` restano solo orchestrazione/audit.
 
 ### Esperienza operatore (macchina a stati)
 
@@ -850,7 +852,7 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 
 - **Edge Functions Supabase**: non in uso, non aggiungerne senza discutere prima
 - **Guardian prima versione**: analizza soltanto i dati della richiesta; non ha accesso al repository, non esegue Codex, non prepara patch e non effettua deploy. Ogni sviluppo successivo passa prima da Netlify + Supabase staging separati. Sentry e worker Codex vengono dopo la prova reale del flusso.
-- **KONA Call Director (dal 2026-08-27)**: codice verificato ma **NON ATTIVO** — migration `072` non applicata, nessun webhook/OAuth/env production configurato. L'avvio deve seguire `docs/KONA_CALL_DIRECTOR.md`: staging, E2E reali e triplo consenso (`KONA_CALL_DIRECTOR_ENABLED=true`, toggle globale, profilo abilitato). Le distanze sono `null` finche' `kona_call_director_comuni` non viene popolata da un dataset autorevole. La tab "KONA CD" resta volutamente visibile ai CC user e applica il gate per-profilo lato server.
+- **KONA Call Director (dal 2026-08-27)**: attivo soltanto nello staging isolato `yyorullxmdxhnunsfwwa`, con migration `072`-`074`, webhook/OAuth/env dedicati e un solo profilo test; production non contiene oggetti KONA. L'avvio e il passaggio futuro in production devono seguire `docs/KONA_CALL_DIRECTOR.md` e richiedono una nuova conferma. Le distanze sono `null` finche' `kona_call_director_comuni` non viene popolata da un dataset autorevole. Per un profilo non-admin abilitato KONA e' l'unica interfaccia; gli admin conservano il manuale e il controllo KONA.
 - **Cluster `Turista`**: è un cluster di vendita, non un cluster anagrafico condiviso. `garantisci-anagrafica.js` e `crea-vendita-pratica-carrello.js` lo accettano dal wizard, mantengono `Turista` su pratica/contratti, salvano `anagrafica.cluster='Consumer'` e non richiedono email.
 - **File SQL in `/database/`**: parziali, NON riflettono lo stato attuale del DB (vedi `database/README.md`)
 - **Modulo `simulatore_protecta.html`**: ~960 KB, molto pesante perché contiene asset embedded. Modificare con cautela.

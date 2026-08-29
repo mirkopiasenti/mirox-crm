@@ -108,7 +108,7 @@ build, e poi il proprio `js/config.js`, che contiene soltanto `APP_CONFIG`.
 Il file interno non deve creare un secondo client Supabase né contenere
 URL/chiavi: staging perderebbe la sessione e potrebbe puntare al DB sbagliato.
 
-Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pubblica esclusivamente `dist/`, generata copiando gli HTML root e le directory `assets/`, `css/`, `js/`, `moduli/`; `dist/` è ignorata da Git. La build sostituisce il guard sorgente `js/config.js` con la configurazione Supabase dell'ambiente, espone soltanto commit/deploy non sensibili per correlare la telemetria e inietta `js/mirox-telemetry.js` nelle pagine che caricano `mirox-api.js`. Genera inoltre `dist/_headers` con una CSP limitata allo stesso host. Ogni branch Netlify diversa da `main` e' staging: senza `MIROX_PUBLIC_SUPABASE_URL` e `MIROX_PUBLIC_SUPABASE_ANON_KEY` dedicate la build fallisce, e il project ref produzione `lbgwamhjkjjfwgusafbi` e' sempre rifiutato. `imposta-password.html` e' il callback Auth degli inviti: scambia code/token con una sessione, rimuove i token dalla URL, richiede almeno 12 caratteri e salva la password con `auth.updateUser()` senza mostrarla agli amministratori. Backend, migration, test, script, file Markdown e configurazioni non devono mai essere aggiunti alla lista pubblica. `/moduli/call-center/` contiene il modulo CC integrato (Fase 1, vedi sezione dedicata). `dashboard.html` contiene anche il sottomenu Applicazioni: il bottone topbar `#btnApplicazioni`, collocato prima di Appuntamenti Oggi, espande `#applicationsDrawer` tra topbar e saluto e sposta il contenuto sottostante senza sovrapporlo; i riquadri applicazione mantengono le dimensioni dei bottoni topbar. La prima voce è `Compilatore disdette` e collega a `moduli/compilatore_disdette.html`, che offre scelta fra quattro moduli, compilazione guidata, ricerca anagrafica CRM, duplicazione SIM/Fisso nello stesso cluster e storico PDF con numero cessato. L'azione flottante `#btnSegnalaProblema` mostra la mascotte intera di dimensioni ridotte `assets/kona-guardian-robot.png` con una nuvoletta di chat compatta alla sua sinistra e apre `moduli/segnala-problema.html`, chat guidata autenticata del primo agente KONA AI Guardian. Le pagine `admin*.html` alla root costituiscono il **Pannello Admin Mirox** (`admin.html` hub + configurazioni + gare + KPI Consumer/Business), tutte gated da `profili.ruolo='admin'`. La shell condivisa dell'area Admin è generata da `js/admin-shell.js` e stilizzata da `css/admin-shell.css`: sidebar sinistra persistente su desktop, drawer su mobile e area operativa a destra. Le due pagine KPI aggiungono `css/admin-kpi.css` e condividono `js/admin-kpi-vendita-consumer.js`, parametrizzato tramite `data-kpi-cluster`. JS condiviso Mirox esposto su `window`:
+Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pubblica esclusivamente `dist/`, generata copiando gli HTML root e le directory `assets/`, `css/`, `js/`, `moduli/`; `dist/` è ignorata da Git. La build sostituisce il guard sorgente `js/config.js` con la configurazione Supabase dell'ambiente, espone soltanto commit/deploy non sensibili per correlare la telemetria e inietta `js/mirox-telemetry.js` nelle pagine che caricano `mirox-api.js`. Genera inoltre `dist/_headers` con una CSP limitata allo stesso host. Ogni branch Netlify diversa da `main` e' staging: senza `MIROX_PUBLIC_SUPABASE_URL` e `MIROX_PUBLIC_SUPABASE_ANON_KEY` dedicate la build fallisce, e il project ref produzione `lbgwamhjkjjfwgusafbi` e' sempre rifiutato. `imposta-password.html` e' il callback Auth degli inviti: scambia code/token con una sessione, rimuove i token dalla URL, richiede almeno 12 caratteri e salva la password con `auth.updateUser()` senza mostrarla agli amministratori. Backend, migration, test, script, file Markdown e configurazioni non devono mai essere aggiunti alla lista pubblica. `/moduli/call-center/` contiene il modulo CC integrato (Fase 1, vedi sezione dedicata). `dashboard.html` contiene anche il sottomenu Applicazioni: il bottone topbar `#btnApplicazioni`, collocato prima di Appuntamenti Oggi, espande `#applicationsDrawer` tra topbar e saluto e sposta il contenuto sottostante senza sovrapporlo; i riquadri applicazione mantengono le dimensioni dei bottoni topbar. La prima voce è `Compilatore disdette` e collega a `moduli/compilatore_disdette.html`, che offre scelta fra quattro moduli, compilazione guidata, ricerca anagrafica CRM, duplicazione SIM/Fisso nello stesso cluster e storico PDF con numero cessato. L'azione flottante `#btnSegnalaProblema` mostra la mascotte intera di dimensioni ridotte `assets/kona-guardian-robot.png` con una nuvoletta di chat compatta alla sua sinistra e apre `moduli/segnala-problema.html`, chat guidata autenticata del primo agente KONA AI Guardian. Le pagine `admin*.html` alla root costituiscono il **Pannello Admin Mirox** (`admin.html` hub + configurazioni + gare + KPI Vendita/Call Center), tutte gated da `profili.ruolo='admin'`. La shell condivisa dell'area Admin è generata da `js/admin-shell.js` e stilizzata da `css/admin-shell.css`: sidebar sinistra persistente su desktop, drawer su mobile e area operativa a destra. Le tre pagine KPI aggiungono `css/admin-kpi.css`; Consumer e Business condividono `js/admin-kpi-vendita-consumer.js`, mentre il Call Center usa `js/admin-kpi-call-center.js`. JS condiviso Mirox esposto su `window`:
 
 `moduli/anagrafiche.html` è la pagina del reparto Post-Vendita per la consultazione dell'intera tabella `anagrafica`: la dashboard la espone come card nel tab Post-Vendita; mostra cluster, ragione sociale, cellulare e comune, apre gli altri campi in un popup, applica filtri server-side e pagina a 50 righe. Il filtro comuni è un multi-selettore ricercabile alimentato dai valori realmente presenti a DB e consente fino a 30 scelte contemporanee. Tutti gli account attivi possono modificare i campi anagrafici dal popup, ma il salvataggio parte solo dopo una conferma `MiroxUI`; Comune usa autocomplete ISTAT server-side, provincia viene compilata automaticamente e i valori legacy restano modificabili se la località non cambia. La function applica allowlist, validazione e controllo ottimistico su `updated_at`. Il tasto di eliminazione è mostrato solo agli admin e la function rifiuta comunque utenti non-admin o righe collegate a qualunque storico CRM. Il browser non legge né scrive direttamente le tabelle: usa `gestisci-anagrafiche`, che valida il JWT e genera anche l'export `.xlsx` completo tramite `fflate@0.8.2`.
 
@@ -126,16 +126,17 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 | `js/mirox-upload.js` | `window.MiroxUpload` | drag-drop binding su `.mx-drop-zone` e `.file-drop`; anteprima PDF prima di accettare file selezionati/trascinati (`previewPdfFile`, `previewPdfFiles`, `confirmFilesForInput`) |
 | `js/mirox-folder.js` | `window.MiroxFolder` | `build(oldName, newName, date)` per nomi cartella Storage |
 | `js/mirox-mailer.js` | `window.MiroxMailer` | `send({to, template, vars})` |
-| `js/admin-shell.js` | `window.MiroxAdminShell` | Shell comune delle pagine `admin*.html`: genera sidebar a reparti, evidenzia il modulo corrente, gestisce accordion, drawer mobile, profilo e logout. `Configurazioni` contiene i 4 moduli correnti; `KPI` contiene `Vendita - Consumer` e `Vendita - Business` |
+| `js/admin-shell.js` | `window.MiroxAdminShell` | Shell comune delle pagine `admin*.html`: genera sidebar a reparti, evidenzia il modulo corrente, gestisce accordion, drawer mobile, profilo e logout. `KPI` contiene `Vendita - Consumer`, `Vendita - Business` e `Call Center` |
 | `js/vendita-storage-helper.js` | `uploadVenditaDocumento(...)` | wrapper upload PDF via Netlify function |
 
 ### 2. Server (`/netlify/functions/`, Node >=22)
 
-Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i cron Netlify, `public-prenota`, `guardian-telegram-webhook` e `guardian-codex-worker`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `guardian-telemetry-ingest` è autenticata e accetta soltanto eventi tecnici a schema chiuso; `guardian-codex-worker` è protetta da HMAC e da un lease server-only. Il webhook Guardian e' una seconda eccezione pubblica ma richiede sia il secret token Telegram sia il `chat_id` di Mirko. Nessuno degli endpoint è un endpoint anonimo generico. `admin-vendita-config`, `admin-kpi-vendita-consumer`, `gestisci-controllo-fissi`, `elimina-vendita-contratto`, le action manuali di `gestisci-controllo-lg` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. Le funzioni Guardian condividono inoltre `guardian-telemetry`, `guardian-triage`, `with-telemetry` e l'outbox dell'Observer:
+Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i cron Netlify, `public-prenota`, `guardian-telegram-webhook` e `guardian-codex-worker`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `guardian-telemetry-ingest` è autenticata e accetta soltanto eventi tecnici a schema chiuso; `guardian-codex-worker` è protetta da HMAC e da un lease server-only. Il webhook Guardian e' una seconda eccezione pubblica ma richiede sia il secret token Telegram sia il `chat_id` di Mirko. Nessuno degli endpoint è un endpoint anonimo generico. `admin-vendita-config`, `admin-kpi-vendita-consumer`, `admin-kpi-call-center`, `gestisci-controllo-fissi`, `elimina-vendita-contratto`, le action manuali di `gestisci-controllo-lg` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. Le funzioni Guardian condividono inoltre `guardian-telemetry`, `guardian-triage`, `with-telemetry` e l'outbox dell'Observer:
 
 - `vendita-config.js` (GET) — catalogo per wizard
 - `admin-vendita-config.js` (GET/POST action-based) — CRUD admin offerte/opzioni/reload + replace regole documentali
 - `admin-kpi-vendita-consumer.js` (GET) — endpoint admin-only condiviso dai KPI Vendita Consumer e Business. Accetta soltanto `cluster=Consumer|Business`, poi aggrega Mobile, Fisso, Energia/Luce & Gas, Allarmi e Assicurazioni per anno/punto vendita. Combina `vendita_contratti` con le tabelle post-vendita per stati, tecnologie e attivazioni; legge inoltre modalità di pagamento Allarmi e `punteggio_gara_totale` Assicurazioni. Produce il confronto sugli operatori canonici leggendo esclusivamente `profili.id`, `profili.nome` e `profili.alias_di`.
+- `admin-kpi-call-center.js` (GET) — endpoint admin-only che unisce le chiamate standard e outbound, aggrega gli appuntamenti per giorno e operatrice e restituisce serie annuali per le viste giornaliera, settimane del mese e mensile. `created_at` determina il giorno in cui un appuntamento è stato fissato; presenza, vinta/persa e annullamento seguono `data_ora`. Consolida gli alias tramite `profili.alias_di` e non modifica le tabelle Call Center condivise.
 - `crea-vendita-pratica-carrello.js` (POST action-based) — `create`: anagrafica upsert → pratica `bozza` → N contratti, PDA e validazioni; l'operatore è derivato dal JWT e non dal payload. I PDA di più contratti della stessa categoria vengono promossi con suffisso progressivo per evitare collisioni Storage. I quattro componenti punteggio sono letti dal catalogo con parser stretto, poi confrontati con la riga realmente restituita dal DB: una divergenza attiva il rollback della pratica in bozza. `finalize`: dopo tutti gli upload passa la pratica a `inviata` e chiude gli eventi CC. `rollback_upload_failure`: elimina in modo compensativo pratica `bozza`, contratti, record documento e file già caricati. Le action sono idempotenti e consentite solo all'operatore proprietario o a un admin. Il reinserimento è validato anche server-side su stessa anagrafica, categoria, mese solare Europe/Rome e stato post-vendita. Cellulare obbligatorio; email obbligatoria per Consumer/Business e facoltativa per Turista.
 - `upload-vendita-documento.js` (POST multipart busboy, max 20MB) — accetta solo file con MIME e firma `%PDF-`, verifica proprietà operatore/admin per le bozze e consente agli operatori attivi la gestione delle pratiche `inviata` da Verifica Contratti. Valida relazioni pratica/anagrafica/contratto, deriva il path dalla pratica a DB e usa come `uploaded_by` il profilo autenticato. Rollback del file se l'INSERT DB fallisce. In staging con `temp_session_id` salva in `temp/<sess>/` senza record DB.
 - `upload-documento-modulo.js` (POST multipart busboy, max 20MB) — upload server-side autenticato per `apri-chiudi-files`, `switch-sim-files`, `comodato-files`, `rimborsi-files`, `protecta-files`, `segnalazioni-files`. Verifica firma `%PDF-`, bucket e struttura path tramite allowlist; usa `upsert:false`, genera un suffisso anti-collisione e registra `uploaded_by` dal JWT nei metadati Storage.
@@ -549,7 +550,7 @@ Form esterno per prenotazioni dal sito/social. **NON in dashboard** (non ha auth
 
 ## Pannello Admin Mirox (dal 2026-06-24, shell condivisa dal 2026-07-27)
 
-Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile dalla dashboard come bottone topbar "Admin" (disabilitato per operatori). Tutte le pagine riusano `css/admin-shell.css` + `js/admin-shell.js`: a sinistra compare la navigazione per reparti, a destra il contenuto della pagina. `Configurazioni` è aperto di default e contiene i quattro moduli correnti; `KPI` contiene `Vendita - Consumer` e `Vendita - Business` e si apre automaticamente nelle relative pagine. Sotto gli 860 px la sidebar diventa un drawer. La shell deve mantenere continuità con il design system esistente: logo ufficiale `assets/logo.png`, palette chiara, arancione Mirox, variabili colore condivise, radius e ombre di `css/style.css`; non introdurre marchi o simboli sostitutivi.
+Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile dalla dashboard come bottone topbar "Admin" (disabilitato per operatori). Tutte le pagine riusano `css/admin-shell.css` + `js/admin-shell.js`: a sinistra compare la navigazione per reparti, a destra il contenuto della pagina. `Configurazioni` è aperto di default; `KPI` contiene `Vendita - Consumer`, `Vendita - Business` e `Call Center` e si apre automaticamente nelle relative pagine. Sotto gli 860 px la sidebar diventa un drawer. La shell deve mantenere continuità con il design system esistente: logo ufficiale `assets/logo.png`, palette chiara, arancione Mirox, variabili colore condivise, radius e ombre di `css/style.css`; non introdurre marchi o simboli sostitutivi.
 
 ### Pagine
 
@@ -562,6 +563,15 @@ Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile
 | `admin-gare.html` | Configurazione metriche, obiettivi mensili, compensi e operatori in gara |
 | `admin-kpi-vendita-consumer.html` | Reparto KPI, modulo Vendita - Consumer. Tab attive nell'ordine Mobile, Fisso, Luce & Gas, Allarmi, Assicurazioni. Filtri anno/negozio, tabelle KPI mensili e confronto operatori dinamico |
 | `admin-kpi-vendita-business.html` | Reparto KPI, modulo Vendita - Business. Stessa UI e stesse regole del Consumer, limitate a `cluster_cliente='Business'` |
+| `admin-kpi-call-center.html` | Reparto KPI, modulo Call Center. Filtri anno/mese/vista/operatrice, riepilogo, dettaglio giornaliero o settimanale o mensile, confronto operatrici e tassi di efficacia |
+
+### Regole KPI Call Center
+
+- `Chiamate fatte` somma le righe di `chiamate` e `call_center_lead_outbound_chiamate` nel giorno di `data_ora` in `Europe/Rome`; `Con risposta` esclude soltanto `esito='non_risposto'`.
+- `Appuntamenti fissati` usa `appuntamenti.created_at`, così misura il lavoro svolto nel giorno. Presentati, non presentati, vinti, persi e annullati usano invece il giorno previsto in `appuntamenti.data_ora`.
+- `Chiusi / vinti` corrisponde a `esito_finale='vinta'`; `Persi` a `esito_finale='persa'`; `Non presentati` a `presentato='no'` e `Annullati` a `stato='annullato'`.
+- I dati sono attribuiti a `operatore_id` per le chiamate e `fissato_da_operatore_id` per gli appuntamenti. `profili.alias_di` consolida gli account storici; gli appuntamenti pubblici senza operatrice sono mostrati come `Online / non assegnato`.
+- I tassi aggiuntivi sono: risposta = con risposta / chiamate; appuntamento = fissati / chiamate; presenza = presentati / (presentati + non presentati); chiusura = vinti / (vinti + persi).
 
 ### Regole KPI Vendita - Consumer
 
@@ -612,8 +622,8 @@ Il bottone "Admin" dentro `moduli/upload-contratti-vendita.html` è stato **rimo
 
 KONA Call Director vive nelle tabelle server-only `kona_call_director_*`, nelle
 function `kona-call-director-*` e nelle due pagine operatore/admin. Prima di
-modificarlo o attivarlo leggere `docs/KONA_CALL_DIRECTOR.md` e la migration
-`database/072_kona_call_director.sql`.
+modificarlo o attivarlo leggere `docs/KONA_CALL_DIRECTOR.md` e le migration
+`database/072_kona_call_director.sql`-`074_kona_call_director_agente_unificato.sql`.
 
 Regole permanenti:
 
@@ -624,18 +634,36 @@ Regole permanenti:
 
 - l'attivazione richiede insieme `KONA_CALL_DIRECTOR_ENABLED=true`, toggle
   globale DB e profilo operatore abilitato; l'env assente deve restare spento;
-- la migration `072` e' applicata soltanto al Supabase test dedicato
-  `yyorullxmdxhnunsfwwa`; production non contiene tabelle KONA Call Director;
+- le migration `072`, `073` e `074` sono applicate soltanto al Supabase test
+  dedicato `yyorullxmdxhnunsfwwa`; production non contiene tabelle KONA Call
+  Director;
 - il sito Netlify test `mirox-kona-call-director-test.netlify.app` e' collegato
-  alla branch `kona-call-director`; il commit staging `b4cf578` con correzioni,
-  test e bootstrap e' pubblicato con entrambi gli interruttori env KONA a
-  `false` e service role protetta del solo Supabase test;
+  alla branch `kona-call-director`, usa la service role protetta del solo
+  Supabase test e pubblica automaticamente ogni push della branch;
 - il bootstrap test e' `database/staging/003_kona_call_director_bootstrap.sql`:
   schema minimo senza dati production; le tabelle KONA e tutte le scritture
   sono service-role-only, mentre `authenticated` legge soltanto la propria
   riga `profili` per completare il login CRM;
 - le chiamate Business standard richiedono almeno una categoria esplicitamente
   approvata nel piano; nessuna categoria significa nessuna chiamata standard;
+- **doppia interfaccia, una sola fonte di verita'**: quando KONA e' attivo per
+  un'operatrice non-admin, `js/cc-header.js` (via `kona-call-director-route`)
+  nasconde le tab manuali e reindirizza a KONA l'accesso diretto alle pagine
+  manuali; l'admin mantiene il manuale + tab `KONA CD` (`adminOnly`) + pannello
+  admin. Gli esiti KONA scrivono nelle tabelle canoniche (`chiamate`,
+  `appuntamenti`, `blacklist`) oltre che negli audit `kona_call_director_*`: mai
+  una seconda copia dei dati definitivi. Per i non-admin un errore del routing
+  blocca il contenuto della pagina invece di mostrare implicitamente il manuale;
+- `kona-call-director-operator` ingloba lookup/creazione anagrafica Consumer,
+  ricerca istantanea per numero, storico della giornata e correzione esito nella
+  stessa giornata. La correzione usa la RPC atomica
+  `kona_cd_correggi_esito_v1`; l'audit
+  `kona_call_director_correzioni_esito` e' append-only e il browser non ha
+  grant diretti;
+- un guasto AI reale e allowlisted attiva un failover di 30 minuti limitato al
+  profilo: `kona_call_director_failover` consente il sistema manuale soltanto
+  per quella sessione operativa e accoda una notifica Telegram senza PII. Il
+  routing espone `manual_fallback`; il bypass non disattiva KONA per gli altri;
 - la pagina operatore e' una macchina a stati esplicita (una sola schermata
   visibile): `welcome` → `briefing` → `contact` → `outcome` → `followup`/`calendar`
   → `transition` → `consumer`/`negozio` → `completed`/`error`. Il briefing
@@ -644,7 +672,9 @@ Regole permanenti:
   per famiglia, mai fra task della stessa famiglia. Il calendario compare solo
   dopo `Appuntamento`: Business usa Google personale, Consumer usa lo schermo
   `negozio` che riusa `get_slot_disponibili` + prenotazione del flusso CC
-  (migration additiva `073` per l'esito `appuntamento`); KONA avvia da solo la
+  (migration additiva `073` per l'esito `appuntamento`); la scheda Consumer
+  esegue lookup CF/P.IVA e upsert completo dell'anagrafica senza aprire
+  `registra-chiamata.html`; KONA avvia da solo la
   sessione Consumer dal piano (`avvia_consumer`), leggendo il campo canonico
   `consumer` e il legacy Telegram `categoria_sessione`; la prenotazione negozio
   viene rimossa in compensazione se la registrazione dell'esito fallisce;

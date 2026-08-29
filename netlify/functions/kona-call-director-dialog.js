@@ -29,6 +29,7 @@ const {
 } = require('./_lib/kona-cd-google');
 const { addDaysStr, todayRomeStr } = require('./_lib/kona-cd-time');
 const { enqueueNotifica } = require('./_lib/kona-cd-notifiche');
+const { registraChiamataConsumerCanonica, upsertAnagraficaConsumer } = require('./_lib/kona-cd-engine');
 const { cleanLog, isUuid, jsonError, jsonOk, parseNumber, readJsonBody } = require('./_lib/kona-cd-util');
 
 exports.handler = async (event) => {
@@ -67,7 +68,7 @@ exports.handler = async (event) => {
       case 'negozio_slot':
         return await azioneNegozioSlot(client, body);
       case 'negozio_prenota':
-        return await azioneNegozioPrenota(client, body, profiloId);
+        return await azioneNegozioPrenota(client, cfg, body, profiloId);
       default:
         return jsonError(400, 'Action non valida');
     }
@@ -118,7 +119,10 @@ async function azioneValutaAltro(client, cfg, body) {
     webSearch: false,
     details: { skip_reason: 'altro' }
   });
-  if (!result.ok) return jsonOk({ valutazione: null, motivo: result.error });
+  if (!result.ok) {
+    const failover = ['no_api_key', 'auth_error', 'unavailable', 'timeout', 'network_error', 'rate_limited', 'generic_error'].includes(result.error_code);
+    return jsonOk({ valutazione: null, motivo: result.error, error_code: result.error_code, ai_unavailable: failover });
+  }
   return jsonOk({ valutazione: result.value });
 }
 
@@ -510,7 +514,7 @@ async function azioneNegozioSlot(client, body) {
 // Prenota un appuntamento nel calendario del negozio per un contatto Consumer
 // (fonte 'interno', come il flusso CC esistente) e registra l'esito
 // 'appuntamento' nella sessione Consumer. Nessun Google Calendar personale.
-async function azioneNegozioPrenota(client, body, profiloId) {
+async function azioneNegozioPrenota(client, cfg, body, profiloId) {
   const nome = String(body.nome || '').trim().slice(0, 120);
   const telefono = String(body.telefono || '').trim();
   const motivo = String(body.motivo || '').trim().slice(0, 300) || 'Appuntamento Consumer';
@@ -538,6 +542,14 @@ async function azioneNegozioPrenota(client, body, profiloId) {
   if (!sessione) return jsonError(409, 'Nessuna sessione Consumer attiva per questa categoria');
 
   const { data: profilo } = await client.from('profili').select('nome').eq('id', profiloId).maybeSingle();
+  let anagraficaId = isUuid(body.anagrafica_id) ? body.anagrafica_id : null;
+  let clienteCanonico = null;
+  if (body.cliente && typeof body.cliente === 'object') {
+    const upsert = await upsertAnagraficaConsumer(client, body.cliente, profiloId);
+    clienteCanonico = upsert.anagrafica;
+    anagraficaId = clienteCanonico.id;
+  }
+  if (!anagraficaId) return jsonError(400, 'Anagrafica Consumer obbligatoria');
   const durata = 30;
   const { data: appuntamento, error: appError } = await client.from('appuntamenti').insert({
     nome,
@@ -545,7 +557,7 @@ async function azioneNegozioPrenota(client, body, profiloId) {
     telefono,
     motivo,
     note: String(body.note || '').slice(0, 500) || null,
-    anagrafica_id: isUuid(body.anagrafica_id) ? body.anagrafica_id : null,
+    anagrafica_id: anagraficaId,
     fissato_da_operatore_id: profiloId,
     fissato_da_nome: profilo?.nome || null,
     data_ora: start.toISOString(),
@@ -554,6 +566,33 @@ async function azioneNegozioPrenota(client, body, profiloId) {
     stato: 'confermato'
   }).select('id').single();
   if (appError || !appuntamento) return jsonError(500, appError?.message || 'Prenotazione negozio fallita');
+
+  // Scrittura CANONICA: anche la chiamata Consumer va nella tabella `chiamate`
+  // (stessa del Call Center manuale) con esito 'appuntamento' e collegamento
+  // all'appuntamento, cosi' Elenco Chiamate la vede immediatamente.
+  let chiamataId = null;
+  try {
+    chiamataId = await registraChiamataConsumerCanonica(client, cfg, {
+      operatoreId: profiloId,
+      operatoreNome: profilo?.nome || null,
+      anagraficaId,
+      cfPiva: clienteCanonico?.cf_piva || String(body.cf_piva || '').trim(),
+      nomeCliente: clienteCanonico?.nome_referente || clienteCanonico?.ragione_sociale || nome,
+      cellulare: clienteCanonico?.cellulare || telefono,
+      copertura: String(body.copertura || '').trim(),
+      esito: 'appuntamento',
+      motivo,
+      note: String(body.note || '').slice(0, 500) || null,
+      appuntamentoId: appuntamento.id
+    });
+    const { error: linkError } = await client.from('appuntamenti').update({ chiamata_id: chiamataId }).eq('id', appuntamento.id);
+    if (linkError) throw new Error(linkError.message || 'Collegamento chiamata-appuntamento fallito');
+  } catch (e) {
+    if (chiamataId) await client.from('chiamate').delete().eq('id', chiamataId);
+    const { error: rollbackError } = await client.from('appuntamenti').delete().eq('id', appuntamento.id);
+    if (rollbackError) return jsonError(500, 'Scrittura chiamata canonica fallita; appuntamento da riconciliare');
+    return jsonError(500, e?.message || 'Scrittura chiamata canonica fallita');
+  }
 
   // Registra l'esito 'appuntamento'. Se fallisce, rollback compensativo della
   // prenotazione per non lasciare un appuntamento invisibile nei conteggi KONA.
@@ -565,10 +604,12 @@ async function azioneNegozioPrenota(client, body, profiloId) {
     note: `appuntamento:${appuntamento.id}`
   });
   if (attivitaError) {
+    const { error: callRollbackError } = await client.from('chiamate').delete().eq('id', chiamataId);
     const { error: rollbackError } = await client.from('appuntamenti').delete().eq('id', appuntamento.id);
+    if (callRollbackError) return jsonError(500, 'Registrazione esito fallita; chiamata da riconciliare');
     if (rollbackError) return jsonError(500, 'Registrazione esito fallita; appuntamento da riconciliare');
     return jsonError(500, attivitaError.message || 'Registrazione esito Consumer fallita');
   }
 
-  return jsonOk({ appuntamento: { id: appuntamento.id, data_ora: start.toISOString() }, registrata: true });
+  return jsonOk({ appuntamento: { id: appuntamento.id, data_ora: start.toISOString() }, chiamata_id: chiamataId, registrata: true });
 }

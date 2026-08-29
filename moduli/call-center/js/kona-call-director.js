@@ -13,6 +13,7 @@
   var TASK = API_BASE + 'kona-call-director-task';
   var STATUS = API_BASE + 'kona-call-director-status';
   var DIALOG = API_BASE + 'kona-call-director-dialog';
+  var OPERATOR = API_BASE + 'kona-call-director-operator';
 
   var _profilo = null;
   var _stato = null;
@@ -31,6 +32,9 @@
   var _negozioDay = null;
   var _negozioSelected = null;
   var _salvataggioInCorso = false;
+  var _consumer = null;
+  var _pausa = false;
+  var _ricercaMode = 'inbound';
 
   var ESITI_PER_TIPO = {
     conferma_appuntamento_business: [
@@ -67,9 +71,9 @@
     { esito: 'non_risposto', label: 'Non risposto' },
     { esito: 'non_interessato', label: 'Non interessato' },
     { esito: 'passa_in_negozio', label: 'Passa in negozio' },
-    { esito: 'interessato', label: 'Interessato' },
+    { esito: 'ricontattare', label: 'Ricontattare' },
+    { esito: 'passa_a_cerea', label: 'Passa a Cerea' },
     { esito: 'appuntamento', label: 'Appuntamento' },
-    { esito: 'altro', label: 'Altro' }
   ];
 
   var SKIP_REASONS = [
@@ -137,7 +141,12 @@
   async function apiFetch(endpoint, opts) {
     var response = await root.MiroxApi.fetch(endpoint, opts);
     var result = await response.json().catch(function () { return {}; });
-    if (!response.ok) throw new Error(result.error || ('Errore ' + response.status));
+    if (!response.ok) {
+      var error = new Error(result.error || ('Errore ' + response.status));
+      error.code = result.error_code || result.reason || null;
+      error.payload = result;
+      throw error;
+    }
     return result;
   }
 
@@ -147,7 +156,32 @@
     document.querySelectorAll('.kona-screen').forEach(function (s) {
       s.classList.toggle('active', s.getAttribute('data-screen') === screen);
     });
+    aggiornaAvanzamento(screen);
     window.scrollTo(0, 0);
+  }
+
+  function aggiornaAvanzamento(screen) {
+    var index = ['welcome', 'briefing'].indexOf(screen) !== -1 ? 1
+      : ['contact', 'consumer'].indexOf(screen) !== -1 ? 2
+        : ['outcome', 'followup', 'calendar', 'negozio'].indexOf(screen) !== -1 ? 3
+          : ['transition', 'completed'].indexOf(screen) !== -1 ? 4 : 1;
+    for (var i = 1; i <= 4; i += 1) {
+      var el = document.getElementById('konaProgress' + i);
+      if (el) el.className = i < index ? 'done' : i === index ? 'current' : '';
+    }
+    var labels = {
+      welcome: ['KONA e\' pronto', 'Avvia la giornata quando sei pronta.'],
+      briefing: ['Briefing della giornata', 'Controlla il piano preparato per oggi.'],
+      contact: ['Prossimo contatto', 'Ti mostro una sola lavorazione alla volta.'],
+      consumer: ['Acquisizione Consumer', 'Cerchiamo o censiamo il cliente senza uscire da KONA.'],
+      outcome: ['Registrazione esito', 'Salvo il risultato nel Call Center condiviso.'],
+      calendar: ['Calendario Business', 'Mostro soltanto le disponibilita\' reali del calendario collegato.'],
+      negozio: ['Calendario negozio', 'Scegli uno slot Consumer disponibile.'],
+      completed: ['Giornata completata', 'Le attivita\' registrate sono gia\' visibili nel sistema manuale.']
+    };
+    var copy = labels[screen] || ['KONA Call Director', 'Sto gestendo il flusso operativo.'];
+    setText('konaAgentStatus', copy[0]);
+    setText('konaAgentHint', copy[1]);
   }
 
   function mostraErrore(message) {
@@ -444,6 +478,10 @@
       var motivo = '';
       try {
         var valutazione = await apiFetch(DIALOG, jsonBody({ action: 'valuta_altro', spiegazione: spiegazione, tipo_contatto: eBusiness() ? 'business' : 'standard' }));
+        if (valutazione.ai_unavailable) {
+          await attivaFailoverAi(valutazione.error_code, valutazione.motivo);
+          return;
+        }
         if (valutazione.valutazione) {
           motivo = valutazione.valutazione.motivo || '';
           var suggerimento = valutazione.valutazione.esito === 'procedi' ? 'Procedi con l\'esclusione.' : valutazione.valutazione.esito === 'richiedi_dettaglio' ? 'Chiedi ulteriori dettagli.' : 'Verifica manuale necessaria.';
@@ -456,6 +494,16 @@
         toast('Valutazione non disponibile: ' + e.message);
       }
       await salvaEsito('altro', { motivo: motivo });
+    }
+  }
+
+  async function attivaFailoverAi(codice, dettaglio) {
+    try {
+      var res = await apiFetch(OPERATOR, jsonBody({ action: 'attiva_failover', codice: codice, dettaglio: dettaglio }));
+      toast('KONA non e\' disponibile. Passaggio temporaneo al Call Center manuale.', 'warning');
+      root.location.href = res.redirect || 'registra-chiamata.html';
+    } catch (e) {
+      mostraErrore('KONA non e\' disponibile e il passaggio al sistema manuale non e\' riuscito: ' + e.message);
     }
   }
 
@@ -631,6 +679,11 @@
     if (sel.value === 'altro') {
       try {
         var valutazione = await apiFetch(DIALOG, jsonBody({ action: 'valuta_altro', spiegazione: spiegazione, tipo_contatto: eBusiness() ? 'business' : 'standard' }));
+        if (valutazione.ai_unavailable) {
+          hide('modalSkip');
+          await attivaFailoverAi(valutazione.error_code, valutazione.motivo);
+          return;
+        }
         if (valutazione.valutazione) motivo = valutazione.valutazione.motivo || '';
       } catch (e) {
         toast('Valutazione non disponibile: ' + e.message);
@@ -760,7 +813,7 @@
     }
   }
 
-  // -- Consumer (lista cartacea, KONA regista) --------------------------------
+  // -- Consumer completamente integrato --------------------------------------
 
   function renderConsumer() {
     var consumer = _stato && _stato.briefing && _stato.briefing.consumer;
@@ -773,6 +826,7 @@
       b.className = 'btn btn-secondary btn-sm';
       b.textContent = e.label;
       b.onclick = function () {
+        if (!_consumer) { toast('Cerca prima il cliente.'); return; }
         if (e.esito === 'appuntamento') apriNegozio();
         else registraConsumer(e.esito);
       };
@@ -780,23 +834,119 @@
     });
   }
 
+  function campo(id) {
+    var el = document.getElementById(id);
+    return el ? String(el.value || '').trim() : '';
+  }
+
+  function datiConsumer() {
+    return {
+      cf_piva: campo('konaConsumerCf').toUpperCase(),
+      cluster: 'Consumer',
+      ragione_sociale: campo('konaConsumerRagione'),
+      nome_referente: campo('konaConsumerReferente'),
+      cellulare: campo('konaConsumerTelefono'),
+      email: campo('konaConsumerEmail'),
+      provincia: campo('konaConsumerProvincia'),
+      comune: campo('konaConsumerComune'),
+      via: campo('konaConsumerVia'),
+      civico: campo('konaConsumerCivico')
+    };
+  }
+
+  function validaConsumer() {
+    var dati = datiConsumer();
+    var required = ['cf_piva', 'ragione_sociale', 'nome_referente', 'cellulare', 'provincia', 'comune', 'via', 'civico'];
+    var missing = required.find(function (key) { return !dati[key]; });
+    if (missing) return 'Completa tutti i dati obbligatori dell\'anagrafica.';
+    if (!campo('konaConsumerCopertura') || !campo('konaConsumerMotivo')) return 'Seleziona copertura e motivo della chiamata.';
+    return null;
+  }
+
+  function riempiConsumer(cliente) {
+    var c = cliente || {};
+    var map = {
+      konaConsumerRagione: c.ragione_sociale,
+      konaConsumerReferente: c.nome_referente,
+      konaConsumerTelefono: c.cellulare,
+      konaConsumerEmail: c.email,
+      konaConsumerProvincia: c.provincia,
+      konaConsumerComune: c.comune,
+      konaConsumerVia: c.via,
+      konaConsumerCivico: c.civico
+    };
+    Object.keys(map).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.value = map[id] || '';
+    });
+  }
+
+  async function cercaConsumer() {
+    var cf = campo('konaConsumerCf').toUpperCase();
+    if (!cf) { toast('Inserisci il codice fiscale o la P.IVA.'); return; }
+    try {
+      var res = await apiFetch(OPERATOR, jsonBody({ action: 'cerca_consumer', cf_piva: cf }));
+      if (res.blacklist) {
+        _consumer = null;
+        hide('konaConsumerForm');
+        toast('Il contatto e\' in Black List e non puo\' essere lavorato.', 'danger');
+        return;
+      }
+      _consumer = { anagrafica_id: res.cliente ? res.cliente.id : null };
+      riempiConsumer(res.cliente);
+      setText('konaConsumerLookupStatus', res.cliente
+        ? 'Cliente trovato. Verifica i dati e prosegui con la chiamata.'
+        : 'Cliente non presente. KONA lo creera\' dopo la compilazione completa.');
+      show('konaConsumerForm');
+    } catch (e) {
+      toast(e.message, 'danger');
+    }
+  }
+
   async function registraConsumer(esito) {
     var categoria = _stato && _stato.consumer_modalita;
     if (!categoria) { toast('Attiva prima una modalita' + ' Consumer.'); return; }
-    try {
-      var nota = document.getElementById('konaConsumerNota').value || '';
-      var res = await apiFetch(TASK, jsonBody({ action: 'registra_attivita_consumer', categoria: categoria, esito: esito, note: nota }));
-      setText('konaConsumerStatus', 'Chiamate tracciate nella sessione: ' + (res.totale_sessione || 0));
-      document.getElementById('konaConsumerNota').value = '';
-      toast('Esito registrato. Prosegui con il prossimo contatto.');
-    } catch (e) {
-      toast(e.message);
+    var errore = validaConsumer();
+    if (errore) { toast(errore, 'warning'); return; }
+    if (esito === 'ricontattare') {
+      toast('KONA assegnera\' automaticamente data e fascia del prossimo ricontatto.');
     }
+    if (_salvataggioInCorso) return;
+    _salvataggioInCorso = true;
+    try {
+      var res = await apiFetch(OPERATOR, jsonBody({
+        action: 'salva_consumer',
+        categoria: categoria,
+        cliente: datiConsumer(),
+        copertura: campo('konaConsumerCopertura'),
+        motivo: campo('konaConsumerMotivo'),
+        esito: esito,
+        note: campo('konaConsumerNota')
+      }));
+      setText('konaConsumerStatus', 'Chiamate tracciate nella sessione: ' + (res.totale_sessione || 0));
+      resetConsumer();
+      toast('Chiamata salvata nel Call Center condiviso. Prosegui con il prossimo contatto.', 'success');
+    } catch (e) {
+      toast(e.message, 'danger');
+    } finally {
+      _salvataggioInCorso = false;
+    }
+  }
+
+  function resetConsumer() {
+    _consumer = null;
+    ['konaConsumerCf','konaConsumerRagione','konaConsumerReferente','konaConsumerTelefono','konaConsumerEmail','konaConsumerProvincia','konaConsumerComune','konaConsumerVia','konaConsumerCivico','konaConsumerCopertura','konaConsumerMotivo','konaConsumerNota'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    hide('konaConsumerForm');
   }
 
   // -- Calendario negozio (Consumer) ------------------------------------------
 
   async function apriNegozio() {
+    var errore = validaConsumer();
+    if (errore) { toast(errore, 'warning'); return; }
     _negozioSlot = [];
     _negozioDay = null;
     _negozioSelected = null;
@@ -805,6 +955,8 @@
     hide('konaNegozioSlotWrap');
     hide('konaNegozioRiepilogo');
     document.getElementById('konaNegozioConferma').disabled = true;
+    var cliente = datiConsumer();
+    setText('konaNegozioCliente', (cliente.nome_referente || cliente.ragione_sociale) + ' - ' + cliente.cellulare + ' - ' + cliente.cf_piva);
     go('negozio');
     try {
       var domani = new Date();
@@ -855,9 +1007,9 @@
 
   async function confermaNegozio() {
     if (!_negozioSelected || _salvataggioInCorso) return;
-    var nome = document.getElementById('konaNegozioNome').value.trim();
-    var telefono = document.getElementById('konaNegozioTelefono').value.trim();
-    if (!nome || !telefono) { toast('Nome e telefono sono obbligatori.'); return; }
+    var cliente = datiConsumer();
+    var nome = cliente.nome_referente || cliente.ragione_sociale;
+    var telefono = cliente.cellulare;
     var categoria = _stato && _stato.consumer_modalita;
     if (!categoria) { toast('Nessuna modalita' + ' Consumer attiva.'); return; }
     _salvataggioInCorso = true;
@@ -865,17 +1017,18 @@
       await apiFetch(DIALOG, jsonBody({
         action: 'negozio_prenota',
         nome: nome,
-        cf_piva: document.getElementById('konaNegozioCf').value.trim(),
+        cf_piva: cliente.cf_piva,
         telefono: telefono,
-        motivo: document.getElementById('konaNegozioMotivo').value.trim(),
+        motivo: campo('konaConsumerMotivo'),
+        copertura: campo('konaConsumerCopertura'),
+        note: campo('konaConsumerNota'),
         data_ora: _negozioSelected.start,
-        categoria: categoria
+        categoria: categoria,
+        anagrafica_id: _consumer && _consumer.anagrafica_id,
+        cliente: cliente
       }));
       toast('Appuntamento negozio prenotato ed esito registrato.');
-      ['konaNegozioNome', 'konaNegozioCf', 'konaNegozioTelefono', 'konaNegozioMotivo'].forEach(function (id) {
-        var el = document.getElementById(id);
-        if (el) el.value = '';
-      });
+      resetConsumer();
       go('consumer');
     } catch (e) {
       toast(e.message);
@@ -884,12 +1037,160 @@
     }
   }
 
-  function apriRegistraChiamata() {
-    root.location.href = 'registra-chiamata.html';
-  }
-
   function terminaGiornata() {
     go('completed');
+  }
+
+  // -- Ricerca inbound, storico e correzione esiti --------------------------
+
+  function apriRicercaInbound() {
+    _ricercaMode = 'inbound';
+    setText('konaRicercaTitolo', 'Ricerca numero in entrata');
+    var input = document.getElementById('konaRicercaInput');
+    input.value = '';
+    input.placeholder = 'Inserisci il numero che ha richiamato';
+    document.getElementById('konaRicercaRisultati').textContent = '';
+    show('modalKonaRicerca');
+    setTimeout(function () { input.focus(); }, 0);
+  }
+
+  async function apriStorico() {
+    _ricercaMode = 'storico';
+    setText('konaRicercaTitolo', 'Chiamate di oggi');
+    var input = document.getElementById('konaRicercaInput');
+    input.value = '';
+    input.placeholder = 'Filtra per numero, nome o CF';
+    show('modalKonaRicerca');
+    await caricaStorico('');
+  }
+
+  function chiudiRicerca() {
+    hide('modalKonaRicerca');
+  }
+
+  async function eseguiRicercaInbound() {
+    var query = campo('konaRicercaInput');
+    if (_ricercaMode === 'storico') { await caricaStorico(query); return; }
+    if (!query) { toast('Inserisci un numero di telefono.'); return; }
+    try {
+      var res = await apiFetch(OPERATOR, jsonBody({ action: 'cerca_inbound', telefono: query }));
+      renderRicerca(res.chiamate || [], res.anagrafiche || [], res.lead_business || []);
+    } catch (e) {
+      toast(e.message, 'danger');
+    }
+  }
+
+  async function caricaStorico(query) {
+    try {
+      var res = await apiFetch(OPERATOR, jsonBody({ action: 'storico', query: query || '' }));
+      renderRicerca(res.chiamate || [], [], []);
+    } catch (e) {
+      toast(e.message, 'danger');
+    }
+  }
+
+  function aggiungiTesto(parent, tag, className, text) {
+    var el = document.createElement(tag);
+    if (className) el.className = className;
+    el.textContent = text || '';
+    parent.appendChild(el);
+    return el;
+  }
+
+  function etichettaEsito(esito) {
+    return String(esito || '').replace(/_/g, ' ');
+  }
+
+  function renderRicerca(chiamate, anagrafiche, lead) {
+    var box = document.getElementById('konaRicercaRisultati');
+    box.textContent = '';
+    if (!chiamate.length && !anagrafiche.length && !lead.length) {
+      aggiungiTesto(box, 'div', 'kona-empty', 'Nessun contatto trovato.');
+      return;
+    }
+    anagrafiche.forEach(function (a) {
+      var row = document.createElement('div'); row.className = 'kona-result';
+      aggiungiTesto(row, 'strong', '', a.nome_referente || a.ragione_sociale || 'Cliente');
+      aggiungiTesto(row, 'div', 'kona-result-meta', [a.cellulare, a.cf_piva, a.comune].filter(Boolean).join(' - '));
+      box.appendChild(row);
+    });
+    chiamate.forEach(function (c) {
+      var row = document.createElement('div'); row.className = 'kona-result';
+      var head = document.createElement('div'); head.className = 'kona-result-head';
+      aggiungiTesto(head, 'strong', '', c.nome_cliente || 'Cliente');
+      aggiungiTesto(head, 'span', 'kona-badge', etichettaEsito(c.esito));
+      row.appendChild(head);
+      aggiungiTesto(row, 'div', 'kona-result-meta', new Date(c.data_ora).toLocaleString('it-IT') + ' - ' + (c.motivo_chiamata || 'Motivo non indicato') + (c.note ? ' - ' + c.note : ''));
+      if (c.modificabile) {
+        var actions = document.createElement('div'); actions.className = 'kona-actions';
+        var button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-secondary btn-sm'; button.textContent = 'Correggi esito';
+        button.onclick = function () { apriCorrezione(c.id); };
+        actions.appendChild(button); row.appendChild(actions);
+      }
+      box.appendChild(row);
+    });
+    lead.forEach(function (l) {
+      var row = document.createElement('div'); row.className = 'kona-result';
+      aggiungiTesto(row, 'strong', '', l.ragione_sociale || 'Lead Business');
+      aggiungiTesto(row, 'div', 'kona-result-meta', [l.categoria, l.localita, l.stato_lead, l.note_ultima].filter(Boolean).join(' - '));
+      box.appendChild(row);
+    });
+  }
+
+  function apriCorrezione(id) {
+    document.getElementById('konaCorrezioneId').value = id;
+    document.getElementById('konaCorrezioneEsito').value = '';
+    document.getElementById('konaCorrezioneMotivo').value = '';
+    document.getElementById('konaCorrezioneData').value = '';
+    document.getElementById('konaCorrezioneFascia').value = '';
+    hide('konaCorrezioneRicontatto');
+    show('modalKonaCorrezione');
+  }
+
+  function chiudiCorrezione() { hide('modalKonaCorrezione'); }
+
+  function toggleCorrezioneRicontatto() {
+    if (campo('konaCorrezioneEsito') === 'ricontattare') show('konaCorrezioneRicontatto');
+    else hide('konaCorrezioneRicontatto');
+  }
+
+  async function confermaCorrezione() {
+    var id = campo('konaCorrezioneId');
+    var esito = campo('konaCorrezioneEsito');
+    var motivo = campo('konaCorrezioneMotivo');
+    if (!id || !esito || motivo.length < 3) { toast('Seleziona il nuovo esito e indica la motivazione.'); return; }
+    if (esito === 'ricontattare' && (!campo('konaCorrezioneData') || !campo('konaCorrezioneFascia'))) {
+      toast('Inserisci data e fascia del ricontatto.'); return;
+    }
+    try {
+      await apiFetch(OPERATOR, jsonBody({
+        action: 'correggi_esito', chiamata_id: id, esito: esito, motivo: motivo,
+        data_ricontatto: campo('konaCorrezioneData') || null,
+        fascia_ricontatto: campo('konaCorrezioneFascia') || null,
+        canale: _ricercaMode === 'storico' ? 'kona_storico' : 'kona_inbound'
+      }));
+      chiudiCorrezione();
+      toast('Esito corretto e audit registrato.', 'success');
+      await eseguiRicercaInbound();
+    } catch (e) {
+      toast(e.message, 'danger');
+    }
+  }
+
+  async function togglePausa() {
+    if (_salvataggioInCorso) return;
+    var target = !_pausa;
+    try {
+      if (_task) await apiFetch(TASK, jsonBody({ action: target ? 'sospendi' : 'riprendi' }));
+      await apiFetch(OPERATOR, jsonBody({ action: 'audit_pausa', stato: target ? 'pausa' : 'ripresa' }));
+      _pausa = target;
+      var btn = document.getElementById('konaPauseBtn');
+      if (btn) btn.textContent = _pausa ? 'Riprendi' : 'Pausa';
+      setText('konaAgentStatus', _pausa ? 'Giornata in pausa' : 'KONA ha ripreso la lavorazione');
+      toast(_pausa ? 'Attivita\' sospesa.' : 'Attivita\' ripresa.', 'success');
+    } catch (e) {
+      toast(e.message, 'danger');
+    }
   }
 
   // -- Completed / error ------------------------------------------------------
@@ -921,17 +1222,23 @@
   root.KonaCD = {
     annullaFollowup: annullaFollowup,
     apriNegozio: apriNegozio,
-    apriRegistraChiamata: apriRegistraChiamata,
+    apriRicercaInbound: apriRicercaInbound,
     apriSkip: apriSkip,
+    apriStorico: apriStorico,
     avvia: avvia,
     avviaChiamate: avviaChiamate,
     boot: boot,
     chiudiSkip: chiudiSkip,
+    chiudiCorrezione: chiudiCorrezione,
+    chiudiRicerca: chiudiRicerca,
+    cercaConsumer: cercaConsumer,
+    confermaCorrezione: confermaCorrezione,
     confermaFollowup: confermaFollowup,
     confermaNegozio: confermaNegozio,
     confermaSkip: confermaSkip,
     confermaSlot: confermaSlot,
     continuaDopoTransizione: continuaDopoTransizione,
+    eseguiRicercaInbound: eseguiRicercaInbound,
     indietroCalendar: indietroCalendar,
     indietroNegozio: indietroNegozio,
     iniziaChiamata: iniziaChiamata,
@@ -940,6 +1247,8 @@
     riprova: riprova,
     segnalaBlacklist: segnalaBlacklist,
     terminaGiornata: terminaGiornata,
+    toggleCorrezioneRicontatto: toggleCorrezioneRicontatto,
+    togglePausa: togglePausa,
     toggleSpiegazioneSkip: toggleSpiegazioneSkip,
     _test: { messaggioTransizione: messaggioTransizione, famiglia: famiglia, TITOLI_TIPO: TITOLI_TIPO }
   };

@@ -1196,6 +1196,129 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
   return { ok: true, esito, esaurito, notifica, tentativo, ricontatto };
 }
 
+// -- Scrittura canonica Consumer ----------------------------------------------
+
+// Mappa un esito Consumer (sessione) nel valore canonico di `chiamate.esito`.
+function mappaEsitoConsumer(esito) {
+  const map = {
+    non_risposto: 'non_risposto',
+    non_interessato: 'non_interessato',
+    passa_in_negozio: 'passa_in_negozio',
+    passa_a_cerea: 'passa_a_cerea',
+    ricontattare: 'ricontattare',
+    appuntamento: 'appuntamento',
+    interessato: 'ricontattare',
+    chiamata: 'non_risposto',
+    altro: 'non_interessato'
+  };
+  return CHIAMATE_ESITI.includes(map[esito]) ? map[esito] : 'non_interessato';
+}
+
+function campoTesto(value, max) {
+  return String(value || '').trim().slice(0, max);
+}
+
+async function upsertAnagraficaConsumer(supabase, dati, creatoDa) {
+  const cfPiva = campoTesto(dati.cf_piva, 16).toUpperCase();
+  const required = {
+    cf_piva: cfPiva,
+    ragione_sociale: campoTesto(dati.ragione_sociale, 200).toUpperCase(),
+    nome_referente: campoTesto(dati.nome_referente, 200).toUpperCase(),
+    cellulare: campoTesto(dati.cellulare, 40),
+    provincia: campoTesto(dati.provincia, 2).toUpperCase(),
+    comune: campoTesto(dati.comune, 120).toUpperCase(),
+    via: campoTesto(dati.via, 200).toUpperCase(),
+    civico: campoTesto(dati.civico, 30).toUpperCase()
+  };
+  const mancante = Object.entries(required).find(([, value]) => !value);
+  if (mancante) throw new Error(`Campo anagrafica obbligatorio: ${mancante[0]}`);
+  if (!/^([A-Z0-9]{16}|[0-9]{11})$/.test(cfPiva)) throw new Error('CF o P.IVA non valido');
+  if (normTel(required.cellulare).length < 9) throw new Error('Cellulare non valido');
+
+  const { data: esistente, error: lookupError } = await supabase
+    .from('anagrafica')
+    .select('id,cf_piva,cluster,ragione_sociale,nome_referente,cellulare,email,provincia,comune,via,civico')
+    .ilike('cf_piva', cfPiva)
+    .limit(1)
+    .maybeSingle();
+  if (lookupError) throw new Error(lookupError.message || 'Ricerca anagrafica fallita');
+
+  const row = {
+    ...required,
+    cluster: 'Consumer',
+    email: campoTesto(dati.email, 240).toLowerCase() || null
+  };
+  if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) throw new Error('Email non valida');
+
+  if (esistente) {
+    const { data: aggiornata, error } = await supabase
+      .from('anagrafica')
+      .update(row)
+      .eq('id', esistente.id)
+      .select('id,cf_piva,cluster,ragione_sociale,nome_referente,cellulare,email,provincia,comune,via,civico')
+      .single();
+    if (error || !aggiornata) throw new Error(error?.message || 'Aggiornamento anagrafica fallito');
+    return { anagrafica: aggiornata, created: false };
+  }
+
+  const { data: creata, error } = await supabase
+    .from('anagrafica')
+    .insert({ ...row, creato_da: creatoDa || null })
+    .select('id,cf_piva,cluster,ragione_sociale,nome_referente,cellulare,email,provincia,comune,via,civico')
+    .single();
+  if (error || !creata) throw new Error(error?.message || 'Creazione anagrafica fallita');
+  return { anagrafica: creata, created: true };
+}
+
+// Registra una chiamata Consumer nel MODELLO CANONICO (stessa tabella `chiamate`
+// e stessa semantica del Call Center manuale), cosi' l'esito e' subito visibile
+// in Elenco Chiamate. Ritorna l'id della chiamata canonica.
+async function registraChiamataConsumerCanonica(supabase, cfg, {
+  operatoreId, operatoreNome, anagraficaId, cfPiva, nomeCliente, cellulare,
+  copertura, esito, motivo, note, appuntamentoId, oggi,
+  dataRicontatto: dataRicontattoEsplicita, fasciaRicontatto: fasciaRicontattoEsplicita
+}) {
+  const esitoCanonico = mappaEsitoConsumer(esito);
+  const cf = String(cfPiva || '').trim().toUpperCase();
+  let anagraficaCollegata = anagraficaId || null;
+  if (!anagraficaCollegata && cf) {
+    const { data } = await supabase
+      .from('anagrafica').select('id').eq('cf_piva', cf).limit(1).maybeSingle();
+    anagraficaCollegata = data?.id || null;
+  }
+  let dataRicontatto = null;
+  let fasciaRicontatto = null;
+  if (esitoCanonico === 'ricontattare') {
+    if (dataRicontattoEsplicita && ['Mattina', 'Pomeriggio'].includes(fasciaRicontattoEsplicita)) {
+      dataRicontatto = String(dataRicontattoEsplicita);
+      fasciaRicontatto = fasciaRicontattoEsplicita;
+    } else {
+      const p = prossimaFascia(fasciaCorrente(cfg), oggi || todayRomeStr());
+      dataRicontatto = p.data;
+      fasciaRicontatto = p.fascia;
+    }
+  }
+  const row = {
+    operatore_id: operatoreId,
+    operatore_nome: String(operatoreNome || 'Operatore').slice(0, 120),
+    anagrafica_id: anagraficaCollegata,
+    cf_piva: cf,
+    nome_cliente: String(nomeCliente || cf || 'Cliente').slice(0, 200),
+    cellulare: String(cellulare || '').trim() || null,
+    copertura: campoTesto(copertura, 80) || null,
+    motivo_chiamata: String(motivo || '').slice(0, 300) || null,
+    esito: esitoCanonico,
+    note: String(note || '').slice(0, 1000) || null,
+    data_ricontatto: dataRicontatto,
+    fascia_ricontatto: fasciaRicontatto,
+    passaggio_stato: ['passa_in_negozio', 'passa_a_cerea'].includes(esitoCanonico) ? 'in_attesa' : null,
+    appuntamento_id: appuntamentoId || null
+  };
+  const { data: inserita, error } = await supabase.from('chiamate').insert(row).select('id').single();
+  if (error || !inserita) throw new Error(error?.message || 'scrittura_chiamata_canonica_fallita');
+  return inserita.id;
+}
+
 module.exports = {
   CHIAMATE_ESITI,
   CONFERMA_ESITI,
@@ -1215,8 +1338,11 @@ module.exports = {
   loadBlacklistSet,
   loadEsclusioniAttive,
   logEvent,
+  mappaEsitoConsumer,
   materializeNextTask,
   normTel,
+  registraChiamataConsumerCanonica,
+  upsertAnagraficaConsumer,
   prossimaFascia,
   pureBlacklisted,
   pureEscluso,
@@ -1225,5 +1351,5 @@ module.exports = {
   tentativoPersistente,
   telefoniUnici,
   verificaTaskAttivo,
-  _test: { fasciaCorrente, fasciaDaOra, normTel, prossimaFascia, pureBlacklisted, pureEscluso, telefoniUnici, tentativoEsaurito, SKIP_REASONS, ETICHETTE_ATTIVITA, riepilogoRilavorazioni, categoriaConsumerPiano }
+  _test: { campoTesto, fasciaCorrente, fasciaDaOra, normTel, prossimaFascia, pureBlacklisted, pureEscluso, telefoniUnici, tentativoEsaurito, SKIP_REASONS, ETICHETTE_ATTIVITA, riepilogoRilavorazioni, categoriaConsumerPiano }
 };

@@ -22,7 +22,8 @@
     'admin-gare.html': { title: 'Gare & Avanzamento', key: 'gare' },
     'admin-kona-call-director.html': { title: 'KONA Call Director', key: 'kona-cd' },
     'admin-kpi-vendita-consumer.html': { title: 'Vendita - Consumer', key: 'kpi-vendita-consumer' },
-    'admin-kpi-vendita-business.html': { title: 'Vendita - Business', key: 'kpi-vendita-business' }
+    'admin-kpi-vendita-business.html': { title: 'Vendita - Business', key: 'kpi-vendita-business' },
+    'admin-kpi-call-center.html': { title: 'Call Center', key: 'kpi-call-center' }
   };
 
   const currentFile = window.location.pathname.split('/').pop() || 'admin.html';
@@ -73,6 +74,7 @@
               '<div class="mx-admin-subnav-inner"><div class="mx-admin-subnav-list">',
                 navLink('admin-kpi-vendita-consumer.html', 'kpi-vendita-consumer', 'Vendita - Consumer', icons.chart),
                 navLink('admin-kpi-vendita-business.html', 'kpi-vendita-business', 'Vendita - Business', icons.chart),
+                navLink('admin-kpi-call-center.html', 'kpi-call-center', 'Call Center', icons.phone),
               '</div></div>',
             '</div>',
           '</section>',
