@@ -362,6 +362,13 @@ test('migration 072: la config aggiorna aggiornato_at senza cercare updated_at',
   assert.match(migrazione, /trg_kona_cd_config_updated_at[\s\S]*?EXECUTE FUNCTION public\.kona_call_director_touch_config_aggiornato_at\(\);/);
 });
 
+test('migration 073: aggiunge solo l esito Consumer appuntamento al CHECK', () => {
+  const migrazione = fs.readFileSync(path.resolve(__dirname, '..', 'database/073_kona_call_director_consumer_appuntamento.sql'), 'utf8');
+  assert.match(migrazione, /ALTER TABLE public\.kona_call_director_sessione_attivita[\s\S]*ADD CONSTRAINT kona_call_director_sessione_attivita_esito_check/);
+  assert.match(migrazione, /'altro',[\s\S]*'appuntamento'/);
+  assert.doesNotMatch(migrazione, /DROP\s+(?:TABLE|COLUMN)/i);
+});
+
 test('bootstrap staging: il login legge solo il proprio profilo', () => {
   const sql = fs.readFileSync(path.join(__dirname, '..', 'database', 'staging', '003_kona_call_director_bootstrap.sql'), 'utf8');
   assert.match(sql, /GRANT SELECT ON TABLE public\.profili TO authenticated/i);
@@ -1080,12 +1087,34 @@ test('nessuna funzione genera script telefonici (niente azione messaggio/suggeri
   assert.ok(!/Suggerisci la frase da dire/.test(dialog), 'nessuna istruzione di script al modello');
 });
 
-test('operatore JS: budget con toFixed sicuro e azioni Calendar/Consumer esposte', () => {
+test('operatore JS: macchina a stati, toFixed sicuro, calendar solo su appuntamento', () => {
   const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
   assert.ok(!/\.speso\.toFixed/.test(js) || /num\(_stato\.budget\.speso\)\.toFixed/.test(js));
-  assert.ok(/selezionaModalitaConsumer/.test(js));
-  assert.ok(/caricaSlot/.test(js));
+  assert.ok(/apriCalendar/.test(js));
+  assert.ok(/registraConsumer/.test(js));
   assert.ok(/azioneAppuntamento/.test(js));
+  assert.ok(/avviaChiamate/.test(js));
+  // calendario esposto SOLO nel ramo esito Appuntamento Business
+  assert.ok(/esito === 'appuntamento' && eBusiness\(\)/.test(js));
+  // nessuna sezione Consumer/Calendar sempre visibile: una sola schermata
+  assert.ok(/data-screen/.test(js) === false || /\.kona-screen/.test(js));
+});
+
+test('operatore: una sola schermata visibile alla volta (stato .active)', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/kona-call-director.html'), 'utf8');
+  assert.match(js, /classList\.toggle\('active', s\.getAttribute\('data-screen'\) === screen\)/);
+  // gli screen partono tutti nascosti (display:none) e si attivano via .active
+  assert.match(html, /\.kona-screen \{ display: none; \}/);
+  assert.match(html, /\.kona-screen\.active \{ display: block/);
+});
+
+test('operatore: nessun fetch diretto e nessuna emoji', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/kona-call-director.html'), 'utf8');
+  assert.ok(!/(?<![\w.])fetch\s*\(/.test(js), 'nessun fetch diretto, solo MiroxApi.fetch');
+  assert.ok(!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(html), 'nessuna emoji nell\'HTML');
+  assert.ok(!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(js), 'nessuna emoji nel JS');
 });
 
 test('admin: DTO budget coerente (speso/budget/rimasto) e nuovi campi config', () => {
@@ -1123,4 +1152,144 @@ test('dispatcher: cron secret non valido -> 401', async () => {
   const res = await d.handler({ headers: { 'x-kona-cd-cron-secret': 'sbagliato' }, queryStringParameters: {} });
   assert.equal(res.statusCode, 401);
   if (prev) process.env.KONA_CALL_DIRECTOR_CRON_SECRET = prev; else delete process.env.KONA_CALL_DIRECTOR_CRON_SECRET;
+});
+
+// =============================================================================
+// Briefing giornata (macchina a stati: nessuna categoria vuota mostrata)
+// =============================================================================
+
+test('briefingGiornata: senza candidati non espone categorie vuote', async () => {
+  const db = makeSupabase({
+    'kona_call_director_appuntamenti_business.select': () => ({ data: [] }),
+    'kona_call_director_conferme.select': () => ({ data: [] }),
+    'vw_rilavorazione_ricontatti_unificata.select': () => ({ data: [] }),
+    'chiamate.select': () => ({ data: [] }),
+    'call_center_lead_outbound.select': () => ({ data: [] }),
+    'kona_call_director_arricchimenti.select': () => ({ data: [] }),
+    'kona_call_director_sessioni.select': () => ({ data: null }),
+    'kona_call_director_piani.select': () => ({ data: null })
+  });
+  const res = await engine.briefingGiornata(db, baseCfg(), { profiloId: PROFILO, oggi: '2026-08-27' });
+  assert.deepEqual(res.mattina, []);
+  assert.deepEqual(res.pomeriggio, []);
+  assert.equal(res.business.conteggio, 0);
+  assert.equal(res.conferme, 0);
+  assert.equal(res.consumer, null);
+  assert.ok(res.saluto);
+});
+
+test('briefingGiornata: mattina/pomeriggio separati, solo categorie con conteggio', async () => {
+  const db = makeSupabase({
+    'kona_call_director_appuntamenti_business.select': () => ({ data: [] }),
+    'kona_call_director_conferme.select': () => ({ data: [] }),
+    'vw_rilavorazione_ricontatti_unificata.select': () => ({
+      data: [
+        { origine_tipo: 'standard', origine_id: CHIAMATA, lead_id: null, nome_cliente: 'Tizio', telefono: '333', cf_piva: 'CF1', operatore_id: PROFILO, esito: 'ricontattare', data_ricontatto: null, fascia_ricontatto: null, motivo_chiamata: 'x', note: null, data_ora: '2026-08-20T09:00:00Z', rilavorazione_stato: 'da_lavorare' }
+      ]
+    }),
+    'chiamate.select': () => ({ data: [] }),
+    'call_center_lead_outbound.select': () => ({ data: [] }),
+    'kona_call_director_arricchimenti.select': () => ({ data: [] }),
+    'kona_call_director_sessioni.select': () => ({ data: { categoria: 'telefoni_omaggio' } }),
+    'kona_call_director_piani.select': () => ({ data: null })
+  });
+  const res = await engine.briefingGiornata(db, baseCfg(), { profiloId: PROFILO, oggi: '2026-08-27' });
+  // fascia null -> ricontatto disponibile sia mattina sia pomeriggio
+  assert.ok(res.mattina.some((a) => a.tipo === 'ricontatto_programmato' && a.conteggio === 1));
+  assert.ok(res.pomeriggio.some((a) => a.tipo === 'ricontatto_programmato' && a.conteggio === 1));
+  assert.ok(res.mattina.every((a) => a.conteggio > 0));
+  assert.ok(res.pomeriggio.every((a) => a.conteggio > 0));
+  assert.equal(res.consumer.modalita, 'telefoni_omaggio');
+});
+
+test('briefingGiornata: consumer deriva dal piano, non dalla sessione aperta a mano', async () => {
+  const db = makeSupabase({
+    'kona_call_director_appuntamenti_business.select': () => ({ data: [] }),
+    'kona_call_director_conferme.select': () => ({ data: [] }),
+    'vw_rilavorazione_ricontatti_unificata.select': () => ({ data: [] }),
+    'chiamate.select': () => ({ data: [] }),
+    'call_center_lead_outbound.select': () => ({ data: [] }),
+    'kona_call_director_arricchimenti.select': () => ({ data: [] }),
+    'kona_call_director_sessioni.select': () => ({ data: null }),
+    'kona_call_director_piani.select': () => ({ data: { stato: 'applicato', sorgente: 'default', contenuto: { consumer: 'fibra_fwa', categorie_approvate: ['bar'] } } })
+  });
+  const res = await engine.briefingGiornata(db, baseCfg(), { profiloId: PROFILO, oggi: '2026-08-27' });
+  assert.equal(res.consumer.modalita, 'fibra_fwa');
+  assert.deepEqual(res.categorie_approvate, ['bar']);
+});
+
+test('categoria Consumer: supporta campo canonico, legacy Telegram e fallback sessione', () => {
+  const categoria = engine._test.categoriaConsumerPiano;
+  assert.equal(categoria({ consumer: 'fibra_fwa' }, 'telefoni_omaggio'), 'fibra_fwa');
+  assert.equal(categoria({ categoria_sessione: 'telefoni_omaggio' }, null), 'telefoni_omaggio');
+  assert.equal(categoria({}, 'fibra_fwa'), 'fibra_fwa');
+  assert.equal(categoria({ categoria_sessione: 'business' }, null), null);
+});
+
+test('riepilogoRilavorazioni raggruppa ricontatti e non risposti senza categorie vuote', () => {
+  const riep = engine._test.riepilogoRilavorazioni([
+    { esito: 'ricontattare' },
+    { esito: 'non_risposto' },
+    { esito: 'ricontattare' }
+  ]);
+  assert.equal(riep.find((a) => a.tipo === 'ricontatto_programmato').conteggio, 2);
+  assert.equal(riep.find((a) => a.tipo === 'auto_non_risposto').conteggio, 1);
+  assert.ok(riep.every((a) => a.conteggio > 0));
+});
+
+test('briefingGiornata: etichette coprono tutti i tipi di attivita', () => {
+  const e = engine._test.ETICHETTE_ATTIVITA;
+  ['conferma_appuntamento_business', 'ricontatto_programmato', 'auto_non_risposto', 'passa_a_cerea', 'passa_in_negozio', 'campagna_urgente', 'sessione_business'].forEach((t) => {
+    assert.ok(e[t], 'manca etichetta per ' + t);
+  });
+});
+
+test('macchina a stati: transizione per famiglie, non fra task della stessa famiglia', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  assert.ok(/function famiglia\(tipo\)/.test(js));
+  assert.ok(/Le rilavorazioni previste sono terminate/.test(js));
+  assert.ok(/I lead Business standard sono terminati/.test(js));
+  // confronto per famiglia (nuovaFamiglia !== _prevFamiglia), non per tipo
+  assert.ok(/nuovaFamiglia !== _prevFamiglia/.test(js));
+});
+
+test('frontend: esito Consumer Appuntamento e calendario negozio', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/kona-call-director.html'), 'utf8');
+  assert.ok(/esito: 'appuntamento', label: 'Appuntamento'/.test(js), 'esito Appuntamento in ESITI_CONSUMER');
+  assert.ok(/apriNegozio/.test(js), 'apriNegozio definita');
+  assert.ok(/negozio_slot/.test(js), 'riusa negozio_slot');
+  assert.ok(/negozio_prenota/.test(js), 'riusa negozio_prenota');
+  assert.ok(/data-screen="negozio"/.test(html), 'screen negozio presente');
+});
+
+test('frontend: avvio automatico della sessione Consumer dal piano (avvia_consumer)', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  assert.ok(/action: 'avvia_consumer'/.test(js), 'avvia_consumer chiamato dal frontend');
+});
+
+test('riprogrammazione Business: una sola operazione di calendario (niente proponi)', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  const confermaSlot = js.slice(js.indexOf('async function confermaSlot'), js.indexOf('async function azioneAppuntamento'));
+  const branchStart = confermaSlot.indexOf('if (_riprogrammaAppId)');
+  const branchEnd = confermaSlot.indexOf('} else {', branchStart);
+  const ramoRiprogramma = confermaSlot.slice(branchStart, branchEnd);
+  const ramoNuovo = confermaSlot.slice(branchEnd);
+  assert.ok(/riprogramma_appuntamento/.test(ramoRiprogramma));
+  assert.ok(!/proponi_appuntamento/.test(ramoRiprogramma), 'il ramo riprogrammazione non crea un nuovo appuntamento');
+  assert.ok(/proponi_appuntamento/.test(ramoNuovo), 'la proposta resta nel solo ramo nuovo appuntamento');
+});
+
+test('prenotazione negozio: richiede sessione e compensa se il log Consumer fallisce', () => {
+  const dialog = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-dialog.js'), 'utf8');
+  const prenota = dialog.slice(dialog.indexOf('async function azioneNegozioPrenota'), dialog.length);
+  assert.ok(prenota.indexOf("from('kona_call_director_sessioni')") < prenota.indexOf("from('appuntamenti').insert"), 'sessione verificata prima della prenotazione');
+  assert.match(prenota, /if \(attivitaError\)[\s\S]*from\('appuntamenti'\)\.delete\(\)\.eq\('id', appuntamento\.id\)/);
+  assert.match(prenota, /telefono\.replace\(\/\\D\/g, ''\)\.length < 6/);
+});
+
+test('frontend: ricontatto assegnato dal backend mostrato (ricontattoAssegnato)', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  assert.ok(/Ricontatto pianificato/.test(js), 'messaggio di conferma follow-up');
+  assert.ok(/res\.esito && res\.esito\.ricontatto/.test(js), 'legge il ricontatto dal backend');
 });

@@ -240,7 +240,7 @@ async function cmdTelefoniOmaggio(client, cfg, data, chatId) {
   for (const opId of operatori) {
     await salvaPiano(client, {
       data, operatoreId: opId,
-      contenuto: { totale: 0, perZona: [], suggerimento: 'Telefoni omaggio da liste cartacee (Consumer manuale)' },
+      contenuto: { totale: 0, perZona: [], suggerimento: 'Telefoni omaggio da liste cartacee (Consumer manuale)', consumer: 'telefoni_omaggio' },
       sorgente: 'mirko', stato: 'approvato'
     });
     await client.from('kona_call_director_sessioni').upsert(
@@ -316,7 +316,8 @@ async function gestisciDialogo(client, cfg, chatId, text, domani) {
     const contenuto = {
       ...(esistente?.contenuto || {}),
       direttiva_mirko: text.slice(0, 1000),
-      ...(categoriaSessione ? { categoria_sessione: categoriaSessione } : {})
+      ...(categoriaSessione ? { categoria_sessione: categoriaSessione } : {}),
+      ...(['telefoni_omaggio', 'fibra_fwa'].includes(categoriaSessione) ? { consumer: categoriaSessione } : {})
     };
     await salvaPiano(client, {
       data: domani, operatoreId: opId, contenuto: cleanLog(contenuto), sorgente: 'mirko', stato: 'approvato'

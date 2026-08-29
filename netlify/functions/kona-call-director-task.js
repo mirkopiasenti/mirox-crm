@@ -17,7 +17,7 @@
  */
 
 const { authAndEnabled } = require('./_lib/kona-cd-config');
-const { materializeNextTask, verificaTaskAttivo, getTaskDettaglio, registerEsito } = require('./_lib/kona-cd-engine');
+const { categoriaConsumerPiano, materializeNextTask, verificaTaskAttivo, getTaskDettaglio, registerEsito } = require('./_lib/kona-cd-engine');
 const { enqueueNotifica } = require('./_lib/kona-cd-notifiche');
 const { notificaEsauriti } = require('./_lib/kona-cd-conferme');
 const { nowRomeParts, todayRomeStr } = require('./_lib/kona-cd-time');
@@ -134,11 +134,41 @@ exports.handler = async (event) => {
         return jsonOk({ sessione_chiusa: true, tipo, id: chiusa?.id || null });
       }
 
+      case 'avvia_consumer': {
+        // KONA determina e apre automaticamente la sessione Consumer prevista
+        // dal piano: l'operatore non sceglie la modalita' e non serve una
+        // sessione aperta a mano in precedenza.
+        const data = todayRomeStr();
+        const tipo = nowRomeParts().hh >= 15 ? 'pomeriggio' : 'mattina';
+        const [pianoRes, sessioneRes] = await Promise.all([
+          client.from('kona_call_director_piani')
+            .select('contenuto, stato')
+            .eq('data', data).eq('operatore_id', profiloId)
+            .in('stato', ['approvato', 'applicato']).limit(1).maybeSingle(),
+          client.from('kona_call_director_sessioni')
+            .select('categoria').eq('data', data).eq('operatore_id', profiloId)
+            .eq('stato', 'attiva').limit(1).maybeSingle()
+        ]);
+        const { data: piano, error: pianoError } = pianoRes;
+        if (pianoError) return jsonError(500, pianoError.message);
+        const categoria = categoriaConsumerPiano(piano?.contenuto, sessioneRes.data?.categoria);
+        if (!categoria) {
+          // Fallback: se il piano non dichiara Consumer, nessuna sessione.
+          return jsonOk({ consumer: null, motivo: 'nessuna_modalita_consumer_nel_piano' });
+        }
+        const { error: sessioneOpenError } = await client.from('kona_call_director_sessioni').upsert(
+          { data, operatore_id: profiloId, tipo, stato: 'attiva', categoria, aperta_at: new Date().toISOString(), chiusa_at: null, note: { obiettivo_minuti: null } },
+          { onConflict: 'data,operatore_id,tipo' }
+        );
+        if (sessioneOpenError) return jsonError(500, sessioneOpenError.message);
+        return jsonOk({ consumer: { modalita: categoria }, sessione: true, tipo });
+      }
+
       case 'registra_attivita_consumer': {
         const categoria = String(body.categoria || '');
         const esito = String(body.esito || '');
         if (!['telefoni_omaggio', 'fibra_fwa'].includes(categoria)) return jsonError(400, 'Categoria Consumer non valida');
-        if (!['chiamata', 'non_risposto', 'non_interessato', 'passa_in_negozio', 'interessato', 'altro'].includes(esito)) return jsonError(400, 'Esito Consumer non valido');
+        if (!['chiamata', 'non_risposto', 'non_interessato', 'passa_in_negozio', 'interessato', 'altro', 'appuntamento'].includes(esito)) return jsonError(400, 'Esito Consumer non valido');
         const { data: sessione, error: sessioneError } = await client.from('kona_call_director_sessioni')
           .select('id, categoria').eq('data', todayRomeStr()).eq('operatore_id', profiloId)
           .eq('stato', 'attiva').eq('categoria', categoria).limit(1).maybeSingle();
@@ -188,7 +218,13 @@ exports.handler = async (event) => {
   }
 };
 
-// Risposta pubblica: mai dettagli personali, solo esito + conteggio tentativi.
+// Risposta pubblica: mai dettagli personali, solo esito + conteggio tentativi
+// + eventuale ricontatto assegnato dal backend.
 function esitoRecordPublic(esito) {
-  return { esito: esito.esito, esaurito: Boolean(esito.esaurito), tentativo: esito.tentativo || 1 };
+  return {
+    esito: esito.esito,
+    esaurito: Boolean(esito.esaurito),
+    tentativo: esito.tentativo || 1,
+    ricontatto: esito.ricontatto || null
+  };
 }

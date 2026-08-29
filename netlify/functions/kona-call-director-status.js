@@ -10,6 +10,7 @@ const { canUse, getConfig } = require('./_lib/kona-cd-config');
 const { budgetSnapshot } = require('./_lib/kona-cd-budget');
 const { requireAuth } = require('./_lib/require-auth');
 const { reportGiornaliero } = require('./_lib/kona-cd-report');
+const { briefingGiornata } = require('./_lib/kona-cd-engine');
 const { monthRomeKey, todayRomeStr } = require('./_lib/kona-cd-time');
 const { cleanLog, jsonError, jsonOk } = require('./_lib/kona-cd-util');
 const { createClient } = require('@supabase/supabase-js');
@@ -34,17 +35,31 @@ exports.handler = async (event) => {
 
     const cfg = check.cfg;
     const data = todayRomeStr();
-    const [budget, report, sessione] = await Promise.all([
+    const [budget, report, sessione, briefing] = await Promise.all([
       budgetSnapshot(client, cfg, monthRomeKey(data)),
       reportGiornaliero(client, cfg, { data }),
-      client.from('kona_call_director_sessioni').select('categoria, tipo').eq('data', data).eq('operatore_id', check.profiloId).eq('stato', 'attiva').limit(1).maybeSingle()
+      client.from('kona_call_director_sessioni').select('categoria, tipo').eq('data', data).eq('operatore_id', check.profiloId).eq('stato', 'attiva').limit(1).maybeSingle(),
+      briefingGiornata(client, cfg, { profiloId: check.profiloId, oggi: data })
     ]);
 
     return jsonOk({
       abilitato: true,
       modalita_osservazione: cfg.modalita_osservazione !== false,
       data,
+      nome: auth.profilo?.nome || null,
+      saluto: briefing.saluto,
+      fascia_corrente: briefing.fascia,
+      in_orario: briefing.in_orario,
       consumer_modalita: sessione?.data?.categoria || null,
+      briefing: {
+        conferme: briefing.conferme,
+        mattina: briefing.mattina,
+        pomeriggio: briefing.pomeriggio,
+        business: briefing.business,
+        consumer: briefing.consumer,
+        categorie_approvate: briefing.categorie_approvate,
+        piano: briefing.piano
+      },
       budget: {
         mese: budget.mese,
         budget: budget.budget,

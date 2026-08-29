@@ -64,6 +64,10 @@ exports.handler = async (event) => {
         return await azioneAnnulla(client, cfg, body, profiloId, isAdmin);
       case 'riprogramma_appuntamento':
         return await azioneRiprogramma(client, cfg, body, profiloId, isAdmin);
+      case 'negozio_slot':
+        return await azioneNegozioSlot(client, body);
+      case 'negozio_prenota':
+        return await azioneNegozioPrenota(client, body, profiloId);
       default:
         return jsonError(400, 'Action non valida');
     }
@@ -486,4 +490,85 @@ function pubblicaAppuntamento(row) {
     stato: row.stato,
     sync_stato: row.sync_stato
   };
+}
+
+// -- Calendario negozio (Consumer, riusa il flusso Call Center esistente) -----
+
+// Slot liberi del negozio per un giorno: riusa la RPC condivisa
+// `get_slot_disponibili` (stessa fonte del prenota-interno del CC).
+async function azioneNegozioSlot(client, body) {
+  const data = String(body.data || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return jsonError(400, 'data non valida');
+  const { data: slots, error } = await client.rpc('get_slot_disponibili', { p_data: data });
+  if (error) return jsonError(500, error.message);
+  return jsonOk({
+    slots: (slots || []).map((s) => ({ start: new Date(s).toISOString(), giorno: data })),
+    totale: (slots || []).length
+  });
+}
+
+// Prenota un appuntamento nel calendario del negozio per un contatto Consumer
+// (fonte 'interno', come il flusso CC esistente) e registra l'esito
+// 'appuntamento' nella sessione Consumer. Nessun Google Calendar personale.
+async function azioneNegozioPrenota(client, body, profiloId) {
+  const nome = String(body.nome || '').trim().slice(0, 120);
+  const telefono = String(body.telefono || '').trim();
+  const motivo = String(body.motivo || '').trim().slice(0, 300) || 'Appuntamento Consumer';
+  const dataOra = String(body.data_ora || '').trim();
+  const categoria = String(body.categoria || '');
+  if (!nome || !telefono) return jsonError(400, 'Nome e telefono obbligatori');
+  if (telefono.replace(/\D/g, '').length < 6) return jsonError(400, 'Telefono non valido');
+  if (!['telefoni_omaggio', 'fibra_fwa'].includes(categoria)) return jsonError(400, 'Categoria Consumer non valida');
+  const start = new Date(dataOra);
+  if (Number.isNaN(start.getTime()) || start.getTime() <= Date.now()) return jsonError(400, 'Orario non valido o passato');
+
+  // Ri-verifica disponibilita' con la stessa RPC del flusso esistente (fail-closed).
+  const slotData = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(start);
+  const { data: disponibili, error: slotError } = await client.rpc('get_slot_disponibili', { p_data: slotData });
+  if (slotError) return jsonError(500, slotError.message);
+  const libero = (disponibili || []).some((s) => new Date(s).getTime() === start.getTime());
+  if (!libero) return jsonError(409, 'Slot non disponibile');
+
+  // La sessione deve esistere PRIMA della prenotazione: non creare appuntamenti
+  // che KONA non possa poi attribuire e conteggiare.
+  const { data: sessione, error: sessioneError } = await client.from('kona_call_director_sessioni')
+    .select('id').eq('data', todayRomeStr()).eq('operatore_id', profiloId)
+    .eq('stato', 'attiva').eq('categoria', categoria).limit(1).maybeSingle();
+  if (sessioneError) return jsonError(500, sessioneError.message);
+  if (!sessione) return jsonError(409, 'Nessuna sessione Consumer attiva per questa categoria');
+
+  const { data: profilo } = await client.from('profili').select('nome').eq('id', profiloId).maybeSingle();
+  const durata = 30;
+  const { data: appuntamento, error: appError } = await client.from('appuntamenti').insert({
+    nome,
+    codice_fiscale: String(body.cf_piva || '').trim() || null,
+    telefono,
+    motivo,
+    note: String(body.note || '').slice(0, 500) || null,
+    anagrafica_id: isUuid(body.anagrafica_id) ? body.anagrafica_id : null,
+    fissato_da_operatore_id: profiloId,
+    fissato_da_nome: profilo?.nome || null,
+    data_ora: start.toISOString(),
+    durata_minuti: durata,
+    fonte: 'interno',
+    stato: 'confermato'
+  }).select('id').single();
+  if (appError || !appuntamento) return jsonError(500, appError?.message || 'Prenotazione negozio fallita');
+
+  // Registra l'esito 'appuntamento'. Se fallisce, rollback compensativo della
+  // prenotazione per non lasciare un appuntamento invisibile nei conteggi KONA.
+  const { error: attivitaError } = await client.from('kona_call_director_sessione_attivita').insert({
+    sessione_id: sessione.id,
+    operatore_id: profiloId,
+    categoria,
+    esito: 'appuntamento',
+    note: `appuntamento:${appuntamento.id}`
+  });
+  if (attivitaError) {
+    const { error: rollbackError } = await client.from('appuntamenti').delete().eq('id', appuntamento.id);
+    if (rollbackError) return jsonError(500, 'Registrazione esito fallita; appuntamento da riconciliare');
+    return jsonError(500, attivitaError.message || 'Registrazione esito Consumer fallita');
+  }
+
+  return jsonOk({ appuntamento: { id: appuntamento.id, data_ora: start.toISOString() }, registrata: true });
 }

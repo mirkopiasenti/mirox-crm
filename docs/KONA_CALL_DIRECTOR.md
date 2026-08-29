@@ -57,6 +57,62 @@ Le attivita' Business standard non iniziano dopo le 18:00 e non partono se il
 piano approvato non contiene almeno una categoria esplicita; il contatto gia'
 in corso puo' essere terminato.
 
+## Esperienza operatore (macchina a stati)
+
+La pagina `moduli/call-center/kona-call-director.html` e' una macchina a stati
+esplicita: una sola schermata visibile alla volta, nessun pannello tecnico e
+nessuna scelta manuale fra Consumer, Business, rilavorazioni o calendario.
+
+Stati:
+
+1. `welcome` — saluto coerente con l'orario, nome dell'operatore autenticato,
+   un unico pulsante `Avvia` (o `Riprendi` se esiste gia' un task lavorabile).
+2. `briefing` — il **programma dell'intera giornata**, separato in MATTINA e
+   POMERIGGIO, ricavato dalle attivita' realmente disponibili (stesso motore
+   dei candidati, nessuna fonte parallela). Mostra solo attivita' non vuote e
+   tiene separati il piano giornaliero dalla coda immediatamente lavorabile.
+   Pulsante `Avvia chiamate`.
+3. `contact` — un solo contatto: nome/ragione sociale, telefono, numeri
+   alternativi, comune/provincia, categoria, motivo, ultimo esito e note,
+   tentativi effettuati. Pulsante `Inizia chiamata` (nessuna chiamata
+   automatica, nessuno script).
+4. `outcome` — gli esiti previsti dal flusso, dipendenti dal tipo di task.
+5. `followup` — azione condizionale: `Ricontattare` non chiede data/fascia
+   manuali (le assegna il backend con l'alternanza mattina/pomeriggio e le
+   mostra al salvataggio); `Altro` chiede una spiegazione obbligatoria
+   (valutata una sola volta dall'IA, la decisione resta dell'operatrice).
+6. `calendar` — visibile SOLO dopo l'esito `Appuntamento` su un lead Business:
+   giorni, slot liberi, riepilogo e conferma. Nessun titolo o dettaglio degli
+   eventi privati.
+7. `consumer` — fase automatica quando il piano prevede Consumer e non restano
+   task materializzabili: KONA **avvia da solo la sessione Consumer dal piano**
+   (`avvia_consumer`) e registra gli esiti delle chiamate da lista cartacea,
+   senza proporre lead. L'esito `Appuntamento` apre lo schermo `negozio`, che
+   riusa `get_slot_disponibili` + prenotazione nel calendario del negozio
+   (nessun Google Calendar personale).
+
+La modalita' Consumer del piano usa il campo canonico `consumer`; per i piani
+Telegram gia' esistenti resta compatibile anche con `categoria_sessione`. La
+prenotazione negozio e la registrazione dell'esito sono compensate: se l'esito
+non viene salvato, l'appuntamento appena creato viene rimosso.
+8. `negozio` — calendario del negozio per i contatti Consumer (nome, CF/PIVA,
+   telefono, motivo, slot e conferma). Reusa API, disponibilita' e prenotazione
+   del flusso Call Center esistente, senza duplicare la logica backend.
+9. `transition` — breve passaggio quando cambia **famiglia** (conferme,
+   rilavorazioni, Business, campagne urgenti, Consumer), mai fra task della
+   stessa famiglia. L'ingresso nel Consumer e il completamento sono gestiti.
+9. `completed` — fine delle attivita' previste, con `Ricontrolla`.
+10. `error` — errore con `Riprova`, senza perdere il task corrente.
+
+Separazione calendari: Business usa il Google Calendar personale collegato a
+KONA; Consumer rimanda al calendario del negozio gia' usato dal flusso Call
+Center. Il client non sceglie il calendario: il tipo di task lo determina.
+
+Idempotenza: `Avvia` non crea sessioni; `Avvia chiamate` e `Prossimo` ritornano
+il task gia' attivo senza duplicarlo; un doppio click sull'esito non salva due
+volte; il refresh riprende il task attivo. Lo stato server (task, sessione,
+piano, esiti) resta la fonte di verita': il frontend non simula completamenti.
+
 ## Garanzie applicate
 
 - Tre interruttori indipendenti: env, globale DB e profilo operatore.

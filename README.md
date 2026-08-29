@@ -83,7 +83,7 @@ Tutte le functions, eccetto i due cron Netlify, l'endpoint anon intenzionale `pu
 | `kona-call-director-task` | POST | operatore KONA abilitato | `prossimo` / `attivo` / `esito` / `sospendi` / `riprendi`. Gli esiti passano dal motore deterministico (blacklist, esclusioni, tentativi, skip motivati) |
 | `kona-call-director-status` | GET | operatore KONA abilitato | Stato abilitazione, modalita' osservazione, budget del mese e riepilogo della giornata |
 | `kona-call-director-admin` | POST | **admin** | Interruttore globale, modalita' osservazione, abilitazione per profilo, config allowlist, budget, sospensione immediata |
-| `kona-call-director-dialog` | POST | operatore KONA abilitato | Suggerimento dialogo Isabella (OpenAI, mai dati Consumer), valutazione skip "Altro", ricerca slot Google e CRUD appuntamenti Business con sync |
+| `kona-call-director-dialog` | POST | operatore KONA abilitato | Valutazione skip "Altro" (l'IA contesta una sola volta), ricerca slot Google e CRUD appuntamenti Business con sync; nessuno script telefonico |
 | `kona-call-director-plan` | POST | operatore KONA abilitato / **admin** per approva | Proposta piano giornaliero (deterministico per zona + OpenAI su aggregati), approva, applica default, legge piano |
 | `kona-call-director-google` | POST | authenticated / **admin** per connetti/disconnetti | URL OAuth Google (state firmato HMAC), stato connessione, rimozione token |
 | `kona-cc-google-callback` | GET | pubblico (redirect OAuth) | Scambia il code, cifra il refresh token (AES-256-GCM, chiave env separata) e redirige all'admin |

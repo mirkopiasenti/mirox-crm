@@ -636,8 +636,21 @@ Regole permanenti:
   riga `profili` per completare il login CRM;
 - le chiamate Business standard richiedono almeno una categoria esplicitamente
   approvata nel piano; nessuna categoria significa nessuna chiamata standard;
-- `Prossimo contatto` e' idempotente: se esiste gia' un task attivo restituisce
-  quel task, senza svuotare la UI o materializzarne un secondo;
+- la pagina operatore e' una macchina a stati esplicita (una sola schermata
+  visibile): `welcome` → `briefing` → `contact` → `outcome` → `followup`/`calendar`
+  → `transition` → `consumer`/`negozio` → `completed`/`error`. Il briefing
+  dell'intera giornata (MATTINA/POMERIGGIO, solo categorie non vuote) e' calcolato
+  server-side da `briefingGiornata` (riusa i candidati); le transizioni avvengono
+  per famiglia, mai fra task della stessa famiglia. Il calendario compare solo
+  dopo `Appuntamento`: Business usa Google personale, Consumer usa lo schermo
+  `negozio` che riusa `get_slot_disponibili` + prenotazione del flusso CC
+  (migration additiva `073` per l'esito `appuntamento`); KONA avvia da solo la
+  sessione Consumer dal piano (`avvia_consumer`), leggendo il campo canonico
+  `consumer` e il legacy Telegram `categoria_sessione`; la prenotazione negozio
+  viene rimossa in compensazione se la registrazione dell'esito fallisce;
+- `Prossimo contatto`, `Avvia` e `Avvia chiamate` sono idempotenti: se esiste gia'
+  un task attivo restituiscono quel task, senza svuotare la UI o crearne un
+  secondo; il refresh riprende il task attivo;
 - credenziali, integrazioni e deploy vanno validati prima sul test dedicato;
 - non inviare PII a Telegram, dati Consumer a OpenAI o dettagli privati del
   calendario Google all'operatore;

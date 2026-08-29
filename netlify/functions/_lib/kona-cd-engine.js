@@ -472,6 +472,117 @@ async function buildCandidates(supabase, cfg, { profiloId, oggi }) {
   return candidates;
 }
 
+// -- Briefing -----------------------------------------------------------------
+
+// Etichette user-facing per i tipi di attivita'. Solo per la UI operatore,
+// mai per Telegram (che usa aggregati).
+const ETICHETTE_ATTIVITA = {
+  conferma_appuntamento_business: 'Conferme appuntamenti Business',
+  ricontatto_programmato: 'Ricontatti programmati',
+  auto_non_risposto: 'Non risposti da riprovare',
+  passa_a_cerea: 'Controllo Passa a Cerea',
+  passa_in_negozio: 'Controllo Passa in negozio',
+  campagna_urgente: 'Campagne urgenti',
+  sessione_business: 'Nuovi lead Business'
+};
+
+function categoriaConsumerPiano(contenuto, fallbackSessione) {
+  const candidato = String(contenuto?.consumer || contenuto?.categoria_sessione || fallbackSessione || '');
+  return ['telefoni_omaggio', 'fibra_fwa'].includes(candidato) ? candidato : null;
+}
+
+// Conta gli appuntamenti Business 'proposto' per il prossimo giorno lavorativo:
+// e' il bacino delle conferme (priorita' 1), indipendente dalla finestra attiva.
+async function confermeInAttesa(supabase, cfg, { profiloId, oggi }) {
+  const domani = nextWorkingDay(oggi, cfg.giorni_lavorativi || [1, 2, 3, 4, 5], cfg.ferie || []);
+  const range = romeDayRange(domani);
+  const { data, error } = await supabase
+    .from('kona_call_director_appuntamenti_business')
+    .select('id')
+    .eq('operatore_id', profiloId)
+    .eq('stato', 'proposto')
+    .gte('data_ora', range.start.toISOString())
+    .lt('data_ora', range.end.toISOString());
+  return !error && Array.isArray(data) ? data.length : 0;
+}
+
+// Raggruppa le righe della vista unificata (esito 'ricontattare'/'non_risposto')
+// in {tipo, etichetta, conteggio}. Solo per il briefing, mai per Telegram.
+function riepilogoRilavorazioni(rows) {
+  const perTipo = {};
+  for (const row of rows || []) {
+    const tipo = row.esito === 'non_risposto' ? 'auto_non_risposto' : 'ricontatto_programmato';
+    perTipo[tipo] = (perTipo[tipo] || 0) + 1;
+  }
+  return ['ricontatto_programmato', 'auto_non_risposto']
+    .map((tipo) => ({ tipo, etichetta: ETICHETTE_ATTIVITA[tipo], conteggio: perTipo[tipo] || 0 }))
+    .filter((a) => a.conteggio > 0);
+}
+
+// Costruisce il briefing dell'INTERA giornata, separato in MATTINA e POMERIGGIO,
+// a partire dalle attivita' realmente disponibili (stesso motore dei candidati).
+// Mostra solo attivita' non vuote; tiene separato il piano giornaliero dalla
+// coda immediatamente lavorabile. Non materializza task.
+async function briefingGiornata(supabase, cfg, { profiloId, oggi }) {
+  const data = oggi || todayRomeStr();
+  const fascia = fasciaCorrente(cfg);
+  const parts = nowRomeParts();
+  const saluto = parts.hh < 13 ? 'Buongiorno' : (parts.hh < 18 ? 'Buon pomeriggio' : 'Buonasera');
+
+  const [pianoRes, sessioneRes] = await Promise.all([
+    supabase.from('kona_call_director_piani').select('contenuto, stato, sorgente')
+      .eq('data', data).eq('operatore_id', profiloId).in('stato', ['approvato', 'applicato']).limit(1).maybeSingle(),
+    supabase.from('kona_call_director_sessioni').select('categoria')
+      .eq('data', data).eq('operatore_id', profiloId).eq('stato', 'attiva').limit(1).maybeSingle()
+  ]);
+  const piano = pianoRes.data || null;
+  const categorieApprovate = Array.isArray(piano?.contenuto?.categorie_approvate)
+    ? piano.contenuto.categorie_approvate
+    : (Array.isArray(piano?.contenuto?.categorie) ? piano.contenuto.categorie : []);
+  // La modalita' Consumer viene dal piano, non da una sessione aperta a mano.
+  const consumerModalita = categoriaConsumerPiano(piano?.contenuto, sessioneRes.data?.categoria);
+
+  const [mattinaRilav, pomeriggioRilav, passaggio, businessLeads, confermeCount] = await Promise.all([
+    queryRilavorazioneUnificata(supabase, { profiloId, oggi: data, fascia: 'Mattina' }),
+    queryRilavorazioneUnificata(supabase, { profiloId, oggi: data, fascia: 'Pomeriggio' }),
+    queryChiamatePassaggio(supabase, { profiloId, oggi: data, passaggioStati: ['in_attesa', 'ricontattare'] }),
+    candidatiLead(supabase, cfg, { profiloId, oggi: data, pinnedOnly: false }),
+    confermeInAttesa(supabase, cfg, { profiloId, oggi: data })
+  ]);
+
+  const passaCerea = (passaggio || []).filter((r) => r.esito === 'passa_a_cerea').length;
+  const passaNegozio = (passaggio || []).filter((r) => r.esito === 'passa_in_negozio').length;
+
+  // Mattina: conferme + rilavorazioni + passa negozio/cerea.
+  const mattina = [];
+  if (confermeCount > 0) mattina.push({ tipo: 'conferma_appuntamento_business', etichetta: ETICHETTE_ATTIVITA.conferma_appuntamento_business, conteggio: confermeCount });
+  mattina.push(...riepilogoRilavorazioni(mattinaRilav));
+  if (passaNegozio > 0) mattina.push({ tipo: 'passa_in_negozio', etichetta: ETICHETTE_ATTIVITA.passa_in_negozio, conteggio: passaNegozio });
+  if (passaCerea > 0) mattina.push({ tipo: 'passa_a_cerea', etichetta: ETICHETTE_ATTIVITA.passa_a_cerea, conteggio: passaCerea });
+
+  // Pomeriggio: solo rilavorazioni (ricontatti/non risposti).
+  const pomeriggio = riepilogoRilavorazioni(pomeriggioRilav);
+
+  return {
+    data,
+    fascia,
+    saluto,
+    in_orario: isOperationalNow(cfg, data, parts),
+    conferme: confermeCount,
+    mattina,
+    pomeriggio,
+    business: {
+      conteggio: businessLeads.length,
+      etichetta: ETICHETTE_ATTIVITA.sessione_business
+    },
+    consumer: consumerModalita
+      ? { modalita: consumerModalita, etichetta: consumerModalita === 'telefoni_omaggio' ? 'Contatti Consumer (Telefoni omaggio)' : 'Contatti Consumer (Fibra/FWA)' }
+      : null,
+    categorie_approvate: categorieApprovate.map((c) => String(c)).filter(Boolean),
+    piano: { stato: piano?.stato || null, sorgente: piano?.sorgente || null }
+  };
+}
+
 // -- Materializzazione --------------------------------------------------------
 
 async function logEvent(supabase, { taskId, tipo, dettagli = {} }) {
@@ -1075,7 +1186,14 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
   });
 
   const notifica = esaurito && task.tipo === 'conferma_appuntamento_business' ? 'conferma_non_risposti_esauriti' : null;
-  return { ok: true, esito, esaurito, notifica, tentativo };
+  // Il prossimo ricontatto assegnato dal backend (alternanza mattina/pomeriggio),
+  // restituito al frontend per la conferma visibile senza override manuale.
+  let ricontatto = null;
+  if (esito === 'ricontattare' || (isNonRisposto && !esaurito)) {
+    const p = prossimaFascia(fasciaCorrente(cfg), oggi);
+    ricontatto = { data: p.data, fascia: p.fascia };
+  }
+  return { ok: true, esito, esaurito, notifica, tentativo, ricontatto };
 }
 
 module.exports = {
@@ -1087,7 +1205,9 @@ module.exports = {
   addBlacklist,
   addEsclusione,
   applicaEsitoSorgente,
+  briefingGiornata,
   buildCandidates,
+  categoriaConsumerPiano,
   fasciaCorrente,
   getActiveTask,
   getTaskDettaglio,
@@ -1105,5 +1225,5 @@ module.exports = {
   tentativoPersistente,
   telefoniUnici,
   verificaTaskAttivo,
-  _test: { fasciaCorrente, fasciaDaOra, normTel, prossimaFascia, pureBlacklisted, pureEscluso, telefoniUnici, tentativoEsaurito, SKIP_REASONS }
+  _test: { fasciaCorrente, fasciaDaOra, normTel, prossimaFascia, pureBlacklisted, pureEscluso, telefoniUnici, tentativoEsaurito, SKIP_REASONS, ETICHETTE_ATTIVITA, riepilogoRilavorazioni, categoriaConsumerPiano }
 };

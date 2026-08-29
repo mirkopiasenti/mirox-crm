@@ -144,7 +144,8 @@ async function applicaPianoDefault(supabase, cfg, { data, operatoreId }) {
   const esito = await salvaPiano(supabase, {
     data,
     operatoreId,
-    contenuto: { totale: proposta.totale, perZona: proposta.perZona, suggerimento: proposta.suggerimento },
+    // Piano residuale predefinito: Telefoni omaggio da liste cartacee (Consumer).
+    contenuto: { totale: proposta.totale, perZona: proposta.perZona, suggerimento: proposta.suggerimento, consumer: 'telefoni_omaggio' },
     sorgente: 'default',
     stato: 'applicato'
   });
