@@ -3,8 +3,8 @@
 ## Stato verificato
 
 Il modulo e' completo lato codice ed e' stato riesaminato localmente dopo le
-correzioni di chiusura. La suite dedicata passa 99/99 test; la suite completa
-del CRM passa 222/222 test. La build statica e i controlli di sintassi sono
+correzioni di chiusura. La suite dedicata passa 104/104 test; la suite completa
+del CRM passa 227/227 test. La build statica e i controlli di sintassi sono
 verdi.
 
 Il Supabase test dedicato `Mirox CRM - Test KONA Call Director`
@@ -118,13 +118,15 @@ Stati:
    tentativi effettuati. Pulsante `Inizia chiamata` (nessuna chiamata
    automatica, nessuno script).
 4. `outcome` — gli esiti previsti dal flusso, dipendenti dal tipo di task.
-5. `followup` — azione condizionale: `Ricontattare` non chiede data/fascia
-   manuali (le assegna il backend con l'alternanza mattina/pomeriggio e le
-   mostra al salvataggio); `Altro` chiede una spiegazione obbligatoria
+5. `followup` — azione condizionale: `Ricontattare` permette di affidare data e
+   fascia all'alternanza automatica del backend oppure di registrare giorno e
+   fascia concordati dall'operatrice, anche nella fase Consumer; `Altro` chiede una spiegazione obbligatoria
    (valutata una sola volta dall'IA, la decisione resta dell'operatrice).
 6. `calendar` — visibile SOLO dopo l'esito `Appuntamento` su un lead Business:
-   giorni, slot liberi, riepilogo e conferma. Nessun titolo o dettaglio degli
-   eventi privati.
+   almeno dieci giornate lavorative nell'orizzonte standard, slot liberi,
+   riepilogo e conferma. Nessun titolo o dettaglio degli eventi privati. Dopo
+   la sincronizzazione l'esito viene completato e KONA passa al contatto
+   successivo; un retry dello stesso task non duplica l'evento.
 7. `consumer` — fase automatica quando il piano prevede Consumer e non restano
    task materializzabili: KONA **avvia da solo la sessione Consumer dal piano**
    (`avvia_consumer`), cerca il CF/P.IVA, mostra o raccoglie l'anagrafica completa
@@ -334,7 +336,10 @@ dipendenze. Non eseguire DROP durante il normale arresto.
 
 ## Verifica locale conclusiva
 
-- `node --test tests/kona-call-director.test.js`: 98/98 pass.
-- `npm test`: 221/221 pass, inclusa build statica production.
-- Nessuna migration applicata, nessun commit, push o deploy eseguito durante
-  questa chiusura.
+Ogni richiesta operativa della pagina agente usa il popup di caricamento
+condiviso e blocca i click successivi fino alla risposta. Il lock delle
+operazioni composte viene sempre rilasciato anche in errore.
+
+- `node --test tests/kona-call-director.test.js`: 104/104 pass.
+- `npm test`: 227/227 pass, inclusa build statica production.
+- Nessuna modifica o migration production fa parte di questa correzione.

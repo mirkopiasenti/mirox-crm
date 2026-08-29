@@ -50,6 +50,11 @@
         .kona-slotlist { display: flex; flex-wrap: wrap; gap: 8px; }
         .kona-slotlist .btn { flex: 1 1 130px; }
         .kona-summary { background: var(--bg); border-radius: var(--radius); padding: 12px; font-size: 13px; line-height: 1.5; margin: 10px 0; }
+        .kona-choice-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:14px 0; }
+        .kona-choice { border:1px solid #ccd9e8; background:#fff; color:#17324f; border-radius:16px; padding:15px; text-align:left; cursor:pointer; font:inherit; }
+        .kona-choice strong { display:block; font-size:14px; margin-bottom:4px; }
+        .kona-choice span { display:block; color:var(--text-secondary); font-size:12px; line-height:1.45; }
+        .kona-choice.selected { border-color:#2d8cff; box-shadow:0 0 0 3px rgba(45,140,255,.12); background:#f5f9ff; }
         .kona-transition { text-align: center; padding: 32px 16px; }
         .kona-transition h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
         .kona-transition p { color: var(--text-secondary); font-size: 14px; max-width: 480px; margin: 0 auto 20px; }
@@ -75,6 +80,7 @@
           .kona-consumer-grid { grid-template-columns:1fr; }
           .kona-consumer-grid .wide { grid-column:auto; }
           .kona-inline-search { align-items:stretch; flex-direction:column; }
+          .kona-choice-grid { grid-template-columns:1fr; }
         }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
     </style>
@@ -184,10 +190,20 @@
                         <div class="kona-title" id="konaFollowupTitolo"></div>
                         <div class="kona-subtitle" id="konaFollowupSottotitolo"></div>
                         <div id="konaFollowupRicontatto" class="hidden">
-                            <p style="font-size:13px;color:var(--text-secondary);line-height:1.55">
-                                KONA pianifica automaticamente il prossimo ricontatto alternando
-                                mattina e pomeriggio. Conferma per procedere.
-                            </p>
+                            <div class="kona-choice-grid" role="group" aria-label="Modalita' di pianificazione del ricontatto">
+                                <button type="button" id="konaRicontattoAutomatico" class="kona-choice selected" onclick="KonaCD.selezionaModalitaRicontatto('automatico')">
+                                    <strong>Gestisce KONA</strong>
+                                    <span>Assegna automaticamente il prossimo momento utile alternando mattina e pomeriggio.</span>
+                                </button>
+                                <button type="button" id="konaRicontattoManuale" class="kona-choice" onclick="KonaCD.selezionaModalitaRicontatto('manuale')">
+                                    <strong>Scelgo giorno e fascia</strong>
+                                    <span>Registra l'accordo preso con il cliente, anche per la giornata corrente.</span>
+                                </button>
+                            </div>
+                            <div id="konaFollowupManuale" class="kona-consumer-grid hidden">
+                                <div class="kona-field"><label for="konaFollowupData">Giorno concordato</label><input type="date" id="konaFollowupData" class="form-control"></div>
+                                <div class="kona-field"><label for="konaFollowupFascia">Fascia concordata</label><select id="konaFollowupFascia" class="form-control"><option value="">Seleziona</option><option value="Mattina">Mattina</option><option value="Pomeriggio">Pomeriggio</option></select></div>
+                            </div>
                         </div>
                         <div id="konaFollowupAltro" class="hidden">
                             <div class="kona-field">

@@ -52,6 +52,7 @@ class Q {
   eq(k, v) { this.filters.push(['eq', k, v]); return this; }
   is(k, v) { this.filters.push(['is', k, v]); return this; }
   in(k, v) { this.filters.push(['in', k, v]); return this; }
+  contains(k, v) { this.filters.push(['contains', k, v]); return this; }
   not(k, v) { this.filters.push(['not', k, v]); return this; }
   gte(k, v) { this.filters.push(['gte', k, v]); return this; }
   lte(k, v) { this.filters.push(['lte', k, v]); return this; }
@@ -689,6 +690,15 @@ test('computeSlots: giorni lavorativi, buffer, niente slot passati', () => {
   assert.ok(lun.every((s) => new Date(s.start).getTime() >= Date.parse('2026-08-24T10:00:00Z')));
 });
 
+test('computeSlots: quattordici giorni espongono almeno dieci date lavorative', () => {
+  const cfg = baseCfg();
+  const slots = google._test.computeSlots({
+    cfg, dataInizio: '2026-08-31', giorni: 14,
+    busyIntervals: [], bufferMinuti: 15, now: Date.UTC(2026, 7, 30, 6, 0, 0)
+  });
+  assert.ok(new Set(slots.map((s) => s.giorno)).size >= 10);
+});
+
 test('verifySlotAvailability: senza token -> no_token; errore FreeBusy -> fail-closed', async () => {
   const cfg = baseCfg();
   const noToken = await google.verifySlotAvailability({ supabase: makeSupabase({}), cfg, start: '2026-08-27T09:00:00Z', end: '2026-08-27T09:45:00Z', accessToken: null });
@@ -980,6 +990,29 @@ test('esito Business: registra chiamata outbound + attivita\' + storico', async 
   assert.equal(chiamateOutbound[0].esito, 'non_interessato');
   assert.equal(attivita.length, 1);
   assert.equal(attivita[0].tipo, 'esito');
+});
+
+test('esito Business Ricontattare: conserva data/fascia manuale e resta da lavorare', async () => {
+  const chiamateOutbound = [];
+  const db = makeSupabase({
+    'kona_call_director_task.select': () => ({ data: null }),
+    'profili.select': () => ({ data: { nome: 'Isabella' } }),
+    'call_center_lead_outbound.select': () => ({ data: { id: LEAD, ragione_sociale: 'Bar Roma', telefono_raw: '3331234567', telefono_norm: '3331234567', localita: 'Legnago', provincia: 'VR' }, error: null }),
+    'call_center_lead_outbound_chiamate.insert': (q) => { chiamateOutbound.push(q.value); return { data: { id: 'ch-ricontatto' }, error: null }; },
+    'call_center_lead_outbound_attivita.insert': () => ({ data: null, error: null }),
+    'call_center_lead_outbound.update': () => ({ data: [], error: null }),
+    'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
+    'kona_call_director_task_eventi.insert': () => ({ data: null, error: null }),
+    'kona_call_director_conferme.select': () => ({ count: 0, data: null, error: null })
+  });
+  const task = taskAttivo('sessione_business', { sorgente_tipo: 'lead', sorgente_id: LEAD, payload: { lead_id: LEAD } });
+  const dettagli = { dettagli: { data_ricontatto: '2026-08-30', fascia_ricontatto: 'Pomeriggio' } };
+  const res = await engine.registerEsito({ supabase: db, cfg: baseCfg(), task, profiloId: PROFILO, esito: 'ricontattare', dettagli });
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.ricontatto, { data: '2026-08-30', fascia: 'Pomeriggio' });
+  assert.equal(chiamateOutbound[0].data_ricontatto, '2026-08-30');
+  assert.equal(chiamateOutbound[0].fascia_ricontatto, 'Pomeriggio');
+  assert.equal(chiamateOutbound[0].rilavorazione_stato, 'da_lavorare');
 });
 
 test('esito conferma: dettaglio contatto completo senza eventi privati', async () => {
@@ -1292,6 +1325,37 @@ test('frontend: ricontatto assegnato dal backend mostrato (ricontattoAssegnato)'
   const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
   assert.ok(/Ricontatto pianificato/.test(js), 'messaggio di conferma follow-up');
   assert.ok(/res\.esito && res\.esito\.ricontatto/.test(js), 'legge il ricontatto dal backend');
+});
+
+test('ricontatto manuale: valida giorno/fascia e rifiuta date passate', () => {
+  assert.deepEqual(
+    engine.ricontattoRichiesto(baseCfg(), '2026-08-29', { dettagli: { data_ricontatto: '2026-08-29', fascia_ricontatto: 'Mattina' } }),
+    { data: '2026-08-29', fascia: 'Mattina' }
+  );
+  assert.throws(() => engine.ricontattoRichiesto(baseCfg(), '2026-08-29', { dettagli: { data_ricontatto: '2026-08-28', fascia_ricontatto: 'Mattina' } }), /ricontatto_manuale_non_valido/);
+  assert.throws(() => engine.ricontattoRichiesto(baseCfg(), '2026-08-29', { dettagli: { data_ricontatto: '2026-08-30', fascia_ricontatto: 'Sera' } }), /ricontatto_manuale_non_valido/);
+});
+
+test('frontend affidabile: loading globale e salvataggio interno evitano il blocco annidato', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/kona-call-director.html'), 'utf8');
+  const api = js.slice(js.indexOf('async function apiFetch'), js.indexOf('// -- Macchina a stati'));
+  const slot = js.slice(js.indexOf('async function confermaSlot'), js.indexOf('async function azioneAppuntamento'));
+  assert.match(api, /mostraCaricamento\(\)/);
+  assert.match(api, /finally[\s\S]*nascondiCaricamento\(\)/);
+  assert.match(slot, /salvaEsitoInterno\('appuntamento'/);
+  assert.doesNotMatch(slot, /await salvaEsito\('appuntamento'/);
+  assert.match(slot, /finally[\s\S]*_salvataggioInCorso = false/);
+  assert.match(html, /id="konaRicontattoManuale"/);
+  assert.match(html, /id="konaFollowupData"/);
+});
+
+test('calendario Business: nessun taglio ai primi 30 slot e retry idempotente per task', () => {
+  const dialog = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-dialog.js'), 'utf8');
+  assert.doesNotMatch(dialog, /slots\.slice\(0, 30\)/);
+  assert.match(dialog, /giorni_disponibili/);
+  assert.match(dialog, /contains\('esito', \{ task_id: taskId \}\)/);
+  assert.match(dialog, /riutilizzato: true/);
 });
 
 // =============================================================================

@@ -22,6 +22,7 @@
   var _esiti = [];
   var _pendingEsito = null;
   var _followupMode = null;
+  var _ricontattoMode = 'automatico';
   var _slots = [];
   var _days = [];
   var _selectedDay = null;
@@ -32,6 +33,7 @@
   var _negozioDay = null;
   var _negozioSelected = null;
   var _salvataggioInCorso = false;
+  var _richiesteInCorso = 0;
   var _consumer = null;
   var _pausa = false;
   var _ricercaMode = 'inbound';
@@ -144,16 +146,33 @@
     if (root.MiroxUI && typeof root.MiroxUI.toast === 'function') root.MiroxUI.toast(message, kind || 'info');
   }
 
-  async function apiFetch(endpoint, opts) {
-    var response = await root.MiroxApi.fetch(endpoint, opts);
-    var result = await response.json().catch(function () { return {}; });
-    if (!response.ok) {
-      var error = new Error(result.error || ('Errore ' + response.status));
-      error.code = result.error_code || result.reason || null;
-      error.payload = result;
-      throw error;
+  function mostraCaricamento() {
+    _richiesteInCorso += 1;
+    if (_richiesteInCorso === 1 && root.MiroxUI && root.MiroxUI.loading) {
+      root.MiroxUI.loading.show('KONA sta completando l\'operazione...', 'Attendi la conferma prima di premere altri comandi.');
     }
-    return result;
+  }
+
+  function nascondiCaricamento() {
+    _richiesteInCorso = Math.max(0, _richiesteInCorso - 1);
+    if (_richiesteInCorso === 0 && root.MiroxUI && root.MiroxUI.loading) root.MiroxUI.loading.hide();
+  }
+
+  async function apiFetch(endpoint, opts) {
+    mostraCaricamento();
+    try {
+      var response = await root.MiroxApi.fetch(endpoint, opts);
+      var result = await response.json().catch(function () { return {}; });
+      if (!response.ok) {
+        var error = new Error(result.error || ('Errore ' + response.status));
+        error.code = result.error_code || result.reason || null;
+        error.payload = result;
+        throw error;
+      }
+      return result;
+    } finally {
+      nascondiCaricamento();
+    }
   }
 
   // -- Macchina a stati -------------------------------------------------------
@@ -454,10 +473,12 @@
     _followupMode = mode;
     hide('konaFollowupRicontatto');
     hide('konaFollowupAltro');
-    if (mode === 'ricontattare') {
+    if (mode === 'ricontattare' || mode === 'consumer_ricontattare') {
       _pendingEsito = 'ricontattare';
+      _ricontattoMode = 'automatico';
       setText('konaFollowupTitolo', 'Ricontattare');
-      setText('konaFollowupSottotitolo', 'Il prossimo ricontatto viene pianificato da KONA.');
+      setText('konaFollowupSottotitolo', 'Scegli se affidare la pianificazione a KONA oppure indicare giorno e fascia concordati con il cliente.');
+      selezionaModalitaRicontatto('automatico');
       show('konaFollowupRicontatto');
     } else {
       _pendingEsito = 'altro';
@@ -470,14 +491,30 @@
   }
 
   function annullaFollowup() {
+    var tornaConsumer = _followupMode === 'consumer_ricontattare';
     _followupMode = null;
     _pendingEsito = null;
-    go('outcome');
+    go(tornaConsumer ? 'consumer' : 'outcome');
   }
 
   async function confermaFollowup() {
-    if (_followupMode === 'ricontattare') {
-      await salvaEsito('ricontattare');
+    if (_followupMode === 'ricontattare' || _followupMode === 'consumer_ricontattare') {
+      var consumerRicontatto = _followupMode === 'consumer_ricontattare';
+      if (_ricontattoMode === 'manuale') {
+        var dataRicontatto = document.getElementById('konaFollowupData').value;
+        var fasciaRicontatto = document.getElementById('konaFollowupFascia').value;
+        var oggi = new Date();
+        var oggiLocale = oggi.getFullYear() + '-' + String(oggi.getMonth() + 1).padStart(2, '0') + '-' + String(oggi.getDate()).padStart(2, '0');
+        if (!dataRicontatto || dataRicontatto < oggiLocale || !fasciaRicontatto) {
+          toast('Seleziona una data valida e la fascia del ricontatto.', 'warning');
+          return;
+        }
+        if (consumerRicontatto) await registraConsumer('ricontattare', { data_ricontatto: dataRicontatto, fascia_ricontatto: fasciaRicontatto });
+        else await salvaEsito('ricontattare', { data_ricontatto: dataRicontatto, fascia_ricontatto: fasciaRicontatto });
+      } else {
+        if (consumerRicontatto) await registraConsumer('ricontattare');
+        else await salvaEsito('ricontattare');
+      }
     } else {
       var spiegazione = document.getElementById('konaFollowupSpiegazione').value || '';
       if (!spiegazione.trim()) { toast('La spiegazione e\' obbligatoria per "Altro".'); return; }
@@ -503,6 +540,24 @@
     }
   }
 
+  function selezionaModalitaRicontatto(mode) {
+    _ricontattoMode = mode === 'manuale' ? 'manuale' : 'automatico';
+    var automatico = document.getElementById('konaRicontattoAutomatico');
+    var manuale = document.getElementById('konaRicontattoManuale');
+    if (automatico) automatico.classList.toggle('selected', _ricontattoMode === 'automatico');
+    if (manuale) manuale.classList.toggle('selected', _ricontattoMode === 'manuale');
+    if (_ricontattoMode === 'manuale') {
+      var data = document.getElementById('konaFollowupData');
+      var now = new Date();
+      var min = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+      data.min = min;
+      if (!data.value || data.value < min) data.value = min;
+      show('konaFollowupManuale');
+    } else {
+      hide('konaFollowupManuale');
+    }
+  }
+
   async function attivaFailoverAi(codice, dettaglio) {
     try {
       var res = await apiFetch(OPERATOR, jsonBody({ action: 'attiva_failover', codice: codice, dettaglio: dettaglio }));
@@ -515,28 +570,32 @@
 
   // -- Esito / salvataggio ----------------------------------------------------
 
+  async function salvaEsitoInterno(esito, dettagli) {
+    var body = { action: 'esito', esito: esito };
+    if (dettagli) {
+      if (dettagli.motivo) body.motivo = dettagli.motivo;
+      if (dettagli.spiegazione) body.spiegazione = dettagli.spiegazione;
+      if (dettagli.skip_reason) body.skip_reason = dettagli.skip_reason;
+      if (dettagli.appuntamento_tipo) body.appuntamento_tipo = dettagli.appuntamento_tipo;
+      if (dettagli.data_ricontatto) body.dettagli = { data_ricontatto: dettagli.data_ricontatto, fascia_ricontatto: dettagli.fascia_ricontatto };
+    }
+    var res = await apiFetch(TASK, jsonBody(body));
+    if (res.esito && res.esito.esaurito) toast('Tentativi esauriti per questo contatto.');
+    _prevFamiglia = _task && _task.task ? famiglia(_task.task.tipo) : _prevFamiglia;
+    _ricontattoAssegnato = res.esito && res.esito.ricontatto ? res.esito.ricontatto : null;
+    _task = null;
+    _pendingEsito = null;
+    _followupMode = null;
+    await dopoEsito();
+  }
+
   async function salvaEsito(esito, dettagli) {
-    if (_salvataggioInCorso) return;
+    if (_salvataggioInCorso) { toast('Operazione gia\' in corso. Attendi la conferma.', 'warning'); return; }
     _salvataggioInCorso = true;
     try {
-      var body = { action: 'esito', esito: esito };
-      if (dettagli) {
-        if (dettagli.motivo) body.motivo = dettagli.motivo;
-        if (dettagli.spiegazione) body.spiegazione = dettagli.spiegazione;
-        if (dettagli.skip_reason) body.skip_reason = dettagli.skip_reason;
-        if (dettagli.appuntamento_tipo) body.appuntamento_tipo = dettagli.appuntamento_tipo;
-        if (dettagli.data_ricontatto) body.dettagli = { data_ricontatto: dettagli.data_ricontatto, fascia_ricontatto: dettagli.fascia_ricontatto };
-      }
-      var res = await apiFetch(TASK, jsonBody(body));
-      if (res.esito && res.esito.esaurito) toast('Tentativi esauriti per questo contatto.');
-      _prevFamiglia = _task && _task.task ? famiglia(_task.task.tipo) : _prevFamiglia;
-      _ricontattoAssegnato = res.esito && res.esito.ricontatto ? res.esito.ricontatto : null;
-      _task = null;
-      _pendingEsito = null;
-      _followupMode = null;
-      await dopoEsito();
+      await salvaEsitoInterno(esito, dettagli);
     } catch (e) {
-      toast(e.message);
+      toast(e.message, 'danger');
     } finally {
       _salvataggioInCorso = false;
     }
@@ -636,7 +695,7 @@
   // -- Blacklist --------------------------------------------------------------
 
   async function segnalaBlacklist() {
-    if (_salvataggioInCorso) return;
+    if (_salvataggioInCorso) { toast('Operazione gia\' in corso. Attendi la conferma.', 'warning'); return; }
     if (!root.MiroxUI || typeof root.MiroxUI.confirm !== 'function') {
       await salvaEsito('blacklist');
       return;
@@ -770,7 +829,8 @@
   }
 
   async function confermaSlot() {
-    if (!_selectedSlot || _salvataggioInCorso) return;
+    if (!_selectedSlot) return;
+    if (_salvataggioInCorso) { toast('Operazione gia\' in corso. Attendi la conferma.', 'warning'); return; }
     _salvataggioInCorso = true;
     try {
       if (_riprogrammaAppId) {
@@ -778,7 +838,7 @@
         await apiFetch(DIALOG, jsonBody({ action: 'riprogramma_appuntamento', appuntamento_business_id: _riprogrammaAppId, start: _selectedSlot.start }));
         _riprogrammaAppId = null;
         toast('Appuntamento riprogrammato e sincronizzato.');
-        await salvaEsito('da_riprogrammare');
+        await salvaEsitoInterno('da_riprogrammare');
       } else {
         var leadId = (_task && _task.task && _task.task.payload && _task.task.payload.lead_id) || null;
         await apiFetch(DIALOG, jsonBody({
@@ -786,13 +846,15 @@
           lead_id: leadId,
           start: _selectedSlot.start,
           durata_minuti: _stato.config ? (_stato.config.durata_appuntamento_minuti || 45) : 45,
-          anagrafica_id: eContatto().anagrafica_id || null
+          anagrafica_id: eContatto().anagrafica_id || null,
+          task_id: _task && _task.task ? _task.task.id : null
         }));
         toast('Appuntamento creato e sincronizzato con il calendario.');
-        await salvaEsito('appuntamento', { appuntamento_tipo: 'esterno' });
+        await salvaEsitoInterno('appuntamento', { appuntamento_tipo: 'esterno' });
       }
     } catch (e) {
-      toast(e.message);
+      toast(e.message, 'danger');
+    } finally {
       _salvataggioInCorso = false;
     }
   }
@@ -803,7 +865,7 @@
       apriCalendar(appId);
       return;
     }
-    if (_salvataggioInCorso) return;
+    if (_salvataggioInCorso) { toast('Operazione gia\' in corso. Attendi la conferma.', 'warning'); return; }
     if (action === 'annulla' && root.MiroxUI && typeof root.MiroxUI.confirm === 'function') {
       var ok = await root.MiroxUI.confirm('Annullare l\'appuntamento (evento Google incluso)?');
       if (!ok) return;
@@ -812,9 +874,10 @@
     try {
       await apiFetch(DIALOG, jsonBody({ action: action + '_appuntamento', appuntamento_business_id: appId }));
       toast('Operazione completata.');
-      await salvaEsito(action === 'conferma' ? 'confermato' : 'annullato');
+      await salvaEsitoInterno(action === 'conferma' ? 'confermato' : 'annullato');
     } catch (e) {
-      toast(e.message);
+      toast(e.message, 'danger');
+    } finally {
       _salvataggioInCorso = false;
     }
   }
@@ -834,6 +897,7 @@
       b.onclick = function () {
         if (!_consumer) { toast('Cerca prima il cliente.'); return; }
         if (e.esito === 'appuntamento') apriNegozio();
+        else if (e.esito === 'ricontattare') apriFollowup('consumer_ricontattare');
         else registraConsumer(e.esito);
       };
       box.appendChild(b);
@@ -909,15 +973,15 @@
     }
   }
 
-  async function registraConsumer(esito) {
+  async function registraConsumer(esito, dettagli) {
     var categoria = _stato && _stato.consumer_modalita;
     if (!categoria) { toast('Attiva prima una modalita' + ' Consumer.'); return; }
     var errore = validaConsumer();
     if (errore) { toast(errore, 'warning'); return; }
-    if (esito === 'ricontattare') {
+    if (esito === 'ricontattare' && !(dettagli && dettagli.data_ricontatto)) {
       toast('KONA assegnera\' automaticamente data e fascia del prossimo ricontatto.');
     }
-    if (_salvataggioInCorso) return;
+    if (_salvataggioInCorso) { toast('Operazione gia\' in corso. Attendi la conferma.', 'warning'); return; }
     _salvataggioInCorso = true;
     try {
       var res = await apiFetch(OPERATOR, jsonBody({
@@ -927,11 +991,15 @@
         copertura: campo('konaConsumerCopertura'),
         motivo: campo('konaConsumerMotivo'),
         esito: esito,
-        note: campo('konaConsumerNota')
+        note: campo('konaConsumerNota'),
+        data_ricontatto: dettagli && dettagli.data_ricontatto,
+        fascia_ricontatto: dettagli && dettagli.fascia_ricontatto
       }));
       setText('konaConsumerStatus', 'Chiamate tracciate nella sessione: ' + (res.totale_sessione || 0));
       resetConsumer();
+      _followupMode = null;
       toast('Chiamata salvata nel Call Center condiviso. Prosegui con il prossimo contatto.', 'success');
+      go('consumer');
     } catch (e) {
       toast(e.message, 'danger');
     } finally {
@@ -1012,7 +1080,8 @@
   }
 
   async function confermaNegozio() {
-    if (!_negozioSelected || _salvataggioInCorso) return;
+    if (!_negozioSelected) { toast('Seleziona prima uno slot del negozio.', 'warning'); return; }
+    if (_salvataggioInCorso) { toast('Operazione gia\' in corso. Attendi la conferma.', 'warning'); return; }
     var cliente = datiConsumer();
     var nome = cliente.nome_referente || cliente.ragione_sociale;
     var telefono = cliente.cellulare;
@@ -1184,8 +1253,9 @@
   }
 
   async function togglePausa() {
-    if (_salvataggioInCorso) return;
+    if (_salvataggioInCorso) { toast('Operazione gia\' in corso. Attendi la conferma.', 'warning'); return; }
     var target = !_pausa;
+    _salvataggioInCorso = true;
     try {
       if (_task) await apiFetch(TASK, jsonBody({ action: target ? 'sospendi' : 'riprendi' }));
       await apiFetch(OPERATOR, jsonBody({ action: 'audit_pausa', stato: target ? 'pausa' : 'ripresa' }));
@@ -1196,6 +1266,8 @@
       toast(_pausa ? 'Attivita\' sospesa.' : 'Attivita\' ripresa.', 'success');
     } catch (e) {
       toast(e.message, 'danger');
+    } finally {
+      _salvataggioInCorso = false;
     }
   }
 
@@ -1249,6 +1321,7 @@
     indietroNegozio: indietroNegozio,
     iniziaChiamata: iniziaChiamata,
     registraConsumer: registraConsumer,
+    selezionaModalitaRicontatto: selezionaModalitaRicontatto,
     ricontrolla: ricontrolla,
     riprova: riprova,
     segnalaBlacklist: segnalaBlacklist,

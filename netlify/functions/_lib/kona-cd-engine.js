@@ -196,6 +196,20 @@ function followupIso(cfg, prossimo) {
   return romeToUtc(prossimo.data, hhmm).toISOString();
 }
 
+// Il ricontatto puo' essere affidato all'alternanza deterministica di KONA
+// oppure fissato esplicitamente dall'operatrice. La validazione resta
+// server-side: il browser non puo' introdurre date passate o fasce arbitrarie.
+function ricontattoRichiesto(cfg, oggi, dettagli = {}) {
+  const richiesta = dettagli && dettagli.dettagli ? dettagli.dettagli : dettagli;
+  const data = String(richiesta?.data_ricontatto || '').trim();
+  const fascia = String(richiesta?.fascia_ricontatto || '').trim();
+  if (!data && !fascia) return prossimaFascia(fasciaCorrente(cfg), oggi);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || data < oggi || !['Mattina', 'Pomeriggio'].includes(fascia)) {
+    throw new Error('ricontatto_manuale_non_valido');
+  }
+  return { data, fascia };
+}
+
 // -- Tentativi persistenti ----------------------------------------------------
 
 // Conta i task completati con esito non_risposto per lo STESSO sorgente negli
@@ -832,8 +846,10 @@ async function registraChiamataOutbound(supabase, { task, esito, cfg, oggi, dett
     .maybeSingle();
   if (leadError || !lead) throw new Error('lead_outbound_non_trovato');
 
-  const prossimo = esito === 'non_risposto' || (esito === 'skip' && ['cliente_momentaneamente_indisponibile', 'problema_tecnico'].includes(dettagli.skip_reason))
-    ? prossimaFascia(fasciaCorrente(cfg), oggi)
+  const richiedeRicontatto = esito === 'non_risposto' || esito === 'ricontattare'
+    || (esito === 'skip' && ['cliente_momentaneamente_indisponibile', 'problema_tecnico'].includes(dettagli.skip_reason));
+  const prossimo = richiedeRicontatto
+    ? (esito === 'ricontattare' ? ricontattoRichiesto(cfg, oggi, dettagli) : prossimaFascia(fasciaCorrente(cfg), oggi))
     : null;
   let operatoreNome = payload.operatore_nome || null;
   if (!operatoreNome) {
@@ -854,7 +870,7 @@ async function registraChiamataOutbound(supabase, { task, esito, cfg, oggi, dett
     data_ricontatto: prossimo ? prossimo.data : null,
     fascia_ricontatto: prossimo ? prossimo.fascia : null,
     appuntamento_tipo: esito === 'appuntamento' ? (dettagli.appuntamento_tipo === 'negozio' ? 'negozio' : 'esterno') : null,
-    rilavorazione_stato: esito === 'non_risposto' && tentativo < (cfg.tentativi_massimi || 3) ? 'da_lavorare' : 'completato'
+    rilavorazione_stato: richiedeRicontatto && !(esito === 'non_risposto' && tentativo >= (cfg.tentativi_massimi || 3)) ? 'da_lavorare' : 'completato'
   };
   const { data: inserita, error } = await supabase
     .from('call_center_lead_outbound_chiamate').insert(row).select('id').single();
@@ -902,7 +918,9 @@ async function registraChiamataStandard(supabase, { task, esito, cfg, oggi, dett
   }
   const esitoStandard = mappaEsitoStandard(esito, dettagli);
   const richiedeRicontatto = ['non_risposto', 'ricontattare'].includes(esitoStandard);
-  const prossimo = richiedeRicontatto ? prossimaFascia(fasciaCorrente(cfg), oggi) : null;
+  const prossimo = richiedeRicontatto
+    ? (esitoStandard === 'ricontattare' ? ricontattoRichiesto(cfg, oggi, dettagli) : prossimaFascia(fasciaCorrente(cfg), oggi))
+    : null;
   const esaurito = esitoStandard === 'non_risposto' && tentativo >= (cfg.tentativi_massimi || 3);
   const nuova = {
     operatore_id: task.operatore_id,
@@ -980,7 +998,7 @@ async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli
       patch.prossimo_followup_at = null;
     } else if (esito === 'ricontattare') {
       patch.stato_lead = 'ricontattare';
-      const prossimo = prossimaFascia(fasciaCorrente(cfg), oggi);
+      const prossimo = ricontattoRichiesto(cfg, oggi, dettagli);
       patch.prossimo_followup_at = followupIso(cfg, prossimo);
     } else if (esito === 'chiuso') {
       patch.stato_lead = 'chiuso';
@@ -1077,6 +1095,13 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
     if (skip === 'altro' && !String(dettagli.spiegazione || '').trim()) return { ok: false, error: 'skip_altro_richiede_spiegazione' };
   } else if (esito !== 'blacklist' && !ammessi.includes(esito)) {
     return { ok: false, error: 'esito_non_valido' };
+  }
+  if (esito === 'ricontattare') {
+    try {
+      ricontattoRichiesto(cfg, oggi, dettagli);
+    } catch {
+      return { ok: false, error: 'ricontatto_manuale_non_valido' };
+    }
   }
 
   const isNonRisposto = esito === 'non_risposto';
@@ -1190,7 +1215,9 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
   // restituito al frontend per la conferma visibile senza override manuale.
   let ricontatto = null;
   if (esito === 'ricontattare' || (isNonRisposto && !esaurito)) {
-    const p = prossimaFascia(fasciaCorrente(cfg), oggi);
+    const p = esito === 'ricontattare'
+      ? ricontattoRichiesto(cfg, oggi, dettagli)
+      : prossimaFascia(fasciaCorrente(cfg), oggi);
     ricontatto = { data: p.data, fascia: p.fascia };
   }
   return { ok: true, esito, esaurito, notifica, tentativo, ricontatto };
@@ -1289,14 +1316,12 @@ async function registraChiamataConsumerCanonica(supabase, cfg, {
   let dataRicontatto = null;
   let fasciaRicontatto = null;
   if (esitoCanonico === 'ricontattare') {
-    if (dataRicontattoEsplicita && ['Mattina', 'Pomeriggio'].includes(fasciaRicontattoEsplicita)) {
-      dataRicontatto = String(dataRicontattoEsplicita);
-      fasciaRicontatto = fasciaRicontattoEsplicita;
-    } else {
-      const p = prossimaFascia(fasciaCorrente(cfg), oggi || todayRomeStr());
-      dataRicontatto = p.data;
-      fasciaRicontatto = p.fascia;
-    }
+    const p = ricontattoRichiesto(cfg, oggi || todayRomeStr(), {
+      data_ricontatto: dataRicontattoEsplicita,
+      fascia_ricontatto: fasciaRicontattoEsplicita
+    });
+    dataRicontatto = p.data;
+    fasciaRicontatto = p.fascia;
   }
   const row = {
     operatore_id: operatoreId,
@@ -1342,6 +1367,7 @@ module.exports = {
   materializeNextTask,
   normTel,
   registraChiamataConsumerCanonica,
+  ricontattoRichiesto,
   upsertAnagraficaConsumer,
   prossimaFascia,
   pureBlacklisted,

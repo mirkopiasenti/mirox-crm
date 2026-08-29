@@ -684,6 +684,20 @@ Regole permanenti:
   sessione Consumer dal piano (`avvia_consumer`), leggendo il campo canonico
   `consumer` e il legacy Telegram `categoria_sessione`; la prenotazione negozio
   viene rimossa in compensazione se la registrazione dell'esito fallisce;
+- ogni chiamata alle Functions dalla pagina agente mostra il loading condiviso
+  e intercetta i click finche' la risposta non e' conclusa. Le operazioni
+  composte (prenotazione/riprogrammazione Google + salvataggio esito + prossimo
+  contatto) usano un salvataggio interno non rientrante e rilasciano sempre il
+  lock in `finally`: non reintrodurre chiamate annidate al wrapper pubblico
+  `salvaEsito`;
+- il calendario Business non tronca gli slot grezzi: l'orizzonte minimo e' 14
+  giorni di calendario, così la configurazione lavorativa standard espone
+  almeno dieci date. La creazione e' idempotente per `task_id` registrato nel
+  JSONB `esito` dell'appuntamento KONA;
+- l'esito `ricontattare` offre `automatico` (alternanza deterministica KONA) o
+  `manuale` (data non passata + fascia `Mattina`/`Pomeriggio`). La scelta vale
+  per Business, rilavorazioni e Consumer ed e' validata lato server; una
+  chiamata outbound ricontattabile resta sempre `da_lavorare`;
 - `Prossimo contatto`, `Avvia` e `Avvia chiamate` sono idempotenti: se esiste gia'
   un task attivo restituiscono quel task, senza svuotare la UI o crearne un
   secondo; il refresh riprende il task attivo;

@@ -141,7 +141,10 @@ async function azioneCercaSlot(client, cfg, body) {
   if (!accessToken) return jsonError(409, 'Calendario Google non collegato');
 
   const oggi = todayRomeStr();
-  const orizzonte = Number(cfg.giorni_orizzonte_calendario) || 14;
+  // Quattordici giorni di calendario producono almeno dieci giornate
+  // lavorative nella configurazione standard. Non troncare gli slot grezzi:
+  // il vecchio limite a 30 riempiva soltanto i primi due giorni.
+  const orizzonte = Math.max(Number(cfg.giorni_orizzonte_calendario) || 14, 14);
   const start = new Date(`${oggi}T00:00:00Z`).toISOString();
   const end = new Date(Date.parse(`${addDaysStr(oggi, orizzonte)}T23:59:59Z`)).toISOString();
 
@@ -167,13 +170,14 @@ async function azioneCercaSlot(client, cfg, body) {
 
   const zona = lead.localita || lead.zona || 'Zona non definita';
   return jsonOk({
-    slots: slots.slice(0, 30).map((s) => ({
+    slots: slots.map((s) => ({
       start: s.start.toISOString(),
       end: s.end.toISOString(),
       giorno: s.giorno,
       zona
     })),
     totale: slots.length,
+    giorni_disponibili: new Set(slots.map((s) => s.giorno)).size,
     calendario_collegato: true
   });
 }
@@ -182,9 +186,11 @@ async function azioneCercaSlot(client, cfg, body) {
 
 async function azioneProponi(client, cfg, body, profiloId, isAdmin) {
   const leadId = String(body.lead_id || '');
+  const taskId = String(body.task_id || '');
   const start = new Date(String(body.start || ''));
   const durata = parseNumber(body.durata_minuti, cfg.durata_appuntamento_minuti) || cfg.durata_appuntamento_minuti || 45;
   if (!isUuid(leadId)) return jsonError(400, 'lead_id non valido');
+  if (taskId && !isUuid(taskId)) return jsonError(400, 'task_id non valido');
   if (Number.isNaN(start.getTime()) || start.getTime() <= Date.now()) return jsonError(400, 'slot non valido o passato');
   const end = new Date(start.getTime() + durata * 60000);
   const { data: lead, error: leadError } = await client.from('call_center_lead_outbound')
@@ -193,6 +199,22 @@ async function azioneProponi(client, cfg, body, profiloId, isAdmin) {
   if (leadError || !lead) return jsonError(404, 'Lead non trovato');
   const telefono = lead.telefono_norm || lead.telefono_raw || null;
   if (!telefono) return jsonError(409, 'Il lead non ha un numero di telefono valido');
+
+  // Idempotenza end-to-end: un retry della stessa azione non deve creare un
+  // secondo evento Google se la risposta precedente si e' persa nel browser.
+  if (taskId) {
+    const { data: task } = await client.from('kona_call_director_task')
+      .select('id, operatore_id, stato, payload').eq('id', taskId).maybeSingle();
+    if (!task || task.stato !== 'attivo' || task.operatore_id !== profiloId || task.payload?.lead_id !== leadId) {
+      return jsonError(409, 'Task Business non piu valido');
+    }
+    const { data: esistente } = await client.from('kona_call_director_appuntamenti_business')
+      .select('*').eq('operatore_id', profiloId).eq('lead_id', leadId)
+      .contains('esito', { task_id: taskId }).in('stato', ['proposto', 'confermato']).limit(1).maybeSingle();
+    if (esistente?.appuntamento_id && esistente.sync_stato === 'sincronizzato') {
+      return jsonOk({ appuntamento: pubblicaAppuntamento(esistente), slot: true, riutilizzato: true });
+    }
+  }
 
   const accessToken = await getAccessToken(client);
   if (!accessToken) return jsonError(409, 'Calendario Google non collegato');
@@ -242,7 +264,11 @@ async function azioneProponi(client, cfg, body, profiloId, isAdmin) {
     return jsonError(500, appErr?.message || 'Salvataggio appuntamento Mirox fallito');
   }
   const { error: linkError } = await client.from('kona_call_director_appuntamenti_business')
-    .update({ appuntamento_id: appuntamentoCondiviso.id, anagrafica_id: anagraficaId }).eq('id', bizId);
+    .update({
+      appuntamento_id: appuntamentoCondiviso.id,
+      anagrafica_id: anagraficaId,
+      ...(taskId ? { esito: { task_id: taskId } } : {})
+    }).eq('id', bizId);
   if (linkError) {
     await client.from('appuntamenti').delete().eq('id', appuntamentoCondiviso.id);
     await client.from('kona_call_director_appuntamenti_business').delete().eq('id', bizId);
