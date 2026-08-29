@@ -23,6 +23,7 @@ const { scoreLead } = require('./kona-cd-scoring');
 const CHIAMATE_ESITI = ['non_risposto', 'non_interessato', 'passa_in_negozio', 'ricontattare', 'appuntamento', 'passa_a_cerea'];
 const LEAD_ESITI = ['non_risposto', 'non_interessato', 'appuntamento', 'passa_in_negozio', 'ricontattare', 'chiuso', 'altro'];
 const CONFERMA_ESITI = ['confermato', 'non_risposto', 'annullato', 'da_riprogrammare'];
+const RILAVORAZIONE_CON_PRESENZA_ESITI = [...CHIAMATE_ESITI, 'presentato'];
 
 const SKIP_REASONS = [
   'dato_errato',
@@ -39,8 +40,9 @@ const ESITI_PER_TIPO = {
   conferma_appuntamento_business: CONFERMA_ESITI,
   ricontatto_programmato: CHIAMATE_ESITI,
   auto_non_risposto: CHIAMATE_ESITI,
-  passa_a_cerea: CHIAMATE_ESITI,
-  passa_in_negozio: CHIAMATE_ESITI,
+  non_presentato: RILAVORAZIONE_CON_PRESENZA_ESITI,
+  passa_a_cerea: RILAVORAZIONE_CON_PRESENZA_ESITI,
+  passa_in_negozio: RILAVORAZIONE_CON_PRESENZA_ESITI,
   campagna_urgente: LEAD_ESITI,
   sessione_business: LEAD_ESITI,
   enrichment_review: ['verificato', 'non_trovato', 'altro']
@@ -246,7 +248,7 @@ async function isBlacklistedOrEscluso(candidate, blacklistRows, exclusionRows) {
   const ex = pureEscluso(exclusionRows, {
     leadId: candidate.leadId || (candidate.sorgenteTipo === 'lead' || candidate.sorgenteTipo === 'lead_outbound_chiamata' ? candidate.sorgenteId : undefined),
     anagraficaId: candidate.anagraficaId,
-    chiamataId: candidate.sorgenteTipo === 'chiamata' ? candidate.sorgenteId : undefined
+    chiamataId: candidate.sorgenteTipo === 'chiamata' ? candidate.sorgenteId : candidate.payload?.chiamata_id
   });
   if (ex) return { blocked: true, motivo: 'esclusione' };
   return { blocked: false };
@@ -279,6 +281,24 @@ async function queryChiamatePassaggio(supabase, { profiloId, oggi, passaggioStat
     .select('id, cf_piva, nome_cliente, cellulare, anagrafica_id, esito, data_ricontatto, fascia_ricontatto, passaggio_stato, data_ora, motivo_chiamata, note')
     .eq('operatore_id', profiloId)
     .in('passaggio_stato', passaggioStati)
+    .order('data_ora', { ascending: true })
+    .limit(200);
+  if (error || !Array.isArray(data)) return [];
+  return data;
+}
+
+// Appuntamenti non presentati: stessa selezione del tab Rilavorazione manuale.
+// Il proprietario e' l'operatore che aveva fissato l'appuntamento, non chi ha
+// eventualmente registrato la chiamata originaria.
+async function queryNonPresentati(supabase, { profiloId }) {
+  const { data, error } = await supabase
+    .from('appuntamenti')
+    .select('id, nome, codice_fiscale, telefono, motivo, note, anagrafica_id, fissato_da_operatore_id, chiamata_id, data_ora, durata_minuti, stato, presentato, non_presentato_stato')
+    .eq('fissato_da_operatore_id', profiloId)
+    .eq('presentato', 'no')
+    .eq('non_presentato_stato', 'da_lavorare')
+    .eq('stato', 'confermato')
+    .order('data_ora', { ascending: false })
     .limit(200);
   if (error || !Array.isArray(data)) return [];
   return data;
@@ -378,12 +398,39 @@ async function candidatiRilavorazione(supabase, { profiloId, oggi, fascia }) {
     }
   }
 
+  // Non presentati: il manuale consente "Presentato (dimenticanza)" oppure
+  // una nuova chiamata. La sorgente resta l'appuntamento fino all'esito.
+  const nonPresentati = await queryNonPresentati(supabase, { profiloId });
+  for (const row of nonPresentati) {
+    out.push({
+      tipo: 'non_presentato',
+      sorgenteId: row.id,
+      sorgenteTipo: 'appuntamento',
+      chiaveTentativi: 'non-presentato:' + row.id,
+      payload: {
+        appuntamento_id: row.id,
+        chiamata_id: row.chiamata_id,
+        anagrafica_id: row.anagrafica_id
+      },
+      cf_piva: row.codice_fiscale,
+      nome: row.nome,
+      cellulare: row.telefono,
+      telefoni: [row.telefono],
+      anagraficaId: row.anagrafica_id,
+      storico: { motivo: row.motivo, note: row.note, data_ora: row.data_ora },
+      descrizione: 'Appuntamento non presentato',
+      priority: 4
+    });
+  }
+
   // Passa a Cerea / Passa in negozio (chiamate standard con passaggio attivo).
-  const cerea = await queryChiamatePassaggio(supabase, { profiloId, oggi, passaggioStati: ['in_attesa', 'ricontattare'] });
+  // Come il manuale, solo `in_attesa`: `ricontattare` indica che il controllo
+  // originario e' gia' stato lavorato e non deve ricomparire.
+  const cerea = await queryChiamatePassaggio(supabase, { profiloId, oggi, passaggioStati: ['in_attesa'] });
   for (const row of cerea) {
     const esito = String(row.esito || '');
-    if (esito === 'passa_a_cerea') out.push(mkStandard(row, 'passa_a_cerea', 4, 'Passa a Cerea'));
-    if (esito === 'passa_in_negozio') out.push(mkStandard(row, 'passa_in_negozio', 5, 'Passa in negozio'));
+    if (esito === 'passa_a_cerea') out.push(mkStandard(row, 'passa_a_cerea', 5, 'Passa a Cerea'));
+    if (esito === 'passa_in_negozio') out.push(mkStandard(row, 'passa_in_negozio', 6, 'Passa in negozio'));
   }
 
   return out;
@@ -472,7 +519,7 @@ async function candidatiLead(supabase, cfg, { profiloId, oggi, pinnedOnly }) {
     cf_piva: row.codice_fiscale || row.partita_iva,
     storico: { esito: row.stato_lead, ultimo_contatto_at: row.ultimo_contatto_at, times_seen: row.times_seen },
     descrizione: pinnedOnly ? 'Campagna urgente approvata' : 'Sessione Business',
-    priority: pinnedOnly ? 6 : 7
+    priority: pinnedOnly ? 7 : 8
   }));
 }
 async function buildCandidates(supabase, cfg, { profiloId, oggi }) {
@@ -494,6 +541,7 @@ const ETICHETTE_ATTIVITA = {
   conferma_appuntamento_business: 'Conferme appuntamenti Business',
   ricontatto_programmato: 'Ricontatti programmati',
   auto_non_risposto: 'Non risposti da riprovare',
+  non_presentato: 'Appuntamenti non presentati',
   passa_a_cerea: 'Controllo Passa a Cerea',
   passa_in_negozio: 'Controllo Passa in negozio',
   campagna_urgente: 'Campagne urgenti',
@@ -556,10 +604,11 @@ async function briefingGiornata(supabase, cfg, { profiloId, oggi }) {
   // La modalita' Consumer viene dal piano, non da una sessione aperta a mano.
   const consumerModalita = categoriaConsumerPiano(piano?.contenuto, sessioneRes.data?.categoria);
 
-  const [mattinaRilav, pomeriggioRilav, passaggio, businessLeads, confermeCount] = await Promise.all([
+  const [mattinaRilav, pomeriggioRilav, nonPresentati, passaggio, businessLeads, confermeCount] = await Promise.all([
     queryRilavorazioneUnificata(supabase, { profiloId, oggi: data, fascia: 'Mattina' }),
     queryRilavorazioneUnificata(supabase, { profiloId, oggi: data, fascia: 'Pomeriggio' }),
-    queryChiamatePassaggio(supabase, { profiloId, oggi: data, passaggioStati: ['in_attesa', 'ricontattare'] }),
+    queryNonPresentati(supabase, { profiloId }),
+    queryChiamatePassaggio(supabase, { profiloId, oggi: data, passaggioStati: ['in_attesa'] }),
     candidatiLead(supabase, cfg, { profiloId, oggi: data, pinnedOnly: false }),
     confermeInAttesa(supabase, cfg, { profiloId, oggi: data })
   ]);
@@ -571,6 +620,7 @@ async function briefingGiornata(supabase, cfg, { profiloId, oggi }) {
   const mattina = [];
   if (confermeCount > 0) mattina.push({ tipo: 'conferma_appuntamento_business', etichetta: ETICHETTE_ATTIVITA.conferma_appuntamento_business, conteggio: confermeCount });
   mattina.push(...riepilogoRilavorazioni(mattinaRilav));
+  if (nonPresentati.length > 0) mattina.push({ tipo: 'non_presentato', etichetta: ETICHETTE_ATTIVITA.non_presentato, conteggio: nonPresentati.length });
   if (passaNegozio > 0) mattina.push({ tipo: 'passa_in_negozio', etichetta: ETICHETTE_ATTIVITA.passa_in_negozio, conteggio: passaNegozio });
   if (passaCerea > 0) mattina.push({ tipo: 'passa_a_cerea', etichetta: ETICHETTE_ATTIVITA.passa_a_cerea, conteggio: passaCerea });
 
@@ -710,6 +760,7 @@ async function verificaTaskAttivo({ supabase, profiloId }) {
     telefoni: c.telefoni,
     leadId: task.data.sorgente_tipo === 'lead' || task.data.sorgente_tipo === 'lead_outbound_chiamata' ? task.data.sorgente_id : undefined,
     anagraficaId: c.anagrafica_id,
+    payload: task.data.payload,
     sorgenteTipo: task.data.sorgente_tipo,
     sorgenteId: task.data.sorgente_id
   };
@@ -727,6 +778,8 @@ async function getTaskDettaglio(supabase, task) {
   if (!task) return null;
   let lead = null;
   let chiamata = null;
+  let appuntamento = null;
+  let anagrafica = null;
   let biz = null;
   let outboundChiamata = null;
   let telefoniExtra = [];
@@ -737,6 +790,10 @@ async function getTaskDettaglio(supabase, task) {
   if (task.sorgente_tipo === 'chiamata' && isUuid(task.sorgente_id)) {
     const { data } = await supabase.from('chiamate').select('*').eq('id', task.sorgente_id).maybeSingle();
     chiamata = data;
+  }
+  if (task.sorgente_tipo === 'appuntamento' && isUuid(task.sorgente_id)) {
+    const { data } = await supabase.from('appuntamenti').select('*').eq('id', task.sorgente_id).maybeSingle();
+    appuntamento = data;
   }
   if (task.sorgente_tipo === 'lead_outbound_chiamata' && isUuid(task.sorgente_id)) {
     const { data } = await supabase.from('call_center_lead_outbound_chiamate').select('*').eq('id', task.sorgente_id).maybeSingle();
@@ -759,7 +816,26 @@ async function getTaskDettaglio(supabase, task) {
     const { data: extra } = await supabase.from('kona_call_director_lead_telefoni').select('telefono, telefono_norm').eq('lead_id', lead.id);
     telefoniExtra = Array.isArray(extra) ? extra.flatMap((r) => [r.telefono_norm, r.telefono]) : [];
   }
-  const contatto = buildContatto({ task, lead, chiamata, biz, outboundChiamata, telefoniExtra });
+  const anagraficaId = task.payload?.anagrafica_id
+    || chiamata?.anagrafica_id
+    || appuntamento?.anagrafica_id
+    || outboundChiamata?.anagrafica_id
+    || biz?.anagrafica_id;
+  if (isUuid(anagraficaId)) {
+    const { data } = await supabase.from('anagrafica')
+      .select('id, cf_piva, ragione_sociale, nome_referente, cellulare, email, provincia, comune, via, civico')
+      .eq('id', anagraficaId).maybeSingle();
+    anagrafica = data;
+  } else {
+    const cf = chiamata?.cf_piva || appuntamento?.codice_fiscale || lead?.codice_fiscale || lead?.partita_iva;
+    if (cf) {
+      const { data } = await supabase.from('anagrafica')
+        .select('id, cf_piva, ragione_sociale, nome_referente, cellulare, email, provincia, comune, via, civico')
+        .eq('cf_piva', String(cf).trim().toUpperCase()).limit(1).maybeSingle();
+      anagrafica = data;
+    }
+  }
+  const contatto = buildContatto({ task, lead, chiamata, appuntamento, anagrafica, biz, outboundChiamata, telefoniExtra });
   return {
     task: {
       id: task.id,
@@ -775,7 +851,10 @@ async function getTaskDettaglio(supabase, task) {
   };
 }
 
-function buildContatto({ task, lead, chiamata, biz, outboundChiamata, telefoniExtra = [] }) {
+function buildContatto({ task, lead, chiamata, appuntamento, anagrafica, biz, outboundChiamata, telefoniExtra = [] }) {
+  const indirizzoAnagrafica = anagrafica
+    ? [anagrafica.via, anagrafica.civico].map((v) => String(v || '').trim()).filter(Boolean).join(' ')
+    : null;
   if (task.tipo === 'conferma_appuntamento_business' && biz) {
     return {
       sorgente: 'appuntamento_business',
@@ -785,6 +864,8 @@ function buildContatto({ task, lead, chiamata, biz, outboundChiamata, telefoniEx
       email: lead?.email || null,
       localita: lead?.localita || null,
       provincia: lead?.provincia || null,
+      indirizzo: lead?.indirizzo || indirizzoAnagrafica || null,
+      cap: lead?.cap || null,
       categoria: lead?.categoria || null,
       zona: biz.zona || null,
       cf_piva: lead?.codice_fiscale || lead?.partita_iva || null,
@@ -806,12 +887,38 @@ function buildContatto({ task, lead, chiamata, biz, outboundChiamata, telefoniEx
       email: lead.email,
       localita: lead.localita,
       provincia: lead.provincia,
+      indirizzo: lead.indirizzo || indirizzoAnagrafica || null,
+      cap: lead.cap || null,
       categoria: lead.categoria,
       zona: lead.zona,
       partita_iva: lead.partita_iva,
       cf_piva: lead.codice_fiscale || lead.partita_iva,
       anagrafica_id: outboundChiamata?.anagrafica_id || null,
       storico: { esito: lead.stato_lead, ultimo_contatto_at: lead.ultimo_contatto_at, times_seen: lead.times_seen }
+    };
+  }
+  if (appuntamento) {
+    return {
+      sorgente: 'appuntamento',
+      nome: appuntamento.nome || anagrafica?.nome_referente || anagrafica?.ragione_sociale,
+      cellulare: appuntamento.telefono || anagrafica?.cellulare,
+      telefoni: [appuntamento.telefono, anagrafica?.cellulare],
+      email: anagrafica?.email || null,
+      localita: anagrafica?.comune || null,
+      provincia: anagrafica?.provincia || null,
+      indirizzo: indirizzoAnagrafica || null,
+      cf_piva: appuntamento.codice_fiscale || anagrafica?.cf_piva,
+      anagrafica_id: appuntamento.anagrafica_id || anagrafica?.id || null,
+      motivo: appuntamento.motivo,
+      note: appuntamento.note,
+      appuntamento: {
+        data_ora: appuntamento.data_ora,
+        durata_minuti: appuntamento.durata_minuti,
+        stato: appuntamento.stato,
+        presentato: appuntamento.presentato,
+        non_presentato_stato: appuntamento.non_presentato_stato
+      },
+      storico: { data_ora: appuntamento.data_ora, esito: 'non_presentato', motivo: appuntamento.motivo, note: appuntamento.note }
     };
   }
   if (chiamata) {
@@ -822,6 +929,10 @@ function buildContatto({ task, lead, chiamata, biz, outboundChiamata, telefoniEx
       telefoni: [chiamata.cellulare],
       cf_piva: chiamata.cf_piva,
       anagrafica_id: chiamata.anagrafica_id,
+      email: anagrafica?.email || null,
+      localita: anagrafica?.comune || null,
+      provincia: anagrafica?.provincia || null,
+      indirizzo: indirizzoAnagrafica || null,
       motivo: chiamata.motivo_chiamata,
       note: chiamata.note,
       esito_precedente: chiamata.esito,
@@ -935,8 +1046,11 @@ async function registraChiamataStandard(supabase, { task, esito, cfg, oggi, dett
     note: String(dettagli.motivo || dettagli.spiegazione || '').slice(0, 1000) || null,
     data_ricontatto: prossimo && !esaurito ? prossimo.data : null,
     fascia_ricontatto: prossimo && !esaurito ? prossimo.fascia : null,
+    // La sorgente viene chiusa come nel manuale; se l'operatrice concorda un
+    // nuovo ricontatto, KONA conserva la nuova scadenza nella coda canonica.
     rilavorazione_stato: richiedeRicontatto && !esaurito ? 'da_lavorare' : 'completato',
     passaggio_stato: ['passa_in_negozio', 'passa_a_cerea'].includes(esitoStandard) ? 'in_attesa' : null,
+    appuntamento_id: isUuid(dettagli.appuntamento_id) ? dettagli.appuntamento_id : null,
     esito_finale: esitoStandard === 'non_interessato' ? 'persa' : null,
     dettagli_esito: esitoStandard === 'non_interessato' ? String(dettagli.motivo || 'Non interessato').slice(0, 500) : null,
     esitato_at: esitoStandard === 'non_interessato' ? new Date().toISOString() : null
@@ -950,9 +1064,78 @@ async function registraChiamataStandard(supabase, { task, esito, cfg, oggi, dett
   return inserita.id;
 }
 
+// Il tab manuale "Non presentati" apre Registra Chiamata precompilato e marca
+// l'appuntamento `lavorato` soltanto dopo il salvataggio riuscito. Questa
+// funzione riproduce la stessa sequenza dentro KONA.
+async function registraChiamataDaAppuntamento(supabase, { task, esito, cfg, oggi, dettagli, tentativo }) {
+  const { data: appuntamento, error: appError } = await supabase
+    .from('appuntamenti').select('*').eq('id', task.sorgente_id).maybeSingle();
+  if (appError || !appuntamento) throw new Error('appuntamento_origine_non_trovato');
+
+  let chiamataOrigine = null;
+  if (isUuid(appuntamento.chiamata_id)) {
+    const { data } = await supabase.from('chiamate').select('*').eq('id', appuntamento.chiamata_id).maybeSingle();
+    chiamataOrigine = data;
+  }
+  let operatoreNome = task.payload?.operatore_nome || null;
+  if (!operatoreNome) {
+    const { data: profilo } = await supabase.from('profili').select('nome').eq('id', task.operatore_id).maybeSingle();
+    operatoreNome = profilo?.nome || appuntamento.fissato_da_nome || null;
+  }
+  const esitoStandard = mappaEsitoStandard(esito, dettagli);
+  const richiedeRicontatto = ['non_risposto', 'ricontattare'].includes(esitoStandard);
+  const prossimo = richiedeRicontatto
+    ? (esitoStandard === 'ricontattare' ? ricontattoRichiesto(cfg, oggi, dettagli) : prossimaFascia(fasciaCorrente(cfg), oggi))
+    : null;
+  const esaurito = esitoStandard === 'non_risposto' && tentativo >= (cfg.tentativi_massimi || 3);
+  const nuova = {
+    operatore_id: task.operatore_id,
+    operatore_nome: String(operatoreNome || 'Operatore').slice(0, 120),
+    anagrafica_id: appuntamento.anagrafica_id || chiamataOrigine?.anagrafica_id || null,
+    cf_piva: appuntamento.codice_fiscale || chiamataOrigine?.cf_piva || null,
+    nome_cliente: appuntamento.nome || chiamataOrigine?.nome_cliente || 'Cliente',
+    cellulare: appuntamento.telefono || chiamataOrigine?.cellulare || null,
+    copertura: chiamataOrigine?.copertura || null,
+    motivo_chiamata: appuntamento.motivo || chiamataOrigine?.motivo_chiamata || null,
+    esito: esitoStandard,
+    note: String(dettagli.motivo || dettagli.spiegazione || '').slice(0, 1000) || null,
+    data_ricontatto: prossimo && !esaurito ? prossimo.data : null,
+    fascia_ricontatto: prossimo && !esaurito ? prossimo.fascia : null,
+    rilavorazione_stato: richiedeRicontatto && !esaurito ? 'da_lavorare' : 'completato',
+    passaggio_stato: ['passa_in_negozio', 'passa_a_cerea'].includes(esitoStandard) ? 'in_attesa' : null,
+    appuntamento_id: isUuid(dettagli.appuntamento_id) ? dettagli.appuntamento_id : null,
+    esito_finale: esitoStandard === 'non_interessato' ? 'persa' : null,
+    dettagli_esito: esitoStandard === 'non_interessato' ? String(dettagli.motivo || 'Non interessato').slice(0, 500) : null,
+    esitato_at: esitoStandard === 'non_interessato' ? new Date().toISOString() : null
+  };
+  const { data: inserita, error } = await supabase.from('chiamate').insert(nuova).select('id').single();
+  if (error || !inserita) throw new Error(error?.message || 'scrittura_chiamata_non_presentato_fallita');
+  const { error: closeError } = await supabase.from('appuntamenti')
+    .update({ non_presentato_stato: 'lavorato' }).eq('id', task.sorgente_id);
+  if (closeError) throw new Error(closeError.message || 'chiusura_non_presentato_fallita');
+  return inserita.id;
+}
+
 // Aggiorna la sorgente in base all'esito. Injective per tipo di sorgente.
 async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli, tentativo }) {
   const payload = task.payload || {};
+
+  // Azioni di controllo che nel Call Center manuale non creano una nuova
+  // chiamata: aggiornano direttamente il record originario.
+  if (esito === 'presentato' && ['passa_in_negozio', 'passa_a_cerea'].includes(task.tipo)) {
+    const { error } = await supabase.from('chiamate').update({
+      passaggio_stato: 'passato', rilavorazione_stato: 'completato'
+    }).eq('id', task.sorgente_id);
+    if (error) throw new Error(error.message || 'conferma_passaggio_fallita');
+    return { presentato: true };
+  }
+  if (esito === 'presentato' && task.tipo === 'non_presentato') {
+    const { error } = await supabase.from('appuntamenti').update({
+      presentato: 'si', non_presentato_stato: 'presentato', presentato_at: new Date().toISOString()
+    }).eq('id', task.sorgente_id);
+    if (error) throw new Error(error.message || 'conferma_presentato_fallita');
+    return { presentato: true };
+  }
 
   if (esito === 'blacklist') {
     if (task.sorgente_tipo === 'lead' && isUuid(task.sorgente_id)) {
@@ -964,18 +1147,27 @@ async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli
       const { error } = await supabase.from('call_center_lead_outbound_chiamate').update({ rilavorazione_stato: 'completato' }).eq('id', task.sorgente_id);
       if (error) throw new Error(error.message || 'chiusura_outbound_blacklist_fallita');
     } else if (task.sorgente_tipo === 'chiamata' && isUuid(task.sorgente_id)) {
-      const { error } = await supabase.from('chiamate').update({ rilavorazione_stato: 'completato' }).eq('id', task.sorgente_id);
+      const patch = { rilavorazione_stato: 'completato' };
+      if (['passa_in_negozio', 'passa_a_cerea'].includes(task.tipo)) patch.passaggio_stato = 'chiuso';
+      const { error } = await supabase.from('chiamate').update(patch).eq('id', task.sorgente_id);
       if (error) throw new Error(error.message || 'chiusura_chiamata_blacklist_fallita');
+    } else if (task.sorgente_tipo === 'appuntamento' && isUuid(task.sorgente_id)) {
+      const { error } = await supabase.from('appuntamenti').update({ non_presentato_stato: 'lavorato' }).eq('id', task.sorgente_id);
+      if (error) throw new Error(error.message || 'chiusura_appuntamento_blacklist_fallita');
     }
-    return;
+    return {};
   }
   // Business lead / chiamata outbound: registra la lavorazione reale.
   if (task.sorgente_tipo === 'lead' || task.sorgente_tipo === 'lead_outbound_chiamata') {
     await registraChiamataOutbound(supabase, { task, esito, cfg, oggi, dettagli, tentativo });
   }
   if (task.sorgente_tipo === 'chiamata' && isUuid(task.sorgente_id)) {
-    await registraChiamataStandard(supabase, { task, esito, cfg, oggi, dettagli, tentativo });
-    return;
+    const chiamataId = await registraChiamataStandard(supabase, { task, esito, cfg, oggi, dettagli, tentativo });
+    return { chiamata_id: chiamataId };
+  }
+  if (task.sorgente_tipo === 'appuntamento' && isUuid(task.sorgente_id)) {
+    const chiamataId = await registraChiamataDaAppuntamento(supabase, { task, esito, cfg, oggi, dettagli, tentativo });
+    return { chiamata_id: chiamataId };
   }
 
   if (task.sorgente_tipo === 'lead' && isUuid(task.sorgente_id)) {
@@ -1021,7 +1213,7 @@ async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli
     }
     const { error: leadUpdateError } = await supabase.from('call_center_lead_outbound').update(patch).eq('id', task.sorgente_id);
     if (leadUpdateError) throw new Error(leadUpdateError.message || 'aggiornamento_lead_fallito');
-    return;
+    return {};
   }
 
   if (task.sorgente_tipo === 'lead_outbound_chiamata' && isUuid(task.sorgente_id)) {
@@ -1041,7 +1233,7 @@ async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli
       const { error: origineUpdateError } = await supabase.from('call_center_lead_outbound_chiamate').update(patch).eq('id', task.sorgente_id);
       if (origineUpdateError) throw new Error(origineUpdateError.message || 'chiusura_outbound_origine_fallita');
     }
-    return;
+    return {};
   }
 
 
@@ -1192,7 +1384,7 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
     ...(dettagli.motivo ? { motivo: String(dettagli.motivo).slice(0, 500) } : {})
   };
 
-  await applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli, tentativo });
+  const sorgenteRisultato = await applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli, tentativo }) || {};
 
   const update = {
     stato: 'completato',
@@ -1220,7 +1412,7 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
       : prossimaFascia(fasciaCorrente(cfg), oggi);
     ricontatto = { data: p.data, fascia: p.fascia };
   }
-  return { ok: true, esito, esaurito, notifica, tentativo, ricontatto };
+  return { ok: true, esito, esaurito, notifica, tentativo, ricontatto, ...sorgenteRisultato };
 }
 
 // -- Scrittura canonica Consumer ----------------------------------------------

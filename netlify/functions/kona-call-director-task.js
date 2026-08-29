@@ -21,7 +21,7 @@ const { categoriaConsumerPiano, materializeNextTask, verificaTaskAttivo, getTask
 const { enqueueNotifica } = require('./_lib/kona-cd-notifiche');
 const { notificaEsauriti } = require('./_lib/kona-cd-conferme');
 const { nowRomeParts, todayRomeStr } = require('./_lib/kona-cd-time');
-const { jsonError, jsonOk, readJsonBody } = require('./_lib/kona-cd-util');
+const { isUuid, jsonError, jsonOk, readJsonBody } = require('./_lib/kona-cd-util');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -106,6 +106,73 @@ exports.handler = async (event) => {
           });
         }
         return jsonOk({ esito: esitoRecordPublic(esito) });
+      }
+
+      case 'prenota_negozio': {
+        // Appuntamento nato da una rilavorazione standard: stessa sequenza del
+        // flusso manuale (slot negozio -> appuntamento canonico -> nuova
+        // chiamata con esito appuntamento -> chiusura della sorgente).
+        const verificato = await verificaTaskAttivo({ supabase: client, profiloId });
+        const task = verificato.task;
+        const tipiAmmessi = ['ricontatto_programmato', 'auto_non_risposto', 'non_presentato', 'passa_a_cerea', 'passa_in_negozio'];
+        if (!task || !tipiAmmessi.includes(task.tipo)) return jsonError(409, 'Nessuna rilavorazione attiva prenotabile');
+        const start = new Date(String(body.data_ora || ''));
+        if (Number.isNaN(start.getTime()) || start.getTime() <= Date.now()) return jsonError(400, 'Orario non valido o passato');
+        const dataSlot = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit'
+        }).format(start);
+        const { data: disponibili, error: slotError } = await client.rpc('get_slot_disponibili', { p_data: dataSlot });
+        if (slotError) return jsonError(500, slotError.message);
+        if (!(disponibili || []).some((s) => new Date(s).getTime() === start.getTime())) {
+          return jsonError(409, 'Slot non disponibile');
+        }
+        const dettaglio = await getTaskDettaglio(client, task);
+        const contatto = dettaglio?.contatto || {};
+        if (!contatto.nome || !contatto.cellulare) return jsonError(400, 'Contatto incompleto per la prenotazione');
+        const { data: profilo } = await client.from('profili').select('nome').eq('id', profiloId).maybeSingle();
+        const { data: appuntamento, error: appError } = await client.from('appuntamenti').insert({
+          nome: String(contatto.nome).slice(0, 120),
+          codice_fiscale: String(contatto.cf_piva || '').trim() || null,
+          telefono: String(contatto.cellulare).trim(),
+          motivo: String(contatto.motivo || 'Appuntamento Consumer').slice(0, 300),
+          note: String(contatto.note || '').slice(0, 500) || null,
+          anagrafica_id: isUuid(contatto.anagrafica_id) ? contatto.anagrafica_id : null,
+          fissato_da_operatore_id: profiloId,
+          fissato_da_nome: profilo?.nome || null,
+          data_ora: start.toISOString(),
+          durata_minuti: 30,
+          fonte: 'interno',
+          stato: 'confermato',
+          originato_da_id: task.sorgente_tipo === 'appuntamento' ? task.sorgente_id : null
+        }).select('id').single();
+        if (appError || !appuntamento) return jsonError(500, appError?.message || 'Prenotazione negozio fallita');
+
+        let registrato;
+        try {
+          registrato = await registerEsito({
+            supabase: client,
+            cfg,
+            task,
+            profiloId,
+            esito: 'appuntamento',
+            dettagli: { appuntamento_id: appuntamento.id }
+          });
+        } catch (e) {
+          await client.from('appuntamenti').delete().eq('id', appuntamento.id);
+          throw e;
+        }
+        if (!registrato.ok) {
+          await client.from('appuntamenti').delete().eq('id', appuntamento.id);
+          return jsonError(400, registrato.error);
+        }
+        const { error: linkError } = await client.from('appuntamenti')
+          .update({ chiamata_id: registrato.chiamata_id || null }).eq('id', appuntamento.id);
+        return jsonOk({
+          appuntamento: { id: appuntamento.id, data_ora: start.toISOString() },
+          chiamata_id: registrato.chiamata_id || null,
+          registrata: true,
+          collegamento_completo: !linkError
+        });
       }
 
       case 'sessione': {

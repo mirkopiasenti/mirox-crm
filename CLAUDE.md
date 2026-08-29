@@ -716,7 +716,7 @@ Guardian e' attivo sul production `mirox-crm.it` con Supabase `lbgwamhjkjjfwgusa
 
 ## KONA Call Director (dal 2026-08-27; staging isolato attivo in osservazione)
 
-Modulo **server-only** per il Call Center: un contatto alla volta, conferme Business, arricchimento notturno e pianificazione Telegram. Codice verificato localmente (104/104 test KONA, 227/227 suite completa). Il Supabase test dedicato `Mirox CRM - Test KONA Call Director` (`yyorullxmdxhnunsfwwa`, `eu-west-3`) contiene bootstrap minimo senza dati production, migration `072`-`074`, seed fail-closed e il dataset sintetico idempotente `database/staging/004_kona_call_director_dati_fittizi.sql` (6 Consumer, 8 Business, 8 rilavorazioni e tre piani marcati `TEST KONA`, senza appuntamenti Google). Dal 2026-08-29 il sito `mirox-kona-call-director-test.netlify.app` esegue il collaudo controllato con entrambi gli interruttori env e toggle globale a `true`, un solo profilo test abilitato, modalità osservazione `true` e Google Calendar collegato con sync `ok`. Production e' invariata.
+Modulo **server-only** per il Call Center: un contatto alla volta, conferme Business, arricchimento notturno e pianificazione Telegram. Il Supabase test dedicato `Mirox CRM - Test KONA Call Director` (`yyorullxmdxhnunsfwwa`, `eu-west-3`) contiene bootstrap minimo senza dati production, migration `072`-`075`, seed fail-closed e il dataset sintetico idempotente `database/staging/004_kona_call_director_dati_fittizi.sql` (6 Consumer, 8 Business, 10 rilavorazioni e tre piani marcati `TEST KONA`; i due non presentati sono appuntamenti CRM sintetici senza eventi Google). Dal 2026-08-29 il sito `mirox-kona-call-director-test.netlify.app` esegue il collaudo controllato con entrambi gli interruttori env e toggle globale a `true`, un solo profilo test abilitato, modalità osservazione `true` e Google Calendar collegato con sync `ok`. Production e' invariata.
 
 ### Regole fisse
 
@@ -732,7 +732,7 @@ Modulo **server-only** per il Call Center: un contatto alla volta, conferme Busi
 ### Priorita' contatti (motore deterministico)
 
 1. conferma appuntamenti Business di domani (finestre 09:00/11:30/15:30/18:00, top of queue; dopo 4 non risposti **nessun annullamento automatico** + notifica Telegram senza PII);
-2. ricontatti programmati; 3. auto non risposti; 4. "Passa a Cerea"; 5. "Passa in negozio"; 6. campagne urgenti (`pinned`); 7. sessione Business, avviabile soltanto con categorie esplicitamente approvate nel piano.
+2. ricontatti programmati; 3. auto non risposti; 4. appuntamenti non presentati; 5. "Passa a Cerea"; 6. "Passa in negozio"; 7. campagne urgenti (`pinned`); 8. sessione Business, avviabile soltanto con categorie esplicitamente approvate nel piano. La scheda mostra l'indirizzo canonico del cliente/azienda. Non presentati e passaggi riproducono il bivio manuale `Presentato`/`Ricontatta`; solo il ricontatto apre gli esiti e un eventuale appuntamento usa il calendario negozio condiviso.
 
 ### Tabelle (prefisso dedicato `kona_call_director_*`, 25 tabelle server-only)
 
@@ -852,7 +852,7 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 
 - **Edge Functions Supabase**: non in uso, non aggiungerne senza discutere prima
 - **Guardian prima versione**: analizza soltanto i dati della richiesta; non ha accesso al repository, non esegue Codex, non prepara patch e non effettua deploy. Ogni sviluppo successivo passa prima da Netlify + Supabase staging separati. Sentry e worker Codex vengono dopo la prova reale del flusso.
-- **KONA Call Director (dal 2026-08-27)**: attivo soltanto nello staging isolato `yyorullxmdxhnunsfwwa`, con migration `072`-`074`, webhook/OAuth/env dedicati e un solo profilo test; production non contiene oggetti KONA. L'avvio e il passaggio futuro in production devono seguire `docs/KONA_CALL_DIRECTOR.md` e richiedono una nuova conferma. Le distanze sono `null` finche' `kona_call_director_comuni` non viene popolata da un dataset autorevole. Per un profilo non-admin abilitato KONA e' l'unica interfaccia; gli admin conservano il manuale e il controllo KONA.
+- **KONA Call Director (dal 2026-08-27)**: attivo soltanto nello staging isolato `yyorullxmdxhnunsfwwa`, con migration `072`-`075`, webhook/OAuth/env dedicati e un solo profilo test; production non contiene oggetti KONA. L'avvio e il passaggio futuro in production devono seguire `docs/KONA_CALL_DIRECTOR.md` e richiedono una nuova conferma. Le distanze sono `null` finche' `kona_call_director_comuni` non viene popolata da un dataset autorevole. Per un profilo non-admin abilitato KONA e' l'unica interfaccia; gli admin conservano il manuale e il controllo KONA.
 - **Cluster `Turista`**: è un cluster di vendita, non un cluster anagrafico condiviso. `garantisci-anagrafica.js` e `crea-vendita-pratica-carrello.js` lo accettano dal wizard, mantengono `Turista` su pratica/contratti, salvano `anagrafica.cluster='Consumer'` e non richiedono email.
 - **File SQL in `/database/`**: parziali, NON riflettono lo stato attuale del DB (vedi `database/README.md`)
 - **Modulo `simulatore_protecta.html`**: ~960 KB, molto pesante perché contiene asset embedded. Modificare con cautela.

@@ -967,6 +967,103 @@ test('ricontatti dalla sorgente unificata (standard + outbound business)', async
   assert.ok(ricontatti.some((c) => c.sorgenteTipo === 'lead_outbound_chiamata'));
 });
 
+test('rilavorazioni KONA: non presentati e passaggi usano gli stessi filtri del manuale', async () => {
+  let filtriAppuntamenti = [];
+  let filtriPassaggi = [];
+  const db = makeSupabase({
+    'vw_rilavorazione_ricontatti_unificata.select': () => ({ data: [] }),
+    'appuntamenti.select': (q) => {
+      filtriAppuntamenti = q.filters;
+      return { data: [{
+        id: APP_BUSINESS, nome: 'Cliente Test', codice_fiscale: 'TSTKNA26A00Z001A', telefono: '0000001001',
+        motivo: 'Appuntamento test', note: null, anagrafica_id: null, fissato_da_operatore_id: PROFILO,
+        chiamata_id: CHIAMATA, data_ora: '2026-08-26T09:00:00Z', durata_minuti: 30,
+        stato: 'confermato', presentato: 'no', non_presentato_stato: 'da_lavorare'
+      }] };
+    },
+    'chiamate.select': (q) => {
+      filtriPassaggi = q.filters;
+      return { data: [{ id: CHIAMATA, cf_piva: 'CF1', nome_cliente: 'Passaggio Test', cellulare: '3331112222', anagrafica_id: null, esito: 'passa_in_negozio', passaggio_stato: 'in_attesa', data_ora: '2026-08-25T09:00:00Z' }] };
+    },
+    'call_center_lead_outbound.select': () => ({ data: [] }),
+    'kona_call_director_appuntamenti_business.select': () => ({ data: [] })
+  });
+  const candidati = await engine.buildCandidates(db, baseCfg(), { profiloId: PROFILO, oggi: '2026-08-27' });
+  assert.ok(candidati.some((c) => c.tipo === 'non_presentato' && c.sorgenteTipo === 'appuntamento'));
+  assert.ok(candidati.some((c) => c.tipo === 'passa_in_negozio'));
+  assert.ok(filtriAppuntamenti.some(([op, key, value]) => op === 'eq' && key === 'presentato' && value === 'no'));
+  assert.ok(filtriAppuntamenti.some(([op, key, value]) => op === 'eq' && key === 'non_presentato_stato' && value === 'da_lavorare'));
+  assert.ok(filtriAppuntamenti.some(([op, key, value]) => op === 'eq' && key === 'stato' && value === 'confermato'));
+  const filtroStati = filtriPassaggi.find(([op, key]) => op === 'in' && key === 'passaggio_stato');
+  assert.deepEqual(filtroStati[2], ['in_attesa']);
+});
+
+test('rilavorazioni KONA: Presentato replica gli aggiornamenti manuali senza creare chiamate', async () => {
+  const patchChiamate = [];
+  const patchAppuntamenti = [];
+  let nuoveChiamate = 0;
+  const db = makeSupabase({
+    'kona_call_director_task.select': () => ({ data: null }),
+    'chiamate.update': (q) => { patchChiamate.push(q.value); return { data: [], error: null }; },
+    'appuntamenti.update': (q) => { patchAppuntamenti.push(q.value); return { data: [], error: null }; },
+    'chiamate.insert': () => { nuoveChiamate += 1; return { data: { id: 'nuova' }, error: null }; },
+    'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
+    'kona_call_director_task_eventi.insert': () => ({ data: null, error: null })
+  });
+  const passaggio = await engine.registerEsito({
+    supabase: db, cfg: baseCfg(), task: taskAttivo('passa_a_cerea'), profiloId: PROFILO, esito: 'presentato', dettagli: {}
+  });
+  const nonPresentato = await engine.registerEsito({
+    supabase: db, cfg: baseCfg(),
+    task: taskAttivo('non_presentato', { sorgente_tipo: 'appuntamento', sorgente_id: APP_BUSINESS, payload: { appuntamento_id: APP_BUSINESS } }),
+    profiloId: PROFILO, esito: 'presentato', dettagli: {}
+  });
+  assert.equal(passaggio.ok, true);
+  assert.equal(nonPresentato.ok, true);
+  assert.equal(nuoveChiamate, 0);
+  assert.deepEqual(patchChiamate[0], { passaggio_stato: 'passato', rilavorazione_stato: 'completato' });
+  assert.equal(patchAppuntamenti[0].presentato, 'si');
+  assert.equal(patchAppuntamenti[0].non_presentato_stato, 'presentato');
+  assert.ok(patchAppuntamenti[0].presentato_at);
+});
+
+test('rilavorazioni KONA: ricontatto di un non presentato crea la chiamata canonica e chiude la sorgente', async () => {
+  const inserite = [];
+  const patchAppuntamenti = [];
+  const db = makeSupabase({
+    'kona_call_director_task.select': () => ({ data: null }),
+    'appuntamenti.select': () => ({ data: {
+      id: APP_BUSINESS, nome: 'Cliente Test', codice_fiscale: 'TSTKNA26A00Z001A', telefono: '0000001001',
+      motivo: 'Appuntamento test', note: 'Nota test', anagrafica_id: null, chiamata_id: CHIAMATA,
+      fissato_da_nome: 'Isabella'
+    }, error: null }),
+    'chiamate.select': () => ({ data: { id: CHIAMATA, copertura: 'Fibra', motivo_chiamata: 'Motivo origine' }, error: null }),
+    'profili.select': () => ({ data: { nome: 'Isabella' }, error: null }),
+    'chiamate.insert': (q) => { inserite.push(q.value); return { data: { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' }, error: null }; },
+    'appuntamenti.update': (q) => { patchAppuntamenti.push(q.value); return { data: [], error: null }; },
+    'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
+    'kona_call_director_task_eventi.insert': () => ({ data: null, error: null })
+  });
+  const task = taskAttivo('non_presentato', { sorgente_tipo: 'appuntamento', sorgente_id: APP_BUSINESS, payload: { appuntamento_id: APP_BUSINESS } });
+  const res = await engine.registerEsito({ supabase: db, cfg: baseCfg(), task, profiloId: PROFILO, esito: 'non_interessato', dettagli: { motivo: 'Non interessato' } });
+  assert.equal(res.ok, true);
+  assert.equal(inserite.length, 1);
+  assert.equal(inserite[0].copertura, 'Fibra');
+  assert.equal(inserite[0].rilavorazione_stato, 'completato');
+  assert.deepEqual(patchAppuntamenti[0], { non_presentato_stato: 'lavorato' });
+});
+
+test('dettaglio contatto KONA mostra l indirizzo canonico dell anagrafica', async () => {
+  const db = makeSupabase({
+    'chiamate.select': () => ({ data: { id: CHIAMATA, nome_cliente: 'Cliente Test', cellulare: '3331234567', cf_piva: 'TSTKNA26A00Z001A', anagrafica_id: LEAD, esito: 'ricontattare' } }),
+    'anagrafica.select': () => ({ data: { id: LEAD, cf_piva: 'TSTKNA26A00Z001A', comune: 'LEGNAGO', provincia: 'VR', via: 'VIA ROMA', civico: '10', email: 'test@example.test' } })
+  });
+  const dettaglio = await engine.getTaskDettaglio(db, taskAttivo('ricontatto_programmato', { payload: { anagrafica_id: LEAD } }));
+  assert.equal(dettaglio.contatto.indirizzo, 'VIA ROMA 10');
+  assert.equal(dettaglio.contatto.localita, 'LEGNAGO');
+  assert.equal(dettaglio.contatto.provincia, 'VR');
+});
+
 test('esito Business: registra chiamata outbound + attivita\' + storico', async () => {
   const chiamateOutbound = [];
   const attivita = [];
@@ -1128,7 +1225,9 @@ test('operatore JS: macchina a stati, toFixed sicuro, calendar solo su appuntame
   assert.ok(/azioneAppuntamento/.test(js));
   assert.ok(/avviaChiamate/.test(js));
   // calendario esposto SOLO nel ramo esito Appuntamento Business
-  assert.ok(/esito === 'appuntamento' && eBusiness\(\)/.test(js));
+  assert.ok(/if \(esito === 'appuntamento'\)/.test(js));
+  assert.ok(/if \(eBusiness\(\)\)/.test(js));
+  assert.ok(/apriNegozioTask\(\)/.test(js));
   // nessuna sezione Consumer/Calendar sempre visibile: una sola schermata
   assert.ok(/data-screen/.test(js) === false || /\.kona-screen/.test(js));
 });
@@ -1272,9 +1371,16 @@ test('riepilogoRilavorazioni raggruppa ricontatti e non risposti senza categorie
 
 test('briefingGiornata: etichette coprono tutti i tipi di attivita', () => {
   const e = engine._test.ETICHETTE_ATTIVITA;
-  ['conferma_appuntamento_business', 'ricontatto_programmato', 'auto_non_risposto', 'passa_a_cerea', 'passa_in_negozio', 'campagna_urgente', 'sessione_business'].forEach((t) => {
+  ['conferma_appuntamento_business', 'ricontatto_programmato', 'auto_non_risposto', 'non_presentato', 'passa_a_cerea', 'passa_in_negozio', 'campagna_urgente', 'sessione_business'].forEach((t) => {
     assert.ok(e[t], 'manca etichetta per ' + t);
   });
+});
+
+test('migration 075: aggiunge solo il tipo task non_presentato', () => {
+  const sql = fs.readFileSync(path.resolve(__dirname, '..', 'database/075_kona_call_director_parita_rilavorazioni.sql'), 'utf8');
+  assert.match(sql, /'non_presentato'/);
+  assert.match(sql, /kona_call_director_task_tipo_check/);
+  assert.doesNotMatch(sql, /DROP\s+(TABLE|COLUMN)/i);
 });
 
 test('macchina a stati: transizione per famiglie, non fra task della stessa famiglia', () => {
@@ -1315,10 +1421,15 @@ test('riprogrammazione Business: una sola operazione di calendario (niente propo
 
 test('prenotazione negozio: richiede sessione e compensa se il log Consumer fallisce', () => {
   const dialog = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-dialog.js'), 'utf8');
+  const taskFn = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-task.js'), 'utf8');
   const prenota = dialog.slice(dialog.indexOf('async function azioneNegozioPrenota'), dialog.length);
   assert.ok(prenota.indexOf("from('kona_call_director_sessioni')") < prenota.indexOf("from('appuntamenti').insert"), 'sessione verificata prima della prenotazione');
   assert.match(prenota, /if \(attivitaError\)[\s\S]*from\('appuntamenti'\)\.delete\(\)\.eq\('id', appuntamento\.id\)/);
   assert.match(prenota, /telefono\.replace\(\/\\D\/g, ''\)\.length < 6/);
+  assert.match(taskFn, /case 'prenota_negozio'/);
+  assert.match(taskFn, /tipiAmmessi = \['ricontatto_programmato', 'auto_non_risposto', 'non_presentato', 'passa_a_cerea', 'passa_in_negozio'\]/);
+  assert.match(taskFn, /registerEsito\([\s\S]*esito: 'appuntamento'/);
+  assert.match(taskFn, /if \(!registrato\.ok\)[\s\S]*from\('appuntamenti'\)\.delete\(\)/);
 });
 
 test('frontend: ricontatto assegnato dal backend mostrato (ricontattoAssegnato)', () => {

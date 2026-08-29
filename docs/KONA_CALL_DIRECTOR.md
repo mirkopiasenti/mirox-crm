@@ -3,16 +3,16 @@
 ## Stato verificato
 
 Il modulo e' completo lato codice ed e' stato riesaminato localmente dopo le
-correzioni di chiusura. La suite dedicata passa 104/104 test; la suite completa
-del CRM passa 227/227 test. La build statica e i controlli di sintassi sono
+correzioni di chiusura. La suite dedicata passa 109/109 test; la suite completa
+del CRM passa 232/232 test. La build statica e i controlli di sintassi sono
 verdi.
 
 Il Supabase test dedicato `Mirox CRM - Test KONA Call Director`
 (`yyorullxmdxhnunsfwwa`, `eu-west-3`) e' attivo e contiene il solo schema
-minimo ricostruito senza dati production, le migration `072`-`074`, il seed
+minimo ricostruito senza dati production, le migration `072`-`075`, il seed
 fail-closed e il dataset sintetico idempotente
 `database/staging/004_kona_call_director_dati_fittizi.sql`. Il dataset contiene
-6 anagrafiche Consumer, 8 lead Business, 8 rilavorazioni e tre piani giornalieri,
+6 anagrafiche Consumer, 8 lead Business, 10 rilavorazioni e tre piani giornalieri,
 tutti marcati `TEST KONA`; non crea appuntamenti o eventi Google. Il sito Netlify isolato
 `mirox-kona-call-director-test.netlify.app` e' collegato alla branch
 `kona-call-director`, con env staging e service role protetta del solo
@@ -47,10 +47,20 @@ Priorita' operative:
    successivo, nelle finestre 09:00, 11:30, 15:30 e 18:00;
 2. ricontatti programmati;
 3. non risposti automatici;
-4. Passa a Cerea;
-5. Passa in negozio;
-6. campagne urgenti approvate;
-7. sessione Business standard.
+4. appuntamenti non presentati;
+5. Passa a Cerea;
+6. Passa in negozio;
+7. campagne urgenti approvate;
+8. sessione Business standard.
+
+La scheda contatto mostra telefono, CF/P.IVA, comune/provincia e l'indirizzo
+canonico disponibile: `via` + `civico` dall'anagrafica condivisa oppure
+`indirizzo` del lead Business. Le code Rilavorazione riusano esattamente le
+fonti e gli stati del manuale. Per non presentati, Passa in negozio e Passa a
+Cerea l'operatrice sceglie prima `Presentato` (o `Presentato (dimenticanza)`)
+oppure `Ricontatta`; soltanto il secondo apre la chiamata e i suoi esiti. Un
+eventuale appuntamento durante la rilavorazione usa gli slot del calendario
+negozio condiviso e salva chiamata/appuntamento nelle tabelle canoniche.
 
 Dopo quattro tentativi di conferma senza risposta non avviene alcun
 annullamento automatico: Mirko riceve una notifica Telegram e decide.
@@ -340,6 +350,6 @@ Ogni richiesta operativa della pagina agente usa il popup di caricamento
 condiviso e blocca i click successivi fino alla risposta. Il lock delle
 operazioni composte viene sempre rilasciato anche in errore.
 
-- `node --test tests/kona-call-director.test.js`: 104/104 pass.
-- `npm test`: 227/227 pass, inclusa build statica production.
+- `node --test tests/kona-call-director.test.js`: 109/109 pass.
+- `npm test`: 232/232 pass, inclusa build statica production.
 - Nessuna modifica o migration production fa parte di questa correzione.

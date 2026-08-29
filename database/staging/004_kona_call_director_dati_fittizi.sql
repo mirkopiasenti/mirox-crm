@@ -11,7 +11,7 @@
 -- Genera:
 -- - 6 anagrafiche Consumer sintetiche;
 -- - 8 lead Business sintetici in tre categorie approvate;
--- - 6 rilavorazioni Consumer (ricontatti, non risposti, passaggi);
+-- - 8 rilavorazioni Consumer (ricontatti, non risposti, non presentati, passaggi);
 -- - 2 rilavorazioni Business;
 -- - 3 piani giornalieri (oggi + due prossimi giorni lavorativi).
 
@@ -153,7 +153,7 @@ BEGIN
     ('00000000-0000-4000-8000-00000000c003', v_operatore_id, v_operatore_nome, '00000000-0000-4000-8000-00000000a003', 'TSTKNA26A00Z003C', 'TEST KONA - Cliente Consumer 03', '0000001003', 'Fibra', 'TEST KONA - Contatto Consumer', 'non_risposto', 'TEST KONA - Primo tentativo senza risposta', v_oggi, 'Mattina', 'da_lavorare', NULL, NULL, now() - interval '3 hours'),
     ('00000000-0000-4000-8000-00000000c004', v_operatore_id, v_operatore_nome, '00000000-0000-4000-8000-00000000a004', 'TSTKNA26A00Z004D', 'TEST KONA - Cliente Consumer 04', '0000001004', 'FWA', 'TEST KONA - Contatto Consumer', 'non_risposto', 'TEST KONA - Secondo tentativo previsto', v_oggi, 'Pomeriggio', 'da_lavorare', NULL, NULL, now() - interval '4 hours'),
     ('00000000-0000-4000-8000-00000000c005', v_operatore_id, v_operatore_nome, '00000000-0000-4000-8000-00000000a005', 'TSTKNA26A00Z005E', 'TEST KONA - Cliente Consumer 05', '0000001005', 'Fibra', 'TEST KONA - Controllo passaggio', 'passa_in_negozio', 'TEST KONA - Verificare arrivo nel punto vendita', NULL, NULL, 'non_applicabile', 'in_attesa', v_oggi, now() - interval '1 day'),
-    ('00000000-0000-4000-8000-00000000c006', v_operatore_id, v_operatore_nome, '00000000-0000-4000-8000-00000000a006', 'TSTKNA26A00Z006F', 'TEST KONA - Cliente Consumer 06', '0000001006', 'FWA', 'TEST KONA - Controllo passaggio Cerea', 'passa_a_cerea', 'TEST KONA - Verificare passaggio a Cerea', NULL, NULL, 'non_applicabile', 'ricontattare', v_oggi, now() - interval '1 day')
+    ('00000000-0000-4000-8000-00000000c006', v_operatore_id, v_operatore_nome, '00000000-0000-4000-8000-00000000a006', 'TSTKNA26A00Z006F', 'TEST KONA - Cliente Consumer 06', '0000001006', 'FWA', 'TEST KONA - Controllo passaggio Cerea', 'passa_a_cerea', 'TEST KONA - Verificare passaggio a Cerea', NULL, NULL, 'non_applicabile', 'in_attesa', v_oggi, now() - interval '1 day')
   ON CONFLICT (id) DO UPDATE SET
     operatore_id = EXCLUDED.operatore_id,
     operatore_nome = EXCLUDED.operatore_nome,
@@ -171,6 +171,30 @@ BEGIN
     passaggio_stato = EXCLUDED.passaggio_stato,
     passaggio_data_scadenza = EXCLUDED.passaggio_data_scadenza,
     data_ora = EXCLUDED.data_ora;
+
+  INSERT INTO public.appuntamenti (
+    id, nome, codice_fiscale, telefono, motivo, note, anagrafica_id,
+    fissato_da_operatore_id, fissato_da_nome, chiamata_id, data_ora,
+    durata_minuti, fonte, stato, presentato, non_presentato_stato
+  ) VALUES
+    ('00000000-0000-4000-8000-00000000e001', 'TEST KONA - Cliente Consumer 01', 'TSTKNA26A00Z001A', '0000001001', 'TEST KONA - Appuntamento non presentato', 'TEST KONA - Verificare se il cliente e passato', '00000000-0000-4000-8000-00000000a001', v_operatore_id, v_operatore_nome, '00000000-0000-4000-8000-00000000c001', now() - interval '1 day', 30, 'interno', 'confermato', 'no', 'da_lavorare'),
+    ('00000000-0000-4000-8000-00000000e002', 'TEST KONA - Cliente Consumer 02', 'TSTKNA26A00Z002B', '0000001002', 'TEST KONA - Appuntamento non presentato', 'TEST KONA - Cliente da ricontattare', '00000000-0000-4000-8000-00000000a002', v_operatore_id, v_operatore_nome, '00000000-0000-4000-8000-00000000c002', now() - interval '2 days', 30, 'interno', 'confermato', 'no', 'da_lavorare')
+  ON CONFLICT (id) DO UPDATE SET
+    nome = EXCLUDED.nome,
+    codice_fiscale = EXCLUDED.codice_fiscale,
+    telefono = EXCLUDED.telefono,
+    motivo = EXCLUDED.motivo,
+    note = EXCLUDED.note,
+    anagrafica_id = EXCLUDED.anagrafica_id,
+    fissato_da_operatore_id = EXCLUDED.fissato_da_operatore_id,
+    fissato_da_nome = EXCLUDED.fissato_da_nome,
+    chiamata_id = EXCLUDED.chiamata_id,
+    data_ora = EXCLUDED.data_ora,
+    durata_minuti = EXCLUDED.durata_minuti,
+    fonte = EXCLUDED.fonte,
+    stato = EXCLUDED.stato,
+    presentato = EXCLUDED.presentato,
+    non_presentato_stato = EXCLUDED.non_presentato_stato;
 
   INSERT INTO public.call_center_lead_outbound_chiamate (
     id, lead_id, operatore_id, operatore_nome, data_ora,

@@ -32,6 +32,7 @@
   var _negozioSlot = [];
   var _negozioDay = null;
   var _negozioSelected = null;
+  var _negozioMode = 'consumer';
   var _salvataggioInCorso = false;
   var _richiesteInCorso = 0;
   var _consumer = null;
@@ -47,6 +48,7 @@
     ],
     ricontatto_programmato: ESITI_CHIAMATA(),
     auto_non_risposto: ESITI_CHIAMATA(),
+    non_presentato: ESITI_CHIAMATA(),
     passa_a_cerea: ESITI_CHIAMATA(),
     passa_in_negozio: ESITI_CHIAMATA(),
     campagna_urgente: ESITI_LEAD(),
@@ -62,6 +64,7 @@
     conferma_appuntamento_business: 'Conferma appuntamento Business',
     ricontatto_programmato: 'Ricontatto programmato',
     auto_non_risposto: 'Cliente non risposto da riprovare',
+    non_presentato: 'Appuntamento non presentato',
     passa_a_cerea: 'Controllo Passa a Cerea',
     passa_in_negozio: 'Controllo Passa in negozio',
     campagna_urgente: 'Campagna urgente',
@@ -384,6 +387,7 @@
     if (c.telefoni && c.telefoni.length > 1) dettagli.push('Altri numeri: ' + c.telefoni.slice(1).join(', '));
     if (c.localita) dettagli.push('Comune: ' + c.localita);
     if (c.provincia) dettagli.push('Provincia: ' + c.provincia);
+    if (c.indirizzo) dettagli.push('Indirizzo: ' + c.indirizzo + (c.cap ? ' - ' + c.cap : ''));
     if (c.categoria) dettagli.push('Categoria: ' + c.categoria);
     if (c.cf_piva) dettagli.push('CF/P.IVA: ' + c.cf_piva);
     if (c.appuntamento && c.appuntamento.data_ora) {
@@ -407,6 +411,22 @@
     } else {
       hide('konaTaskStoricoBox');
     }
+
+    var richiedeControlloPresenza = ['non_presentato', 'passa_a_cerea', 'passa_in_negozio'].indexOf(t.tipo) !== -1;
+    if (richiedeControlloPresenza) {
+      hide('konaBtnInizia');
+      setText('konaBtnPresentato', t.tipo === 'non_presentato' ? 'Presentato (dimenticanza)' : 'Presentato');
+      show('konaBtnPresentato');
+      show('konaBtnRicontatta');
+    } else {
+      show('konaBtnInizia');
+      hide('konaBtnPresentato');
+      hide('konaBtnRicontatta');
+    }
+  }
+
+  function segnaPresentato() {
+    salvaEsito('presentato');
   }
 
   function iniziaChiamata() {
@@ -451,9 +471,15 @@
       salvaEsito(esito);
       return;
     }
-    if (esito === 'appuntamento' && eBusiness()) {
-      // Business -> calendario Google personale (solo su esito Appuntamento).
-      apriCalendar(null);
+    if (esito === 'appuntamento') {
+      if (eBusiness()) {
+        // Business -> calendario Google personale (solo su esito Appuntamento).
+        apriCalendar(null);
+      } else {
+        // Rilavorazioni standard -> calendario del negozio, come il flusso
+        // manuale Registra Chiamata / prenota-interno.
+        apriNegozioTask();
+      }
       return;
     }
     if (esito === 'ricontattare') {
@@ -638,7 +664,7 @@
     if (tipo === 'conferma_appuntamento_business') return 'conferme';
     if (tipo === 'campagna_urgente') return 'campagne';
     if (tipo === 'sessione_business') return 'business';
-    if (['ricontatto_programmato', 'auto_non_risposto', 'passa_a_cerea', 'passa_in_negozio'].indexOf(tipo) !== -1) return 'rilavorazioni';
+    if (['ricontatto_programmato', 'auto_non_risposto', 'non_presentato', 'passa_a_cerea', 'passa_in_negozio'].indexOf(tipo) !== -1) return 'rilavorazioni';
     return tipo || 'altro';
   }
 
@@ -1021,6 +1047,7 @@
   async function apriNegozio() {
     var errore = validaConsumer();
     if (errore) { toast(errore, 'warning'); return; }
+    _negozioMode = 'consumer';
     _negozioSlot = [];
     _negozioDay = null;
     _negozioSelected = null;
@@ -1037,6 +1064,32 @@
       domani.setDate(domani.getDate() + 1);
       var data = domani.toISOString().slice(0, 10);
       await caricaSlotNegozio(data);
+    } catch (e) {
+      document.getElementById('konaNegozioGiorni').textContent = e.message;
+    }
+  }
+
+  async function apriNegozioTask() {
+    var c = eContatto();
+    if (!c || !c.nome || !c.cellulare) {
+      toast('Il contatto non ha nome e telefono sufficienti per prenotare.', 'warning');
+      return;
+    }
+    _negozioMode = 'task';
+    _negozioSlot = [];
+    _negozioDay = null;
+    _negozioSelected = null;
+    document.getElementById('konaNegozioGiorni').textContent = '';
+    document.getElementById('konaNegozioSlot').textContent = '';
+    hide('konaNegozioSlotWrap');
+    hide('konaNegozioRiepilogo');
+    document.getElementById('konaNegozioConferma').disabled = true;
+    setText('konaNegozioCliente', c.nome + ' - ' + c.cellulare + (c.cf_piva ? ' - ' + c.cf_piva : ''));
+    go('negozio');
+    try {
+      var domani = new Date();
+      domani.setDate(domani.getDate() + 1);
+      await caricaSlotNegozio(domani.toISOString().slice(0, 10));
     } catch (e) {
       document.getElementById('konaNegozioGiorni').textContent = e.message;
     }
@@ -1076,12 +1129,29 @@
   }
 
   function indietroNegozio() {
-    go('consumer');
+    go(_negozioMode === 'task' ? 'outcome' : 'consumer');
   }
 
   async function confermaNegozio() {
     if (!_negozioSelected) { toast('Seleziona prima uno slot del negozio.', 'warning'); return; }
     if (_salvataggioInCorso) { toast('Operazione gia\' in corso. Attendi la conferma.', 'warning'); return; }
+    if (_negozioMode === 'task') {
+      _salvataggioInCorso = true;
+      try {
+        var famigliaConclusa = _task && _task.task ? famiglia(_task.task.tipo) : _prevFamiglia;
+        await apiFetch(TASK, jsonBody({ action: 'prenota_negozio', data_ora: _negozioSelected.start }));
+        toast('Appuntamento negozio prenotato ed esito registrato.');
+        _prevFamiglia = famigliaConclusa;
+        _task = null;
+        _negozioMode = 'consumer';
+        await dopoEsito();
+      } catch (e) {
+        toast(e.message, 'danger');
+      } finally {
+        _salvataggioInCorso = false;
+      }
+      return;
+    }
     var cliente = datiConsumer();
     var nome = cliente.nome_referente || cliente.ragione_sociale;
     var telefono = cliente.cellulare;
@@ -1325,6 +1395,7 @@
     ricontrolla: ricontrolla,
     riprova: riprova,
     segnalaBlacklist: segnalaBlacklist,
+    segnaPresentato: segnaPresentato,
     terminaGiornata: terminaGiornata,
     toggleCorrezioneRicontatto: toggleCorrezioneRicontatto,
     togglePausa: togglePausa,

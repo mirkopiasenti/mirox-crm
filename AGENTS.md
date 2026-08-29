@@ -623,7 +623,7 @@ Il bottone "Admin" dentro `moduli/upload-contratti-vendita.html` è stato **rimo
 KONA Call Director vive nelle tabelle server-only `kona_call_director_*`, nelle
 function `kona-call-director-*` e nelle due pagine operatore/admin. Prima di
 modificarlo o attivarlo leggere `docs/KONA_CALL_DIRECTOR.md` e le migration
-`database/072_kona_call_director.sql`-`074_kona_call_director_agente_unificato.sql`.
+`database/072_kona_call_director.sql`-`075_kona_call_director_parita_rilavorazioni.sql`.
 
 Regole permanenti:
 
@@ -634,7 +634,7 @@ Regole permanenti:
 
 - l'attivazione richiede insieme `KONA_CALL_DIRECTOR_ENABLED=true`, toggle
   globale DB e profilo operatore abilitato; l'env assente deve restare spento;
-- le migration `072`, `073` e `074` sono applicate soltanto al Supabase test
+- le migration `072`, `073`, `074` e `075` sono applicate soltanto al Supabase test
   dedicato `yyorullxmdxhnunsfwwa`; production non contiene tabelle KONA Call
   Director;
 - il sito Netlify test `mirox-kona-call-director-test.netlify.app` e' collegato
@@ -646,8 +646,9 @@ Regole permanenti:
   riga `profili` per completare il login CRM;
 - il dataset di collaudo e' `database/staging/004_kona_call_director_dati_fittizi.sql`:
   e' idempotente, si arresta se non riconosce il bootstrap test e genera solo
-  righe marcate `TEST KONA` (6 Consumer, 8 Business, 8 rilavorazioni e tre
-  piani). Non modifica toggle/profili e non crea eventi sul calendario Google;
+  righe marcate `TEST KONA` (6 Consumer, 8 Business, 10 rilavorazioni e tre
+  piani). I due non presentati sono appuntamenti CRM sintetici; non modifica
+  toggle/profili e non crea eventi sul calendario Google;
 - le chiamate Business standard richiedono almeno una categoria esplicitamente
   approvata nel piano; nessuna categoria significa nessuna chiamata standard;
 - **doppia interfaccia, una sola fonte di verita'**: quando KONA e' attivo per
@@ -698,6 +699,15 @@ Regole permanenti:
   `manuale` (data non passata + fascia `Mattina`/`Pomeriggio`). La scelta vale
   per Business, rilavorazioni e Consumer ed e' validata lato server; una
   chiamata outbound ricontattabile resta sempre `da_lavorare`;
+- la scheda del task mostra l'indirizzo canonico (`anagrafica.via` + `civico`,
+  oppure `call_center_lead_outbound.indirizzo`) insieme a comune/provincia. Le
+  quattro code manuali sono replicate senza fonti parallele: ricontatti dalla
+  vista unificata e solo se scaduti, non presentati con
+  `presentato='no'`/`non_presentato_stato='da_lavorare'`/`stato='confermato'`,
+  passaggi solo con `passaggio_stato='in_attesa'`. Non presentati e passaggi
+  mostrano prima `Presentato` oppure `Ricontatta`; il primo aggiorna la sorgente
+  senza creare una chiamata, il secondo apre gli esiti canonici. Gli
+  appuntamenti generati da una rilavorazione riusano gli slot del negozio;
 - `Prossimo contatto`, `Avvia` e `Avvia chiamate` sono idempotenti: se esiste gia'
   un task attivo restituiscono quel task, senza svuotare la UI o crearne un
   secondo; il refresh riprende il task attivo;
