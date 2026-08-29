@@ -1371,6 +1371,17 @@ test('cc-header: operatrice KONA non vede la navigazione manuale (redirect + adm
   assert.ok(/document\.querySelectorAll\('\.cc-main'\)[\s\S]*main\.hidden = true/.test(js));
 });
 
+test('cc-header: la pagina agente nasconde le tab manuali anche agli admin', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'js/cc-header.js'), 'utf8');
+  assert.match(
+    js,
+    /if \(currentPage\(\) === 'kona-call-director\.html'\) \{\s*renderMinimal\(container, profilo\);\s*return;\s*\}/
+  );
+  const guardAgente = js.indexOf("currentPage() === 'kona-call-director.html'");
+  const fetchRouting = js.indexOf('const route = await fetchRoute()', guardAgente);
+  assert.ok(guardAgente >= 0 && fetchRouting > guardAgente, 'la shell KONA viene scelta prima del routing admin/manuale');
+});
+
 test('migration 074: audit esiti append-only, failover server-only e RPC atomica', () => {
   const sql = fs.readFileSync(path.resolve(__dirname, '..', 'database/074_kona_call_director_agente_unificato.sql'), 'utf8');
   assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.kona_call_director_correzioni_esito/);

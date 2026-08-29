@@ -3,15 +3,17 @@
 ## Stato verificato
 
 Il modulo e' completo lato codice ed e' stato riesaminato localmente dopo le
-correzioni di chiusura. La suite dedicata passa 98/98 test; la suite completa
-del CRM passa 221/221 test. La build statica e i controlli di sintassi sono
+correzioni di chiusura. La suite dedicata passa 99/99 test; la suite completa
+del CRM passa 222/222 test. La build statica e i controlli di sintassi sono
 verdi.
 
 Il Supabase test dedicato `Mirox CRM - Test KONA Call Director`
 (`yyorullxmdxhnunsfwwa`, `eu-west-3`) e' attivo e contiene il solo schema
-minimo ricostruito senza dati production, le migration `072`-`074` e il seed
-fail-closed. Le 25 tabelle KONA sono vuote salvo config e configurazioni di
-collaudo; i due nuovi registri di correzione/failover sono vuoti. Il sito Netlify isolato
+minimo ricostruito senza dati production, le migration `072`-`074`, il seed
+fail-closed e il dataset sintetico idempotente
+`database/staging/004_kona_call_director_dati_fittizi.sql`. Il dataset contiene
+6 anagrafiche Consumer, 8 lead Business, 8 rilavorazioni e tre piani giornalieri,
+tutti marcati `TEST KONA`; non crea appuntamenti o eventi Google. Il sito Netlify isolato
 `mirox-kona-call-director-test.netlify.app` e' collegato alla branch
 `kona-call-director`, con env staging e service role protetta del solo
 Supabase test. L'invocazione HTTP diretta del dispatcher e' bloccata da
@@ -67,7 +69,9 @@ e' attivo per un'operatrice, diventa la sua unica interfaccia operativa.
   navigazione delle vecchie sezioni; l'accesso diretto a una pagina manuale
   reindirizza a `kona-call-director.html`.
 - Admin: mantiene l'accesso manuale e vede la tab `KONA CD` + il pannello
-  `admin-kona-call-director.html` per attivare/disattivare/abilitare.
+  `admin-kona-call-director.html` per attivare/disattivare/abilitare. Quando
+  entra nella pagina agente, anche l'admin vede soltanto la shell KONA senza
+  alcuna tab del sistema manuale.
 
 Il routing e' deciso server-side da `kona-call-director-route` (ruolo +
 `kona_call_director_profili.abilitato` + toggle globale): il controllo non e'

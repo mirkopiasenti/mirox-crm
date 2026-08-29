@@ -224,6 +224,16 @@
       return;
     }
 
+    // La pagina dell'agente e' sempre un'esperienza isolata: nessuna tab del
+    // Call Center manuale deve comparire, nemmeno per un account admin. Gli
+    // admin conservano il sistema manuale entrando nelle relative pagine e
+    // gestiscono KONA dal pannello dedicato, ma dentro l'agente vedono solo
+    // la shell minima KONA.
+    if (currentPage() === 'kona-call-director.html') {
+      renderMinimal(container, profilo);
+      return;
+    }
+
     const isAdmin = profilo.ruolo === 'admin';
     const route = await fetchRoute();
 

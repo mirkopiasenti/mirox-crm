@@ -644,13 +644,19 @@ Regole permanenti:
   schema minimo senza dati production; le tabelle KONA e tutte le scritture
   sono service-role-only, mentre `authenticated` legge soltanto la propria
   riga `profili` per completare il login CRM;
+- il dataset di collaudo e' `database/staging/004_kona_call_director_dati_fittizi.sql`:
+  e' idempotente, si arresta se non riconosce il bootstrap test e genera solo
+  righe marcate `TEST KONA` (6 Consumer, 8 Business, 8 rilavorazioni e tre
+  piani). Non modifica toggle/profili e non crea eventi sul calendario Google;
 - le chiamate Business standard richiedono almeno una categoria esplicitamente
   approvata nel piano; nessuna categoria significa nessuna chiamata standard;
 - **doppia interfaccia, una sola fonte di verita'**: quando KONA e' attivo per
   un'operatrice non-admin, `js/cc-header.js` (via `kona-call-director-route`)
   nasconde le tab manuali e reindirizza a KONA l'accesso diretto alle pagine
   manuali; l'admin mantiene il manuale + tab `KONA CD` (`adminOnly`) + pannello
-  admin. Gli esiti KONA scrivono nelle tabelle canoniche (`chiamate`,
+  admin. Dentro `kona-call-director.html` la shell e' sempre minimale anche
+  per l'admin: nessuna tab del manuale e' visibile nella pagina agente. Gli
+  esiti KONA scrivono nelle tabelle canoniche (`chiamate`,
   `appuntamenti`, `blacklist`) oltre che negli audit `kona_call_director_*`: mai
   una seconda copia dei dati definitivi. Per i non-admin un errore del routing
   blocca il contenuto della pagina invece di mostrare implicitamente il manuale;
