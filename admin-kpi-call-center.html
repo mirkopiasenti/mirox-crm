@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Call Center | KPI Mirox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/admin-shell.css">
+  <link rel="stylesheet" href="css/admin-kpi.css">
+  <script src="js/mirox-safe.js"></script>
+  <script src="js/admin-shell.js" defer></script>
+</head>
+<body class="mx-admin-shell">
+  <main class="admin-container kpi-page kpi-call-center-page">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Call Center</h1>
+        <p class="page-subtitle">Chiamate, appuntamenti ed efficacia delle operatrici</p>
+      </div>
+    </div>
+
+    <section class="kpi-filter-bar" aria-label="Filtri KPI Call Center">
+      <div class="kpi-filter-field">
+        <label for="ccKpiYear">Anno</label>
+        <select id="ccKpiYear"></select>
+      </div>
+      <div class="kpi-filter-field">
+        <label for="ccKpiMonth">Mese</label>
+        <select id="ccKpiMonth"></select>
+      </div>
+      <div class="kpi-filter-field">
+        <label for="ccKpiView">Visualizzazione</label>
+        <select id="ccKpiView">
+          <option value="daily">Giornaliero</option>
+          <option value="weekly">Settimane del mese</option>
+          <option value="monthly">Mensile</option>
+        </select>
+      </div>
+      <div class="kpi-filter-field">
+        <label for="ccKpiOperator">Operatrice</label>
+        <select id="ccKpiOperator"><option value="all">Tutte</option></select>
+      </div>
+      <button class="kpi-filter-button" id="ccKpiRefresh" type="button">Aggiorna dati</button>
+      <div class="kpi-update-meta" id="ccKpiUpdatedAt">In attesa dei dati</div>
+    </section>
+
+    <div class="kpi-loading is-visible" id="ccKpiLoading">Caricamento KPI Call Center...</div>
+    <div class="kpi-error" id="ccKpiError"></div>
+
+    <div class="kpi-content is-loading" id="ccKpiContent">
+      <section class="cc-kpi-summary" id="ccKpiSummary" aria-label="Riepilogo periodo"></section>
+
+      <section class="kpi-section">
+        <header class="kpi-section-header">
+          <div>
+            <h2 class="kpi-section-title">Andamento del periodo</h2>
+            <p class="kpi-section-description" id="ccKpiTrendDescription">Dettaglio giornaliero del mese selezionato.</p>
+          </div>
+        </header>
+        <div class="kpi-table-wrap" id="ccKpiTrendTable"></div>
+      </section>
+
+      <section class="kpi-section">
+        <header class="kpi-section-header">
+          <div>
+            <h2 class="kpi-section-title">Confronto operatrici</h2>
+            <p class="kpi-section-description" id="ccKpiOperatorDescription">Risultati del mese selezionato, divisi per operatrice.</p>
+          </div>
+        </header>
+        <div class="kpi-table-wrap" id="ccKpiOperatorTable"></div>
+      </section>
+
+      <section class="kpi-section">
+        <header class="kpi-section-header">
+          <div>
+            <h2 class="kpi-section-title">Indicatori di efficacia</h2>
+            <p class="kpi-section-description">Tassi utili per leggere qualità e conversione oltre ai volumi.</p>
+          </div>
+        </header>
+        <div class="cc-kpi-rates" id="ccKpiRates"></div>
+        <p class="kpi-data-note">Le chiamate includono i flussi standard e outbound. “Fissati” usa il giorno di creazione dell’appuntamento; presenze, non presentati ed esiti sono attribuiti al giorno previsto dell’appuntamento. Gli appuntamenti annullati restano disponibili nel dettaglio per evitare letture fuorvianti.</p>
+      </section>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/mirox-ui.js"></script>
+  <script src="js/mirox-api.js"></script>
+  <script src="js/admin-kpi-call-center.js"></script>
+  <script>
+    (async () => {
+      const profilo = await Auth.richiediAuth();
+      if (!profilo) return;
+      if (profilo.ruolo !== 'admin') {
+        await MiroxUI.alert('Accesso riservato agli amministratori.', {
+          type: 'error',
+          title: 'Accesso negato'
+        });
+        window.location.href = 'dashboard.html';
+        return;
+      }
+      await MiroxAdminKpiCallCenter.init();
+    })();
+  </script>
+</body>
+</html>

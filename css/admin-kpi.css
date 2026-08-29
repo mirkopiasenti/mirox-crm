@@ -377,6 +377,118 @@
   display: none;
 }
 
+.cc-kpi-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.cc-kpi-card {
+  min-width: 0;
+  padding: 17px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: linear-gradient(145deg, #fff 0%, #fffaf6 100%);
+  box-shadow: var(--shadow-sm);
+}
+
+.cc-kpi-card-label {
+  min-height: 30px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.cc-kpi-card-value {
+  margin-top: 4px;
+  color: var(--text);
+  font-size: clamp(25px, 3vw, 34px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.cc-kpi-card-note {
+  margin-top: 5px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.cc-kpi-table {
+  min-width: 1160px;
+}
+
+.cc-kpi-table th:first-child,
+.cc-kpi-table td:first-child {
+  width: 180px;
+  min-width: 180px;
+}
+
+.cc-kpi-selected-row td {
+  background: #fffaf5;
+  font-weight: 750;
+}
+
+.cc-kpi-selected-row td:first-child {
+  background: #fff7ed;
+  box-shadow: inset 3px 0 var(--primary);
+}
+
+.cc-kpi-rates {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 16px;
+  padding: 20px 22px 22px;
+}
+
+.cc-kpi-rate {
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: #fbfcfe;
+}
+
+.cc-kpi-rate-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.cc-kpi-rate-head strong {
+  color: var(--primary-dark);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.cc-kpi-rate-track {
+  height: 8px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e9edf2;
+}
+
+.cc-kpi-rate-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), #ff9a52);
+}
+
+.cc-kpi-rate p {
+  margin: 9px 0 0;
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
 @media (max-width: 900px) {
   .kpi-page .page-header {
     display: block;
@@ -394,6 +506,14 @@
 
   .kpi-operator-controls {
     justify-content: flex-start;
+  }
+
+  .cc-kpi-summary {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
+
+  .cc-kpi-rates {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
 }
 
@@ -418,5 +538,26 @@
 
   .kpi-section-header {
     padding: 17px 16px 15px;
+  }
+
+  .cc-kpi-summary,
+  .cc-kpi-rates {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cc-kpi-rates {
+    gap: 10px;
+    padding: 15px;
+  }
+
+  .cc-kpi-card {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .cc-kpi-summary,
+  .cc-kpi-rates {
+    grid-template-columns: 1fr;
   }
 }
