@@ -200,7 +200,10 @@ async function deleteEvent(accessToken, { calendarId = CALENDAR_ID, eventId }) {
       method: 'DELETE'
     });
   } catch (error) {
-    if (Number(error?.status) !== 404) throw error;
+    // Google puo' rispondere 410 quando l'evento e' gia stato eliminato.
+    // Per una DELETE idempotente 404 e 410 rappresentano entrambi lo stato
+    // finale desiderato e non devono lasciare la sync in da_recuperare.
+    if (![404, 410].includes(Number(error?.status))) throw error;
   }
   return true;
 }

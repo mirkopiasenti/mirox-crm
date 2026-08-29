@@ -23,6 +23,7 @@ const google = L('kona-cd-google');
 const report = L('kona-cd-report');
 const telegram = L('kona-cd-telegram');
 const dist = L('kona-cd-distances');
+const taskEndpoint = require(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-task.js'));
 
 const PROFILO = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const LEAD = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -699,6 +700,16 @@ test('computeSlots: quattordici giorni espongono almeno dieci date lavorative', 
   assert.ok(new Set(slots.map((s) => s.giorno)).size >= 10);
 });
 
+test('deleteEvent: un evento Google gia eliminato (410) e idempotente', async () => {
+  const restore = mockFetchFor([['googleapis.com', () => ({
+    ok: false,
+    status: 410,
+    json: async () => ({ error: { code: 410, message: 'Resource has been deleted' } })
+  })]]);
+  await assert.doesNotReject(() => google.deleteEvent('tok', { calendarId: 'primary', eventId: 'evt-eliminato' }));
+  restore();
+});
+
 test('verifySlotAvailability: senza token -> no_token; errore FreeBusy -> fail-closed', async () => {
   const cfg = baseCfg();
   const noToken = await google.verifySlotAvailability({ supabase: makeSupabase({}), cfg, start: '2026-08-27T09:00:00Z', end: '2026-08-27T09:45:00Z', accessToken: null });
@@ -1200,6 +1211,32 @@ test('prossimo contatto restituisce il task gia attivo senza svuotare la UI', ()
   assert.match(source, /task: corrente\.dettaglio, motivo: 'task_attivo'/);
 });
 
+test('esito task: il retry dello stesso Presentato e idempotente', () => {
+  assert.deepEqual(
+    taskEndpoint._test.esitoCompletatoIdempotente({
+      stato: 'completato',
+      esito: { esito: 'presentato' },
+      tentativi: 1
+    }, 'presentato'),
+    {
+      esito: 'presentato',
+      esaurito: false,
+      tentativo: 1,
+      ricontatto: null,
+      gia_registrato: true
+    }
+  );
+  assert.equal(taskEndpoint._test.esitoCompletatoIdempotente({
+    stato: 'completato', esito: { esito: 'presentato' }
+  }, 'non_risposto'), null);
+});
+
+test('frontend: ogni esito invia l ID del task mostrato', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  const salva = js.slice(js.indexOf('async function salvaEsitoInterno'), js.indexOf('async function salvaEsito(', js.indexOf('async function salvaEsitoInterno')));
+  assert.match(salva, /task_id:\s*_task && _task\.task \? _task\.task\.id : null/);
+});
+
 test('operatore: nessun ID HTML duplicato e niente "Isabella"/script telefonici', () => {
   const html = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/kona-call-director.html'), 'utf8');
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
@@ -1566,6 +1603,18 @@ test('migration 074: audit esiti append-only, failover server-only e RPC atomica
   assert.match(sql, /CREATE OR REPLACE FUNCTION public\.kona_cd_correggi_esito_v1/);
   assert.match(sql, /REVOKE ALL ON TABLE public\.kona_call_director_correzioni_esito FROM PUBLIC, anon, authenticated/);
   assert.doesNotMatch(sql, /DROP\s+(?:TABLE|COLUMN)/i);
+});
+
+test('staging 005: prepara il collaudo Consumer Isabella senza coda Business', () => {
+  const sql = fs.readFileSync(path.resolve(__dirname, '..', 'database/staging/005_kona_call_director_preparazione_isabella_20260831.sql'), 'utf8');
+  assert.match(sql, /Schema minimo di test KONA Call Director/);
+  assert.match(sql, /DATE '2026-08-31'/);
+  assert.match(sql, /'consumer', 'fibra_fwa'/);
+  assert.match(sql, /'categorie_approvate', jsonb_build_array\(\)/);
+  assert.match(sql, /'Lavorazione manuale lead Consumer per l''intera giornata'/);
+  assert.match(sql, /orario_mattina = '\{"inizio":"09:00","fine":"12:30"\}'::jsonb/);
+  assert.match(sql, /orario_pomeriggio = '\{"inizio":"15:30","fine":"19:00"\}'::jsonb/);
+  assert.doesNotMatch(sql, /lbgwamhjkjjfwgusafbi/);
 });
 
 test('operazioni unificate: validazione CF/PIVA e failover solo per errori AI ammessi', () => {

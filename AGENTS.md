@@ -649,6 +649,14 @@ Regole permanenti:
   righe marcate `TEST KONA` (6 Consumer, 8 Business, 10 rilavorazioni e tre
   piani). I due non presentati sono appuntamenti CRM sintetici; non modifica
   toggle/profili e non crea eventi sul calendario Google;
+- prima del collaudo Consumer di Isabella del 31/08/2026, lo script staging-only
+  `database/staging/005_kona_call_director_preparazione_isabella_20260831.sql`
+  rimuove i dati sintetici e le lavorazioni precedenti, conserva profilo test,
+  token Google e stato Telegram, ripristina gli orari 09:00-12:30 e 15:30-19:00
+  e crea un unico piano approvato Consumer manuale mattina/pomeriggio. Nessuna
+  categoria Business e nessun arricchimento automatico sono attivi; i dati
+  reali eventualmente inseriti restano nel solo staging e vanno bonificati
+  dopo la prova;
 - le chiamate Business standard richiedono almeno una categoria esplicitamente
   approvata nel piano; nessuna categoria significa nessuna chiamata standard;
 - **doppia interfaccia, una sola fonte di verita'**: quando KONA e' attivo per
@@ -711,6 +719,10 @@ Regole permanenti:
 - `Prossimo contatto`, `Avvia` e `Avvia chiamate` sono idempotenti: se esiste gia'
   un task attivo restituiscono quel task, senza svuotare la UI o crearne un
   secondo; il refresh riprende il task attivo;
+- anche `esito` e' idempotente rispetto al `task_id` mostrato: un retry dopo un
+  salvataggio gia' concluso restituisce l'esito registrato invece del falso
+  errore `Nessun task`. La cancellazione Google considera conclusivi 404 e 410,
+  perche' entrambi indicano che l'evento non esiste piu';
 - credenziali, integrazioni e deploy vanno validati prima sul test dedicato;
 - non inviare PII a Telegram, dati Consumer a OpenAI o dettagli privati del
   calendario Google all'operatore;

@@ -23,6 +23,28 @@ const { notificaEsauriti } = require('./_lib/kona-cd-conferme');
 const { nowRomeParts, todayRomeStr } = require('./_lib/kona-cd-time');
 const { isUuid, jsonError, jsonOk, readJsonBody } = require('./_lib/kona-cd-util');
 
+function esitoCompletatoIdempotente(task, esitoRichiesto) {
+  const salvato = task?.esito && typeof task.esito === 'object' ? task.esito : {};
+  if (task?.stato !== 'completato' || String(salvato.esito || '') !== String(esitoRichiesto || '')) return null;
+  return {
+    esito: String(salvato.esito),
+    esaurito: Boolean(salvato.tentativi_esauriti),
+    tentativo: Number(salvato.tentativo || task.tentativi) || 1,
+    ricontatto: salvato.ricontatto || null,
+    gia_registrato: true
+  };
+}
+
+async function recuperaEsitoCompletato(client, { taskId, profiloId, esitoRichiesto }) {
+  const { data, error } = await client.from('kona_call_director_task')
+    .select('id, operatore_id, stato, esito, tentativi')
+    .eq('id', taskId)
+    .eq('operatore_id', profiloId)
+    .maybeSingle();
+  if (error) throw new Error(error.message || 'verifica_esito_precedente_fallita');
+  return esitoCompletatoIdempotente(data, esitoRichiesto);
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' }, body: '' };
@@ -74,14 +96,29 @@ exports.handler = async (event) => {
       }
 
       case 'esito': {
+        const esitoRichiesto = String(body.esito || '');
+        const taskIdRichiesto = body.task_id ? String(body.task_id) : null;
+        if (taskIdRichiesto && !isUuid(taskIdRichiesto)) return jsonError(400, 'Task non valido');
         const task = (await verificaTaskAttivo({ supabase: client, profiloId })).task;
-        if (!task) return jsonError(409, 'Nessun task attivo');
+        if (!task) {
+          // Il primo click puo' aver completato il task mentre il browser sta
+          // ancora aspettando la risposta. Un retry dello stesso esito deve
+          // confermare il successo, non mostrare il falso errore "Nessun task".
+          const precedente = taskIdRichiesto
+            ? await recuperaEsitoCompletato(client, { taskId: taskIdRichiesto, profiloId, esitoRichiesto })
+            : null;
+          if (precedente) return jsonOk({ esito: precedente });
+          return jsonError(409, 'Nessun task attivo');
+        }
+        if (taskIdRichiesto && task.id !== taskIdRichiesto) {
+          return jsonError(409, 'Il contatto attivo e\' cambiato: aggiorna la scheda');
+        }
         const esito = await registerEsito({
           supabase: client,
           cfg,
           task,
           profiloId,
-          esito: String(body.esito || ''),
+          esito: esitoRichiesto,
           dettagli: {
             skip_reason: body.skip_reason,
             spiegazione: body.spiegazione,
@@ -324,3 +361,5 @@ function esitoRecordPublic(esito) {
     ricontatto: esito.ricontatto || null
   };
 }
+
+exports._test = { esitoCompletatoIdempotente };

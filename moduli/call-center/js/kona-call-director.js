@@ -597,7 +597,11 @@
   // -- Esito / salvataggio ----------------------------------------------------
 
   async function salvaEsitoInterno(esito, dettagli) {
-    var body = { action: 'esito', esito: esito };
+    var body = {
+      action: 'esito',
+      esito: esito,
+      task_id: _task && _task.task ? _task.task.id : null
+    };
     if (dettagli) {
       if (dettagli.motivo) body.motivo = dettagli.motivo;
       if (dettagli.spiegazione) body.spiegazione = dettagli.spiegazione;

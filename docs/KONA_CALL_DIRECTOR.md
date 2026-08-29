@@ -3,17 +3,18 @@
 ## Stato verificato
 
 Il modulo e' completo lato codice ed e' stato riesaminato localmente dopo le
-correzioni di chiusura. La suite dedicata passa 109/109 test; la suite completa
-del CRM passa 232/232 test. La build statica e i controlli di sintassi sono
+correzioni di chiusura. La suite dedicata passa 113/113 test; la suite completa
+del CRM passa 236/236 test. La build statica e i controlli di sintassi sono
 verdi.
 
 Il Supabase test dedicato `Mirox CRM - Test KONA Call Director`
 (`yyorullxmdxhnunsfwwa`, `eu-west-3`) e' attivo e contiene il solo schema
-minimo ricostruito senza dati production, le migration `072`-`075`, il seed
-fail-closed e il dataset sintetico idempotente
-`database/staging/004_kona_call_director_dati_fittizi.sql`. Il dataset contiene
-6 anagrafiche Consumer, 8 lead Business, 10 rilavorazioni e tre piani giornalieri,
-tutti marcati `TEST KONA`; non crea appuntamenti o eventi Google. Il sito Netlify isolato
+minimo ricostruito senza dati production, le migration `072`-`075` e il seed
+fail-closed. Il dataset sintetico `staging/004` e' stato rimosso tramite
+`database/staging/005_kona_call_director_preparazione_isabella_20260831.sql`:
+contatti, chiamate, lead, appuntamenti, task e sessioni partono da zero; resta
+un solo piano approvato per lunedi' 31/08, Consumer manuale per l'intera
+giornata, senza Business o arricchimenti automatici. Il sito Netlify isolato
 `mirox-kona-call-director-test.netlify.app` e' collegato alla branch
 `kona-call-director`, con env staging e service role protetta del solo
 Supabase test. L'invocazione HTTP diretta del dispatcher e' bloccata da
@@ -32,6 +33,11 @@ Dal 2026-08-29 il collaudo controllato e' attivo esclusivamente nello staging:
 i due env switch e il toggle globale sono `true`, un solo profilo test e'
 abilitato, la modalità osservazione resta `true` e Google Calendar e' collegato
 con ultimo sync `ok`. Production resta invariata.
+
+Per il test del 31/08 Isabella usa il profilo `test` e inserisce manualmente i
+contatti Consumer reali dentro l'agente. Quei dati sono salvati soltanto nel
+Supabase test, non diventano dati del CRM production e vanno eliminati dopo il
+collaudo.
 
 ## Funzione operativa
 
@@ -277,6 +283,20 @@ esterno controllato.
 12. Eseguire almeno un ciclo completo di prova e verificare database, pagina
     operatore, report Telegram, audit e consumo budget.
 
+### Preparazione operativa del 31/08/2026
+
+- Stato DB verificato: zero contatti, chiamate, lead, appuntamenti, task e
+  sessioni; collegamenti Google e Telegram conservati.
+- Solo il profilo `test` e' abilitato e resta in osservazione.
+- Il piano approvato prevede Consumer manuale sia al mattino sia al pomeriggio;
+  categorie Business vuote e arricchimento automatico disabilitato.
+- Orari: lunedi'-venerdi', 09:00-12:30 e 15:30-19:00.
+- Isabella accede allo staging, preme `Avvia`, poi `Avvia chiamate` e inserisce
+  CF/P.IVA, nominativo, telefono e dati anagrafici del contatto reale. Tutto il
+  flusso resta dentro KONA.
+- Dopo la prova esportare solo gli elementi tecnici necessari alla diagnosi e
+  bonificare dal Supabase test i dati personali inseriti.
+
 ## Collaudo obbligatorio
 
 Il collaudo staging deve coprire almeno:
@@ -350,6 +370,6 @@ Ogni richiesta operativa della pagina agente usa il popup di caricamento
 condiviso e blocca i click successivi fino alla risposta. Il lock delle
 operazioni composte viene sempre rilasciato anche in errore.
 
-- `node --test tests/kona-call-director.test.js`: 109/109 pass.
-- `npm test`: 232/232 pass, inclusa build statica production.
+- `node --test tests/kona-call-director.test.js`: 113/113 pass.
+- `npm test`: 236/236 pass, inclusa build statica production.
 - Nessuna modifica o migration production fa parte di questa correzione.
