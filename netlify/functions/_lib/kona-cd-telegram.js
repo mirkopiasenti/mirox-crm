@@ -5,6 +5,7 @@
 // ogni chiamata passa da sanitizeForTelegram() prima dell'invio.
 
 const TELEGRAM_API_ROOT = 'https://api.telegram.org';
+const { protectIsoDates, restoreIsoDates } = require('./kona-cd-util');
 
 function getBotToken() {
   return String(process.env.KONA_CALL_DIRECTOR_TELEGRAM_BOT_TOKEN || '').trim();
@@ -19,13 +20,17 @@ function isConfigured() {
 }
 
 // Rimuove dati identificativi dal testo Telegram (PII safe). Le NEWLINE sono
-// preservate (i report e i piani usano righe multiple).
+// preservate (i report e i piani usano righe multiple). Le date ISO vengono
+// protette per non essere confuse con numeri di telefono.
 function sanitizeForTelegram(text, maxLength = 3900) {
-  return String(text || '')
+  const protectedDates = protectIsoDates(text || '');
+  let s = protectedDates.text
     .replace(/\+?\d[\d\s.-]{8,}\d/g, '[telefono]')
     .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]')
     .replace(/\b[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]\b/g, '[cf]')
-    .replace(/\b\d{11}\b/g, '[piva]')
+    .replace(/\b\d{11}\b/g, '[piva]');
+  s = restoreIsoDates(s, protectedDates.saved);
+  return s
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/ *\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')

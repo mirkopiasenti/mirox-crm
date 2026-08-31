@@ -50,14 +50,33 @@ function isSecretKey(key) {
   return SECRET_KEYS.has(k);
 }
 
+// Le date ISO (YYYY-MM-DD, con eventuale orario) non sono PII e NON devono
+// essere confuse con numeri di telefono dalla mascheratura. Le sostituiamo con
+// un placeholder fuori dagli alfabeti ASCII prima di mascherare, poi le
+// ripristiniamo.
+function protectIsoDates(text) {
+  const saved = [];
+  const replaced = String(text).replace(
+    /\b\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?)?\b/g,
+    (m) => { saved.push(m); return '' + (saved.length - 1) + ''; }
+  );
+  return { text: replaced, saved };
+}
+
+function restoreIsoDates(text, saved) {
+  return String(text).replace(/(\d+)/g, (_, i) => (saved[Number(i)] !== undefined ? saved[Number(i)] : ''));
+}
+
 // Mascheratura PII su stringa (telefono, email, CF, P.IVA).
 function maskPiiString(value, maxLength) {
-  return String(value)
+  const protectedDates = protectIsoDates(value);
+  let s = protectedDates.text
     .replace(/\+?\d[\d\s.-]{8,}\d/g, '[telefono]')
     .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]')
     .replace(/\b[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]\b/g, '[cf]')
-    .replace(/\b\d{11}\b/g, '[piva]')
-    .slice(0, maxLength);
+    .replace(/\b\d{11}\b/g, '[piva]');
+  s = restoreIsoDates(s, protectedDates.saved);
+  return s.slice(0, maxLength);
 }
 
 // Sanitizzazione ricorsiva: PRESERVA oggetti e array (JSONB strutturato),
@@ -186,8 +205,10 @@ module.exports = {
   parseBoolean,
   parseJson,
   parseNumber,
+  protectIsoDates,
   readJsonBody,
   response,
+  restoreIsoDates,
   safeProfileId,
-  _test: { isSecretKey, maskPiiString }
+  _test: { isSecretKey, maskPiiString, protectIsoDates, restoreIsoDates }
 };

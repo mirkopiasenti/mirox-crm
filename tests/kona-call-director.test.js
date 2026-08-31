@@ -647,6 +647,21 @@ test('sanitizeForTelegram preserva le newline e maschera PII', () => {
   assert.ok(!out.includes('333 123 4567'));
 });
 
+test('la data ISO non viene scambiata per un numero di telefono', () => {
+  const testo = 'KONA Call Director - Anomalia arricchimento 2026-08-31: trovati 0 lead Business (soglia minima 50).';
+  const outClean = util.cleanLog(testo);
+  const outTg = telegram.sanitizeForTelegram(testo);
+  assert.ok(outClean.includes('2026-08-31'), 'cleanLog preserva la data');
+  assert.ok(!outClean.includes('[telefono]'), 'cleanLog non maschera la data come telefono');
+  assert.ok(outTg.includes('2026-08-31'), 'sanitizeForTelegram preserva la data');
+  assert.ok(!outTg.includes('[telefono]'), 'sanitizeForTelegram non maschera la data come telefono');
+  // timestamp completo e orario
+  const ts = 'report 2026-09-01T02:00:00Z ok';
+  assert.ok(util.cleanLog(ts).includes('2026-09-01T02:00:00Z'));
+  // i telefoni veri restano mascherati
+  assert.equal(util.cleanLog('chiama 333 123 4567'), 'chiama [telefono]');
+});
+
 test('timingSafeEqualText', () => {
   assert.equal(telegram._test.timingSafeEqualText('s', 's'), true);
   assert.equal(telegram._test.timingSafeEqualText('a', 'bb'), false);
@@ -1114,11 +1129,12 @@ test('esito Business Ricontattare: conserva data/fascia manuale e resta da lavor
     'kona_call_director_conferme.select': () => ({ count: 0, data: null, error: null })
   });
   const task = taskAttivo('sessione_business', { sorgente_tipo: 'lead', sorgente_id: LEAD, payload: { lead_id: LEAD } });
-  const dettagli = { dettagli: { data_ricontatto: '2026-08-30', fascia_ricontatto: 'Pomeriggio' } };
+  const domani = time.addDaysStr(time.todayRomeStr(), 1);
+  const dettagli = { dettagli: { data_ricontatto: domani, fascia_ricontatto: 'Pomeriggio' } };
   const res = await engine.registerEsito({ supabase: db, cfg: baseCfg(), task, profiloId: PROFILO, esito: 'ricontattare', dettagli });
   assert.equal(res.ok, true);
-  assert.deepEqual(res.ricontatto, { data: '2026-08-30', fascia: 'Pomeriggio' });
-  assert.equal(chiamateOutbound[0].data_ricontatto, '2026-08-30');
+  assert.deepEqual(res.ricontatto, { data: domani, fascia: 'Pomeriggio' });
+  assert.equal(chiamateOutbound[0].data_ricontatto, domani);
   assert.equal(chiamateOutbound[0].fascia_ricontatto, 'Pomeriggio');
   assert.equal(chiamateOutbound[0].rilavorazione_stato, 'da_lavorare');
 });
