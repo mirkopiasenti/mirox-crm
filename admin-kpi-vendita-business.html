@@ -18,7 +18,7 @@
     <div class="page-header">
       <div>
         <h1 class="page-title">Vendita - Business</h1>
-        <p class="page-subtitle">KPI mensili del negozio e confronto tra operatori</p>
+        <p class="page-subtitle">KPI mensili del negozio filtrabili per operatore</p>
       </div>
     </div>
 
@@ -33,6 +33,12 @@
           <option value="all">Tutti</option>
           <option value="9001415852">Legnago</option>
           <option value="9000822241">Cerea</option>
+        </select>
+      </div>
+      <div class="kpi-filter-field">
+        <label for="kpiOperator">Operatore</label>
+        <select id="kpiOperator">
+          <option value="all">Tutti</option>
         </select>
       </div>
       <button class="kpi-filter-button" id="kpiRefresh" type="button">Aggiorna dati</button>
@@ -194,26 +200,6 @@
         </section>
       </div>
 
-      <section class="kpi-section">
-        <header class="kpi-section-header">
-          <div>
-            <h2 class="kpi-section-title">Confronto operatori</h2>
-            <p class="kpi-section-description" id="operatorDescription">Confronto compatto degli stessi KPI per operatore canonico.</p>
-          </div>
-          <div class="kpi-operator-controls">
-            <label for="operatorPeriod">Periodo</label>
-            <select id="operatorPeriod"></select>
-          </div>
-        </header>
-        <div class="kpi-table-wrap">
-          <table class="kpi-table kpi-operator-table">
-            <thead>
-              <tr id="operatorHead"></tr>
-            </thead>
-            <tbody id="operatorBody"></tbody>
-          </table>
-        </div>
-      </section>
     </div>
   </main>
 

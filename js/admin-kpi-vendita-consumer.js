@@ -121,103 +121,61 @@
     ].join('');
   }
 
-  function operatorMetricSeries(metrics, key) {
-    if (key === 'mnp_total') {
-      return mnpTotalSeries(metrics);
+  function getCategoryState(category) {
+    if (category === 'mobile') {
+      return state.mobile || {
+        totals: state.totals,
+        operators: state.operators
+      };
     }
-    if (key === 'apri_chiudi_total') {
-      return combineSeries(
-        metrics?.apri_chiudi_ftth?.months,
-        metrics?.apri_chiudi_fwa?.months
-      );
-    }
-    return metrics?.[key]?.months || [];
+    return state[category];
   }
 
-  function operatorMetricValue(operator, key, period) {
-    const metrics = operator.metrics || {};
-    const periodIndex = Number(period);
-    const series = operatorMetricSeries(metrics, key);
-    return period === 'total'
-      ? visibleTotal(series, Number(state.filters.year))
-      : Number(series?.[periodIndex] || 0);
+  function emptyMetricsLike(totals) {
+    return Object.fromEntries(Object.keys(totals || {}).map((key) => [key, {
+      months: Array.from({ length: 12 }, () => 0),
+      total: 0
+    }]));
   }
 
-  function operatorConfig() {
-    const configs = {
-      fixed: {
-        description: 'Confronto Fisso per operatore: inserimenti, esiti, attivazioni e Apri/Chiudi.',
-        columns: [
-          { key: 'acquisitions', label: 'Acquisizioni' },
-          { key: 'outcome_activated', label: 'Attivati' },
-          { key: 'outcome_ko', label: 'KO' },
-          { key: 'outcome_in_activation', label: 'In Attivazione' },
-          { key: 'apri_chiudi_total', label: 'Apri/Chiudi' }
-        ]
-      },
-      energy: {
-        description: 'Confronto Luce & Gas per operatore, mantenuto nel mese di inserimento.',
-        columns: [
-          { key: 'acquisitions', label: 'Acquisiti' },
-          { key: 'activated', label: 'Attivati' }
-        ]
-      },
-      alarms: {
-        description: 'Confronto Allarmi per operatore: pezzi, pagamenti e attivati.',
-        columns: [
-          { key: 'acquisitions', label: 'Pezzi' },
-          { key: 'payment_advance', label: 'Anticipo' },
-          { key: 'payment_financing', label: 'Finanziati' },
-          { key: 'activated', label: 'Attivati' }
-        ]
-      },
-      insurance: {
-        description: 'Confronto Assicurazioni per operatore: pezzi inseriti e punti.',
-        columns: [
-          { key: 'pieces', label: 'Pezzi' },
-          { key: 'points', label: 'Punti', format: 'points' }
-        ]
-      },
-      mobile: {
-        description: 'Confronto Mobile per operatore sugli stessi KPI della categoria.',
-        columns: [
-          { key: 'acquisitions', label: 'Acquisizioni' },
-          { key: 'mnp_total', label: 'MNP totali' },
-          { key: 'mnp_standard', label: 'MNP Standard' },
-          { key: 'mnp_selected', label: 'MNP selezionati' },
-          { key: 'smartphone', label: 'Smartphone' }
-        ]
-      }
-    };
+  function selectedCategoryMetrics(category) {
+    const categoryState = getCategoryState(category);
+    const totals = categoryState?.totals || {};
+    const selectedOperatorId = refs.operator.value;
+    if (!selectedOperatorId || selectedOperatorId === 'all') return totals;
 
-    return configs[activeCategory] || configs.mobile;
+    const selectedOperator = (categoryState?.operators || []).find(
+      (operator) => operator.id === selectedOperatorId
+    );
+    return selectedOperator?.metrics || emptyMetricsLike(totals);
   }
 
-  function renderOperators() {
-    const categoryState = state[activeCategory] || (state.mobile || { operators: state.operators });
-    const operators = categoryState?.operators || [];
-    const period = refs.operatorPeriod.value;
-    const config = operatorConfig();
+  function populateOperatorFilter() {
+    const previousValue = refs.operator.value || 'all';
+    const operatorsById = new Map();
 
-    refs.operatorDescription.textContent = config.description;
-    refs.operatorHead.innerHTML = [
-      '<th>Operatore</th>',
-      ...config.columns.map((column) => `<th>${escapeHtml(column.label)}</th>`)
-    ].join('');
+    CATEGORIES.forEach((category) => {
+      (getCategoryState(category)?.operators || []).forEach((operator) => {
+        if (!operatorsById.has(operator.id)) operatorsById.set(operator.id, operator);
+      });
+    });
 
-    if (operators.length === 0) {
-      refs.operatorBody.innerHTML = `<tr class="kpi-empty-row"><td colspan="${config.columns.length + 1}">Nessun dato operatore per i filtri selezionati.</td></tr>`;
-      return;
-    }
+    const operators = Array.from(operatorsById.values())
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'it', { sensitivity: 'base' }));
+    const allOption = document.createElement('option');
+    allOption.value = 'all';
+    allOption.textContent = 'Tutti';
+    refs.operator.replaceChildren(allOption);
 
-    refs.operatorBody.innerHTML = operators.map((operator) => `
-      <tr>
-        <td>${escapeHtml(operator.nome)}</td>
-        ${config.columns.map((column) => (
-          `<td>${formatValue(operatorMetricValue(operator, column.key, period), column.format)}</td>`
-        )).join('')}
-      </tr>
-    `).join('');
+    operators.forEach((operator) => {
+      const option = document.createElement('option');
+      option.value = operator.id;
+      option.textContent = operator.nome;
+      refs.operator.appendChild(option);
+    });
+
+    refs.operator.value = operatorsById.has(previousValue) ? previousValue : 'all';
+    refs.operator.disabled = operators.length === 0;
   }
 
   function formatUpdatedAt(value) {
@@ -234,7 +192,7 @@
   }
 
   function renderMobile() {
-    const metrics = state.mobile?.totals || state.totals;
+    const metrics = selectedCategoryMetrics('mobile');
     const mnpTotal = mnpTotalSeries(metrics);
     const year = Number(state.filters.year);
 
@@ -272,7 +230,7 @@
   }
 
   function renderFixed() {
-    const metrics = state.fixed.totals;
+    const metrics = selectedCategoryMetrics('fixed');
     const year = Number(state.filters.year);
     const fwaAcquisitions = combineSeries(
       metrics.technology_fwa_outdoor.months,
@@ -354,7 +312,7 @@
   }
 
   function renderEnergy() {
-    const metrics = state.energy.totals;
+    const metrics = selectedCategoryMetrics('energy');
     renderMonthlyTable(refs.energyAcquisitionsTable, [
       { label: 'Totale acquisizioni', series: metrics.acquisitions.months, total: true }
     ]);
@@ -364,7 +322,7 @@
   }
 
   function renderAlarms() {
-    const metrics = state.alarms.totals;
+    const metrics = selectedCategoryMetrics('alarms');
     renderMonthlyTable(refs.alarmAcquisitionsTable, [
       { label: 'Totale pezzi inseriti', series: metrics.acquisitions.months, total: true },
       { label: 'Pagamento con anticipo', series: metrics.payment_advance.months },
@@ -384,7 +342,7 @@
   }
 
   function renderInsurance() {
-    const metrics = state.insurance.totals;
+    const metrics = selectedCategoryMetrics('insurance');
     renderMonthlyTable(refs.insuranceTable, [
       { label: 'Totale pezzi inseriti', series: metrics.pieces.months, total: true },
       { label: 'Punti totali', series: metrics.points.months, format: 'points' }
@@ -399,7 +357,6 @@
     refs.categoryContents.forEach((content) => {
       content.classList.toggle('is-hidden', content.dataset.kpiContent !== activeCategory);
     });
-    if (state) renderOperators();
   }
 
   function render() {
@@ -441,6 +398,7 @@
       }
 
       state = payload;
+      populateOperatorFilter();
       render();
     } catch (error) {
       refs.loading.classList.remove('is-visible');
@@ -462,23 +420,10 @@
     }
   }
 
-  function populateOperatorPeriods() {
-    const totalOption = document.createElement('option');
-    totalOption.value = 'total';
-    totalOption.textContent = 'Totale anno';
-    refs.operatorPeriod.appendChild(totalOption);
-
-    MONTHS.forEach((month, index) => {
-      const option = document.createElement('option');
-      option.value = String(index);
-      option.textContent = month;
-      refs.operatorPeriod.appendChild(option);
-    });
-  }
-
   function cacheRefs() {
     refs.year = document.getElementById('kpiYear');
     refs.store = document.getElementById('kpiStore');
+    refs.operator = document.getElementById('kpiOperator');
     refs.refresh = document.getElementById('kpiRefresh');
     refs.updatedAt = document.getElementById('kpiUpdatedAt');
     refs.loading = document.getElementById('kpiLoading');
@@ -502,21 +447,16 @@
     refs.alarmPaymentNote = document.getElementById('alarmPaymentNote');
     refs.alarmActivatedTable = document.getElementById('alarmActivatedTable');
     refs.insuranceTable = document.getElementById('insuranceTable');
-    refs.operatorPeriod = document.getElementById('operatorPeriod');
-    refs.operatorDescription = document.getElementById('operatorDescription');
-    refs.operatorHead = document.getElementById('operatorHead');
-    refs.operatorBody = document.getElementById('operatorBody');
   }
 
   async function init() {
     cacheRefs();
     populateYears();
-    populateOperatorPeriods();
 
     refs.refresh.addEventListener('click', loadData);
     refs.year.addEventListener('change', loadData);
     refs.store.addEventListener('change', loadData);
-    refs.operatorPeriod.addEventListener('change', renderOperators);
+    refs.operator.addEventListener('change', render);
     refs.categoryTabs.forEach((button) => {
       button.addEventListener('click', () => switchCategory(button.dataset.kpiCategory));
     });

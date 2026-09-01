@@ -250,7 +250,7 @@ test('Assicurazioni somma i pezzi e il punteggio gara salvato', () => {
   assert.equal(metrics.points[6], 3.5);
 });
 
-test('il confronto operatori consolida i profili alias sul canonico', () => {
+test('il filtro operatori consolida i profili alias sul canonico', () => {
   const resolver = buildProfileResolver([
     { id: 'matteo', nome: 'Matteo', alias_di: null },
     { id: 'matteo-vecchio', nome: 'Matteo storico', alias_di: 'matteo' },
@@ -289,7 +289,19 @@ test('le pagine KPI dichiarano il cluster corretto e condividono la stessa logic
   assert.match(consumer, /data-kpi-cluster="Consumer"/);
   assert.match(business, /data-kpi-cluster="Business"/);
   assert.match(business, /Vendita - Business/);
+  assert.match(consumer, /<select id="kpiOperator">/);
+  assert.match(business, /<select id="kpiOperator">/);
+  assert.doesNotMatch(consumer, /Confronto operatori|operatorPeriod|operatorHead|operatorBody/);
+  assert.doesNotMatch(business, /Confronto operatori|operatorPeriod|operatorHead|operatorBody/);
   assert.match(client, /cluster:\s*PAGE_CLUSTER/);
+  assert.match(client, /populateOperatorFilter\(\)/);
+  assert.match(client, /refs\.operator\.addEventListener\('change', render\)/);
+  assert.match(client, /selectedCategoryMetrics\('mobile'\)/);
+  assert.match(client, /selectedCategoryMetrics\('fixed'\)/);
+  assert.match(client, /selectedCategoryMetrics\('energy'\)/);
+  assert.match(client, /selectedCategoryMetrics\('alarms'\)/);
+  assert.match(client, /selectedCategoryMetrics\('insurance'\)/);
+  assert.doesNotMatch(client, /renderOperators|operatorPeriod|operatorHead|operatorBody/);
   assert.match(client, /label:\s*'Tied'/);
   assert.match(client, /label:\s*'Untied'/);
   assert.match(client, /label:\s*'% Tied sul totale'/);
