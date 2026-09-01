@@ -99,6 +99,7 @@ Il PDF archiviato è accessibile solo tramite signed URL di 5 minuti restituito 
 ### Regole di integrità vendita
 
 - **Punto vendita**: `9001415852` = Legnago, `9000822241` = Cerea. Il valore selezionato/OCR viene propagato dal carrello al backend. Day by Day e Avanzamento Mensile contano solo Legnago; Gare Individuali conta entrambi i negozi.
+- **Telefoni Customer Base nelle gare**: `TELEFONI CB` in Gare Individuali e Avanzamento Mensile segue la stessa definizione del KPI Consumer: categoria Customer Base, cluster Consumer, offerta `Telefono Incluso`, dispositivo associato e acquisto VAR o Finanziamento. Cambi Piano e Caring non contribuiscono.
 - **Export Dashboard Pezzi**: in Gare Individuali ogni operatore ha il proprio download PNG, limitato alla sua scheda; in Avanzamento Mensile un solo download genera un PNG che contiene entrambe le tabelle del mese selezionato. L'esportazione usa `html2canvas@1.4.1`, già adottato dal Simulatore Protecta.
 - **Simulatore Protecta**: il preventivo viene registrato solo se l'upload server-side restituisce un `storage_path` valido. In caso di errore o risposta incompleta il salvataggio viene interrotto, così la lista non mostra pratiche recenti senza PDF.
 - **Sconti Protecta**: il simulatore consente di attivare separatamente uno sconto sull'anticipo e uno sulla rata mensile. Il preventivo mostra listino barrato e valore applicato; con finanziamento confronta le rate prima e dopo l'applicazione della tabella finanziaria e segnala quando la rata resta invariata per la stessa fascia.
