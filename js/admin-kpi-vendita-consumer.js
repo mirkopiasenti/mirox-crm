@@ -236,10 +236,26 @@
   function renderMobile() {
     const metrics = state.mobile?.totals || state.totals;
     const mnpTotal = mnpTotalSeries(metrics);
+    const year = Number(state.filters.year);
 
-    renderMonthlyTable(refs.acquisitionsTable, [
+    const acquisitionRows = [
       { label: 'Totale acquisizioni', series: metrics.acquisitions.months, total: true }
-    ]);
+    ];
+
+    if (PAGE_CLUSTER === 'Consumer') {
+      acquisitionRows.push(
+        { label: 'Tied', series: metrics.tied.months },
+        { label: 'Untied', series: metrics.untied.months },
+        {
+          label: '% Tied sul totale',
+          series: percentageSeries(metrics.tied.months, metrics.acquisitions.months),
+          totalValue: visiblePercentage(metrics.tied.months, metrics.acquisitions.months, year),
+          format: 'percent'
+        }
+      );
+    }
+
+    renderMonthlyTable(refs.acquisitionsTable, acquisitionRows);
 
     renderMonthlyTable(refs.mnpTable, [
       { label: 'Totale MNP', series: mnpTotal, total: true },

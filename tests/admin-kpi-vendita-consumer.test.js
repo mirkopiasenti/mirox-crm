@@ -15,6 +15,7 @@ const {
   addContractToMetrics,
   buildProfileResolver,
   classifyFixedTechnology,
+  classifyMobileAcquisition,
   classifyMnp,
   emptyAlarmMetrics,
   emptyEnergyMetrics,
@@ -23,6 +24,7 @@ const {
   emptyMetrics,
   fixedOutcomeKey,
   isApriChiudiEnabled,
+  isFwaIndoorOffer,
   parseCluster,
   parseStore,
   parseYear,
@@ -63,6 +65,61 @@ test('i conteggi Mobile usano il mese Europe/Rome e il flag smartphone', () => {
   assert.equal(serialized.mnp_standard.months[1], 1);
   assert.equal(serialized.mnp_selected.months[1], 1);
   assert.equal(serialized.smartphone.months[1], 2);
+});
+
+test('le acquisizioni Mobile Consumer distinguono Tied e Untied ed escludono le offerte non valide', () => {
+  assert.equal(classifyMobileAcquisition('FWA Indoor'), 'tied');
+  assert.equal(classifyMobileAcquisition('Tied'), 'tied');
+  assert.equal(classifyMobileAcquisition('Tied - Call Your Country'), 'tied');
+  assert.equal(classifyMobileAcquisition('Tied - Underground (4,99 - 5,99 - 6,99)'), 'tied');
+  assert.equal(classifyMobileAcquisition('Tied Dati'), 'tied');
+  assert.equal(classifyMobileAcquisition('Untied'), 'untied');
+  assert.equal(classifyMobileAcquisition('United - Call Your Country'), 'untied');
+  assert.equal(classifyMobileAcquisition('Sim Convergente *INTERNA*'), 'excluded');
+  assert.equal(classifyMobileAcquisition('Smart-Security'), 'excluded');
+  assert.equal(isFwaIndoorOffer('FWA - INDOOR'), true);
+  assert.equal(isFwaIndoorOffer('FWA - OUTDOOR'), false);
+
+  const metrics = emptyMetrics();
+  const options = { consumerAcquisitionRules: true };
+  [
+    'Tied',
+    'Tied Dati',
+    'Untied',
+    'Untied - Call Your Country',
+    'Sim Convergente *INTERNA*',
+    'Smart Security',
+    'Offerta futura non classificata'
+  ].forEach((nomeOfferta) => {
+    addContractToMetrics(metrics, {
+      data_contratto: '2026-03-15T10:00:00.000Z',
+      nome_offerta_snapshot: nomeOfferta
+    }, options);
+  });
+
+  assert.equal(metrics.acquisitions[2], 4);
+  assert.equal(metrics.tied[2], 2);
+  assert.equal(metrics.untied[2], 2);
+
+  const fwaIndoorMetrics = emptyMetrics();
+  addContractToMetrics(fwaIndoorMetrics, {
+    data_contratto: '2026-03-15T10:00:00.000Z',
+    nome_offerta_snapshot: 'FWA - INDOOR',
+    dispositivo_associato: true
+  }, {
+    consumerAcquisitionRules: true,
+    includeDetails: false
+  });
+  assert.equal(fwaIndoorMetrics.acquisitions[2], 1);
+  assert.equal(fwaIndoorMetrics.tied[2], 1);
+  assert.equal(fwaIndoorMetrics.smartphone[2], 0);
+
+  const businessMetrics = emptyMetrics();
+  addContractToMetrics(businessMetrics, {
+    data_contratto: '2026-03-15T10:00:00.000Z',
+    nome_offerta_snapshot: 'Smart Security'
+  });
+  assert.equal(businessMetrics.acquisitions[2], 1);
 });
 
 test('le tecnologie Fisso seguono i valori del controllo post-vendita', () => {
@@ -233,4 +290,7 @@ test('le pagine KPI dichiarano il cluster corretto e condividono la stessa logic
   assert.match(business, /data-kpi-cluster="Business"/);
   assert.match(business, /Vendita - Business/);
   assert.match(client, /cluster:\s*PAGE_CLUSTER/);
+  assert.match(client, /label:\s*'Tied'/);
+  assert.match(client, /label:\s*'Untied'/);
+  assert.match(client, /label:\s*'% Tied sul totale'/);
 });
