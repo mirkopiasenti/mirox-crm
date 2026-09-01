@@ -128,7 +128,9 @@ function emptyMetrics() {
     untied: emptySeries(),
     mnp_standard: emptySeries(),
     mnp_selected: emptySeries(),
-    smartphone: emptySeries()
+    smartphone: emptySeries(),
+    smartphone_var: emptySeries(),
+    smartphone_financing: emptySeries()
   };
 }
 
@@ -194,6 +196,12 @@ function addContractToMetrics(metrics, contract, options = {}) {
 
   if (contract?.dispositivo_associato === true) {
     metrics.smartphone[monthIndex] += 1;
+    const purchaseType = normalizeLabel(contract?.tipo_acquisto);
+    if (purchaseType === 'var') {
+      metrics.smartphone_var[monthIndex] += 1;
+    } else if (purchaseType === 'finanziamento') {
+      metrics.smartphone_financing[monthIndex] += 1;
+    }
   }
 }
 
@@ -452,7 +460,7 @@ async function buildKpiPayload(supabase, year, store, cluster = 'Consumer') {
       store,
       cluster,
       'Mobile',
-      'id, data_contratto, operatore_id, nome_offerta_snapshot, nome_opzione_snapshot, dispositivo_associato, codice_rivenditore'
+      'id, data_contratto, operatore_id, nome_offerta_snapshot, nome_opzione_snapshot, dispositivo_associato, tipo_acquisto, codice_rivenditore'
     ),
     fetchContractsByInsertion(
       supabase,

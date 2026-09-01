@@ -39,13 +39,14 @@ test('il dettaglio MNP distingue standard e gestori selezionati', () => {
   assert.equal(classifyMnp('Nuovo numero'), null);
 });
 
-test('i conteggi Mobile usano il mese Europe/Rome e il flag smartphone', () => {
+test('i conteggi Mobile dividono gli smartphone Consumer tra VAR e finanziati', () => {
   const metrics = emptyMetrics();
 
   addContractToMetrics(metrics, {
     data_contratto: '2026-01-31T23:30:00.000Z',
     nome_opzione_snapshot: 'MNP Standard',
-    dispositivo_associato: true
+    dispositivo_associato: true,
+    tipo_acquisto: 'VAR'
   });
   addContractToMetrics(metrics, {
     data_contratto: '2026-02-14T10:00:00.000Z',
@@ -55,7 +56,8 @@ test('i conteggi Mobile usano il mese Europe/Rome e il flag smartphone', () => {
   addContractToMetrics(metrics, {
     data_contratto: '2026-02-28T12:00:00.000Z',
     nome_opzione_snapshot: 'Nuovo numero',
-    dispositivo_associato: true
+    dispositivo_associato: true,
+    tipo_acquisto: 'Finanziamento'
   });
 
   const serialized = serializeMetrics(metrics);
@@ -65,6 +67,8 @@ test('i conteggi Mobile usano il mese Europe/Rome e il flag smartphone', () => {
   assert.equal(serialized.mnp_standard.months[1], 1);
   assert.equal(serialized.mnp_selected.months[1], 1);
   assert.equal(serialized.smartphone.months[1], 2);
+  assert.equal(serialized.smartphone_var.months[1], 1);
+  assert.equal(serialized.smartphone_financing.months[1], 1);
 });
 
 test('le acquisizioni Mobile Consumer distinguono Tied e Untied ed escludono le offerte non valide', () => {
@@ -285,6 +289,7 @@ test('le pagine KPI dichiarano il cluster corretto e condividono la stessa logic
   const consumer = fs.readFileSync(path.join(root, 'admin-kpi-vendita-consumer.html'), 'utf8');
   const business = fs.readFileSync(path.join(root, 'admin-kpi-vendita-business.html'), 'utf8');
   const client = fs.readFileSync(path.join(root, 'js/admin-kpi-vendita-consumer.js'), 'utf8');
+  const server = fs.readFileSync(path.join(root, 'netlify/functions/admin-kpi-vendita-consumer.js'), 'utf8');
 
   assert.match(consumer, /data-kpi-cluster="Consumer"/);
   assert.match(business, /data-kpi-cluster="Business"/);
@@ -305,4 +310,8 @@ test('le pagine KPI dichiarano il cluster corretto e condividono la stessa logic
   assert.match(client, /label:\s*'Tied'/);
   assert.match(client, /label:\s*'Untied'/);
   assert.match(client, /label:\s*'% Tied sul totale'/);
+  assert.match(client, /label:\s*'VAR'/);
+  assert.match(client, /label:\s*'Finanziati'/);
+  assert.match(client, /PAGE_CLUSTER === 'Consumer'/);
+  assert.match(server, /dispositivo_associato, tipo_acquisto, codice_rivenditore/);
 });

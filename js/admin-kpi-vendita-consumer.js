@@ -224,9 +224,16 @@
       }
     ]);
 
-    renderMonthlyTable(refs.smartphoneTable, [
-      { label: 'Smartphone associato', series: metrics.smartphone.months, total: true }
-    ]);
+    const smartphoneRows = [
+      { label: 'Smartphone associati', series: metrics.smartphone.months, total: true }
+    ];
+    if (PAGE_CLUSTER === 'Consumer') {
+      smartphoneRows.push(
+        { label: 'VAR', series: metrics.smartphone_var.months },
+        { label: 'Finanziati', series: metrics.smartphone_financing.months }
+      );
+    }
+    renderMonthlyTable(refs.smartphoneTable, smartphoneRows);
   }
 
   function renderFixed() {
