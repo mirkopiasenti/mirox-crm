@@ -9,7 +9,9 @@
     '9001415852': 'Legnago',
     '9000822241': 'Cerea'
   };
-  const CATEGORIES = ['mobile', 'fixed', 'energy', 'alarms', 'insurance'];
+  const CATEGORIES = PAGE_CLUSTER === 'Consumer'
+    ? ['mobile', 'fixed', 'customerBase', 'energy', 'alarms', 'insurance']
+    : ['mobile', 'fixed', 'energy', 'alarms', 'insurance'];
 
   const refs = {};
   let state = null;
@@ -328,6 +330,33 @@
     ]);
   }
 
+  function renderCustomerBase() {
+    const metrics = selectedCategoryMetrics('customerBase');
+    const phoneTotal = combineSeries(
+      metrics.phone_financing.months,
+      metrics.phone_var.months
+    );
+    const planChangeTotal = combineSeries(
+      metrics.plan_change_tied.months,
+      metrics.plan_change_untied.months
+    );
+
+    renderMonthlyTable(refs.customerBasePhoneTable, [
+      { label: 'Telefoni inclusi finanziati', series: metrics.phone_financing.months },
+      { label: 'Telefoni inclusi VAR', series: metrics.phone_var.months },
+      { label: 'Totale telefoni inclusi', series: phoneTotal, total: true }
+    ]);
+    renderMonthlyTable(refs.customerBasePlanTable, [
+      { label: 'Cambi piano TIED', series: metrics.plan_change_tied.months },
+      { label: 'Cambi piano UNTIED', series: metrics.plan_change_untied.months },
+      { label: 'Totale cambi piano', series: planChangeTotal, total: true }
+    ]);
+    renderMonthlyTable(refs.customerBaseCaringTable, [
+      { label: 'Caring Fisso', series: metrics.caring_fixed.months },
+      { label: 'Caring Mobile', series: metrics.caring_mobile.months }
+    ]);
+  }
+
   function renderAlarms() {
     const metrics = selectedCategoryMetrics('alarms');
     renderMonthlyTable(refs.alarmAcquisitionsTable, [
@@ -369,6 +398,7 @@
   function render() {
     renderMobile();
     renderFixed();
+    if (PAGE_CLUSTER === 'Consumer') renderCustomerBase();
     renderEnergy();
     renderAlarms();
     renderInsurance();
@@ -448,6 +478,9 @@
     refs.fixedApriChiudiTable = document.getElementById('fixedApriChiudiTable');
     refs.fixedTechnologyMixTable = document.getElementById('fixedTechnologyMixTable');
     refs.fixedTechnologyMixNote = document.getElementById('fixedTechnologyMixNote');
+    refs.customerBasePhoneTable = document.getElementById('customerBasePhoneTable');
+    refs.customerBasePlanTable = document.getElementById('customerBasePlanTable');
+    refs.customerBaseCaringTable = document.getElementById('customerBaseCaringTable');
     refs.energyAcquisitionsTable = document.getElementById('energyAcquisitionsTable');
     refs.energyActivatedTable = document.getElementById('energyActivatedTable');
     refs.alarmAcquisitionsTable = document.getElementById('alarmAcquisitionsTable');

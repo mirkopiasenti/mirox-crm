@@ -8,6 +8,7 @@ const {
   PROFILE_SELECT,
   SELECTED_MNP_LABEL,
   addAlarmMetrics,
+  addCustomerBaseMetrics,
   addEnergyMetrics,
   addFixedAcquisitionMetrics,
   addFixedActivationMetrics,
@@ -15,9 +16,11 @@ const {
   addContractToMetrics,
   buildProfileResolver,
   classifyFixedTechnology,
+  classifyCustomerBaseOffer,
   classifyMobileAcquisition,
   classifyMnp,
   emptyAlarmMetrics,
+  emptyCustomerBaseMetrics,
   emptyEnergyMetrics,
   emptyFixedMetrics,
   emptyInsuranceMetrics,
@@ -124,6 +127,37 @@ test('le acquisizioni Mobile Consumer distinguono Tied e Untied ed escludono le 
     nome_offerta_snapshot: 'Smart Security'
   });
   assert.equal(businessMetrics.acquisitions[2], 1);
+});
+
+test('Customer Base divide telefoni, cambi piano e Caring nelle righe richieste', () => {
+  assert.equal(classifyCustomerBaseOffer('Telefono Incluso'), 'phone');
+  assert.equal(classifyCustomerBaseOffer('Cambio Piano - TIED'), 'plan_change_tied');
+  assert.equal(classifyCustomerBaseOffer('Cambio Piano - UNTIED'), 'plan_change_untied');
+  assert.equal(classifyCustomerBaseOffer('CB Caring - FISSO'), 'caring_fixed');
+  assert.equal(classifyCustomerBaseOffer('CB Caring - MOBILE'), 'caring_mobile');
+  assert.equal(classifyCustomerBaseOffer('Cambio Piano Fisso'), null);
+
+  const metrics = emptyCustomerBaseMetrics();
+  [
+    { nome_offerta_snapshot: 'Telefono Incluso', dispositivo_associato: true, tipo_acquisto: 'Finanziamento' },
+    { nome_offerta_snapshot: 'Telefono Incluso', dispositivo_associato: true, tipo_acquisto: 'VAR' },
+    { nome_offerta_snapshot: 'Telefono Incluso', dispositivo_associato: false, tipo_acquisto: 'VAR' },
+    { nome_offerta_snapshot: 'Cambio Piano - TIED' },
+    { nome_offerta_snapshot: 'Cambio Piano - UNTIED' },
+    { nome_offerta_snapshot: 'Cambio Piano Fisso' },
+    { nome_offerta_snapshot: 'CB Caring - FISSO' },
+    { nome_offerta_snapshot: 'CB Caring - MOBILE' }
+  ].forEach((contract) => addCustomerBaseMetrics(metrics, {
+    ...contract,
+    data_contratto: '2026-04-15T10:00:00.000Z'
+  }));
+
+  assert.equal(metrics.phone_financing[3], 1);
+  assert.equal(metrics.phone_var[3], 1);
+  assert.equal(metrics.plan_change_tied[3], 1);
+  assert.equal(metrics.plan_change_untied[3], 1);
+  assert.equal(metrics.caring_fixed[3], 1);
+  assert.equal(metrics.caring_mobile[3], 1);
 });
 
 test('le tecnologie Fisso seguono i valori del controllo post-vendita', () => {
@@ -296,6 +330,9 @@ test('le pagine KPI dichiarano il cluster corretto e condividono la stessa logic
   assert.match(business, /Vendita - Business/);
   assert.match(consumer, /<select id="kpiOperator">/);
   assert.match(business, /<select id="kpiOperator">/);
+  assert.ok(consumer.indexOf('data-kpi-category="fixed"') < consumer.indexOf('data-kpi-category="customerBase"'));
+  assert.ok(consumer.indexOf('data-kpi-category="customerBase"') < consumer.indexOf('data-kpi-category="energy"'));
+  assert.doesNotMatch(business, /data-kpi-category="customerBase"/);
   assert.doesNotMatch(consumer, /Confronto operatori|operatorPeriod|operatorHead|operatorBody/);
   assert.doesNotMatch(business, /Confronto operatori|operatorPeriod|operatorHead|operatorBody/);
   assert.match(client, /cluster:\s*PAGE_CLUSTER/);
@@ -306,6 +343,7 @@ test('le pagine KPI dichiarano il cluster corretto e condividono la stessa logic
   assert.match(client, /selectedCategoryMetrics\('energy'\)/);
   assert.match(client, /selectedCategoryMetrics\('alarms'\)/);
   assert.match(client, /selectedCategoryMetrics\('insurance'\)/);
+  assert.match(client, /selectedCategoryMetrics\('customerBase'\)/);
   assert.doesNotMatch(client, /renderOperators|operatorPeriod|operatorHead|operatorBody/);
   assert.match(client, /label:\s*'Tied'/);
   assert.match(client, /label:\s*'Untied'/);
@@ -314,4 +352,9 @@ test('le pagine KPI dichiarano il cluster corretto e condividono la stessa logic
   assert.match(client, /label:\s*'Finanziati'/);
   assert.match(client, /PAGE_CLUSTER === 'Consumer'/);
   assert.match(server, /dispositivo_associato, tipo_acquisto, codice_rivenditore/);
+  assert.match(server, /'Customer Base'/);
+  const caringRows = client.match(/renderMonthlyTable\(refs\.customerBaseCaringTable, \[([\s\S]*?)\]\);/)?.[1] || '';
+  assert.match(caringRows, /Caring Fisso/);
+  assert.match(caringRows, /Caring Mobile/);
+  assert.doesNotMatch(caringRows, /total:\s*true/);
 });

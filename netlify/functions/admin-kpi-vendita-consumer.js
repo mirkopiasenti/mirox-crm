@@ -152,6 +152,17 @@ function emptyFixedMetrics() {
   };
 }
 
+function emptyCustomerBaseMetrics() {
+  return {
+    phone_financing: emptySeries(),
+    phone_var: emptySeries(),
+    plan_change_tied: emptySeries(),
+    plan_change_untied: emptySeries(),
+    caring_fixed: emptySeries(),
+    caring_mobile: emptySeries()
+  };
+}
+
 function emptyEnergyMetrics() {
   return {
     acquisitions: emptySeries(),
@@ -251,6 +262,47 @@ function addFixedActivationMetrics(metrics, contract, followUp) {
   } else if (technologyKey?.startsWith('technology_fwa_')) {
     metrics.apri_chiudi_fwa[monthIndex] += 1;
   }
+}
+
+function classifyCustomerBaseOffer(value) {
+  const label = normalizeLabel(value)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (label.includes('telefono incluso')) return 'phone';
+  if (label.includes('cambio piano')) {
+    if (/\buntied\b/.test(label)) return 'plan_change_untied';
+    if (/\btied\b/.test(label)) return 'plan_change_tied';
+  }
+  if (label.includes('caring')) {
+    if (/\bfisso\b/.test(label)) return 'caring_fixed';
+    if (/\bmobile\b/.test(label)) return 'caring_mobile';
+  }
+  return null;
+}
+
+function addCustomerBaseMetrics(metrics, contract) {
+  const monthIndex = romeMonthIndex(contract?.data_contratto);
+  if (monthIndex < 0) return false;
+
+  const offerType = classifyCustomerBaseOffer(contract?.nome_offerta_snapshot);
+  if (offerType === 'phone') {
+    if (contract?.dispositivo_associato !== true) return false;
+    const purchaseType = normalizeLabel(contract?.tipo_acquisto);
+    if (purchaseType === 'var') {
+      metrics.phone_var[monthIndex] += 1;
+    } else if (purchaseType === 'finanziamento') {
+      metrics.phone_financing[monthIndex] += 1;
+    } else {
+      return false;
+    }
+    return true;
+  }
+
+  if (!offerType) return false;
+  metrics[offerType][monthIndex] += 1;
+  return true;
 }
 
 function addEnergyMetrics(metrics, contract, followUp) {
@@ -449,6 +501,7 @@ async function buildKpiPayload(supabase, year, store, cluster = 'Consumer') {
     mobileContracts,
     fixedAcquisitions,
     fixedActivations,
+    customerBaseContracts,
     energyContracts,
     alarmContracts,
     insuranceContracts,
@@ -471,6 +524,16 @@ async function buildKpiPayload(supabase, year, store, cluster = 'Consumer') {
       'id, data_contratto, operatore_id, nome_offerta_snapshot, apri_chiudi, codice_rivenditore'
     ),
     fetchFixedActivations(supabase, year),
+    cluster === 'Consumer'
+      ? fetchContractsByInsertion(
+        supabase,
+        year,
+        store,
+        cluster,
+        'Customer Base',
+        'id, data_contratto, operatore_id, nome_offerta_snapshot, dispositivo_associato, tipo_acquisto, codice_rivenditore'
+      )
+      : Promise.resolve([]),
     fetchContractsByInsertion(
       supabase,
       year,
@@ -582,6 +645,18 @@ async function buildKpiPayload(supabase, year, store, cluster = 'Consumer') {
     );
   });
 
+  const customerBaseTotals = emptyCustomerBaseMetrics();
+  const customerBaseOperatorMetrics = new Map();
+  customerBaseContracts.forEach((contract) => {
+    const counted = addCustomerBaseMetrics(customerBaseTotals, contract);
+    if (!counted) return;
+    const operatorId = resolver.canonicalId(contract.operatore_id);
+    addCustomerBaseMetrics(
+      ensureOperatorMetrics(customerBaseOperatorMetrics, operatorId, emptyCustomerBaseMetrics),
+      contract
+    );
+  });
+
   const [energyFollowUps, alarmFollowUps] = await Promise.all([
     fetchFollowUpsByContractIds(
       supabase,
@@ -662,6 +737,10 @@ async function buildKpiPayload(supabase, year, store, cluster = 'Consumer') {
       totals: serializeMetrics(fixedTotals),
       operators: serializeOperators(fixedOperatorMetrics, resolver)
     },
+    customerBase: {
+      totals: serializeMetrics(customerBaseTotals),
+      operators: serializeOperators(customerBaseOperatorMetrics, resolver)
+    },
     energy: {
       totals: serializeMetrics(energyTotals),
       operators: serializeOperators(energyOperatorMetrics, resolver)
@@ -714,15 +793,18 @@ exports._test = {
   addFixedActivationMetrics,
   addInsuranceMetrics,
   addContractToMetrics,
+  addCustomerBaseMetrics,
   buildProfileResolver,
   classifyFixedTechnology,
   classifyMobileAcquisition,
   classifyMnp,
+  classifyCustomerBaseOffer,
   emptyAlarmMetrics,
   emptyEnergyMetrics,
   emptyFixedMetrics,
   emptyInsuranceMetrics,
   emptyMetrics,
+  emptyCustomerBaseMetrics,
   fixedOutcomeKey,
   isApriChiudiEnabled,
   isFwaIndoorOffer,

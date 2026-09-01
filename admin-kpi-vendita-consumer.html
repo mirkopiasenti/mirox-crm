@@ -48,6 +48,7 @@
     <div class="kpi-category-tabs" role="tablist" aria-label="Categorie Vendita Consumer">
       <button class="kpi-category-tab" type="button" role="tab" aria-selected="true" data-kpi-category="mobile">Mobile</button>
       <button class="kpi-category-tab" type="button" role="tab" aria-selected="false" data-kpi-category="fixed">Fisso</button>
+      <button class="kpi-category-tab" type="button" role="tab" aria-selected="false" data-kpi-category="customerBase">Customer Base</button>
       <button class="kpi-category-tab" type="button" role="tab" aria-selected="false" data-kpi-category="energy">Luce &amp; Gas</button>
       <button class="kpi-category-tab" type="button" role="tab" aria-selected="false" data-kpi-category="alarms">Allarmi</button>
       <button class="kpi-category-tab" type="button" role="tab" aria-selected="false" data-kpi-category="insurance">Assicurazioni</button>
@@ -140,6 +141,38 @@
           </header>
           <div class="kpi-table-wrap" id="fixedTechnologyMixTable"></div>
           <p class="kpi-data-note" id="fixedTechnologyMixNote"></p>
+        </section>
+      </div>
+
+      <div class="kpi-category-content is-hidden" id="customerBaseKpiContent" data-kpi-content="customerBase">
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Telefono incluso</h2>
+              <p class="kpi-section-description">Telefoni inclusi Customer Base suddivisi tra finanziamento e vendita a rate.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="customerBasePhoneTable"></div>
+        </section>
+
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Cambi piano</h2>
+              <p class="kpi-section-description">Cambi piano Customer Base distinti tra TIED e UNTIED.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="customerBasePlanTable"></div>
+        </section>
+
+        <section class="kpi-section">
+          <header class="kpi-section-header">
+            <div>
+              <h2 class="kpi-section-title">Caring</h2>
+              <p class="kpi-section-description">Caring Customer Base distinto tra Fisso e Mobile.</p>
+            </div>
+          </header>
+          <div class="kpi-table-wrap" id="customerBaseCaringTable"></div>
         </section>
       </div>
 
