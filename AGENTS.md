@@ -575,7 +575,8 @@ Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile
 
 ### Regole KPI Vendita - Consumer
 
-- Il tab Mobile conta esclusivamente `vendita_contratti` con `categoria_snapshot='Mobile'` e `cluster_cliente='Consumer'`; ogni riga vale una acquisizione.
+- Il tab Mobile legge `vendita_contratti` con `categoria_snapshot='Mobile'` e `cluster_cliente='Consumer'`; per la sola tabella Acquisizioni include anche le offerte FWA Indoor Consumer salvate con `categoria_snapshot='Fisso'`. Il totale è `Tied + Untied`: Tied comprende `FWA Indoor` e tutte le offerte contenenti la parola autonoma `Tied` (incluse Call Your Country, Underground e Dati); Untied comprende le varianti `Untied`/`United`. `Sim Convergente` e `Smart Security`, oltre alle offerte non classificate, non entrano nel totale. Il modem FWA Indoor non confluisce nel Dettaglio Smartphone.
+- La riga `% Tied sul totale` usa come denominatore il totale acquisizioni Tied + Untied del singolo mese; il totale anno applica la stessa formula ai valori visibili/YTD.
 - Il mese deriva da `data_contratto` nel fuso `Europe/Rome`. Nell'anno corrente il totale mostrato è YTD e i mesi futuri restano vuoti.
 - `Dettaglio MNP` mostra prima il totale, poi `MNP Standard` e `MNP da seguenti operatori: Iliad - Coop - Poste - Tiscali`; lo snapshot dell'opzione è la fonte del conteggio.
 - `Dettaglio Smartphone` usa il flag del singolo contratto `dispositivo_associato=true`, non la capacità dell'offerta di supportare dispositivi.

@@ -81,6 +81,29 @@ function classifyMnp(optionLabel) {
   return 'mnp_standard';
 }
 
+function classifyMobileAcquisition(offerLabel) {
+  const label = normalizeLabel(offerLabel)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!label) return null;
+  if (label.includes('sim convergente') || label.includes('smart security')) {
+    return 'excluded';
+  }
+  if (/\b(?:untied|united)\b/.test(label)) return 'untied';
+  if (/\bfwa\s+indoor\b/.test(label) || /\btied\b/.test(label)) return 'tied';
+  return null;
+}
+
+function isFwaIndoorOffer(offerLabel) {
+  const label = normalizeLabel(offerLabel)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return /\bfwa\s+indoor\b/.test(label);
+}
+
 function romeMonthIndex(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return -1;
@@ -101,6 +124,8 @@ function emptySeries() {
 function emptyMetrics() {
   return {
     acquisitions: emptySeries(),
+    tied: emptySeries(),
+    untied: emptySeries(),
     mnp_standard: emptySeries(),
     mnp_selected: emptySeries(),
     smartphone: emptySeries()
@@ -149,11 +174,20 @@ function emptyInsuranceMetrics() {
   };
 }
 
-function addContractToMetrics(metrics, contract) {
+function addContractToMetrics(metrics, contract, options = {}) {
   const monthIndex = romeMonthIndex(contract?.data_contratto);
   if (monthIndex < 0) return;
 
-  metrics.acquisitions[monthIndex] += 1;
+  const acquisitionType = classifyMobileAcquisition(contract?.nome_offerta_snapshot);
+  if (acquisitionType === 'tied' || acquisitionType === 'untied') {
+    metrics[acquisitionType][monthIndex] += 1;
+  }
+
+  if (!options.consumerAcquisitionRules || acquisitionType === 'tied' || acquisitionType === 'untied') {
+    metrics.acquisitions[monthIndex] += 1;
+  }
+
+  if (options.includeDetails === false) return;
 
   const mnpType = classifyMnp(contract?.nome_opzione_snapshot);
   if (mnpType) metrics[mnpType][monthIndex] += 1;
@@ -418,7 +452,7 @@ async function buildKpiPayload(supabase, year, store, cluster = 'Consumer') {
       store,
       cluster,
       'Mobile',
-      'id, data_contratto, operatore_id, nome_opzione_snapshot, dispositivo_associato, codice_rivenditore'
+      'id, data_contratto, operatore_id, nome_offerta_snapshot, nome_opzione_snapshot, dispositivo_associato, codice_rivenditore'
     ),
     fetchContractsByInsertion(
       supabase,
@@ -426,7 +460,7 @@ async function buildKpiPayload(supabase, year, store, cluster = 'Consumer') {
       store,
       cluster,
       'Fisso',
-      'id, data_contratto, operatore_id, apri_chiudi, codice_rivenditore'
+      'id, data_contratto, operatore_id, nome_offerta_snapshot, apri_chiudi, codice_rivenditore'
     ),
     fetchFixedActivations(supabase, year),
     fetchContractsByInsertion(
@@ -463,16 +497,33 @@ async function buildKpiPayload(supabase, year, store, cluster = 'Consumer') {
   const resolver = buildProfileResolver(profilesResult.data || []);
   const mobileTotals = emptyMetrics();
   const mobileOperatorMetrics = new Map();
+  const mobileOptions = { consumerAcquisitionRules: cluster === 'Consumer' };
 
-  mobileContracts.forEach((contract) => {
-    addContractToMetrics(mobileTotals, contract);
+  function addMobileContract(contract, options) {
+    addContractToMetrics(mobileTotals, contract, options);
 
     const operatorId = resolver.canonicalId(contract.operatore_id);
     addContractToMetrics(
       ensureOperatorMetrics(mobileOperatorMetrics, operatorId, emptyMetrics),
-      contract
+      contract,
+      options
     );
+  }
+
+  mobileContracts.forEach((contract) => {
+    addMobileContract(contract, mobileOptions);
   });
+
+  if (cluster === 'Consumer') {
+    fixedAcquisitions
+      .filter((contract) => isFwaIndoorOffer(contract.nome_offerta_snapshot))
+      .forEach((contract) => {
+        addMobileContract(contract, {
+          ...mobileOptions,
+          includeDetails: false
+        });
+      });
+  }
 
   const fixedFollowUps = await fetchFixedFollowUpsByContractIds(
     supabase,
@@ -657,6 +708,7 @@ exports._test = {
   addContractToMetrics,
   buildProfileResolver,
   classifyFixedTechnology,
+  classifyMobileAcquisition,
   classifyMnp,
   emptyAlarmMetrics,
   emptyEnergyMetrics,
@@ -665,6 +717,7 @@ exports._test = {
   emptyMetrics,
   fixedOutcomeKey,
   isApriChiudiEnabled,
+  isFwaIndoorOffer,
   parseStore,
   parseCluster,
   parseYear,
