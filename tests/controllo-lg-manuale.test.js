@@ -123,6 +123,15 @@ test('frontend L&G ordina le righe dalla data inserimento piu recente', () => {
   );
 });
 
+test('frontend L&G filtra per gli operatori presenti nei contratti', () => {
+  assert.match(htmlSource, /id="filtroOperatoreLg"/);
+  assert.match(htmlSource, /filtroOperatore:\s*''/);
+  assert.match(htmlSource, /function popolaFiltroOperatore\(\)/);
+  assert.match(htmlSource, /r\.contratto\.operatore_id\) === LGState\.filtroOperatore/);
+  assert.match(htmlSource, /bindLgFiltro\('filtroOperatoreLg', 'filtroOperatore'\)/);
+  assert.match(htmlSource, /LGState\.filtroOperatore = '';[\s\S]*filtroOperatoreLg'\)\.value = ''/);
+});
+
 test('migration L&G aggiunge audit, coerenza e guardia database', () => {
   assert.match(migrationSource, /ADD COLUMN IF NOT EXISTS stato_origine text NOT NULL DEFAULT 'csv'/);
   assert.match(migrationSource, /ADD COLUMN IF NOT EXISTS esito_manuale_bloccato boolean NOT NULL DEFAULT false/);

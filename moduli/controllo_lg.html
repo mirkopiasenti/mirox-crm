@@ -55,7 +55,7 @@ body {
   align-items: end;
 }
 .filters-card.lg-filters {
-  grid-template-columns: 1.2fr 130px 150px 130px 100px auto auto;
+  grid-template-columns: 1.2fr 130px 150px 150px 130px 100px auto auto;
 }
 @media (max-width: 1400px) { .filters-card.lg-filters { grid-template-columns: 1fr 1fr 1fr 1fr; } }
 @media (max-width: 1100px) { .filters-card.lg-filters { grid-template-columns: 1fr 1fr 1fr; } }
@@ -283,6 +283,12 @@ window.__profiloPromise = (async () => {
     </select>
   </div>
   <div>
+    <label>Operatore</label>
+    <select id="filtroOperatoreLg">
+      <option value="">Tutti</option>
+    </select>
+  </div>
+  <div>
     <label>Stato</label>
     <select id="filtroStatoLg">
       <option value="">Tutti</option>
@@ -349,6 +355,7 @@ const LGState = {
   righe: [],
   search: '',
   filtroCluster: '',
+  filtroOperatore: '',
   filtroStato: '',
   filtroMese: '',
   filtroAnno: '',
@@ -420,6 +427,7 @@ async function loadAll() {
       }
     }
     LGState.righe = righe;
+    popolaFiltroOperatore();
     aggiornaContatori();
     popolaFiltroAnno();
     render();
@@ -456,6 +464,29 @@ function timestampOrZero(value) {
 function confrontaDataInserimentoDesc(a, b) {
   return timestampOrZero(dataInserimento(b)) - timestampOrZero(dataInserimento(a))
     || timestampOrZero(b.created_at) - timestampOrZero(a.created_at);
+}
+
+function popolaFiltroOperatore() {
+  const sel = document.getElementById('filtroOperatoreLg');
+  if (!sel) return;
+  const operatori = [];
+  const idsVisti = new Set();
+  for (const r of LGState.righe) {
+    const id = r.contratto && r.contratto.operatore_id;
+    const nome = id && LGState.profiliMap.get(id)?.nome;
+    if (!id || !nome || idsVisti.has(id)) continue;
+    idsVisti.add(id);
+    operatori.push({ id, nome });
+  }
+  operatori.sort((a, b) => a.nome.localeCompare(b.nome, 'it', { sensitivity: 'base' }));
+  sel.innerHTML = '<option value="">Tutti</option>' + operatori.map(({ id, nome }) =>
+    `<option value="${escapeHtml(id)}">${escapeHtml(nome)}</option>`
+  ).join('');
+  if (operatori.some(({ id }) => id === LGState.filtroOperatore)) {
+    sel.value = LGState.filtroOperatore;
+  } else {
+    LGState.filtroOperatore = '';
+  }
 }
 
 function popolaFiltroAnno() {
@@ -531,6 +562,9 @@ function render() {
     if (LGState.filtroCluster) {
       lista = lista.filter(r => (r.anagrafica && r.anagrafica.cluster) === LGState.filtroCluster);
     }
+    if (LGState.filtroOperatore) {
+      lista = lista.filter(r => (r.contratto && r.contratto.operatore_id) === LGState.filtroOperatore);
+    }
     if (LGState.filtroStato) {
       if (LGState.filtroStato === '__null__') {
         lista = lista.filter(r => !r.stato);
@@ -554,7 +588,7 @@ function render() {
   }
 
   if (lista.length === 0) {
-    const filtriAttivi = q || LGState.filtroCluster || LGState.filtroStato || LGState.filtroMese || LGState.filtroAnno;
+    const filtriAttivi = q || LGState.filtroCluster || LGState.filtroOperatore || LGState.filtroStato || LGState.filtroMese || LGState.filtroAnno;
     wrap.innerHTML = `<div class="empty-state"><div class="empty-icon"></div><h3>Nessun contratto</h3><p>${filtriAttivi ? 'Nessun risultato con i filtri attuali.' : 'Nessun contratto Energia verificato.'}</p></div>`;
     return;
   }
@@ -1400,10 +1434,12 @@ document.getElementById('searchLG').addEventListener('input', e => {
   if (txt.trim()) {
     // Reset filtri visivi + logici
     LGState.filtroCluster = '';
+    LGState.filtroOperatore = '';
     LGState.filtroStato = '';
     LGState.filtroMese = '';
     LGState.filtroAnno = '';
     document.getElementById('filtroClusterLg').value = '';
+    document.getElementById('filtroOperatoreLg').value = '';
     document.getElementById('filtroStatoLg').value = '';
     document.getElementById('filtroMeseLg').value = '';
     document.getElementById('filtroAnnoLg').value = '';
@@ -1426,6 +1462,7 @@ function bindLgFiltro(id, key) {
   });
 }
 bindLgFiltro('filtroClusterLg', 'filtroCluster');
+bindLgFiltro('filtroOperatoreLg', 'filtroOperatore');
 bindLgFiltro('filtroStatoLg', 'filtroStato');
 bindLgFiltro('filtroMeseLg', 'filtroMese');
 bindLgFiltro('filtroAnnoLg', 'filtroAnno');
