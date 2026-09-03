@@ -112,6 +112,17 @@ test('frontend L&G usa il backend e rende visibile la protezione manuale', () =>
   assert.match(htmlSource, /\.stato-pill\.non-trovato\s*\{\s*background:\s*#FAE8FF;\s*color:\s*#C026D3;/);
 });
 
+test('frontend L&G ordina le righe dalla data inserimento piu recente', () => {
+  assert.match(
+    htmlSource,
+    /const righe = \[\.\.\.\(data \|\| \[\]\)\]\.sort\(confrontaDataInserimentoDesc\)/
+  );
+  assert.match(
+    htmlSource,
+    /timestampOrZero\(dataInserimento\(b\)\) - timestampOrZero\(dataInserimento\(a\)\)/
+  );
+});
+
 test('migration L&G aggiunge audit, coerenza e guardia database', () => {
   assert.match(migrationSource, /ADD COLUMN IF NOT EXISTS stato_origine text NOT NULL DEFAULT 'csv'/);
   assert.match(migrationSource, /ADD COLUMN IF NOT EXISTS esito_manuale_bloccato boolean NOT NULL DEFAULT false/);

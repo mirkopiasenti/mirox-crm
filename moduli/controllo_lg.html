@@ -399,7 +399,9 @@ async function loadAll() {
       `)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    const righe = data || [];
+    // L'ordine della query segue la riga di controllo, ma la data mostrata in tabella
+    // appartiene al contratto: ordino quindi esplicitamente sulla stessa data visibile.
+    const righe = [...(data || [])].sort(confrontaDataInserimentoDesc);
 
     // Lookup nomi operatori (FK assente verso profili nello schema, faccio query separata)
     const profIds = new Set();
@@ -444,6 +446,16 @@ function dataInserimento(r) {
   if (r.contratto && r.contratto.data_contratto) return r.contratto.data_contratto;
   if (r.contratto && r.contratto.created_at) return r.contratto.created_at;
   return r.created_at;
+}
+
+function timestampOrZero(value) {
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function confrontaDataInserimentoDesc(a, b) {
+  return timestampOrZero(dataInserimento(b)) - timestampOrZero(dataInserimento(a))
+    || timestampOrZero(b.created_at) - timestampOrZero(a.created_at);
 }
 
 function popolaFiltroAnno() {
