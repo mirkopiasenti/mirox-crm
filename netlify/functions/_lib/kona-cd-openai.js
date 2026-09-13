@@ -130,8 +130,12 @@ function estimatePotential(cfg, model, { inputLen, maxOutputTokens, webCount }) 
   return { ok: true, eur: Math.max(0.0001, Math.round(eur * 1e6) / 1e6) };
 }
 
+// Registra il costo nel budget_log (unica fonte dello speso).
+// NON lancia: un errore di scrittura non deve interrompere il flusso del
+// chiamante ne' impedire il rilascio della riserva (che avviene nel finally).
+// Il fallimento resta tracciato nel valore di ritorno e nel log applicativo.
 async function logUsage({ supabase, cfg, activity = 'altro', model, usage, webCount, costEur, details = {} }) {
-  if (!supabase) return;
+  if (!supabase) return { ok: false, error: 'supabase_mancante' };
   const today = todayRomeStr();
   const record = {
     data: today,
@@ -145,18 +149,33 @@ async function logUsage({ supabase, cfg, activity = 'altro', model, usage, webCo
     dettagli: cleanLog(details)
   };
   const { error } = await supabase.from('kona_call_director_budget_log').insert(record);
-  if (error) throw new Error('budget_log: ' + String(error.message || 'errore'));
+  if (error) {
+    // Il costo reale non e' stato registrato: segnalalo senza rompere il flusso.
+    console.error('KONA budget_log: scrittura costo fallita', { esito: details?.esito, error: String(error.message || 'errore') });
+    return { ok: false, error: String(error.message || 'errore') };
+  }
+  return { ok: true };
+}
+
+// Valore numerico di config che rispetta lo 0 esplicito.
+function numOr(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 // Rate limit per-ora sulle chiamate a pagamento (default 120/h).
+// Conta solo le chiamate che hanno prodotto un costo: le righe a costo 0
+// (blocco budget, errori) non devono saturare il tetto.
 async function rateLimitOk(supabase, cfg) {
   if (!supabase) return true;
-  const max = Number(cfg.max_chiamate_openai_ora) || 120;
+  const max = Math.max(0, numOr(cfg.max_chiamate_openai_ora, 120));
+  if (max === 0) return false; // 0 = chiamate OpenAI congelate
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { count, error } = await supabase
     .from('kona_call_director_budget_log')
     .select('id', { count: 'exact', head: true })
-    .gte('created_at', since);
+    .gte('created_at', since)
+    .gt('costo_stimato_eur', 0);
   if (error) return false; // fail-closed
   return Number(count) < max;
 }
@@ -221,9 +240,11 @@ async function openaiStructured({
     store: false,
     text: { format: { type: 'json_schema', name: String(name || 'kona_call_director').slice(0, 64), strict: true, schema } }
   };
-  if (webSearch) {
+  // maxToolCalls = 0 disattiva davvero la ricerca web (il `|| 2` la riattivava).
+  const toolCalls = Math.max(0, Math.min(numOr(maxToolCalls, 2), 2));
+  if (webSearch && toolCalls > 0) {
     body.tools = [{ type: 'web_search_preview' }];
-    body.max_tool_calls = Math.min(Number(maxToolCalls) || 2, 2);
+    body.max_tool_calls = toolCalls;
     body.include = ['web_search_call.action.sources'];
   }
 
@@ -272,28 +293,9 @@ async function openaiStructured({
       return { ok: false, error_code: code, error: lastError };
     }
 
-    const output = extractOutputText(payload);
-    if (!output) {
-      await logUsage({ supabase, cfg, activity, model, details: { ...details, esito: 'empty_output' } });
-      await libera();
-      return { ok: false, error_code: 'empty_output', error: 'OpenAI non ha restituito un testo strutturato' };
-    }
-
-    let value;
-    try {
-      value = JSON.parse(output);
-    } catch {
-      await logUsage({ supabase, cfg, activity, model, details: { ...details, esito: 'invalid_json' } });
-      await libera();
-      return { ok: false, error_code: 'invalid_json', error: 'Risposta OpenAI non valida' };
-    }
-    const validation = validateStructured(value, schema);
-    if (!validation.ok) {
-      await logUsage({ supabase, cfg, activity, model, details: { ...details, esito: 'schema_invalid' } });
-      await libera();
-      return { ok: false, error_code: 'schema_invalid', error: validation.error };
-    }
-
+    // Da qui la risposta e' 2xx: i token sono fatturati anche se l'output non e'
+    // utilizzabile. Uso e costo si calcolano PRIMA del parsing, cosi' ogni
+    // percorso terminale li registra (prima empty/invalid/schema finivano a 0).
     const usage = {
       input_tokens: Number(payload?.usage?.input_tokens || 0),
       output_tokens: Number(payload?.usage?.output_tokens || 0),
@@ -302,18 +304,46 @@ async function openaiStructured({
     const webCount = countWebSearches(payload);
     const webSources = webSearchSources(payload);
     const cost = estimateCost(cfg, model, usage, webCount);
+    const costEur = cost.ok ? cost.eur : 0;
+
+    const output = extractOutputText(payload);
+    if (!output) {
+      await logUsage({ supabase, cfg, activity, model, usage, webCount, costEur, details: { ...details, esito: 'empty_output' } });
+      await libera();
+      return { ok: false, error_code: 'empty_output', error: 'OpenAI non ha restituito un testo strutturato' };
+    }
+
+    let value;
+    try {
+      value = JSON.parse(output);
+    } catch {
+      await logUsage({ supabase, cfg, activity, model, usage, webCount, costEur, details: { ...details, esito: 'invalid_json' } });
+      await libera();
+      return { ok: false, error_code: 'invalid_json', error: 'Risposta OpenAI non valida' };
+    }
+    const validation = validateStructured(value, schema);
+    if (!validation.ok) {
+      await logUsage({ supabase, cfg, activity, model, usage, webCount, costEur, details: { ...details, esito: 'schema_invalid' } });
+      await libera();
+      return { ok: false, error_code: 'schema_invalid', error: validation.error };
+    }
     if (!cost.ok) {
-      await logUsage({ supabase, cfg, activity, model, details: { ...details, esito: 'budget_prezzo_ignoto' } });
+      await logUsage({ supabase, cfg, activity, model, usage, webCount, details: { ...details, esito: 'budget_prezzo_ignoto' } });
       await libera();
       return { ok: false, error_code: 'budget_prezzo_ignoto', error: cost.motivo };
     }
-    await logUsage({
-      supabase, cfg, activity, model, usage, webCount,
-      costEur: cost.eur,
-      details: { ...details, esito: 'ok', costo_note: cost.note }
-    });
-    await notifyBudgetThresholds(supabase, cfg).catch(() => null);
-    await libera();
+    // Il rilascio della riserva e' garantito anche se la scrittura del costo
+    // fallisce: il costo reale resta nel budget_log, la riserva non va persa.
+    try {
+      await logUsage({
+        supabase, cfg, activity, model, usage, webCount,
+        costEur: cost.eur,
+        details: { ...details, esito: 'ok', costo_note: cost.note }
+      });
+      await notifyBudgetThresholds(supabase, cfg).catch(() => null);
+    } finally {
+      await libera();
+    }
     return { ok: true, value, usage, webCount, webSources, costEur: cost.eur, note: cost.note };
   }
   await logUsage({ supabase, cfg, activity, model, details: { ...details, esito: 'exhausted', errore: cleanLog(lastError?.message || String(lastError), 400) } });

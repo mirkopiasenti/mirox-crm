@@ -87,6 +87,23 @@ async function storeToken(supabase, { refreshToken, scopes = SCOPES, collegatoDa
   return !error;
 }
 
+// Rotazione del refresh token: aggiorna SOLO i campi cifrati. Passare da
+// storeToken (upsert dell'intero record) azzerava `collegato_da`, perdendo
+// l'attribuzione di chi aveva collegato l'account Google.
+async function rotateToken(supabase, refreshToken) {
+  const encrypted = encryptSecret(refreshToken);
+  if (!encrypted) return false;
+  const { error } = await supabase
+    .from('kona_call_director_google_token')
+    .update({
+      refresh_token_cipher: encrypted.cipher,
+      token_iv: encrypted.iv,
+      token_tag: encrypted.tag
+    })
+    .eq('id', 1);
+  return !error;
+}
+
 async function getRefreshToken(supabase) {
   const { data, error } = await supabase
     .from('kona_call_director_google_token')
@@ -116,8 +133,8 @@ async function getAccessToken(supabase) {
       grant_type: 'refresh_token'
     });
     if (data.refresh_token && data.refresh_token !== refreshToken) {
-      // Rotazione rara del refresh token: aggiornare il record cifrato.
-      await storeToken(supabase, { refreshToken: data.refresh_token, scopes: SCOPES });
+      // Rotazione rara del refresh token: aggiorna solo i campi cifrati.
+      await rotateToken(supabase, data.refresh_token);
     }
     return data.access_token || null;
   } catch {

@@ -1,6 +1,10 @@
 'use strict';
 
 const { distanzaKm } = require('./kona-cd-distances');
+// Solo helper puri/letture: nessuna dipendenza circolare (il motore non
+// richiede questo modulo). Servono per non spendere su lead che il motore
+// scarterebbe comunque.
+const { loadBlacklistSet, loadEsclusioniAttive, pureBlacklisted, pureEscluso } = require('./kona-cd-engine');
 const { openaiStructured } = require('./kona-cd-openai');
 const { scoreLead } = require('./kona-cd-scoring');
 const { todayRomeStr } = require('./kona-cd-time');
@@ -17,7 +21,19 @@ const { cleanLog, isUuid, nowIso } = require('./kona-cd-util');
 const BACKOFF_MIN = [1, 5, 15, 60];
 const MAX_TENTATIVI = 4;
 
+// Legge un valore numerico di config rispettando lo 0 come scelta esplicita.
+// `Number(v) || default` trasformava 0 nel default: impostare
+// `richieste_web_max_per_lead = 0` (o `lead_notte_obiettivo = 0`) NON
+// disattivava nulla, lasciando attive spesa e ricerche web.
+function numOr(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 // Campi che rendono un lead "incompleto" e quindi candidato all'arricchimento.
+// `codice_fiscale` NON e' in elenco: le liste B2B riportano la P.IVA, non il CF,
+// e lo schema OpenAI non lo prevede. Tenerlo qui obbligava il ciclo a una
+// seconda chiamata pagata che non poteva mai produrre un valore.
 const CAMPI_ARRICCHIBILI = [
   'email',
   'sito_internet',
@@ -26,8 +42,7 @@ const CAMPI_ARRICCHIBILI = [
   'localita',
   'categoria',
   'telefono_raw',
-  'partita_iva',
-  'codice_fiscale'
+  'partita_iva'
 ];
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
@@ -71,8 +86,14 @@ function campiMancanti(lead) {
   return CAMPI_ARRICCHIBILI.filter((c) => !String(lead[c] || '').trim());
 }
 
-// Mappa campo estrattore -> campo applicabile sulla tabella condivisa.
-const MAPPA_CAMPI = {
+// Mappa campo estrattore -> COLONNA realmente scrivibile su
+// `call_center_lead_outbound`. E' una whitelist: cio' che non compare qui viene
+// ignorato e non finisce mai nel patch di UPDATE.
+// `telefono_extra` e' deliberatamente assente: la tabella condivisa ha una sola
+// colonna telefono (`telefono_raw`/`telefono_norm`); i numeri aggiuntivi vivono
+// soltanto in `kona_call_director_lead_telefoni`. Scriverlo nel patch faceva
+// fallire ogni arricchimento con PGRST204, con 4 retry pagati a notte.
+const CAMPI_SCRIVIBILI = {
   email: 'email',
   sito_internet: 'sito_internet',
   indirizzo: 'indirizzo',
@@ -80,18 +101,21 @@ const MAPPA_CAMPI = {
   localita: 'localita',
   categoria: 'categoria',
   partita_iva: 'partita_iva',
-  codice_fiscale: 'codice_fiscale'
+  telefono_raw: 'telefono_raw'
 };
 
-// Applica SOLO i campi vuoti (mai sovrascrivere valori esistenti). Pura.
+// Applica SOLO i campi vuoti (mai sovrascrivere valori esistenti) e SOLO quelli
+// presenti in whitelist. Pura.
 function applicaValori(lead, valori) {
   const valoriApplicati = {};
   const patch = {};
   for (const [campo, valore] of Object.entries(valori || {})) {
+    const colonna = CAMPI_SCRIVIBILI[campo];
+    if (!colonna) continue; // campo non scrivibile sulla tabella condivisa
     if (valore === null || String(valore).trim() === '') continue;
-    if (String(lead[campo] || '').trim() !== '') continue; // esistente: non toccare
-    patch[campo] = valore;
-    valoriApplicati[campo] = valore;
+    if (String(lead[colonna] || '').trim() !== '') continue; // esistente: non toccare
+    patch[colonna] = valore;
+    valoriApplicati[colonna] = valore;
   }
   return { patch, valoriApplicati };
 }
@@ -102,8 +126,10 @@ function applicaValori(lead, valori) {
 // { creati, candidati, anomalia } con anomalia=true se < soglia (default 50).
 async function startArricchimento(supabase, cfg, oggi) {
   const data = oggi || todayRomeStr();
-  const limite = Number(cfg.lead_notte_obiettivo) || 50;
-  const soglia = Number(cfg.soglia_lead_minime) || 50;
+  const limite = numOr(cfg.lead_notte_obiettivo, 50);
+  const soglia = numOr(cfg.soglia_lead_minime, 50);
+  // 0 = arricchimento disattivato: nessun job creato, nessuna anomalia segnalata.
+  if (limite <= 0) return { ok: true, creati: 0, candidati: 0, totale: 0, anomalia: false, limite, soglia, disattivato: true };
 
   const { data: giaFatti, error: errGia } = await supabase
     .from('kona_call_director_arricchimenti')
@@ -130,9 +156,23 @@ async function startArricchimento(supabase, cfg, oggi) {
     .limit(1000);
   if (error) return { ok: false, error };
 
+  // Blacklist condivisa ed esclusioni attive: gli stessi filtri che il motore
+  // applica prima di proporre un contatto. Senza di essi si pagavano chiamate
+  // OpenAI e si inviavano dati all'esterno per lead che non sarebbero mai stati
+  // chiamati. In caso di errore di lettura si ferma l'arricchimento (fail-closed).
+  const [blacklistRes, exclusionRes] = await Promise.all([
+    loadBlacklistSet(supabase),
+    loadEsclusioniAttive(supabase)
+  ]);
+  if (!blacklistRes.ok || !exclusionRes.ok) return { ok: false, error: 'blacklist_check_failed' };
+
   const incompleto = (l) => CAMPI_ARRICCHIBILI.some((c) => !String(l[c] || '').trim());
+  const scartato = (l) => pureBlacklisted(blacklistRes.rows, {
+    cf_piva: l.codice_fiscale,
+    telefoni: [l.telefono_norm, l.telefono_raw]
+  }) || pureEscluso(exclusionRes.rows, { leadId: l.id });
   const candidati = leads
-    .filter((l) => !fattiOggi.has(l.id) && !giaInCoda.has(l.id) && incompleto(l))
+    .filter((l) => !fattiOggi.has(l.id) && !giaInCoda.has(l.id) && incompleto(l) && !scartato(l))
     .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
     .slice(0, limite);
 
@@ -194,6 +234,10 @@ async function failJob(supabase, job, message) {
 async function estraiValori({ supabase, cfg, lead, campi }) {
   if (campi.length === 0) return { ok: true, valori: {}, affidabilita: 0, fonti: [] };
 
+  // Con la ricerca web attiva il prompt contiene SOLO dati aziendali pubblici.
+  // Telefono, email e codice fiscale non servono a trovare i campi mancanti e
+  // non vengono inviati all'esterno: la ricerca usa ragione sociale, P.IVA,
+  // indirizzo, localita' e sito.
   const context = {
     ragione_sociale: lead.ragione_sociale,
     localita: lead.localita,
@@ -201,10 +245,7 @@ async function estraiValori({ supabase, cfg, lead, campi }) {
     categoria: lead.categoria,
     indirizzo: lead.indirizzo,
     partita_iva: lead.partita_iva,
-    codice_fiscale: lead.codice_fiscale,
     sito_internet: lead.sito_internet,
-    telefono: lead.telefono_norm || lead.telefono_raw,
-    email: lead.email,
     campi_da_cercare: campi
   };
   const instructions = [
@@ -240,11 +281,16 @@ async function estraiValori({ supabase, cfg, lead, campi }) {
   let valori = {};
   let affidabilita = 0;
   let fonti = [];
-  const massimo = Math.min(Number(cfg.richieste_web_max_per_lead) || 2, 2);
+  // 0 = nessuna ricerca web consentita: non si chiama affatto il modello
+  // (senza web search l'estrazione sarebbe solo memoria parametrica).
+  const massimo = Math.max(0, Math.min(numOr(cfg.richieste_web_max_per_lead, 2), 2));
+  if (massimo <= 0) return { ok: true, valori: {}, affidabilita: 0, fonti: [], disattivato: true };
   let ricercheResidue = massimo;
 
   for (let i = 0; i < 2 && ricercheResidue > 0; i += 1) {
-    const ancoraMancanti = campi.filter((c) => !valori[c]);
+    const mancantiPrima = campi.filter((c) => !valori[c]);
+    if (mancantiPrima.length === 0) break;
+    const ancoraMancanti = mancantiPrima;
     if (ancoraMancanti.length === 0) break;
     const result = await openaiStructured({
       supabase,
@@ -289,6 +335,9 @@ async function estraiValori({ supabase, cfg, lead, campi }) {
         fonti.push({ url: String(fonte.url).slice(0, 500), titolo: String(fonte.title || '').slice(0, 300) || null, affidabilita: null });
       }
     }
+    // Nessun progresso (il modello non ha aggiunto alcun campo utile): inutile
+    // pagare una seconda chiamata per gli stessi campi.
+    if (Object.keys(valori).length === 0) break;
   }
   return { ok: true, valori, affidabilita: Math.min(1, affidabilita), fonti };
 }
@@ -334,14 +383,29 @@ async function processArricchimento(supabase, cfg, job, { oggi } = {}) {
   }
 
   const campi = campiMancanti(lead);
-  const extraction = await estraiValori({ supabase, cfg, lead, campi });
+  // L'estrazione sta FUORI dal try delle scritture: senza questa rete un errore
+  // imprevisto (es. scrittura del log budget) lasciava il job `in_corso` e la
+  // RPC di lease lo ripescava ogni 10 minuti senza mai incrementare i tentativi,
+  // ripetendo le chiamate OpenAI pagate all'infinito.
+  let extraction;
+  try {
+    extraction = await estraiValori({ supabase, cfg, lead, campi });
+  } catch (estraiError) {
+    const messaggio = String(estraiError?.message || 'errore arricchimento').slice(0, 500);
+    await failJob(supabase, job, messaggio);
+    return { ok: false, error: messaggio };
+  }
   if (!extraction.ok) {
     await failJob(supabase, job, extraction.error);
     return { ok: false, error: extraction.error, error_code: extraction.error_code };
   }
 
-  const sogliaAffidabilita = Number(cfg.soglia_affidabilita_arricchimento) || 0.6;
-  const affidabile = extraction.affidabilita >= sogliaAffidabilita;
+  const sogliaAffidabilita = numOr(cfg.soglia_affidabilita_arricchimento, 0.6);
+  // L'affidabilita' e' auto-dichiarata dal modello: da sola non basta. Perche'
+  // un valore venga scritto nel CRM condiviso servono anche almeno una fonte
+  // web reale restituita dall'API e la soglia di confidenza.
+  const haFontiReali = Array.isArray(extraction.fonti) && extraction.fonti.length > 0;
+  const affidabile = extraction.affidabilita >= sogliaAffidabilita && haFontiReali;
   const { patch, valoriApplicati } = affidabile
     ? applicaValori(lead, extraction.valori)
     : { patch: {}, valoriApplicati: {} };
@@ -359,7 +423,9 @@ async function processArricchimento(supabase, cfg, job, { oggi } = {}) {
       valori_applicati: cleanLog(valoriApplicati),
       affidabilita: extraction.affidabilita,
       fonte_utilizzata: extraction.fonti[0]?.url || null,
-      errore: affidabile ? null : 'affidabilita_sotto_soglia'
+      errore: affidabile
+        ? null
+        : (haFontiReali ? 'affidabilita_sotto_soglia' : 'nessuna_fonte_web')
     })
     .select('id')
     .single();

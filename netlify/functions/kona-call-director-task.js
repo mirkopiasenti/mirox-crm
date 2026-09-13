@@ -17,11 +17,45 @@
  */
 
 const { authAndEnabled } = require('./_lib/kona-cd-config');
-const { categoriaConsumerPiano, materializeNextTask, verificaTaskAttivo, getTaskDettaglio, registerEsito, registraChiamataConsumerCanonica } = require('./_lib/kona-cd-engine');
+const { categoriaConsumerPiano, getTaskLavorabile, materializeNextTask, prenotaAppuntamentoNegozio, verificaTaskAttivo, getTaskDettaglio, registerEsito, registraChiamataConsumerCanonica } = require('./_lib/kona-cd-engine');
 const { enqueueNotifica } = require('./_lib/kona-cd-notifiche');
 const { notificaEsauriti } = require('./_lib/kona-cd-conferme');
 const { nowRomeParts, todayRomeStr } = require('./_lib/kona-cd-time');
 const { isUuid, jsonError, jsonOk, readJsonBody } = require('./_lib/kona-cd-util');
+
+// Riprende l'eventuale task lasciato in pausa.
+// Senza questo, dopo un refresh della pagina l'action `attivo` non trovava
+// nulla (cerca solo stato='attivo'), `riprendi` non veniva mai invocato perche'
+// il frontend non ha piu' il task in memoria, e il task sospeso restava a
+// bloccare l'indice unico per 24 ore: l'operatrice vedeva "Giornata completata"
+// senza poter lavorare.
+// Compensazione di un appuntamento appena creato da `prenota_negozio`.
+// La chiamata canonica creata nella stessa richiesta referenzia l'appuntamento
+// (fk_chiamate_appuntamento senza ON DELETE): va rimossa PRIMA, altrimenti il
+// DELETE dell'appuntamento viola la FK, l'errore resta silenzioso e al retry
+// l'operatrice crea un secondo appuntamento + una seconda chiamata.
+async function compensaAppuntamento(client, appuntamentoId) {
+  if (!appuntamentoId) return;
+  const { error: chiamateError } = await client.from('chiamate').delete().eq('appuntamento_id', appuntamentoId);
+  if (chiamateError) {
+    console.error('KONA compensazione appuntamento: delete chiamate fallita', chiamateError.message);
+  }
+  const { error } = await client.from('appuntamenti').delete().eq('id', appuntamentoId);
+  if (error) {
+    console.error('KONA compensazione appuntamento: delete appuntamento fallita', error.message);
+  }
+}
+
+async function riprendiTaskSospeso(client, profiloId) {
+  const lavorabile = await getTaskLavorabile(client, profiloId);
+  if (!lavorabile || lavorabile.stato !== 'sospeso') return null;
+  const { error } = await client.from('kona_call_director_task')
+    .update({ stato: 'attivo', lease_until: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString() })
+    .eq('id', lavorabile.id)
+    .eq('stato', 'sospeso');
+  if (error) return null;
+  return getTaskDettaglio(client, { ...lavorabile, stato: 'attivo' });
+}
 
 function esitoCompletatoIdempotente(task, esitoRichiesto) {
   const salvato = task?.esito && typeof task.esito === 'object' ? task.esito : {};
@@ -74,6 +108,10 @@ exports.handler = async (event) => {
             if (corrente.task && corrente.dettaglio) {
               return jsonOk({ task: corrente.dettaglio, motivo: 'task_attivo' });
             }
+            // Il task lavorabile e' in pausa: riprendilo invece di dichiarare
+            // che non c'e' nulla da fare.
+            const ripreso = await riprendiTaskSospeso(client, profiloId);
+            if (ripreso) return jsonOk({ task: ripreso, motivo: 'task_ripreso' });
           }
           return jsonOk({ task: null, motivo: esito.reason || 'nessun_candidato' });
         }
@@ -91,7 +129,12 @@ exports.handler = async (event) => {
           const dettaglio = await getTaskDettaglio(client, esito.task);
           return jsonOk({ task: dettaglio });
         }
-        if (!verificato.task) return jsonOk({ task: null });
+        if (!verificato.task) {
+          // Pausa + refresh: il task sospeso viene ripreso automaticamente.
+          const ripreso = await riprendiTaskSospeso(client, profiloId);
+          if (ripreso) return jsonOk({ task: ripreso, ripreso: true });
+          return jsonOk({ task: null });
+        }
         return jsonOk({ task: verificato.dettaglio });
       }
 
@@ -167,7 +210,10 @@ exports.handler = async (event) => {
         const contatto = dettaglio?.contatto || {};
         if (!contatto.nome || !contatto.cellulare) return jsonError(400, 'Contatto incompleto per la prenotazione');
         const { data: profilo } = await client.from('profili').select('nome').eq('id', profiloId).maybeSingle();
-        const { data: appuntamento, error: appError } = await client.from('appuntamenti').insert({
+        // Prenotazione ATOMICA (RPC con advisory lock, migration 076): il check
+        // dello slot e l'INSERT avvengono nella stessa transazione. Il vecchio
+        // check-then-insert lasciava una finestra di doppia prenotazione.
+        const campiAppuntamento = {
           nome: String(contatto.nome).slice(0, 120),
           codice_fiscale: String(contatto.cf_piva || '').trim() || null,
           telefono: String(contatto.cellulare).trim(),
@@ -181,8 +227,32 @@ exports.handler = async (event) => {
           fonte: 'interno',
           stato: 'confermato',
           originato_da_id: task.sorgente_tipo === 'appuntamento' ? task.sorgente_id : null
-        }).select('id').single();
-        if (appError || !appuntamento) return jsonError(500, appError?.message || 'Prenotazione negozio fallita');
+        };
+        const atomico = await prenotaAppuntamentoNegozio(client, {
+          nome: campiAppuntamento.nome,
+          codice_fiscale: campiAppuntamento.codice_fiscale,
+          telefono: campiAppuntamento.telefono,
+          motivo: campiAppuntamento.motivo,
+          note: campiAppuntamento.note,
+          anagrafica_id: campiAppuntamento.anagrafica_id,
+          operatore_id: profiloId,
+          operatore_nome: profilo?.nome || null,
+          data_ora: campiAppuntamento.data_ora,
+          durata_minuti: 30,
+          originato_da_id: campiAppuntamento.originato_da_id
+        });
+        if (atomico.conflitto) return jsonError(409, 'Slot non disponibile: appena occupato');
+        let appuntamento = null;
+        if (atomico.ok) {
+          appuntamento = { id: atomico.id };
+        } else if (atomico.rpcAssente) {
+          // Migration 076 non ancora applicata: comportamento precedente.
+          const { data: inserito, error: appError } = await client.from('appuntamenti').insert(campiAppuntamento).select('id').single();
+          if (appError || !inserito) return jsonError(500, appError?.message || 'Prenotazione negozio fallita');
+          appuntamento = inserito;
+        } else {
+          return jsonError(500, atomico.motivo || 'Prenotazione negozio fallita');
+        }
 
         let registrato;
         try {
@@ -195,11 +265,11 @@ exports.handler = async (event) => {
             dettagli: { appuntamento_id: appuntamento.id }
           });
         } catch (e) {
-          await client.from('appuntamenti').delete().eq('id', appuntamento.id);
+          await compensaAppuntamento(client, appuntamento.id);
           throw e;
         }
         if (!registrato.ok) {
-          await client.from('appuntamenti').delete().eq('id', appuntamento.id);
+          await compensaAppuntamento(client, appuntamento.id);
           return jsonError(400, registrato.error);
         }
         const { error: linkError } = await client.from('appuntamenti')

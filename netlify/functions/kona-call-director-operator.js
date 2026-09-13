@@ -229,6 +229,19 @@ async function correggiEsito(client, body, profiloId, isAdmin) {
 async function attivaFailover(client, body, profiloId) {
   const codice = String(body.codice || '').trim();
   if (!AI_FAILOVER_CODES.has(codice)) return jsonError(400, 'Codice failover non valido');
+  // EVIDENZA SERVER-SIDE. Il codice arrivava dal client senza alcuna prova che
+  // l'AI fosse davvero indisponibile: bastava una POST per ottenere 30 minuti di
+  // sistema manuale, aggirando il routing KONA-only. Il failover e' ammesso solo
+  // se il backend ha REGISTRATO un errore AI con lo stesso codice negli ultimi
+  // 15 minuti (`logUsage` scrive sempre una riga in budget_log, anche a costo 0).
+  const daQuando = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const { count: evidenza, error: evidenzaError } = await client
+    .from('kona_call_director_budget_log')
+    .select('id', { count: 'exact', head: true })
+    .gte('created_at', daQuando)
+    .filter('dettagli->>esito', 'eq', codice);
+  if (evidenzaError) return jsonError(500, 'Verifica failover non disponibile');
+  if (!Number(evidenza)) return jsonError(409, 'Nessun errore AI recente con questo codice');
   const dettaglio = String(body.dettaglio || '').replace(/[\r\n]+/g, ' ').slice(0, 300);
   const scadeAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
   const { error } = await client.from('kona_call_director_failover').upsert({

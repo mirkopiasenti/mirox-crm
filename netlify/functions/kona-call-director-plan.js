@@ -52,6 +52,13 @@ exports.handler = async (event) => {
     switch (action) {
       case 'proposta': {
         const data = String(body.data || addDaysStr(todayRomeStr(), 1));
+        // Un piano gia' approvato da Mirko NON va riscritto: `salvaPiano` fa
+        // upsert e riporterebbe `stato` a 'proposta' perdendo l'approvazione,
+        // dopodiche' alle 08:30 il piano di default lo sostituirebbe.
+        const esistenteProposta = await pianoDi(client, { data, operatoreId: profiloId });
+        if (esistenteProposta && (esistenteProposta.stato === 'approvato' || esistenteProposta.sorgente === 'mirko')) {
+          return jsonError(409, 'Esiste gia\' un piano approvato per questa data');
+        }
         const deterministica = await propostaPianoGiorno(client, cfg, { data });
         const input = cleanLog({
           data,
@@ -105,6 +112,13 @@ exports.handler = async (event) => {
 
       case 'applica_default': {
         const data = String(body.data || todayRomeStr());
+        // Il docstring promette "solo se non approvato da Mirko": l'upsert di
+        // applicaPianoDefault e' invece incondizionato e azzererebbe un piano
+        // approvato. Il controllo va fatto qui.
+        const esistenteDefault = await pianoDi(client, { data, operatoreId: profiloId });
+        if (esistenteDefault && (esistenteDefault.stato === 'approvato' || esistenteDefault.sorgente === 'mirko')) {
+          return jsonError(409, 'Esiste gia\' un piano approvato per questa data');
+        }
         const esito = await applicaPianoDefault(client, cfg, { data, operatoreId: profiloId });
         return jsonOk({ data, totale: esito.totale, salvato: esito.salvato });
       }

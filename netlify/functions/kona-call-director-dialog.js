@@ -29,7 +29,7 @@ const {
 } = require('./_lib/kona-cd-google');
 const { addDaysStr, todayRomeStr } = require('./_lib/kona-cd-time');
 const { enqueueNotifica } = require('./_lib/kona-cd-notifiche');
-const { registraChiamataConsumerCanonica, upsertAnagraficaConsumer } = require('./_lib/kona-cd-engine');
+const { prenotaAppuntamentoNegozio, registraChiamataConsumerCanonica, upsertAnagraficaConsumer } = require('./_lib/kona-cd-engine');
 const { cleanLog, isUuid, jsonError, jsonOk, parseNumber, readJsonBody } = require('./_lib/kona-cd-util');
 
 exports.handler = async (event) => {
@@ -202,7 +202,12 @@ async function azioneProponi(client, cfg, body, profiloId, isAdmin) {
 
   // Idempotenza end-to-end: un retry della stessa azione non deve creare un
   // secondo evento Google se la risposta precedente si e' persa nel browser.
-  if (taskId) {
+  // Il `task_id` e' OBBLIGATORIO: senza di esso il controllo di proprieta' sul
+  // lead veniva saltato e si poteva creare un appuntamento (con evento Google)
+  // su un lead arbitrario, anche di un'altra operatrice. Il frontend lo invia
+  // sempre nel flusso calendario.
+  if (!taskId) return jsonError(409, 'Task Business mancante: ricarica la scheda');
+  {
     const { data: task } = await client.from('kona_call_director_task')
       .select('id, operatore_id, stato, payload').eq('id', taskId).maybeSingle();
     if (!task || task.stato !== 'attivo' || task.operatore_id !== profiloId || task.payload?.lead_id !== leadId) {
@@ -275,15 +280,17 @@ async function azioneProponi(client, cfg, body, profiloId, isAdmin) {
     return jsonError(500, 'Collegamento appuntamento fallito');
   }
 
+  // Sync Google fallita: l'appuntamento locale e' valido e resta.
+  // Cancellare la riga `kona_call_director_appuntamenti_business` distruggerebbe
+  // il `kona_id`: se l'evento era stato creato su Google e la delete
+  // compensativa non e' riuscita, resterebbe orfano per sempre (slot occupato e
+  // non piu' riconciliabile, perche' il riconciliatore cerca solo righe
+  // esistenti). La riga resta `da_recuperare` e viene riconciliata dal
+  // dispatcher; la notifica `sync_fallito` e' gia' stata accodata.
   const sync = await sincronizzaGoogle(client, cfg, { ...bizRow, appuntamento_id: appuntamentoCondiviso.id }, lead);
-  if (!sync.ok) {
-    await client.from('appuntamenti').delete().eq('id', appuntamentoCondiviso.id);
-    await client.from('kona_call_director_appuntamenti_business').delete().eq('id', bizId);
-    return jsonError(409, 'Appuntamento non creato: sincronizzazione Google fallita');
-  }
   const { data: finale, error: finaleError } = await client.from('kona_call_director_appuntamenti_business').select('*').eq('id', bizId).single();
   if (finaleError || !finale) return jsonError(500, 'Rilettura appuntamento fallita');
-  return jsonOk({ appuntamento: pubblicaAppuntamento(finale), slot: true });
+  return jsonOk({ appuntamento: pubblicaAppuntamento(finale), slot: true, sync_pendente: !sync.ok });
 }
 
 async function azioneConferma(client, cfg, body, profiloId, isAdmin) {
@@ -577,7 +584,9 @@ async function azioneNegozioPrenota(client, cfg, body, profiloId) {
   }
   if (!anagraficaId) return jsonError(400, 'Anagrafica Consumer obbligatoria');
   const durata = 30;
-  const { data: appuntamento, error: appError } = await client.from('appuntamenti').insert({
+  // Prenotazione ATOMICA (RPC con advisory lock, migration 076) con fallback
+  // al comportamento precedente se la migration non e' ancora applicata.
+  const campiAppuntamento = {
     nome,
     codice_fiscale: String(body.cf_piva || '').trim() || null,
     telefono,
@@ -590,8 +599,30 @@ async function azioneNegozioPrenota(client, cfg, body, profiloId) {
     durata_minuti: durata,
     fonte: 'interno',
     stato: 'confermato'
-  }).select('id').single();
-  if (appError || !appuntamento) return jsonError(500, appError?.message || 'Prenotazione negozio fallita');
+  };
+  const atomico = await prenotaAppuntamentoNegozio(client, {
+    nome,
+    codice_fiscale: campiAppuntamento.codice_fiscale,
+    telefono,
+    motivo,
+    note: campiAppuntamento.note,
+    anagrafica_id: anagraficaId,
+    operatore_id: profiloId,
+    operatore_nome: profilo?.nome || null,
+    data_ora: campiAppuntamento.data_ora,
+    durata_minuti: durata
+  });
+  if (atomico.conflitto) return jsonError(409, 'Slot non disponibile: appena occupato');
+  let appuntamento = null;
+  if (atomico.ok) {
+    appuntamento = { id: atomico.id };
+  } else if (atomico.rpcAssente) {
+    const { data: inserito, error: appError } = await client.from('appuntamenti').insert(campiAppuntamento).select('id').single();
+    if (appError || !inserito) return jsonError(500, appError?.message || 'Prenotazione negozio fallita');
+    appuntamento = inserito;
+  } else {
+    return jsonError(500, atomico.motivo || 'Prenotazione negozio fallita');
+  }
 
   // Scrittura CANONICA: anche la chiamata Consumer va nella tabella `chiamate`
   // (stessa del Call Center manuale) con esito 'appuntamento' e collegamento

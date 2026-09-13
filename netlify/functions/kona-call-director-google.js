@@ -14,6 +14,7 @@ const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
 const { requireAuth } = require('./_lib/require-auth');
+const { canUse } = require('./_lib/kona-cd-config');
 const { buildAuthUrl, hasToken, oauthConfig } = require('./_lib/kona-cd-google');
 const { isUuid, jsonError, jsonOk, readJsonBody } = require('./_lib/kona-cd-util');
 
@@ -91,9 +92,20 @@ exports.handler = async (event) => {
       }
 
       case 'stato_connessione': {
+        // Accessibile all'admin (pannello) o a un profilo KONA abilitato:
+        // prima bastava un qualsiasi account autenticato.
+        const isAdmin = auth.profilo?.ruolo === 'admin';
+        if (!isAdmin) {
+          const check = await canUse(client, auth.profilo, auth.user);
+          if (!check.ok) return jsonError(403, 'Accesso non consentito');
+        }
         const { data: token } = await client.from('kona_call_director_google_token').select('id, collegato_at, collegato_da, ultimo_sync_at, ultimo_sync_esito, scopes').eq('id', 1).maybeSingle();
+        // `collegato` riflette la DECIFRABILITA' reale del token: se la chiave
+        // env cambia o manca la riga esiste ma ogni azione Google risponde 409.
+        // Mostrare "Collegato" in quel caso rendeva la diagnosi fuorviante.
+        const realmenteCollegato = await hasToken(client);
         return jsonOk({
-          collegato: Boolean(token),
+          collegato: realmenteCollegato,
           collegato_at: token?.collegato_at || null,
           ultimo_sync_at: token?.ultimo_sync_at || null,
           ultimo_sync_esito: token?.ultimo_sync_esito || null

@@ -96,8 +96,14 @@ function minuteOfDayRome(date) {
   return wall.hh * 60 + wall.mm;
 }
 
+// Accetta solo "HH:MM" / "H:MM". Valori assenti o vuoti ritornano null (NON 0):
+// prima `String(hhmm || '00:00')` trasformava undefined/'' in mezzanotte, quindi
+// i fallback `parseHHmm(x) ?? default` non scattavano mai e un orario vuoto
+// apriva la finestra operativa alle 00:00 (fail-open sull'orario di lavoro).
 function parseHHmm(hhmm) {
-  const [hh, mm] = String(hhmm || '00:00').split(':').map(Number);
+  const raw = String(hhmm == null ? '' : hhmm).trim();
+  if (!/^\d{1,2}:\d{2}$/.test(raw)) return null;
+  const [hh, mm] = raw.split(':').map(Number);
   if (!Number.isInteger(hh) || !Number.isInteger(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
   return hh * 60 + mm;
 }

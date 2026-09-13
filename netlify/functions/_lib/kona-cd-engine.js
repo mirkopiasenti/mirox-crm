@@ -78,11 +78,33 @@ function telefoniUnici(values) {
 
 // -- Blacklist (FAIL-CLOSED) ---------------------------------------------------
 
+// Dimensione pagina per le letture massive. PostgREST applica un tetto
+// (db-max-rows, default 1000) e restituisce un SOTTOINSIEME senza errore:
+// senza paginazione una blacklist oltre il tetto diventava un controllo
+// parziale, cioe' un fail-open silenzioso.
+const PAGE_SIZE = 1000;
+const MAX_PAGINE = 50;
+
+// Legge tutte le righe a lotti. Ritorna { ok, rows }; ok:false su errore.
+async function selectPaged(supabase, tabella, colonne, applicaFiltri = null) {
+  const out = [];
+  for (let pagina = 0; pagina < MAX_PAGINE; pagina += 1) {
+    const da = pagina * PAGE_SIZE;
+    let query = supabase.from(tabella).select(colonne).range(da, da + PAGE_SIZE - 1);
+    if (applicaFiltri) query = applicaFiltri(query);
+    const { data, error } = await query;
+    if (error) return { ok: false, rows: out };
+    const righe = Array.isArray(data) ? data : [];
+    out.push(...righe);
+    if (righe.length < PAGE_SIZE) return { ok: true, rows: out };
+  }
+  // Raggiunto il tetto di sicurezza senza fine: meglio fallire chiusi.
+  return { ok: false, rows: out };
+}
+
 // Ritorna { ok, rows }. Errori di lettura -> ok:false (fail-closed).
 async function loadBlacklistSet(supabase) {
-  const { data, error } = await supabase.from('blacklist').select('cf_piva, cellulare, nome_cognome');
-  if (error || !Array.isArray(data)) return { ok: false };
-  return { ok: true, rows: data };
+  return selectPaged(supabase, 'blacklist', 'cf_piva, cellulare, nome_cognome');
 }
 
 // Confronto con CF/PIVA e TUTTI i numeri disponibili, normalizzati.
@@ -126,13 +148,15 @@ async function addBlacklist(supabase, { cfPiva, nome, telefoni }) {
 
 // -- Esclusioni ---------------------------------------------------------------
 
+// Anche le esclusioni si leggono paginate: oltre il tetto PostgREST il filtro
+// diventerebbe parziale e un cliente escluso tornerebbe in coda.
 async function loadEsclusioniAttive(supabase) {
-  const { data, error } = await supabase
-    .from('kona_call_director_esclusioni')
-    .select('id, lead_id, anagrafica_id, chiamata_id')
-    .eq('stato', 'attiva');
-  if (error || !Array.isArray(data)) return { ok: false, rows: [] };
-  return { ok: true, rows: data };
+  return selectPaged(
+    supabase,
+    'kona_call_director_esclusioni',
+    'id, lead_id, anagrafica_id, chiamata_id',
+    (q) => q.eq('stato', 'attiva')
+  );
 }
 
 function pureEscluso(exclusionRows, { leadId, anagraficaId, chiamataId }) {
@@ -230,7 +254,11 @@ async function tentativiGiorni(supabase, { operatoreId, sorgenteId, chiaveTentat
     ? query.eq('chiave_tentativi', chiaveTentativi)
     : query.eq('sorgente_id', sorgenteId);
   const { data, error } = await query;
-  return !error && Array.isArray(data) ? data.length : 0;
+  // FAIL-CLOSED: un errore di lettura NON deve valere "zero tentativi fatti",
+  // altrimenti la soglia di tutela del cliente non scatta mai e il contatto
+  // riceve tentativi illimitati.
+  if (error || !Array.isArray(data)) throw new Error('tentativi_non_disponibili');
+  return data.length;
 }
 
 // Numero di tentativo persistente del contatto: 1 + tentativi gia' esauriti.
@@ -360,12 +388,15 @@ async function candidatiRilavorazione(supabase, { profiloId, oggi, fascia }) {
     sorgenteId: row.origine_id || row.id,
     sorgenteTipo: 'chiamata',
     chiaveTentativi: 'standard:' + (row.anagrafica_id || row.cf_piva || row.origine_id || row.id),
-    payload: { chiamata_id: row.origine_id || row.id, anagrafica_id: row.anagrafica_id },
+    payload: { chiamata_id: row.origine_id || row.id, anagrafica_id: row.anagrafica_id || null },
     cf_piva: row.cf_piva,
     nome: row.nome_cliente,
-    cellulare: row.cellulare,
-    telefoni: [row.cellulare],
-    anagraficaId: row.anagrafica_id,
+    // La vista unificata espone il numero come `telefono` (non `cellulare`).
+    // Leggere `row.cellulare` rendeva i telefoni sempre vuoti, disattivando di
+    // fatto il match blacklist per numero sui ricontatti standard.
+    cellulare: row.telefono || row.cellulare || null,
+    telefoni: [row.telefono || row.cellulare].filter(Boolean),
+    anagraficaId: row.anagrafica_id || null,
     storico: { motivo: row.motivo_chiamata, note: row.note, esito: row.esito, data_ora: row.data_ora },
     descrizione,
     priority
@@ -686,8 +717,10 @@ function getActiveTask(supabase, profiloId) {
 async function scadenzaTask(supabase, profiloId) {
   const task = await getTaskLavorabile(supabase, profiloId);
   if (!task) return;
+  // Un lease assente equivale a lease scaduto: prima `lease_until` NULL non
+  // scadeva mai e il task restava bloccato per sempre sull'indice unico.
   const lease = task.lease_until ? new Date(task.lease_until).getTime() : 0;
-  if (lease && lease < Date.now()) {
+  if (!lease || lease < Date.now()) {
     await supabase.from('kona_call_director_task').update({ stato: 'annullato', esito: cleanLog({ esito: 'lease_scaduta' }) }).eq('id', task.id);
     await logEvent(supabase, { taskId: task.id, tipo: 'errore', dettagli: { esito: 'lease_scaduta' } });
   }
@@ -709,6 +742,7 @@ async function materializeNextTask({ supabase, cfg, profiloId, oggi, oraParts })
   const exclusionRows = exclusionRes.rows;
 
   const candidates = await buildCandidates(supabase, cfg, { profiloId, oggi: oggi || todayRomeStr() });
+  const candidatiScartati = [];
   for (const candidate of candidates) {
     const leadId = candidate.leadId || candidate.payload?.lead_id;
     if (isUuid(leadId)) {
@@ -737,11 +771,22 @@ async function materializeNextTask({ supabase, cfg, profiloId, oggi, oraParts })
       assegnato_at: new Date().toISOString()
     }).select('*').single();
     if (insert.error) {
+      // 23505 = un altro processo ha gia' materializzato il task lavorabile.
       if (String(insert.error.code) === '23505') return { ok: false, noop: true, reason: 'lease' };
-      return { ok: false, error: insert.error };
+      // Un vincolo violato dal SINGOLO candidato (es. tipo non ammesso dal CHECK)
+      // non deve interrompere lo scan: prima un solo candidato "avvelenato"
+      // bloccava tutte le priorita' successive, per tutti gli operatori, e
+      // l'errore veniva mascherato da "nessun candidato".
+      candidatiScartati.push({ tipo: candidate.tipo, code: insert.error.code || null, errore: String(insert.error.message || '').slice(0, 200) });
+      continue;
     }
     await logEvent(supabase, { taskId: insert.data.id, tipo: 'materializzazione', dettagli: { tipo: candidate.tipo, sorgente: candidate.sorgenteTipo } });
     return { ok: true, task: insert.data };
+  }
+  // Se tutti i candidati sono stati scartati per errore di scrittura il motivo
+  // deve essere esplicito: non e' "nessun candidato", e' un guasto da vedere.
+  if (candidatiScartati.length > 0) {
+    return { ok: false, noop: true, reason: 'candidati_non_materializzabili', scartati: candidatiScartati };
   }
   return { ok: false, noop: true, reason: 'nessun_candidato' };
 }
@@ -1088,11 +1133,22 @@ async function registraChiamataDaAppuntamento(supabase, { task, esito, cfg, oggi
     ? (esitoStandard === 'ricontattare' ? ricontattoRichiesto(cfg, oggi, dettagli) : prossimaFascia(fasciaCorrente(cfg), oggi))
     : null;
   const esaurito = esitoStandard === 'non_risposto' && tentativo >= (cfg.tentativi_massimi || 3);
+  // `chiamate.cf_piva` e' NOT NULL: senza CF l'INSERT fallirebbe, il task
+  // resterebbe attivo e lo stesso candidato verrebbe rimaterializzato a ogni
+  // giro, bloccando per sempre le priorita' successive di quell'operatrice.
+  const cfPivaCanonica = String(appuntamento.codice_fiscale || chiamataOrigine?.cf_piva || '').trim();
+  if (!cfPivaCanonica) {
+    const { error: chiusuraAnomala } = await supabase.from('appuntamenti')
+      .update({ non_presentato_stato: 'lavorato' }).eq('id', task.sorgente_id);
+    if (chiusuraAnomala) throw new Error(chiusuraAnomala.message || 'chiusura_non_presentato_fallita');
+    await logEvent(supabase, { taskId: task.id, tipo: 'errore', dettagli: { esito: 'cf_mancante_su_appuntamento' } });
+    return { anomalia: 'cf_mancante' };
+  }
   const nuova = {
     operatore_id: task.operatore_id,
     operatore_nome: String(operatoreNome || 'Operatore').slice(0, 120),
     anagrafica_id: appuntamento.anagrafica_id || chiamataOrigine?.anagrafica_id || null,
-    cf_piva: appuntamento.codice_fiscale || chiamataOrigine?.cf_piva || null,
+    cf_piva: cfPivaCanonica,
     nome_cliente: appuntamento.nome || chiamataOrigine?.nome_cliente || 'Cliente',
     cellulare: appuntamento.telefono || chiamataOrigine?.cellulare || null,
     copertura: chiamataOrigine?.copertura || null,
@@ -1222,12 +1278,15 @@ async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli
       const prossimo = prossimaFascia(fasciaCorrente(cfg), oggi);
       patch.data_ricontatto = prossimo.data;
       patch.fascia_ricontatto = prossimo.fascia;
-      if (tentativo >= (cfg.tentativi_massimi || 3)) patch.rilavorazione_stato = 'completato';
-    } else if (esito === 'skip' && !['cliente_momentaneamente_indisponibile', 'problema_tecnico'].includes(dettagli.skip_reason)) {
-      patch.rilavorazione_stato = 'completato';
-    } else if (esito !== 'non_risposto') {
-      patch.rilavorazione_stato = 'completato';
     }
+    // La riga di ricontatto e' quella NUOVA inserita da registraChiamataOutbound:
+    // la sorgente va chiusa SEMPRE, anche sotto soglia. Lasciandola aperta
+    // entrambe restavano `da_lavorare` e lo stesso lead compariva due volte in
+    // coda (doppia chiamata e soglia di 3 non-risposti raggiunta in ~2 giri).
+    // Fanno eccezione solo gli skip "rimanda": li' la sorgente stessa e' il retry.
+    const skipRimanda = esito === 'skip'
+      && ['cliente_momentaneamente_indisponibile', 'problema_tecnico'].includes(dettagli.skip_reason);
+    if (!skipRimanda) patch.rilavorazione_stato = 'completato';
     if (esito === 'appuntamento') patch.appuntamento_tipo = dettagli.appuntamento_tipo === 'negozio' ? 'negozio' : 'esterno';
     if (Object.keys(patch).length > 0) {
       const { error: origineUpdateError } = await supabase.from('call_center_lead_outbound_chiamate').update(patch).eq('id', task.sorgente_id);
@@ -1332,7 +1391,9 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
       telefoni: c.telefoni || [c.cellulare]
     });
     if (!ins.ok) return { ok: false, error: ins.error };
-    await addEsclusione(supabase, {
+    // La blacklist scritta sopra blocca gia' il contatto: se l'esclusione
+    // accessoria fallisce lo registriamo senza annullare l'esito.
+    const esclusioneBl = await addEsclusione(supabase, {
       leadId: task.payload?.lead_id,
       anagraficaId: c.anagrafica_id,
       chiamataId: task.payload?.chiamata_id,
@@ -1341,6 +1402,9 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
       esclusoDa: profiloId,
       dettagli: { esito: 'blacklist' }
     });
+    if (!esclusioneBl || esclusioneBl.ok !== true) {
+      await logEvent(supabase, { taskId: task.id, tipo: 'errore', dettagli: { esito: 'esclusione_blacklist_non_registrata' } });
+    }
   }
 
   // Esclusioni permanenti su skip specifici (prima di chiudere il task).
@@ -1363,7 +1427,10 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
       motivoEsclusione = String(dettagli.spiegazione || '').slice(0, 500);
     }
     if (tipoEsclusione) {
-      await addEsclusione(supabase, {
+      // L'esclusione e' l'UNICO meccanismo che impedisce di ricontattare per
+      // questi skip: se non viene registrata non si puo' chiudere il task come
+      // se fosse andata a buon fine, altrimenti il contatto torna in coda.
+      const esclusione = await addEsclusione(supabase, {
         leadId: payload.lead_id,
         anagraficaId: payload.anagrafica_id,
         chiamataId: payload.chiamata_id,
@@ -1372,7 +1439,47 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
         esclusoDa: profiloId,
         dettagli: cleanLog({ skip_reason: skip, spiegazione: dettagli.spiegazione })
       });
+      if (!esclusione || esclusione.ok !== true) {
+        await logEvent(supabase, { taskId: task.id, tipo: 'errore', dettagli: { esito: 'esclusione_non_registrata', skip_reason: skip } });
+        return { ok: false, error: 'esclusione_non_registrata' };
+      }
     }
+  }
+
+  // CLAIM ATOMICO del task (compare-and-swap su lease_owner).
+  // Due richieste concorrenti (doppio invio, retry del browser, due schede)
+  // leggono lo stesso task 'attivo' e scriverebbero DUE volte le righe canoniche
+  // (chiamate, outbound, blacklist). L'update condizionato su lease_owner lascia
+  // passare una sola richiesta; lo stato del task resta 'attivo' finche' l'esito
+  // non e' scritto, quindi un errore resta recuperabile con un nuovo tentativo.
+  // Il vecchio `.eq('stato','attivo')` non proteggeva: aggiornando 0 righe
+  // PostgREST non restituisce errore.
+  const claimToken = `esito:${profiloId}:${Date.now()}`;
+  let claimQuery = supabase.from('kona_call_director_task')
+    .update({ lease_owner: claimToken })
+    .eq('id', task.id)
+    .eq('stato', 'attivo');
+  claimQuery = task.lease_owner
+    ? claimQuery.eq('lease_owner', task.lease_owner)
+    : claimQuery.is('lease_owner', null);
+  const claim = await claimQuery.select('id');
+  if (claim.error) return { ok: false, error: claim.error.message || 'claim_fallito' };
+  if (!Array.isArray(claim.data) || claim.data.length === 0) return { ok: false, error: 'esito_gia_in_corso' };
+  const rilasciaClaim = () => supabase.from('kona_call_director_task')
+    .update({ lease_owner: task.lease_owner || null })
+    .eq('id', task.id)
+    .eq('lease_owner', claimToken);
+
+  // Il prossimo ricontatto assegnato dal backend (alternanza mattina/pomeriggio)
+  // viene calcolato PRIMA e salvato nel record: senza salvarlo, un retry
+  // idempotente dello stesso esito restituiva `ricontatto: null` e la UI
+  // perdeva l'appuntamento di ricontatto mostrato la prima volta.
+  let ricontatto = null;
+  if (esito === 'ricontattare' || (isNonRisposto && !esaurito)) {
+    const p = esito === 'ricontattare'
+      ? ricontattoRichiesto(cfg, oggi, dettagli)
+      : prossimaFascia(fasciaCorrente(cfg), oggi);
+    ricontatto = { data: p.data, fascia: p.fascia };
   }
 
   const esitoRecord = {
@@ -1381,20 +1488,32 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
     ...(esaurito ? { tentativi_esauriti: true } : {}),
     ...(dettagli.skip_reason ? { skip_reason: dettagli.skip_reason } : {}),
     ...(dettagli.spiegazione ? { spiegazione: String(dettagli.spiegazione).slice(0, 500) } : {}),
-    ...(dettagli.motivo ? { motivo: String(dettagli.motivo).slice(0, 500) } : {})
+    ...(dettagli.motivo ? { motivo: String(dettagli.motivo).slice(0, 500) } : {}),
+    ...(ricontatto ? { ricontatto } : {})
   };
 
-  const sorgenteRisultato = await applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli, tentativo }) || {};
+  let sorgenteRisultato = {};
+  try {
+    sorgenteRisultato = await applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli, tentativo }) || {};
 
-  const update = {
-    stato: 'completato',
-    esito: cleanLog(esitoRecord),
-    tentativi: tentativo,
-    completato_at: new Date().toISOString(),
-    lease_until: null
-  };
-  const { error } = await supabase.from('kona_call_director_task').update(update).eq('id', task.id).eq('stato', 'attivo');
-  if (error) return { ok: false, error };
+    const update = {
+      stato: 'completato',
+      esito: cleanLog(esitoRecord),
+      tentativi: tentativo,
+      completato_at: new Date().toISOString(),
+      lease_until: null
+    };
+    const { error } = await supabase.from('kona_call_director_task').update(update).eq('id', task.id).eq('stato', 'attivo');
+    if (error) {
+      await rilasciaClaim();
+      return { ok: false, error };
+    }
+  } catch (erroreEsito) {
+    // Nessuna compensazione delle righe canoniche (vedi nota A7): si rilascia
+    // pero' il claim, cosi' l'operatrice puo' ritentare subito.
+    await rilasciaClaim();
+    throw erroreEsito;
+  }
 
   await logEvent(supabase, {
     taskId: task.id,
@@ -1403,15 +1522,6 @@ async function registerEsito({ supabase, cfg, task, profiloId, esito, dettagli =
   });
 
   const notifica = esaurito && task.tipo === 'conferma_appuntamento_business' ? 'conferma_non_risposti_esauriti' : null;
-  // Il prossimo ricontatto assegnato dal backend (alternanza mattina/pomeriggio),
-  // restituito al frontend per la conferma visibile senza override manuale.
-  let ricontatto = null;
-  if (esito === 'ricontattare' || (isNonRisposto && !esaurito)) {
-    const p = esito === 'ricontattare'
-      ? ricontattoRichiesto(cfg, oggi, dettagli)
-      : prossimaFascia(fasciaCorrente(cfg), oggi);
-    ricontatto = { data: p.data, fascia: p.fascia };
-  }
   return { ok: true, esito, esaurito, notifica, tentativo, ricontatto, ...sorgenteRisultato };
 }
 
@@ -1470,9 +1580,20 @@ async function upsertAnagraficaConsumer(supabase, dati, creatoDa) {
   if (row.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) throw new Error('Email non valida');
 
   if (esistente) {
+    // Aggiornamento NON distruttivo: si scrivono solo i campi valorizzati.
+    // Prima `update(row)` includeva anche i campi facoltativi vuoti (es. email
+    // non fornita) e azzerava il dato canonico gia' presente nella tabella
+    // `anagrafica`, condivisa col Call Center. I campi obbligatori restano
+    // sempre valorizzati e quindi vengono comunque aggiornati.
+    const patch = {};
+    for (const [chiave, valore] of Object.entries(row)) {
+      if (valore === null || valore === undefined || String(valore).trim() === '') continue;
+      patch[chiave] = valore;
+    }
+    if (Object.keys(patch).length === 0) return { anagrafica: esistente, created: false };
     const { data: aggiornata, error } = await supabase
       .from('anagrafica')
-      .update(row)
+      .update(patch)
       .eq('id', esistente.id)
       .select('id,cf_piva,cluster,ragione_sociale,nome_referente,cellulare,email,provincia,comune,via,civico')
       .single();
@@ -1530,10 +1651,49 @@ async function registraChiamataConsumerCanonica(supabase, cfg, {
     fascia_ricontatto: fasciaRicontatto,
     passaggio_stato: ['passa_in_negozio', 'passa_a_cerea'].includes(esitoCanonico) ? 'in_attesa' : null,
     appuntamento_id: appuntamentoId || null
+    // `rilavorazione_stato` NON viene impostato qui: lo classifica il trigger
+    // canonico `calcola_ricontatto_non_risposto` in base a `esito`
+    // (non_risposto/ricontattare/passa_in_negozio -> da_lavorare,
+    // non_interessato -> non_applicabile, appuntamento -> completato). Ogni
+    // esito prodotto da mappaEsitoConsumer e' coperto dal trigger; l'unico non
+    // coperto, `passa_a_cerea`, resta correttamente sul DEFAULT 'da_lavorare'.
   };
   const { data: inserita, error } = await supabase.from('chiamate').insert(row).select('id').single();
   if (error || !inserita) throw new Error(error?.message || 'scrittura_chiamata_canonica_fallita');
   return inserita.id;
+}
+
+// -- Prenotazione negozio atomica ---------------------------------------------
+
+// Prenota sul calendario del negozio usando la RPC con advisory lock
+// (migration 076), che ricontrolla i conflitti nella STESSA transazione
+// dell'INSERT. Se la RPC non e' ancora presente nell'ambiente ritorna
+// `{ ok:false, rpcAssente:true }` e il chiamante ricade sul comportamento
+// precedente (check-then-insert), cosi' il flusso non si rompe.
+// Ritorna { ok, id } oppure { ok:false, motivo, conflitto, rpcAssente }.
+async function prenotaAppuntamentoNegozio(supabase, dati) {
+  const { data, error } = await supabase.rpc('kona_cd_prenota_negozio_v1', {
+    p_nome: dati.nome,
+    p_codice_fiscale: dati.codice_fiscale,
+    p_telefono: dati.telefono,
+    p_motivo: dati.motivo,
+    p_note: dati.note,
+    p_anagrafica_id: dati.anagrafica_id,
+    p_operatore_id: dati.operatore_id,
+    p_operatore_nome: dati.operatore_nome,
+    p_data_ora: dati.data_ora,
+    p_durata_minuti: dati.durata_minuti,
+    p_lead_outbound_id: dati.lead_outbound_id || null,
+    p_originato_da_id: dati.originato_da_id || null
+  });
+  const messaggio = String(error?.message || '');
+  if (error && (/does not exist/i.test(messaggio) || /PGRST202/i.test(String(error.code || '')) || /Could not find the function/i.test(messaggio))) {
+    return { ok: false, rpcAssente: true, motivo: 'rpc_assente' };
+  }
+  if (error) return { ok: false, motivo: messaggio || 'rpc_fallita' };
+  if (data && data.ok === true) return { ok: true, id: data.id };
+  const motivo = data?.motivo || 'non_disponibile';
+  return { ok: false, motivo, conflitto: motivo === 'conflitto' || motivo === 'lock' };
 }
 
 module.exports = {
@@ -1558,6 +1718,7 @@ module.exports = {
   mappaEsitoConsumer,
   materializeNextTask,
   normTel,
+  prenotaAppuntamentoNegozio,
   registraChiamataConsumerCanonica,
   ricontattoRichiesto,
   upsertAnagraficaConsumer,

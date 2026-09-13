@@ -211,11 +211,15 @@ async function eseguiPianoDefault(supabase, cfg, data) {
     const esito = await applicaPianoDefault(supabase, cfg, { data, operatoreId: opId });
     applicati.push({ operatore: opId, totale: esito.totale, salvato: esito.salvato });
   }
-  // Crea/riapre la sessione Business standard (piano residuo Telefoni omaggio).
+  // Crea/riapre la sessione "Telefoni omaggio" SOLO per gli operatori a cui e'
+  // stato applicato il piano di default. Prima l'upsert girava su TUTTI gli
+  // operatori, anche con un piano Business approvato: `briefingGiornata` usa la
+  // categoria della sessione come fallback, quindi compariva una fase Consumer
+  // spuria anche in una giornata Business.
   // Upsert su (data, operatore_id, tipo) coerente col vincolo unico pieno.
-  for (const opId of operatori) {
+  for (const voce of applicati) {
     await supabase.from('kona_call_director_sessioni').upsert(
-      { data, operatore_id: opId, tipo: 'mattina', stato: 'attiva', categoria: 'telefoni_omaggio' },
+      { data, operatore_id: voce.operatore, tipo: 'mattina', stato: 'attiva', categoria: 'telefoni_omaggio' },
       { onConflict: 'data,operatore_id,tipo' }
     );
   }

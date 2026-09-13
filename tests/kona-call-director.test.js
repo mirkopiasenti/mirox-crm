@@ -53,6 +53,9 @@ class Q {
   eq(k, v) { this.filters.push(['eq', k, v]); return this; }
   is(k, v) { this.filters.push(['is', k, v]); return this; }
   in(k, v) { this.filters.push(['in', k, v]); return this; }
+  // La paginazione della blacklist usa .range(): il mock lo accetta e ignora
+  // (i dataset di test sono sotto la dimensione pagina).
+  range(da, a) { this.rangeArgs = [da, a]; return this; }
   contains(k, v) { this.filters.push(['contains', k, v]); return this; }
   not(k, v) { this.filters.push(['not', k, v]); return this; }
   gte(k, v) { this.filters.push(['gte', k, v]); return this; }
@@ -634,7 +637,9 @@ test('giorniPer usa la config con fallback', () => {
 
 test('retention: elimina per colonna corretta', async () => {
   const db = makeSupabase({
-    'kona_call_director_task.select': (q) => (q.head ? { count: 2, error: null } : { data: [], error: null }),
+    // La purga ora seleziona gli id a lotti e cancella per id (delete atomiche
+    // piu' piccole): il mock deve restituire le righe da eliminare.
+    'kona_call_director_task.select': (q) => (q.head ? { count: 2, error: null } : { data: [{ id: 'a' }, { id: 'b' }], error: null }),
     'kona_call_director_task.delete': () => ({ data: null, error: null })
   });
   const res = await ret.purga(db, 'kona_call_director_task', 'created_at', '2026-01-01T00:00:00Z');
@@ -786,7 +791,7 @@ test('pureEscluso matcha lead/anagrafica/chiamata', () => {
 
 test('materializeNextTask: errore blacklist -> FAIL-CLOSED, nessun task', async () => {
   const db = makeSupabase({
-    'kona_call_director_task.select': () => ({ data: null }),
+    'kona_call_director_task.select': () => ({ data: [] }),
     'blacklist.select': () => ({ data: null, error: { message: 'db giu' } }),
     'kona_call_director_task.insert': () => ({ data: { id: 't1' }, error: null })
   });
@@ -799,7 +804,7 @@ test('FLUSSO REALE: blacklist -> impossibile riproporre', async () => {
   // 1) materializza un candidato lead
   const blacklistRows = [];
   const db = makeSupabase({
-    'kona_call_director_task.select': () => ({ data: null }),
+    'kona_call_director_task.select': () => ({ data: [] }),
     'blacklist.select': (q) => {
       // addBlacklist usa .eq('cf_piva') per il controllo esistenza -> non esistente
       const haFiltroCf = q.filters.some(([op, k]) => op === 'eq' && k === 'cf_piva');
@@ -816,7 +821,7 @@ test('FLUSSO REALE: blacklist -> impossibile riproporre', async () => {
     'kona_call_director_task_eventi.insert': () => ({ data: null, error: null }),
     'blacklist.insert': () => { blacklistRows.push({ cf_piva: 'BARROMA01G23H456Z', cellulare: '3331234567' }); return { data: null, error: null }; },
     'kona_call_director_esclusioni.insert': () => ({ data: null, error: null }),
-    'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
+    'kona_call_director_task.update': () => ({ data: [{ id: 't1' }], error: null }),
     'call_center_lead_outbound.update': () => ({ data: [], error: null })
   });
   const primo = await engine.materializeNextTask({ supabase: db, cfg: baseCfg(), profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 10, mm: 0 } });
@@ -843,7 +848,7 @@ test('FLUSSO REALE: materializzazione -> non risposto -> esaurimento dopo 3 (ten
       return { data: null };
     },
     'kona_call_director_task_eventi.insert': () => ({ data: null, error: null }),
-    'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
+    'kona_call_director_task.update': () => ({ data: [{ id: 't1' }], error: null }),
     'chiamate.select': () => ({ data: { id: CHIAMATA, operatore_id: PROFILO, operatore_nome: 'Isabella', cf_piva: 'CF1', nome_cliente: 'Cliente', cellulare: '3331112222', esito: 'ricontattare', motivo_chiamata: 'Richiamo' }, error: null }),
     'chiamate.insert': () => ({ data: { id: 'nuova-chiamata' }, error: null }),
     'chiamate.update': () => ({ data: [], error: null }),
@@ -870,11 +875,11 @@ test('FLUSSO REALE: conferma -> 4 tentativi -> Telegram -> NESSUN auto-cancel', 
   const aggiornamentiBiz = [];
   const confermeInserite = [];
   const db = makeSupabase({
-    'kona_call_director_task.select': () => ({ data: null }),
+    'kona_call_director_task.select': () => ({ data: [] }),
     'kona_call_director_conferme.select': () => ({ count: confermeInserite.length, data: null, error: null }),
     'kona_call_director_conferme.upsert': (q) => { confermeInserite.push(q.value); return { data: null, error: null }; },
     'kona_call_director_appuntamenti_business.update': (q) => { aggiornamentiBiz.push(q.value); return { data: [], error: null }; },
-    'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
+    'kona_call_director_task.update': () => ({ data: [{ id: 't1' }], error: null }),
     'kona_call_director_task_eventi.insert': () => ({ data: null, error: null })
   });
   const cfg = baseCfg();
@@ -1029,11 +1034,11 @@ test('rilavorazioni KONA: Presentato replica gli aggiornamenti manuali senza cre
   const patchAppuntamenti = [];
   let nuoveChiamate = 0;
   const db = makeSupabase({
-    'kona_call_director_task.select': () => ({ data: null }),
+    'kona_call_director_task.select': () => ({ data: [] }),
     'chiamate.update': (q) => { patchChiamate.push(q.value); return { data: [], error: null }; },
     'appuntamenti.update': (q) => { patchAppuntamenti.push(q.value); return { data: [], error: null }; },
     'chiamate.insert': () => { nuoveChiamate += 1; return { data: { id: 'nuova' }, error: null }; },
-    'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
+    'kona_call_director_task.update': () => ({ data: [{ id: 't1' }], error: null }),
     'kona_call_director_task_eventi.insert': () => ({ data: null, error: null })
   });
   const passaggio = await engine.registerEsito({
@@ -1057,7 +1062,7 @@ test('rilavorazioni KONA: ricontatto di un non presentato crea la chiamata canon
   const inserite = [];
   const patchAppuntamenti = [];
   const db = makeSupabase({
-    'kona_call_director_task.select': () => ({ data: null }),
+    'kona_call_director_task.select': () => ({ data: [] }),
     'appuntamenti.select': () => ({ data: {
       id: APP_BUSINESS, nome: 'Cliente Test', codice_fiscale: 'TSTKNA26A00Z001A', telefono: '0000001001',
       motivo: 'Appuntamento test', note: 'Nota test', anagrafica_id: null, chiamata_id: CHIAMATA,
@@ -1067,7 +1072,7 @@ test('rilavorazioni KONA: ricontatto di un non presentato crea la chiamata canon
     'profili.select': () => ({ data: { nome: 'Isabella' }, error: null }),
     'chiamate.insert': (q) => { inserite.push(q.value); return { data: { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' }, error: null }; },
     'appuntamenti.update': (q) => { patchAppuntamenti.push(q.value); return { data: [], error: null }; },
-    'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
+    'kona_call_director_task.update': () => ({ data: [{ id: 't1' }], error: null }),
     'kona_call_director_task_eventi.insert': () => ({ data: null, error: null })
   });
   const task = taskAttivo('non_presentato', { sorgente_tipo: 'appuntamento', sorgente_id: APP_BUSINESS, payload: { appuntamento_id: APP_BUSINESS } });
@@ -1094,14 +1099,14 @@ test('esito Business: registra chiamata outbound + attivita\' + storico', async 
   const chiamateOutbound = [];
   const attivita = [];
   const db = makeSupabase({
-    'kona_call_director_task.select': () => ({ data: null }),
+    'kona_call_director_task.select': () => ({ data: [] }),
     'profili.select': () => ({ data: { nome: 'Isabella' } }),
     'call_center_lead_outbound.select': () => ({ data: { id: LEAD, ragione_sociale: 'Bar Roma', telefono_raw: '3331234567', telefono_norm: '3331234567', localita: 'Legnago', provincia: 'VR' }, error: null }),
     'call_center_lead_outbound_chiamate.insert': (q) => { chiamateOutbound.push(q.value); return { data: { id: 'ch1' }, error: null }; },
     'call_center_lead_outbound_attivita.insert': (q) => { attivita.push(q.value); return { data: null, error: null }; },
     'call_center_lead_outbound.update': () => ({ data: [], error: null }),
     'call_center_lead_outbound_chiamate.update': () => ({ data: [], error: null }),
-    'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
+    'kona_call_director_task.update': () => ({ data: [{ id: 't1' }], error: null }),
     'kona_call_director_task_eventi.insert': () => ({ data: null, error: null }),
     'kona_call_director_esclusioni.insert': () => ({ data: null, error: null }),
     'kona_call_director_conferme.select': () => ({ count: 0, data: null, error: null })
@@ -1118,13 +1123,13 @@ test('esito Business: registra chiamata outbound + attivita\' + storico', async 
 test('esito Business Ricontattare: conserva data/fascia manuale e resta da lavorare', async () => {
   const chiamateOutbound = [];
   const db = makeSupabase({
-    'kona_call_director_task.select': () => ({ data: null }),
+    'kona_call_director_task.select': () => ({ data: [] }),
     'profili.select': () => ({ data: { nome: 'Isabella' } }),
     'call_center_lead_outbound.select': () => ({ data: { id: LEAD, ragione_sociale: 'Bar Roma', telefono_raw: '3331234567', telefono_norm: '3331234567', localita: 'Legnago', provincia: 'VR' }, error: null }),
     'call_center_lead_outbound_chiamate.insert': (q) => { chiamateOutbound.push(q.value); return { data: { id: 'ch-ricontatto' }, error: null }; },
     'call_center_lead_outbound_attivita.insert': () => ({ data: null, error: null }),
     'call_center_lead_outbound.update': () => ({ data: [], error: null }),
-    'kona_call_director_task.update': () => ({ data: { id: 't1' }, error: null }),
+    'kona_call_director_task.update': () => ({ data: [{ id: 't1' }], error: null }),
     'kona_call_director_task_eventi.insert': () => ({ data: null, error: null }),
     'kona_call_director_conferme.select': () => ({ count: 0, data: null, error: null })
   });
@@ -1482,7 +1487,11 @@ test('prenotazione negozio: richiede sessione e compensa se il log Consumer fall
   assert.match(taskFn, /case 'prenota_negozio'/);
   assert.match(taskFn, /tipiAmmessi = \['ricontatto_programmato', 'auto_non_risposto', 'non_presentato', 'passa_a_cerea', 'passa_in_negozio'\]/);
   assert.match(taskFn, /registerEsito\([\s\S]*esito: 'appuntamento'/);
-  assert.match(taskFn, /if \(!registrato\.ok\)[\s\S]*from\('appuntamenti'\)\.delete\(\)/);
+  // La compensazione deve rimuovere PRIMA la chiamata canonica collegata:
+  // la FK fk_chiamate_appuntamento e' senza ON DELETE, quindi cancellare solo
+  // l'appuntamento fallirebbe lasciando orfani e duplicati al retry.
+  assert.match(taskFn, /if \(!registrato\.ok\)[\s\S]*compensaAppuntamento\(client, appuntamento\.id\)/);
+  assert.match(taskFn, /async function compensaAppuntamento[\s\S]*from\('chiamate'\)\.delete\(\)[\s\S]*from\('appuntamenti'\)\.delete\(\)/);
 });
 
 test('frontend: ricontatto assegnato dal backend mostrato (ricontattoAssegnato)', () => {
