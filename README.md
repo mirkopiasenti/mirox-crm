@@ -353,6 +353,17 @@ Un audit completo del modulo ha prodotto ~40 difetti, corretti in questa stessa 
 - **Canali**: il report serale non viene piu' troncato a 500 caratteri; le notifiche Telegram viaggiano in testo semplice (l'HTML non escapato le faceva morire fino a `morta`); l'outbox recupera le notifiche rimaste `in_invio`; la retention non cancella piu' job e notifiche ancora pendenti; la rotazione del refresh token Google non azzera piu' `collegato_da` e "Collegato" riflette la reale decifrabilita' del token; una sync Google fallita non cancella piu' la riga che permette la riconciliazione.
 - **Frontend/DB**: le pagine manuali del Call Center applicano `Auth.richiediAccesso` e attendono `CcHeader.render` (il routing KONA-only non e' piu' aggirabile con una latenza); il redirect di sessione scaduta punta al login e non piu' a un 404; una risposta non-JSON non produce piu' un falso "Giornata completata"; un 409 riporta l'operatrice a una scheda aggiornata; prenotazione negozio atomica; vista ricontatti con `anagrafica_id`; audit `kona_call_director_audit` e `task_eventi` append-only.
 
+**Secondo giro (migration `077_kona_call_director_rpc_hardening.sql`, sempre non applicata ai database)**:
+
+- **Doppia prenotazione fra operatrici**: la RPC di prenotazione Business serializzava e controllava i conflitti **per operatore**, ma il calendario Google e il token sono unici: due operatrici potevano prenotare lo stesso istante. Ora la chiave di lock e il controllo conflitti sono **globali**.
+- **Budget**: l'idempotenza della prenotazione scattava anche su una chiave gia' `liberato`, facendo credere al chiamante di avere budget mentre la chiamata partiva senza copertura; ora vale solo su prenotazioni attive, con la chiave troncata in modo coerente. Il **tetto orario** (`max_chiamate_openai_ora`, `0` = congelato) e' applicato atomicamente dentro la stessa transazione, non piu' con un conteggio separato aggirabile.
+- **Correzione esito**: la RPC ricava il ruolo admin da `profili` e non dal booleano inviato dal chiamante, e valida anche il massimo di 500 caratteri della motivazione.
+- **Integrita' delle scritture**: se la chiusura della sorgente fallisce dopo l'INSERT della chiamata canonica (standard o outbound), la riga appena creata viene rimossa: prima restava e un nuovo tentativo ne creava una seconda.
+- **Telegram**: deduplica `update_id` con un claim atomico e un unico punto di scrittura dello stato conversazione (l'audit delle decisioni non viene piu' cancellato da una copia stantia).
+- **Privacy**: "Chiamate di oggi" nell'agente limita le chiamate a quelle dell'operatrice per i profili non admin.
+- **Codice morto rimosso**: `consumaRiserva`, le funzioni conferme divergenti, il ramo `telefono_fisso` inesistente nello scoring; `ultimo_task_at` ora viene scritto alla materializzazione del task.
+- **Trade-off accettato**: `kona_call_director_correzioni_esito` e' append-only con FK `ON DELETE RESTRICT`, quindi dopo la prima correzione la chiamata e il profilo collegati non sono piu' eliminabili. E' una scelta deliberata (l'audit vale piu' della cancellabilita'): un eventuale rollback strutturale richiede di rimuovere il vincolo con una migration dedicata e approvazione esplicita.
+
 ## Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
 - Sicurezza deploy 26/07/2026: Netlify non pubblica più la root del repository. La build a lista consentita include soltanto pagine e asset frontend; migration SQL, Functions, test, script, configurazioni e documentazione sono esclusi e coperti da test automatico.
