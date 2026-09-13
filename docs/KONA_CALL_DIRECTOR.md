@@ -297,6 +297,25 @@ esterno controllato.
 - Dopo la prova esportare solo gli elementi tecnici necessari alla diagnosi e
   bonificare dal Supabase test i dati personali inseriti.
 
+#### Verifiche obbligatorie PRIMA del collaudo (audit 2026-09-01)
+
+1. **Calendario negozio (blocco K1)**. Il bootstrap del database di test non
+   crea `get_slot_disponibili` ne' le tabelle che gli servono: senza di esse
+   l'esito Consumer `Appuntamento` (schermo `negozio`) fallisce. Verificare con
+   `select proname from pg_proc where proname = 'get_slot_disponibili';` e, se
+   assente, applicare `database/staging/006_kona_call_director_negozio_dipendenze.sql`.
+2. **Migration di hardening**. `database/076_kona_call_director_hardening.sql`
+   e' scritta ma non applicata. La sezione 4 diventa attiva da sola (il codice
+   usa la RPC atomica con fallback); la sezione 1 (vista ricontatti con
+   `anagrafica_id`) tocca un oggetto condiviso col Call Center e va applicata
+   solo dopo conferma esplicita.
+3. **Arricchimento disattivato**. `richieste_web_max_per_lead = 0` e
+   `lead_notte_obiettivo = 0` ora sono rispettati come valori espliciti: con
+   questi valori non partono chiamate OpenAI e non viene piu' inviato il falso
+   allarme notturno "Anomalia arricchimento".
+4. **Pausa**. Se l'operatrice mette in pausa e ricarica la pagina, il task
+   sospeso viene ora ripreso automaticamente all'ingresso.
+
 ## Collaudo obbligatorio
 
 Il collaudo staging deve coprire almeno:
