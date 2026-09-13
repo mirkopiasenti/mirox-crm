@@ -1676,3 +1676,99 @@ test('Consumer canonico: upsert anagrafica e rollback di chiamata/appuntamento s
   assert.match(dialog, /upsertAnagraficaConsumer/);
   assert.match(dialog, /if \(attivitaError\)[\s\S]*from\('chiamate'\)\.delete\(\)\.eq\('id', chiamataId\)/);
 });
+
+// --- Regressioni dell'hardening post-audit --------------------------------
+
+test('parseHHmm: valori assenti o vuoti non aprono la finestra a mezzanotte', () => {
+  assert.equal(time.parseHHmm(''), null);
+  assert.equal(time.parseHHmm(undefined), null);
+  assert.equal(time.parseHHmm(null), null);
+  assert.equal(time.parseHHmm('non-un-orario'), null);
+  // Mezzanotte esplicita resta valida (0 minuti).
+  assert.equal(time.parseHHmm('00:00'), 0);
+  assert.equal(time.parseHHmm('09:30'), 570);
+});
+
+test('arricchimento: telefono_extra non finisce mai nel patch della tabella condivisa', () => {
+  const lead = { email: '', telefono_raw: '0456020222', telefono_norm: '0456020222' };
+  const { patch, valoriApplicati } = arr.applicaValori(lead, {
+    email: 'nuova@esempio.it',
+    telefono_extra: '3339998888',
+    telefono_raw: '3331112222',
+    codice_fiscale: 'RSSMRA80A01H501U'
+  });
+  assert.deepEqual(patch, { email: 'nuova@esempio.it' });
+  assert.equal(patch.telefono_extra, undefined, 'colonna inesistente: non deve entrare nel patch');
+  assert.equal(patch.telefono_raw, undefined, 'valore esistente: non va sovrascritto');
+  assert.equal(patch.codice_fiscale, undefined, 'campo non scrivibile');
+  assert.deepEqual(valoriApplicati, { email: 'nuova@esempio.it' });
+});
+
+test('arricchimento: un lead che ha solo il codice fiscale mancante non e\' incompleto', () => {
+  const lead = {
+    email: 'a@b.it',
+    sito_internet: 'https://x.it',
+    indirizzo: 'Via X',
+    cap: '37045',
+    localita: 'Legnago',
+    categoria: 'Bar',
+    telefono_raw: '0456020222',
+    partita_iva: '01234567890',
+    codice_fiscale: ''
+  };
+  assert.deepEqual(arr.campiMancanti(lead), []);
+});
+
+test('notifiche: il toggle notifiche_immediate viene rispettato solo se esplicito', () => {
+  const cfg = { notifiche_immediate: { sync_fallito: false } };
+  assert.equal(notif.notificaAbilitata(cfg, 'sync_fallito'), false);
+  assert.equal(notif.notificaAbilitata({ notifiche_immediate: {} }, 'sync_fallito'), true);
+  // Codici non mappati (report, reminder) non sono disattivabili.
+  assert.equal(notif.notificaAbilitata(cfg, 'report_sera'), true);
+  assert.equal(notif.notificaAbilitata(null, 'sync_fallito'), true);
+});
+
+test('motore: la blacklist viene letta a pagine (oltre il tetto PostgREST non e\' un controllo parziale)', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/kona-cd-engine.js'), 'utf8');
+  assert.match(src, /function selectPaged/);
+  assert.match(src, /\.range\(da, da \+ PAGE_SIZE - 1\)/);
+  assert.match(src, /async function loadBlacklistSet\(supabase\) \{\s*return selectPaged\(/);
+});
+
+test('motore: il claim del task precede le scritture canoniche', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/kona-cd-engine.js'), 'utf8');
+  const registerEsito = src.slice(src.indexOf('async function registerEsito'), src.indexOf('// -- Scrittura canonica Consumer'));
+  const iClaim = registerEsito.indexOf('claimToken');
+  const iSorgente = registerEsito.indexOf('await applicaEsitoSorgente');
+  assert.ok(iClaim > 0 && iSorgente > 0 && iClaim < iSorgente,
+    'il claim atomico deve avvenire prima di applicaEsitoSorgente');
+  assert.match(registerEsito, /rilasciaClaim/);
+});
+
+test('motore: le scritture canoniche parziali vengono compensate', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/kona-cd-engine.js'), 'utf8');
+  assert.match(src, /if \(closeError\) \{[\s\S]*from\('chiamate'\)\.delete\(\)\.eq\('id', inserita\.id\)/);
+  assert.match(src, /if \(attivitaError\) \{[\s\S]*from\('call_center_lead_outbound_chiamate'\)\.delete\(\)\.eq\('id', inserita\.id\)/);
+});
+
+test('telegram: deduplica update_id atomica e unico punto di scrittura dello stato', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-telegram-webhook.js'), 'utf8');
+  assert.match(src, /\.or\(`ultimo_update_id\.is\.null,ultimo_update_id\.lt\.\$\{updateId\}`\)/);
+  assert.match(src, /async function aggiornaConversazione/);
+  // cmdCategorie non deve piu' ripartire dalla copia letta prima di audita.
+  const cmdCategorie = src.slice(src.indexOf('async function cmdCategorie'), src.indexOf('// Dialogo libero'));
+  assert.doesNotMatch(cmdCategorie, /stato\.stato_conversazione/);
+});
+
+test('storico KONA: le chiamate di oggi sono limitate all\'operatrice per i non admin', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-operator.js'), 'utf8');
+  assert.match(src, /if \(!isAdmin\) query = query\.eq\('operatore_id', profiloId\)/);
+});
+
+test('google: la rotazione del token non usa l\'upsert completo', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/kona-cd-google.js'), 'utf8');
+  assert.match(src, /async function rotateToken/);
+  const getAccessToken = src.slice(src.indexOf('async function getAccessToken'));
+  assert.doesNotMatch(getAccessToken, /storeToken\(supabase/);
+  assert.match(getAccessToken, /rotateToken\(supabase/);
+});

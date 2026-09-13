@@ -195,6 +195,11 @@ async function storico(client, body, profiloId, isAdmin) {
     .select('id,anagrafica_id,cf_piva,nome_cliente,cellulare,motivo_chiamata,esito,note,data_ora,operatore_id,operatore_nome')
     .gte('data_ora', range.start.toISOString()).lt('data_ora', range.end.toISOString())
     .order('data_ora', { ascending: false }).limit(100);
+  // "Chiamate di oggi" serve per correggere i PROPRI esiti entro la giornata:
+  // per un profilo non admin si limita alle proprie chiamate, evitando di
+  // esporre note e cellulari dei clienti lavorati dalle colleghe. Gli admin
+  // continuano a vedere tutto (supervisione).
+  if (!isAdmin) query = query.eq('operatore_id', profiloId);
   const testo = String(body.query || '').trim();
   if (testo) {
     const safe = testo.replace(/[%_,.()]/g, ' ').trim().slice(0, 80);

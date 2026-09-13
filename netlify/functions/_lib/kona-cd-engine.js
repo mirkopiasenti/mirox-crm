@@ -781,6 +781,13 @@ async function materializeNextTask({ supabase, cfg, profiloId, oggi, oraParts })
       continue;
     }
     await logEvent(supabase, { taskId: insert.data.id, tipo: 'materializzazione', dettagli: { tipo: candidate.tipo, sorgente: candidate.sorgenteTipo } });
+    // `ultimo_task_at` era letto dal pannello admin ma non veniva mai scritto
+    // (colonna sempre vuota). Lo aggiorniamo alla materializzazione, senza
+    // bloccare il flusso se la scrittura fallisce.
+    await supabase.from('kona_call_director_profili')
+      .update({ ultimo_task_at: new Date().toISOString() })
+      .eq('profilo_id', profiloId)
+      .then(() => null, () => null);
     return { ok: true, task: insert.data };
   }
   // Se tutti i candidati sono stati scartati per errore di scrittura il motivo
@@ -1040,7 +1047,13 @@ async function registraChiamataOutbound(supabase, { task, esito, cfg, oggi, dett
     operatore_id: task.operatore_id,
     meta: cleanLog({ task_id: task.id, chiamata_id: inserita.id, esito, skip_reason: dettagli.skip_reason || null })
   });
-  if (attivitaError) throw new Error(attivitaError.message || 'scrittura_attivita_outbound_fallita');
+  if (attivitaError) {
+    // COMPENSAZIONE: senza rimuovere la chiamata appena inserita, il task
+    // resterebbe attivo e un nuovo tentativo scriverebbe una seconda riga
+    // outbound per lo stesso contatto.
+    await supabase.from('call_center_lead_outbound_chiamate').delete().eq('id', inserita.id);
+    throw new Error(attivitaError.message || 'scrittura_attivita_outbound_fallita');
+  }
   return inserita.id;
 }
 
@@ -1105,7 +1118,13 @@ async function registraChiamataStandard(supabase, { task, esito, cfg, oggi, dett
   const chiusura = { rilavorazione_stato: 'completato' };
   if (['passa_in_negozio', 'passa_a_cerea'].includes(origine.esito)) chiusura.passaggio_stato = 'ricontattare';
   const { error: closeError } = await supabase.from('chiamate').update(chiusura).eq('id', task.sorgente_id);
-  if (closeError) throw new Error(closeError.message || 'chiusura_chiamata_origine_fallita');
+  if (closeError) {
+    // COMPENSAZIONE: la chiamata e' gia' stata inserita ma la sorgente non e'
+    // stata chiusa. Senza rimuoverla, il task resterebbe attivo e un nuovo
+    // tentativo inserirebbe una SECONDA riga canonica per lo stesso contatto.
+    await supabase.from('chiamate').delete().eq('id', inserita.id);
+    throw new Error(closeError.message || 'chiusura_chiamata_origine_fallita');
+  }
   return inserita.id;
 }
 

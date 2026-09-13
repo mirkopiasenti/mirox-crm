@@ -144,12 +144,11 @@ async function tryReserveBudget({ supabase, cfg, mese, attivita, importoEur, chi
   return typeof data === 'object' ? data : { ok: false, motivo: 'risposta_budget_non_valida' };
 }
 
-// Consuma (a fine chiamata riuscita) o libera (a fallimento) una prenotazione.
-async function consumaRiserva(supabase, chiave) {
-  if (!supabase || !chiave) return;
-  await supabase.from('kona_call_director_budget_riserve').update({ stato: 'consumato' }).eq('chiave', chiave).eq('stato', 'riservato');
-}
-
+// Libera una prenotazione in ogni percorso terminale. NON esiste una variante
+// "consuma": il costo reale va nel registro `budget_log` (unica fonte dello
+// speso) e la riserva serve soltanto a impedire sforamenti concorrenti durante
+// la chiamata. La vecchia `consumaRiserva` era codice morto che suggeriva un
+// doppio conteggio che non avviene.
 async function liberaRiserva(supabase, chiave) {
   if (!supabase || !chiave) return;
   await supabase.from('kona_call_director_budget_riserve').update({ stato: 'liberato' }).eq('chiave', chiave).eq('stato', 'riservato');
@@ -187,7 +186,6 @@ module.exports = {
   budgetSnapshot,
   clampPositive,
   computeSpesaMensile,
-  consumaRiserva,
   liberaRiserva,
   newlyCrossedThresholds,
   notifyBudgetThresholds,

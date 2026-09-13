@@ -41,7 +41,12 @@ async function scoreLead({ lead, distanzaKmLegnago, confidenteArricchimento, cfg
   }
 
   // 2. Telefono fisso presente (segnale attivita' locale raggiungibile).
-  const haFisso = hasText(lead.telefono_fisso) || /(^|\D)(0\d{2,3})(\D|$)/.test(String(lead.telefono_raw || ''));
+  // `telefono_fisso` NON esiste su `call_center_lead_outbound`: il ramo era
+  // morto e la classificazione ricadeva sempre sulla regex. Si usa il campo
+  // reale `telefono_tipo` (fisso/mobile/sconosciuto) mantenendo la regex come
+  // rete di sicurezza per i record legacy senza tipo valorizzato.
+  const haFisso = String(lead.telefono_tipo || '') === 'fisso'
+    || /(^|\D)(0\d{2,3})(\D|$)/.test(String(lead.telefono_raw || ''));
   if (haFisso) {
     score += 10;
     breakdown.fisso = 10;

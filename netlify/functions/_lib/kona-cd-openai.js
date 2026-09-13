@@ -224,7 +224,12 @@ async function openaiStructured({
     importoEur: potenziale.eur, chiave
   });
   if (!riserva.ok) {
-    const code = riserva.motivo === 'hard_stop' ? 'budget_esaurito' : riserva.motivo === 'riserva_esaurita' ? 'budget_riserva_esaurita' : 'budget_non_disponibile';
+    const code = riserva.motivo === 'hard_stop' ? 'budget_esaurito'
+      : riserva.motivo === 'riserva_esaurita' ? 'budget_riserva_esaurita'
+        // Tetto orario applicato ATOMICAMENTE nella RPC di prenotazione
+        // (migration 077): il conteggio in JS resta solo come pre-controllo.
+        : riserva.motivo === 'rate_limited' ? 'rate_limited'
+          : 'budget_non_disponibile';
     await logUsage({ supabase, cfg, activity, model, details: { ...details, esito: code, motivo: riserva.motivo } });
     return { ok: false, error_code: code, error: riserva.motivo };
   }

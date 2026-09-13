@@ -84,13 +84,28 @@ exports.handler = async (event) => {
   const client = createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
   try {
-    const stato = await caricaStato(client, chatId);
-    if (updateId && stato.ultimo_update_id && updateId <= stato.ultimo_update_id) {
-      return { statusCode: 200, body: 'ok' }; // duplicato
-    }
+    // CLAIM ATOMICO dell'update. Prima la lettura e la scrittura erano separate:
+    // due consegne concorrenti dello stesso update (Telegram ritenta se la
+    // risposta e' lenta) leggevano lo stesso `ultimo_update_id` e lo eseguivano
+    // entrambe. L'update viene consumato solo se e' piu' recente dell'ultimo
+    // registrato, con un unico UPDATE condizionato.
+    // Nota: il consumo avviene PRIMA dell'esecuzione, quindi un comando che
+    // fallisce non viene rieseguito da un retry di Telegram (i comandi sono
+    // idempotenti o di sola lettura).
     if (updateId) {
-      await client.from('kona_call_director_telegram').upsert({ chat_id: chatId, ultimo_update_id: updateId }, { onConflict: 'chat_id' });
+      await client.from('kona_call_director_telegram')
+        .upsert({ chat_id: chatId }, { onConflict: 'chat_id', ignoreDuplicates: true });
+      const claim = await client.from('kona_call_director_telegram')
+        .update({ ultimo_update_id: updateId })
+        .eq('chat_id', chatId)
+        .or(`ultimo_update_id.is.null,ultimo_update_id.lt.${updateId}`)
+        .select('chat_id');
+      if (claim.error) return { statusCode: 500, body: 'dedupe non disponibile' };
+      if (!Array.isArray(claim.data) || claim.data.length === 0) {
+        return { statusCode: 200, body: 'ok' }; // update gia' consumato
+      }
     }
+    const stato = await caricaStato(client, chatId);
 
     const cfg = await getConfig(client);
     const data = todayRomeStr();
@@ -169,12 +184,24 @@ async function caricaStato(client, chatId) {
   return data || { chat_id: chatId, stato_conversazione: {}, ultimo_update_id: null };
 }
 
+// Unico punto di scrittura dello stato conversazione: il patch viene fuso con
+// lo stato letto AL MOMENTO della scrittura. Cosi' un chiamante che aveva letto
+// lo stato in precedenza non riscrive piu' una copia stantia cancellando le
+// voci di audit appena aggiunte da `audita` (era il caso di `categorie`).
+async function aggiornaConversazione(client, chatId, patch) {
+  const corrente = await caricaStato(client, chatId);
+  const nuovo = { ...(corrente.stato_conversazione || {}), ...patch };
+  await client.from('kona_call_director_telegram')
+    .upsert({ chat_id: chatId, stato_conversazione: nuovo }, { onConflict: 'chat_id' });
+  return nuovo;
+}
+
 async function audita(client, chatId, decisione, dettagli = {}) {
-  const stato = await caricaStato(client, chatId);
-  const storico = Array.isArray(stato.stato_conversazione?.storico) ? stato.stato_conversazione.storico : [];
+  const corrente = await caricaStato(client, chatId);
+  const storico = Array.isArray(corrente.stato_conversazione?.storico) ? corrente.stato_conversazione.storico : [];
   storico.push(cleanLog({ ts: nowIso(), decisione, ...dettagli }));
-  const nuovo = { ...(stato.stato_conversazione || {}), storico: storico.slice(-200) };
-  await client.from('kona_call_director_telegram').upsert({ chat_id: chatId, stato_conversazione: nuovo }, { onConflict: 'chat_id' });
+  // Rilegge lo stato dentro il helper: l'append non viene mai sovrascritto.
+  await aggiornaConversazione(client, chatId, { storico: storico.slice(-200) });
 }
 
 async function operatoriAbilitati(client) {
@@ -253,12 +280,10 @@ async function cmdTelefoniOmaggio(client, cfg, data, chatId) {
 }
 
 async function cmdCategorie(client, chatId, data) {
-  const stato = await caricaStato(client, chatId);
   await audita(client, chatId, 'categorie_richieste', { data });
-  await client.from('kona_call_director_telegram').upsert(
-    { chat_id: chatId, stato_conversazione: { ...(stato.stato_conversazione || {}), in_attesa_categorie: true } },
-    { onConflict: 'chat_id' }
-  );
+  // Nessuna copia stantia dello stato: il flag si applica allo stato corrente
+  // e non cancella la voce di audit appena registrata.
+  await aggiornaConversazione(client, chatId, { in_attesa_categorie: true });
   return 'Quali categorie vuoi chiamare domani? (es. "Bar, negozi, officine") Rispondi con l\'elenco.';
 }
 
@@ -286,10 +311,9 @@ async function gestisciDialogo(client, cfg, chatId, text, domani) {
   if (conv.in_attesa_categorie) {
     const categorie = text.split(',').map((c) => c.trim()).filter(Boolean);
     await audita(client, chatId, 'categorie_approvate', { categorie });
-    await client.from('kona_call_director_telegram').upsert(
-      { chat_id: chatId, stato_conversazione: { ...conv, in_attesa_categorie: false, categorie_approvate: categorie } },
-      { onConflict: 'chat_id' }
-    );
+    // Patch sullo stato CORRENTE: la vecchia upsert ripartiva dalla copia letta
+    // prima di `audita` e cancellava la voce di audit appena registrata.
+    await aggiornaConversazione(client, chatId, { in_attesa_categorie: false, categorie_approvate: categorie });
     const operatori = await operatoriAbilitati(client);
     for (const opId of operatori) {
       const esistente = await pianoDi(client, { data: domani, operatoreId: opId });
