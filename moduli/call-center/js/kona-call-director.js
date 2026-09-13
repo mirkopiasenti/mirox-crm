@@ -165,10 +165,27 @@
     mostraCaricamento();
     try {
       var response = await root.MiroxApi.fetch(endpoint, opts);
-      var result = await response.json().catch(function () { return {}; });
+      // Una risposta 2xx NON-JSON (pagina HTML di proxy/misconfigurazione, body
+      // vuoto) veniva trattata come `{}` valida: `avviaChiamate` leggeva
+      // `res.task` undefined e mostrava "Giornata completata" a fronte di un
+      // guasto reale. Va distinta l'assenza di JSON dal "nessun task".
+      var testo = await response.text();
+      var result = null;
+      if (testo) {
+        try { result = JSON.parse(testo); } catch (_) { result = null; }
+      }
+      if (result === null) {
+        if (response.ok) {
+          var formato = new Error('Risposta non valida dal servizio. Riprova.');
+          formato.code = 'risposta_non_valida';
+          throw formato;
+        }
+        result = {};
+      }
       if (!response.ok) {
         var error = new Error(result.error || ('Errore ' + response.status));
         error.code = result.error_code || result.reason || null;
+        error.status = response.status;
         error.payload = result;
         throw error;
       }
@@ -625,6 +642,22 @@
     try {
       await salvaEsitoInterno(esito, dettagli);
     } catch (e) {
+      // 409 = il contatto attivo e' cambiato (doppia scheda, lease scaduto e
+      // task rimaterializzato) oppure l'esito e' gia' in corso. La scheda locale
+      // e' stantia: senza ricaricare, ogni retry rimanda lo stesso task_id e
+      // riceve sempre 409, lasciando l'operatrice in un vicolo cieco.
+      if (e && e.status === 409) {
+        toast(e.message, 'warning');
+        _task = null;
+        _pendingEsito = null;
+        _followupMode = null;
+        try {
+          await caricaStato();
+        } catch (ricarica) {
+          mostraErrore(ricarica.message);
+        }
+        return;
+      }
       toast(e.message, 'danger');
     } finally {
       _salvataggioInCorso = false;

@@ -126,7 +126,8 @@ let confermaInCorso = false;
     const { data:profilo } = await db.from('profili').select('*').eq('id',session.user.id).single();
     if (!profilo) return;
     Auth._profilo = profilo;
-    CcHeader.render('prenota_interno');
+    if (!(await Auth.richiediAccesso('prenota_interno'))) return;
+    await CcHeader.render('prenota_interno');
     await Notifiche.init();
 
     // Carica dati precompilati dal flusso chiamata

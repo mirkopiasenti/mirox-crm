@@ -70,7 +70,8 @@
     const { data:profilo } = await db.from('profili').select('*').eq('id',session.user.id).single();
     if (!profilo) return;
     Auth._profilo = profilo;
-    CcHeader.render('appuntamenti_oggi');
+    if (!(await Auth.richiediAccesso('appuntamenti_oggi'))) return;
+    await CcHeader.render('appuntamenti_oggi');
     await Notifiche.init();
     await Utils.caricaColoriOperatori();
 

@@ -120,7 +120,8 @@ let ricontattiItems = [];
     const { data:profilo } = await db.from('profili').select('*').eq('id',session.user.id).single();
     if (!profilo) return;
     Auth._profilo = profilo;
-    CcHeader.render('rilavorazione');
+    if (!(await Auth.richiediAccesso('rilavorazione'))) return;
+    await CcHeader.render('rilavorazione');
     await Utils.caricaColoriOperatori();
     await Notifiche.init();
     

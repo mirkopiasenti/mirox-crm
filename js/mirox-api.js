@@ -180,7 +180,14 @@
                 root.MiroxUI.toast('Sessione scaduta, effettua di nuovo l\'accesso', 'warning');
             }
         } catch (_) { /* ignore */ }
-        const target = root.location.pathname.includes('/moduli/') ? '../index.html' : 'index.html';
+        // Il login e' sempre alla radice del sito. Il vecchio calcolo usava un
+        // solo livello di risalita per tutto cio' che contiene "/moduli/": da
+        // /moduli/call-center/<pagina>.html risolveva in /moduli/index.html, che
+        // non esiste (404 invece del login). Si risale di tante directory quanti
+        // sono i segmenti del path, meno il nome file.
+        const segmenti = String(root.location.pathname || '').split('/').filter(Boolean);
+        const risalita = segmenti.length > 1 ? '../'.repeat(segmenti.length - 1) : '';
+        const target = risalita + 'index.html';
         setTimeout(() => { root.location.href = target; }, 800);
     }
 

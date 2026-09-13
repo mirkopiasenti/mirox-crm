@@ -121,7 +121,8 @@ let appuntamenti = [], filtrati = [], selezionato = null, slotSelezionato = null
     const { data:profilo } = await db.from('profili').select('*').eq('id',session.user.id).single();
     if (!profilo) return;
     Auth._profilo = profilo;
-    CcHeader.render('appuntamenti');
+    if (!(await Auth.richiediAccesso('appuntamenti'))) return;
+    await CcHeader.render('appuntamenti');
     await Notifiche.init();
     await Utils.caricaColoriOperatori();
     await caricaAppuntamenti();

@@ -290,7 +290,8 @@
             const { data:profilo } = await db.from('profili').select('*').eq('id',session.user.id).single();
             if (!profilo) return;
             Auth._profilo = profilo;
-            CcHeader.render('registra_chiamata');
+            if (!(await Auth.richiediAccesso('registra_chiamata'))) return;
+            await CcHeader.render('registra_chiamata');
     await Notifiche.init();
             document.getElementById('dataRicontatto').min = Utils.today();
 

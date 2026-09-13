@@ -162,7 +162,8 @@ function getEsitoView(c) {
     const { data:profilo } = await db.from('profili').select('*').eq('id',session.user.id).single();
     if (!profilo) return;
     Auth._profilo = profilo;
-    CcHeader.render('elenco_chiamate');
+    if (!(await Auth.richiediAccesso('elenco_chiamate'))) return;
+    await CcHeader.render('elenco_chiamate');
     await Notifiche.init();
     await Utils.caricaColoriOperatori();
     document.getElementById('dataInizio').value = Utils.today();
