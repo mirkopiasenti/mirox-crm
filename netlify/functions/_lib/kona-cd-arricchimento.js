@@ -147,12 +147,16 @@ async function startArricchimento(supabase, cfg, oggi) {
   if (errCoda) return { ok: false, error: errCoda };
   const giaInCoda = new Set((inCoda || []).map((j) => j.payload?.lead_id).filter(Boolean));
 
-  const statiScartati = ['chiuso', 'non_interessato', 'appuntamento_fissato', 'appuntamento_fissato_negozio', 'appuntamento_fissato_esterno'];
+  // Stessi stati CAMPIONABILI del motore (`candidatiLead`): prima si usava un
+  // elenco di esclusione, quindi si arricchivano (pagando web search) anche
+  // lead in stati che KONA non propone mai come nuova attivita' Business
+  // (es. `non_risposto`, `richiamare`).
+  const statiCampionabili = ['nuovo', 'da_contattare', 'ricontattare', 'in_lavorazione'];
   const { data: leads, error } = await supabase
     .from('call_center_lead_outbound')
     .select('id, created_at, telefono_raw, telefono_norm, email, sito_internet, indirizzo, cap, localita, categoria, partita_iva, codice_fiscale')
     .eq('do_not_call', false)
-    .not('stato_lead', 'in', `(${statiScartati.map((s) => `"${s}"`).join(',')})`)
+    .in('stato_lead', statiCampionabili)
     .limit(1000);
   if (error) return { ok: false, error };
 

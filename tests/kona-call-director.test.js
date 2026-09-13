@@ -1751,6 +1751,32 @@ test('motore: le scritture canoniche parziali vengono compensate', () => {
   assert.match(src, /if \(attivitaError\) \{[\s\S]*from\('call_center_lead_outbound_chiamate'\)\.delete\(\)\.eq\('id', inserita\.id\)/);
 });
 
+test('esito altro: tradotto nel vocabolario canonico e con un ramo dedicato sui lead', () => {
+  // `altro` non esiste nel dominio di call_center_lead_outbound_chiamate.
+  assert.equal(engine._test.mappaEsitoOutbound('altro', {}), 'non_interessato');
+  assert.equal(engine._test.mappaEsitoOutbound('appuntamento', {}), 'appuntamento_fissato');
+  assert.equal(engine._test.mappaEsitoOutbound('non_interessato', {}), 'non_interessato');
+  // Sul ramo lead deve esistere un ramo esplicito, altrimenti lo stato resta
+  // campionabile e lo stesso lead viene riproposto all'infinito.
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/kona-cd-engine.js'), 'utf8');
+  const inizio = src.indexOf('async function applicaEsitoSorgente');
+  const corpo = src.slice(inizio, src.indexOf('// -- Scrittura canonica Consumer', inizio));
+  assert.match(corpo, /esito === 'altro'[\s\S]*patch\.stato_lead = 'non_interessato'/);
+});
+
+test('arricchimento: gli stati campionabili sono gli stessi del motore', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/kona-cd-arricchimento.js'), 'utf8');
+  assert.match(src, /statiCampionabili = \['nuovo', 'da_contattare', 'ricontattare', 'in_lavorazione'\]/);
+  assert.match(src, /\.in\('stato_lead', statiCampionabili\)/);
+});
+
+test('budget: il commento non attribuisce il lock alla RPC inutilizzabile', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/kona-cd-budget.js'), 'utf8');
+  const intestazione = src.slice(0, src.indexOf('Prezzo/modello sconosciuto'));
+  assert.match(intestazione, /kona_cd_reserve_budget_v1/);
+  assert.doesNotMatch(intestazione, /serializza via advisory lock di\s*\/\/ transazione \(kona_cd_try_advisory_lock\)/);
+});
+
 test('telegram: deduplica update_id atomica e unico punto di scrittura dello stato', () => {
   const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-telegram-webhook.js'), 'utf8');
   assert.match(src, /\.or\(`ultimo_update_id\.is\.null,ultimo_update_id\.lt\.\$\{updateId\}`\)/);

@@ -1065,6 +1065,10 @@ function mappaEsitoOutbound(esito, dettagli) {
     return 'chiuso';
   }
   if (esito === 'appuntamento') return 'appuntamento_fissato';
+  // `altro` non appartiene al vocabolario canonico di
+  // `call_center_lead_outbound_chiamate`: va tradotto, altrimenti la tabella
+  // condivisa col Call Center riceve un valore fuori dominio.
+  if (esito === 'altro') return 'non_interessato';
   return esito;
 }
 
@@ -1267,6 +1271,14 @@ async function applicaEsitoSorgente(supabase, { task, esito, cfg, oggi, dettagli
       patch.stato_lead = 'ricontattare';
       const prossimo = ricontattoRichiesto(cfg, oggi, dettagli);
       patch.prossimo_followup_at = followupIso(cfg, prossimo);
+    } else if (esito === 'altro') {
+      // "Altro" e' un esito generico previsto per campagne urgenti e sessioni
+      // Business (LEAD_ESITI). Senza un ramo dedicato veniva aggiornato solo
+      // `ultimo_contatto_at`: `stato_lead` restava campionabile e lo stesso lead
+      // veniva riproposto all'infinito (i tentativi contano solo i non_risposto).
+      // Si usa la stessa traduzione del flusso Consumer: altro -> non_interessato.
+      patch.stato_lead = 'non_interessato';
+      patch.prossimo_followup_at = null;
     } else if (esito === 'chiuso') {
       patch.stato_lead = 'chiuso';
       patch.prossimo_followup_at = null;
@@ -1749,5 +1761,5 @@ module.exports = {
   tentativoPersistente,
   telefoniUnici,
   verificaTaskAttivo,
-  _test: { campoTesto, fasciaCorrente, fasciaDaOra, normTel, prossimaFascia, pureBlacklisted, pureEscluso, telefoniUnici, tentativoEsaurito, SKIP_REASONS, ETICHETTE_ATTIVITA, riepilogoRilavorazioni, categoriaConsumerPiano }
+  _test: { campoTesto, fasciaCorrente, fasciaDaOra, mappaEsitoOutbound, mappaEsitoStandard, normTel, prossimaFascia, pureBlacklisted, pureEscluso, telefoniUnici, tentativoEsaurito, SKIP_REASONS, ETICHETTE_ATTIVITA, riepilogoRilavorazioni, categoriaConsumerPiano }
 };

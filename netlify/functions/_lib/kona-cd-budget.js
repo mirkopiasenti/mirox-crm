@@ -8,10 +8,14 @@ const { monthRomeKey, todayRomeStr } = require('./kona-cd-time');
 // campi): mese, budget, speso, riservato, rimasto, percentuale, per_attivita,
 // n_chiamate, web_ricerche, riserva_arricchimento, riserva_dialogo, extra.
 //
-// Prenotazione ATOMICA: tryReserveBudget serializza via advisory lock di
-// transazione (kona_cd_try_advisory_lock) e blocca a budget totale esaurito
-// (hard stop) o quando la riserva di attivita' non copre il costo. Mai
-// sforamenti concorrenti.
+// Prenotazione ATOMICA: tryReserveBudget chiama la RPC
+// `kona_cd_reserve_budget_v1`, che prende da se' un advisory lock di
+// transazione sul mese e blocca a budget totale esaurito (hard stop), quando
+// la riserva di attivita' non copre il costo e quando il tetto orario e'
+// raggiunto. Mai sforamenti concorrenti.
+// NB: la RPC `kona_cd_try_advisory_lock` NON e' usata e non e' utilizzabile per
+// serializzare due chiamate JS separate: un lock xact acquisito dentro una RPC
+// viene rilasciato alla fine di quella RPC.
 //
 // Prezzo/modello sconosciuto: estimateCost ritorna ok:false; il chiamante
 // DEVE fallire (mai conteggiare zero).

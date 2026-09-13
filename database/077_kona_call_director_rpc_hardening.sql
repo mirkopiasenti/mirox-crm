@@ -302,4 +302,60 @@ REVOKE ALL ON FUNCTION public.kona_cd_correggi_esito_v1(uuid, uuid, boolean, tex
 GRANT EXECUTE ON FUNCTION public.kona_cd_correggi_esito_v1(uuid, uuid, boolean, text, text, date, text, text)
   TO service_role;
 
+-- =============================================================================
+-- 4. Acquisizione job: il recupero del lease incrementa i tentativi
+-- =============================================================================
+-- Problema B5: la RPC riacquisiva un job `in_corso` con lease scaduto SENZA
+-- toccare `tentativi`. Il limite di 4 tentativi vive solo in `failJob` (JS),
+-- quindi un job che faceva scadere il lease (crash dell'istanza, timeout) non
+-- raggiungeva mai la soglia e ripeteva le chiamate OpenAI pagate senza fine.
+-- Fix: al recupero di un lease scaduto `tentativi` viene incrementato; oltre la
+-- soglia il job diventa `annullato` (dead-letter) e non viene piu' ripescato.
+-- La soglia 4 e' allineata a MAX_TENTATIVI di `kona-cd-arricchimento.js`.
+
+CREATE OR REPLACE FUNCTION public.kona_cd_acquire_job_v1(
+  p_tipo text,
+  p_lease_owner text,
+  p_lease_minuti integer DEFAULT 10
+) RETURNS SETOF public.kona_call_director_jobs
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+  WITH candidato AS (
+    SELECT j.id, (j.stato = 'in_corso') AS recupero
+    FROM public.kona_call_director_jobs j
+    WHERE j.tipo = p_tipo
+      AND j.prossimo_tentativo_at <= now()
+      AND (
+        j.stato IN ('in_coda','fallito')
+        OR (j.stato = 'in_corso' AND j.lease_until < now())
+      )
+    ORDER BY j.prossimo_tentativo_at, j.creato_at
+    FOR UPDATE SKIP LOCKED
+    LIMIT 1
+  )
+  UPDATE public.kona_call_director_jobs j
+  SET stato = CASE
+        WHEN c.recupero AND j.tentativi + 1 >= 4 THEN 'annullato'
+        ELSE 'in_corso'
+      END,
+      tentativi = CASE WHEN c.recupero THEN j.tentativi + 1 ELSE j.tentativi END,
+      lease_owner = left(COALESCE(p_lease_owner, 'dispatcher'), 120),
+      lease_until = now() + make_interval(mins => GREATEST(1, COALESCE(p_lease_minuti, 10))),
+      risultato = CASE
+        WHEN c.recupero AND j.tentativi + 1 >= 4
+          THEN COALESCE(j.risultato, '{}'::jsonb) || jsonb_build_object('dead_letter', 'lease_scaduto_ripetuto')
+        ELSE j.risultato
+      END
+  FROM candidato c
+  WHERE j.id = c.id
+  RETURNING j.*;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.kona_cd_acquire_job_v1(text, text, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.kona_cd_acquire_job_v1(text, text, integer) TO service_role;
+
 COMMIT;
