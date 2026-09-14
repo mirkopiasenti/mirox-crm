@@ -33,6 +33,7 @@ const {
   azioneInAttesa, confermaDeterministica, confermaValida, contestoAssistente,
   interpreta, richiedeConferma, tastieraConferma
 } = require('./_lib/kona-cd-assistente');
+const { ENV_CHIAVE, isConfigured: assistenteConfigurato } = require('./_lib/kona-cd-deepseek');
 
 const AIUTO = [
   'KONA Call Director - puoi scrivermi in italiano, non servono i comandi.',
@@ -257,7 +258,8 @@ async function cmdStato(client, cfg, data) {
     `Modalita' osservazione: ${cfg.modalita_osservazione ? 'SI' : 'NO'}`,
     `Operatrici abilitate: ${operatori.length}`,
     `Budget ${budget.mese}: speso ${budget.speso.toFixed(2)} su ${budget.budget.toFixed(2)} euro (${budget.percentuale}%)`,
-    `Assistente Telegram: ${budget.riserva_telegram.speso.toFixed(2)} su ${budget.riserva_telegram.budget.toFixed(2)} euro (${budget.telegram_messaggi} messaggi)`
+    `Assistente Telegram: ${budget.riserva_telegram.speso.toFixed(2)} su ${budget.riserva_telegram.budget.toFixed(2)} euro (${budget.telegram_messaggi} messaggi)`,
+    `Interpretazione IA: ${assistenteConfigurato() ? 'configurata' : `NON configurata (manca ${ENV_CHIAVE})`}`
   ].join('\n');
 }
 
@@ -472,6 +474,21 @@ async function rispostaSenzaIa(client, chatId, conv, text, domani, esito) {
     const categorie = text.split(',').map((c) => c.trim()).filter(Boolean).slice(0, 8);
     const proposta = await proponiConferma(client, chatId, 'direttiva', { categorie, data: domani, nota: '' });
     return { testo: `Assistente non disponibile (${esito.error_code}). ${proposta.risposta}`, markup: proposta.markup };
+  }
+  // Chiave mancante: errore di CONFIGURAZIONE, non guasto temporaneo. Il
+  // messaggio dice esattamente cosa manca, perche' l'alternativa ("non riesco a
+  // interpretare") non permette di capirlo. Le env di Netlify arrivano al
+  // processo delle function solo con un NUOVO deploy.
+  if (esito.error_code === 'no_api_key') {
+    return {
+      testo: [
+        `Assistente non configurato: manca la variabile ${ENV_CHIAVE} su Netlify.`,
+        'Aggiungila (o correggine il nome) e poi lancia un NUOVO deploy: le variabili',
+        'entrano nelle function solo al deploy successivo.',
+        '',
+        'Nel frattempo i comandi con la barra funzionano: /stato, /report, /piano.'
+      ].join('\n')
+    };
   }
   return { testo: `Adesso non riesco a interpretare (${esito.error_code}).\n\n${AIUTO}` };
 }

@@ -1910,6 +1910,27 @@ test('config KONA: DeepSeek V4.1 Flash con riserva Telegram da 10 euro al mese',
   assert.deepEqual(config.CONFIG_DEFAULTS.prezzi_deepseek, { 'deepseek-flash': { input: 0.30, output: 1.20 } });
 });
 
+test('deepseek: la chiave mancante e riconoscibile (diagnostica di configurazione)', () => {
+  const precedente = process.env.KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY;
+  const precedenteGenerica = process.env.DEEPSEEK_API_KEY;
+  delete process.env.KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY;
+  delete process.env.DEEPSEEK_API_KEY;
+  try {
+    assert.equal(deepseek.isConfigured(), false);
+    assert.equal(deepseek.getApiKey(), null);
+    process.env.KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY = 'chiave-di-prova';
+    assert.equal(deepseek.isConfigured(), true);
+    // Una variabile generica `DEEPSEEK_API_KEY` vale come fallback.
+    delete process.env.KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY;
+    process.env.DEEPSEEK_API_KEY = 'chiave-generica';
+    assert.equal(deepseek.isConfigured(), true);
+  } finally {
+    if (precedente) process.env.KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY = precedente; else delete process.env.KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY;
+    if (precedenteGenerica) process.env.DEEPSEEK_API_KEY = precedenteGenerica; else delete process.env.DEEPSEEK_API_KEY;
+  }
+  assert.equal(deepseek.ENV_CHIAVE, 'KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY');
+});
+
 test('deepseek: il prompt di sistema contiene la parola json richiesta dall API', () => {
   assert.match(deepseek.istruzioniConJson('Sei un assistente'), /json/i);
   const giaPresente = 'Rispondi in JSON con un oggetto.';
@@ -2193,6 +2214,10 @@ test('webhook Telegram: dialogo IA, conferme e nessuna trascrizione audio', () =
   // Una risposta diversa da si/no fa DECADERE la proposta: un "si" scritto piu'
   // tardi non deve eseguire l'azione vecchia mai confermata.
   assert.match(src, /conferma_abbandonata/);
+  // Chiave mancante = errore di configurazione, spiegato con il nome esatto
+  // della variabile (e il promemoria che serve un nuovo deploy).
+  assert.match(src, /Assistente non configurato: manca la variabile/);
+  assert.match(src, /Interpretazione IA: \$\{assistenteConfigurato\(\)/);
   // La tastiera di conferma arriva dall'assistente.
   const assistenteSrc = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/kona-cd-assistente.js'), 'utf8');
   assert.match(assistenteSrc, /callback_data: 'conf:si'/);

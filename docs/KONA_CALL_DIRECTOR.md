@@ -286,6 +286,14 @@ La migration `070` deve essere gia' presente, perche'
 | `KONA_CALL_DIRECTOR_OPENAI_MODEL` | modello approvato e coerente con i prezzi configurati |
 | `KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY` | chiave DeepSeek del dialogo Telegram, solo server-side |
 | `KONA_CALL_DIRECTOR_DEEPSEEK_MODEL` | opzionale, default `deepseek-flash` (DeepSeek V4.1 Flash) |
+
+**Le variabili entrano nel processo delle function soltanto al deploy
+successivo**: dopo aver aggiunto o corretto una env su Netlify serve un nuovo
+deploy, altrimenti il codice continua a vederla assente. Il sintomo tipico e'
+il bot Telegram che risponde "Assistente non configurato: manca la variabile
+`KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY`"; il comando `/stato` mostra la riga
+`Interpretazione IA: configurata / NON configurata`, utile per distinguere una
+chiave mancante da un guasto temporaneo del provider.
 | `KONA_CALL_DIRECTOR_GOOGLE_CLIENT_ID` | OAuth client ID |
 | `KONA_CALL_DIRECTOR_GOOGLE_CLIENT_SECRET` | OAuth client secret |
 | `KONA_CALL_DIRECTOR_GOOGLE_REDIRECT_URI` | callback dell'ambiente verso `kona-cc-google-callback` |

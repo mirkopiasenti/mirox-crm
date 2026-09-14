@@ -35,6 +35,16 @@ function getApiKey() {
   return env('KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY') || env('DEEPSEEK_API_KEY');
 }
 
+// La chiave e' presente in questo processo? Le env di Netlify entrano nel
+// processo delle function solo con un NUOVO deploy: dopo aver aggiunto la
+// variabile serve un redeploy, altrimenti qui risulta ancora assente.
+function isConfigured() {
+  return Boolean(getApiKey());
+}
+
+// Nome della variabile mancante, per un messaggio diagnostico utile.
+const ENV_CHIAVE = 'KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY';
+
 function modelloDeepseek(cfg) {
   return String(cfg?.modello_deepseek || env('KONA_CALL_DIRECTOR_DEEPSEEK_MODEL') || MODELLO_DEFAULT).trim()
     || MODELLO_DEFAULT;
@@ -231,10 +241,13 @@ async function deepseekStructured({
 
 module.exports = {
   CHAT_URL,
+  ENV_CHIAVE,
   MODELLO_DEFAULT,
   deepseekStructured,
   extractContent,
   extractUsage,
+  getApiKey,
+  isConfigured,
   istruzioniConJson,
   modelloDeepseek,
   rateLimitTelegramOk,
