@@ -299,16 +299,19 @@ esterno controllato.
 
 #### Verifiche obbligatorie PRIMA del collaudo (audit 2026-09-01)
 
-1. **Calendario negozio (blocco K1)**. Il bootstrap del database di test non
-   crea `get_slot_disponibili` ne' le tabelle che gli servono: senza di esse
-   l'esito Consumer `Appuntamento` (schermo `negozio`) fallisce. Verificare con
-   `select proname from pg_proc where proname = 'get_slot_disponibili';` e, se
-   assente, applicare `database/staging/006_kona_call_director_negozio_dipendenze.sql`.
-2. **Migration di hardening**. `database/076_kona_call_director_hardening.sql`
-   e' scritta ma non applicata. La sezione 4 diventa attiva da sola (il codice
-   usa la RPC atomica con fallback); la sezione 1 (vista ricontatti con
-   `anagrafica_id`) tocca un oggetto condiviso col Call Center e va applicata
-   solo dopo conferma esplicita.
+**Stato al 2026-09-14: tutti e tre i file SQL sono stati applicati al Supabase
+test `yyorullxmdxhnunsfwwa` e il controllo automatico e' passato su 10 verifiche
+su 10.** Production non e' stata toccata. Restano qui sotto come traccia.
+
+1. **Calendario negozio (blocco K1)** — RISOLTO. `database/staging/006_kona_call_director_negozio_dipendenze.sql`
+   applicato: le quattro tabelle di configurazione, `get_slot_disponibili` e gli
+   orari lun-ven risultano presenti. L'esito Consumer `Appuntamento` (schermo
+   `negozio`) e' ora collaudabile.
+2. **Migration di hardening** — APPLICATE. `database/076_kona_call_director_hardening.sql`
+   e `database/077_kona_call_director_rpc_hardening.sql` sono attive sul database
+   di test: vista ricontatti con `anagrafica_id`, registri di controllo
+   append-only, prenotazione negozio atomica, tetto orario di spesa, dead-letter
+   dei job e autorizzazione delle correzioni lette dal database.
 3. **Arricchimento disattivato**. `richieste_web_max_per_lead = 0` e
    `lead_notte_obiettivo = 0` ora sono rispettati come valori espliciti: con
    questi valori non partono chiamate OpenAI e non viene piu' inviato il falso
