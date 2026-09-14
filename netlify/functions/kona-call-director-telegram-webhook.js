@@ -719,6 +719,19 @@ async function applicaAgenda(client, cfg, chatId, stato) {
     modalitaConsumer: consumer ? consumer.consumer : null,
     blocchi
   });
+  // Senza operatrici abilitate il piano non esiste: dirlo invece di confermare
+  // un'agenda che il motore non leggera' mai. Lo stato resta aperto per riprovare.
+  if (scritti === 0) {
+    await audita(client, chatId, 'agenda_non_applicata', { data: stato.data, motivo: 'nessuna_operatrice_abilitata' });
+    return {
+      testo: [
+        'Non ho applicato l\'agenda: non risulta nessuna operatrice abilitata a KONA.',
+        'Controlla i profili abilitati e poi riscrivi /agenda.',
+        '',
+        agenda.riepilogoAgenda(stato, cfg)
+      ].join('\n')
+    };
+  }
   await salvaAgenda(client, chatId, null);
   await audita(client, chatId, 'agenda_applicata', { data: stato.data, blocchi: blocchi.length, operatrici: scritti });
   const avviso = await avvisoCategorie(client, stato.categorie || []);

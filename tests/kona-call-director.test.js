@@ -2505,6 +2505,29 @@ test('agenda guidata: dopo /agenda i pulsanti ritrovano l\'agenda in costruzione
   assert.equal(riga.stato_conversazione.agenda.opzione, 'aziendali');
 });
 
+test('agenda guidata: senza operatrici abilitate il piano non viene scritto e lo dice', async () => {
+  const CHAT = 4242;
+  let riga = null;
+  const piani = [];
+  const db = makeSupabase({
+    'kona_call_director_telegram.select': () => ({ data: riga }),
+    'kona_call_director_telegram.upsert': (q) => {
+      riga = { chat_id: q.value.chat_id, stato_conversazione: q.value.stato_conversazione };
+      return { data: null, error: null };
+    },
+    // Nessun profilo abilitato: `scriviPianoDirettiva` non scrive nulla.
+    'kona_call_director_profili.select': () => ({ data: [] }),
+    'kona_call_director_piani.upsert': (q) => { piani.push(q.value); return { data: null, error: null }; }
+  });
+  await telegramWebhook._test.avviaAgenda(db, baseCfg(), CHAT, '2026-09-15', { oggi: '2026-09-14', domani: '2026-09-15' });
+  const stato = { ...riga.stato_conversazione.agenda, blocchi: [{ opzione: 'aziendali', da: 540, a: 630 }] };
+  const esito = await telegramWebhook._test.applicaAgenda(db, baseCfg(), CHAT, stato);
+  assert.match(esito.testo, /nessuna operatrice abilitata/);
+  assert.equal(piani.length, 0);
+  // L'agenda resta aperta: si puo' riprovare dopo aver sistemato i profili.
+  assert.ok(riga.stato_conversazione.agenda);
+});
+
 test('agenda guidata: senza configurazione non si scrive nessuno stato a meta\'', async () => {
   const scritti = [];
   const db = makeSupabase({
