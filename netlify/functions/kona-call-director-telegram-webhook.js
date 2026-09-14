@@ -469,22 +469,27 @@ async function eseguiAzione(client, cfg, chatId, azione, argomenti = {}, giornoD
 // La modalita' Consumer e' una scelta ESPLICITA del chiamante: non si deduce
 // mai dalle parole della nota (la parola "fibra" e' anche il nome di un'offerta
 // e non deve riconfigurare la giornata da sola).
-async function scriviPianoDirettiva(client, chatId, { data, categorie = [], nota = '', modalitaConsumer = null }) {
+// `blocchi` (agenda guidata) diventa `contenuto.agenda_blocchi`: e' cio' che il
+// motore legge per sapere, ora per ora, se proporre lead aziendali o lasciare
+// all'operatrice le liste cartacee.
+async function scriviPianoDirettiva(client, chatId, { data, categorie = [], nota = '', modalitaConsumer = null, blocchi = null }) {
   const operatori = await operatoriAbilitati(client);
+  const agendaBlocchi = Array.isArray(blocchi) && blocchi.length ? agenda.serializzaBlocchi(blocchi) : null;
   for (const opId of operatori) {
     const esistente = await pianoDi(client, { data, operatoreId: opId });
     const contenuto = {
       ...(esistente?.contenuto || {}),
       ...(nota ? { direttiva_mirko: nota } : {}),
       ...(categorie.length ? { categorie_approvate: categorie } : {}),
-      ...(modalitaConsumer ? { categoria_sessione: modalitaConsumer, consumer: modalitaConsumer } : {})
+      ...(modalitaConsumer ? { categoria_sessione: modalitaConsumer, consumer: modalitaConsumer } : {}),
+      ...(agendaBlocchi ? { agenda_blocchi: agendaBlocchi } : {})
     };
     const salvato = await salvaPiano(client, {
       data, operatoreId: opId, contenuto: cleanLog(contenuto), sorgente: 'mirko', stato: 'approvato'
     });
     if (!salvato.ok) throw new Error('Impossibile salvare la direttiva sul piano');
   }
-  await audita(client, chatId, 'direttiva_libera_approvata', { data, categoria_sessione: modalitaConsumer, categorie });
+  await audita(client, chatId, 'direttiva_libera_approvata', { data, categoria_sessione: modalitaConsumer, categorie, blocchi: agendaBlocchi ? agendaBlocchi.length : 0 });
   return operatori.length;
 }
 
@@ -703,7 +708,8 @@ async function applicaAgenda(client, cfg, chatId, stato) {
     data: stato.data,
     categorie: Array.isArray(stato.categorie) ? stato.categorie : [],
     nota,
-    modalitaConsumer: consumer ? consumer.consumer : null
+    modalitaConsumer: consumer ? consumer.consumer : null,
+    blocchi
   });
   await salvaAgenda(client, chatId, null);
   await audita(client, chatId, 'agenda_applicata', { data: stato.data, blocchi: blocchi.length, operatrici: scritti });
@@ -713,8 +719,10 @@ async function applicaAgenda(client, cfg, chatId, stato) {
       `Agenda di ${stato.data} applicata (${scritti} operatrici).`,
       agenda.riepilogoAgenda(stato, cfg),
       '',
-      'Nota: le ore indicano cosa mettere in giornata e in quale fascia. KONA',
-      'continua a lavorare per priorita\' dentro le finestre di lavoro.',
+      'Nota: le ore indicano cosa mettere in giornata e in quale fascia. Dentro',
+      '"Lead Outbound Aziendali" KONA ti propone i lead delle categorie',
+      'approvate; nelle fasce manuali non propone nulla e registri tu le',
+      'chiamate fatte sulle liste cartacee.',
       avviso
     ].filter(Boolean).join('\n').slice(0, 1200)
   };
@@ -978,4 +986,4 @@ async function rispostaSenzaIa(client, chatId, conv, text, data, domani, esito) 
 }
 
 // Esposti per i test: la function Netlify usa soltanto `handler`.
-module.exports._test = { avvisoCategorie, categorieDisponibili, etichettaCategorie };
+module.exports._test = { applicaAgenda, avvisoCategorie, categorieDisponibili, etichettaCategorie, scriviPianoDirettiva };

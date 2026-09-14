@@ -6,28 +6,32 @@ const { parseHHmm } = require('./kona-cd-time');
 // database): serve a far PROPORRE al bot le attivita' di chiamata e a costruire
 // l'agenda un pezzo alla volta, finche' le ore previste non sono coperte.
 //
+// Le fasce costruite qui sono VINCOLANTI per il motore: dentro una fascia il
+// sistema propone solo l'attivita' prevista (o niente, se e' una fascia
+// manuale). Le priorita' 1-6 restano comunque sempre davanti a tutto.
+//
 // Unita' di misura: MINUTI dalla mezzanotte. Le finestre lavorative arrivano
 // dalla configurazione (`orario_mattina`, `orario_pomeriggio`): nessun orario e'
-// scritto qui dentro.
+// scritto qui dentro, e la programmazione base sta in `programmazione_base`.
 
 // Le tre attivita' che il bot puo' proporre. `id` e' anche il valore salvato nel
 // piano (`consumer`/`categoria_sessione`) per le due modalita' Consumer.
 const OPZIONI = [
   {
     id: 'aziendali',
-    etichetta: 'Lead outbound aziendali (Business)',
+    etichetta: 'Lead Outbound Aziendali',
     breve: 'aziendali',
     consumer: null
   },
   {
     id: 'fibra_fwa',
-    etichetta: 'Clienti Consumer - liste Fibra/FWA',
-    breve: 'fibra',
+    etichetta: 'Fisso (liste cartacee)',
+    breve: 'fisso',
     consumer: 'fibra_fwa'
   },
   {
     id: 'telefoni_omaggio',
-    etichetta: 'Clienti Consumer - Telefoni omaggio',
+    etichetta: 'Telefoni Omaggio (liste cartacee)',
     breve: 'telefoni omaggio',
     consumer: 'telefoni_omaggio'
   }
@@ -196,6 +200,56 @@ function righeBlocchi(agenda = {}) {
   });
 }
 
+// -- Programmazione della giornata --------------------------------------------
+// Le fasce arrivano dal piano (scelte da Mirko col bot) o dalla programmazione
+// base di configurazione. In entrambi i casi vengono normalizzate in minuti,
+// cosi' il motore puo' confrontarle con l'ora corrente.
+
+function normalizzaBlocchi(blocchi) {
+  if (!Array.isArray(blocchi)) return [];
+  const out = [];
+  for (const b of blocchi) {
+    const da = typeof b?.da === 'number' ? b.da : parseHHmm(b?.da);
+    const a = typeof b?.a === 'number' ? b.a : parseHHmm(b?.a);
+    const opzione = opzionePerId(b?.opzione);
+    if (da === null || a === null || a <= da || !opzione) continue;
+    out.push({ opzione: opzione.id, da, a });
+  }
+  return out.sort((x, y) => x.da - y.da);
+}
+
+// Le fasce del piano del giorno, se ce ne sono di valide; altrimenti la base.
+function blocchiGiorno(contenuto, cfg) {
+  const dalPiano = normalizzaBlocchi(contenuto?.agenda_blocchi);
+  if (dalPiano.length > 0) return { blocchi: dalPiano, origine: 'piano' };
+  const base = normalizzaBlocchi(cfg?.programmazione_base);
+  return { blocchi: base, origine: base.length > 0 ? 'base' : 'nessuna' };
+}
+
+// Forma salvabile nel piano: minuti -> "HH:MM", cosi' il contenuto del piano
+// resta leggibile a occhio nel DB.
+function serializzaBlocchi(blocchi) {
+  return normalizzaBlocchi(blocchi).map((b) => ({
+    opzione: b.opzione,
+    da: fmtHHmm(b.da),
+    a: fmtHHmm(b.a)
+  }));
+}
+
+// Attivita' in corso a una certa ora (minuti dalla mezzanotte), o null.
+function attivitaCorrente(blocchi, oraMin) {
+  const ora = Number(oraMin);
+  if (!Number.isFinite(ora)) return null;
+  return normalizzaBlocchi(blocchi).find((b) => ora >= b.da && ora < b.a) || null;
+}
+
+// Una fascia manuale non propone contatti: l'operatrice lavora le liste
+// cartacee e registra ogni chiamata.
+function bloccoManuale(blocco) {
+  const opzione = opzionePerId(blocco?.opzione);
+  return Boolean(opzione && opzione.consumer);
+}
+
 function riepilogoAgenda(agenda = {}, cfg) {
   const finestre = finestreGiorno(cfg);
   const righe = righeBlocchi(agenda);
@@ -242,6 +296,9 @@ function tastieraConfermaAgenda() {
 
 module.exports = {
   OPZIONI,
+  attivitaCorrente,
+  bloccoManuale,
+  blocchiGiorno,
   buchiResidui,
   componiBlocco,
   domandaOpzioni,
@@ -251,17 +308,20 @@ module.exports = {
   minutiPianificati,
   minutiResidui,
   minutiTotali,
+  normalizzaBlocchi,
   opzioneDaTesto,
   opzionePerId,
   opzioniDisponibili,
   parseIntervallo,
   riepilogoAgenda,
   righeBlocchi,
+  serializzaBlocchi,
   tastieraConfermaAgenda,
   tastieraOpzioni,
   _test: {
-    buchiResidui, componiBlocco, domandaOpzioni, finestreGiorno, fmtDurata, fmtHHmm,
-    minutiPianificati, minutiResidui, minutiTotali, opzioneDaTesto, opzionePerId,
-    opzioniDisponibili, parseIntervallo, riepilogoAgenda, righeBlocchi
+    attivitaCorrente, bloccoManuale, blocchiGiorno, buchiResidui, componiBlocco, domandaOpzioni,
+    finestreGiorno, fmtDurata, fmtHHmm, minutiPianificati, minutiResidui, minutiTotali,
+    normalizzaBlocchi, opzioneDaTesto, opzionePerId, opzioniDisponibili, parseIntervallo,
+    riepilogoAgenda, righeBlocchi, serializzaBlocchi
   }
 };

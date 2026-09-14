@@ -1,6 +1,7 @@
 'use strict';
 
 const { addDaysStr, isWorkingDay, nextWorkingDay, nowRomeParts, parseHHmm, romeDayRange, romeToUtc, todayRomeStr } = require('./kona-cd-time');
+const agendaLib = require('./kona-cd-agenda');
 const { cleanLog, isUuid } = require('./kona-cd-util');
 const { finestraAttiva, tentativoEsaurito } = require('./kona-cd-conferme');
 const { distanzaKm } = require('./kona-cd-distances');
@@ -504,32 +505,34 @@ async function candidatiRilavorazione(supabase, { profiloId, oggi, fascia, cfg }
   return out;
 }
 
-async function candidatiLead(supabase, cfg, { profiloId, oggi, pinnedOnly }) {
-  if (!pinnedOnly && cfg?.orario_stop_business) {
+// Lead outbound aziendali ("Lead Outbound Aziendali" nella programmazione).
+// Vengono proposti SOLO dentro una fascia assegnata a questa attivita'.
+// Le campagne urgenti (lead `pinned`, vecchia priorita' 7) NON esistono piu'
+// come priorita' dedicate: un lead bloccato e' un lead come gli altri e rientra
+// in questa lista se la sua categoria e' approvata.
+async function candidatiLead(supabase, cfg, { profiloId, oggi }) {
+  if (cfg?.orario_stop_business) {
     const stop = parseHHmm(cfg.orario_stop_business);
     const nowMin = nowRomeParts().hh * 60 + nowRomeParts().mm;
     if (stop !== null && nowMin >= stop) return [];
   }
 
-  let categorieApprovate = [];
-  if (!pinnedOnly) {
-    const { data: piano, error: pianoError } = await supabase
-      .from('kona_call_director_piani').select('contenuto, stato')
-      .eq('data', oggi).eq('operatore_id', profiloId)
-      .in('stato', ['approvato', 'applicato']).limit(1).maybeSingle();
-    if (pianoError) return [];
-    const raw = piano?.contenuto?.categorie_approvate || piano?.contenuto?.categorie || [];
-    categorieApprovate = Array.isArray(raw) ? raw.map((v) => String(v).trim().toLowerCase()).filter(Boolean) : [];
-    if (categorieApprovate.length === 0) return [];
-  }
+  // Senza categorie approvate nel piano non parte nessuna chiamata aziendale.
+  const { data: piano, error: pianoError } = await supabase
+    .from('kona_call_director_piani').select('contenuto, stato')
+    .eq('data', oggi).eq('operatore_id', profiloId)
+    .in('stato', ['approvato', 'applicato']).limit(1).maybeSingle();
+  if (pianoError) return [];
+  const raw = piano?.contenuto?.categorie_approvate || piano?.contenuto?.categorie || [];
+  const categorieApprovate = Array.isArray(raw) ? raw.map((v) => String(v).trim().toLowerCase()).filter(Boolean) : [];
+  if (categorieApprovate.length === 0) return [];
 
-  const stati = ['nuovo', 'da_contattare', 'ricontattare', 'in_lavorazione'];
-  const statiCampionabili = pinnedOnly ? stati : stati.filter((s) => s !== 'in_lavorazione');
+  const statiCampionabili = ['nuovo', 'da_contattare', 'ricontattare'];
   let query = supabase
     .from('call_center_lead_outbound')
     .select('id, ragione_sociale, localita, provincia, categoria, indirizzo, telefono_norm, telefono_raw, telefono_tipo, email, partita_iva, codice_fiscale, zona, stato_lead, pinned, do_not_call, ultimo_contatto_at, times_seen, first_import_at, prossimo_followup_at')
     .eq('do_not_call', false).in('stato_lead', statiCampionabili).limit(100);
-  query = pinnedOnly ? query.eq('pinned', true) : query.or(`assegnato_a.is.null,assegnato_a.eq.${encodeURIComponent(profiloId)}`);
+  query = query.or(`assegnato_a.is.null,assegnato_a.eq.${encodeURIComponent(profiloId)}`);
   const { data, error } = await query;
   if (error || !Array.isArray(data)) return [];
 
@@ -538,7 +541,7 @@ async function candidatiLead(supabase, cfg, { profiloId, oggi, pinnedOnly }) {
       const due = new Date(row.prossimo_followup_at);
       if (!Number.isNaN(due.getTime()) && due.getTime() > Date.now()) return false;
     }
-    if (!pinnedOnly && !categoriaCorrisponde(row.categoria, categorieApprovate)) return false;
+    if (!categoriaCorrisponde(row.categoria, categorieApprovate)) return false;
     return true;
   });
   if (filtrati.length === 0) return [];
@@ -568,7 +571,7 @@ async function candidatiLead(supabase, cfg, { profiloId, oggi, pinnedOnly }) {
     || String(a.row.first_import_at || '').localeCompare(String(b.row.first_import_at || '')));
 
   return scored.map(({ row, score, km, zonaAppuntamenti }) => ({
-    tipo: pinnedOnly ? 'campagna_urgente' : 'sessione_business',
+    tipo: 'sessione_business',
     sorgenteId: row.id,
     sorgenteTipo: 'lead',
     chiaveTentativi: 'outbound:' + row.id,
@@ -583,17 +586,27 @@ async function candidatiLead(supabase, cfg, { profiloId, oggi, pinnedOnly }) {
     telefoni: [row.telefono_norm, row.telefono_raw],
     cf_piva: row.codice_fiscale || row.partita_iva,
     storico: { esito: row.stato_lead, ultimo_contatto_at: row.ultimo_contatto_at, times_seen: row.times_seen },
-    descrizione: pinnedOnly ? 'Campagna urgente approvata' : 'Sessione Business',
-    priority: pinnedOnly ? 7 : 8
+    descrizione: 'Sessione Business',
+    priority: 8
   }));
 }
-async function buildCandidates(supabase, cfg, { profiloId, oggi }) {
+
+// Priorita' 1-6, sempre.
+// La vecchia priorita' 7 (campagne urgenti) e la 8 (nuovi lead Business sempre
+// proposti) NON esistono piu': i lead outbound vengono proposti SOLO se la
+// fascia in corso e' "aziendali", cioe' se lo ha deciso il proprietario con la
+// programmazione della giornata. Nelle fasce manuali il sistema non propone
+// contatti: l'operatrice lavora le liste cartacee e registra ogni chiamata.
+async function buildCandidates(supabase, cfg, { profiloId, oggi, oraParts }) {
   const fascia = fasciaCorrente(cfg);
   const candidates = [];
   candidates.push(...(await candidatiConfermaBusiness(supabase, cfg, { profiloId, oggi })));
   candidates.push(...(await candidatiRilavorazione(supabase, { profiloId, oggi, fascia, cfg })));
-  candidates.push(...(await candidatiLead(supabase, cfg, { profiloId, oggi, pinnedOnly: true })));
-  candidates.push(...(await candidatiLead(supabase, cfg, { profiloId, oggi, pinnedOnly: false })));
+
+  const attivita = await attivitaFascia(supabase, cfg, { profiloId, oggi, oraParts });
+  if (attivita && attivita.opzione === 'aziendali') {
+    candidates.push(...(await candidatiLead(supabase, cfg, { profiloId, oggi })));
+  }
   candidates.sort((a, b) => a.priority - b.priority);
   return candidates;
 }
@@ -616,6 +629,78 @@ const ETICHETTE_ATTIVITA = {
 function categoriaConsumerPiano(contenuto, fallbackSessione) {
   const candidato = String(contenuto?.consumer || contenuto?.categoria_sessione || fallbackSessione || '');
   return ['telefoni_omaggio', 'fibra_fwa'].includes(candidato) ? candidato : null;
+}
+
+// Attivita' prevista dalla programmazione (piano del giorno o base operativa)
+// per l'ora corrente. Ritorna null fuori dalle fasce programmate.
+function attivitaDaPiano(contenuto, cfg, oraMin) {
+  const { blocchi, origine } = agendaLib.blocchiGiorno(contenuto, cfg);
+  const blocco = agendaLib.attivitaCorrente(blocchi, oraMin);
+  if (!blocco) return null;
+  const opzione = agendaLib.opzionePerId(blocco.opzione);
+  return {
+    opzione: blocco.opzione,
+    da: blocco.da,
+    a: blocco.a,
+    etichetta: opzione ? opzione.etichetta : blocco.opzione,
+    consumer: opzione ? opzione.consumer : null,
+    manuale: agendaLib.bloccoManuale(blocco),
+    origine
+  };
+}
+
+// Modalita' Consumer (liste cartacee) valida ADESSO. La decide la fascia in
+// corso: "Fisso"/"Telefoni Omaggio" sono lavoro manuale su liste cartacee,
+// mentre dentro "Lead Outbound Aziendali" non esiste nessuna modalita'
+// Consumer. Fuori da ogni fascia si ricade sulla modalita' dichiarata nel
+// piano, per non perdere le direttive scritte prima dell'agenda guidata.
+function modalitaConsumerDaPiano(contenuto, cfg, oraMin) {
+  const attivita = attivitaDaPiano(contenuto, cfg, oraMin);
+  if (attivita) return { ...attivita, modalita: attivita.consumer, dal_blocco: true };
+  const fallback = categoriaConsumerPiano(contenuto, null);
+  return {
+    opzione: fallback,
+    etichetta: null,
+    da: null,
+    a: null,
+    consumer: fallback,
+    manuale: Boolean(fallback),
+    origine: fallback ? 'piano_dichiarato' : 'nessuna',
+    modalita: fallback,
+    dal_blocco: false
+  };
+}
+
+async function attivitaFascia(supabase, cfg, { profiloId, oggi, oraParts }) {
+  const parts = oraParts || nowRomeParts();
+  const ora = (Number(parts.hh) || 0) * 60 + (Number(parts.mm) || 0);
+  const { data: piano, error } = await supabase
+    .from('kona_call_director_piani')
+    .select('contenuto')
+    .eq('data', oggi)
+    .eq('operatore_id', profiloId)
+    .in('stato', ['approvato', 'applicato'])
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return attivitaDaPiano(piano?.contenuto, cfg, ora);
+}
+
+// Modalita' Consumer della fascia IN CORSO (una sola lettura del piano).
+async function modalitaConsumerAttiva(supabase, cfg, { profiloId, oggi, oraParts } = {}) {
+  const data = oggi || todayRomeStr();
+  const parts = oraParts || nowRomeParts();
+  const oraMin = (Number(parts.hh) || 0) * 60 + (Number(parts.mm) || 0);
+  const { data: piano, error } = await supabase
+    .from('kona_call_director_piani')
+    .select('contenuto')
+    .eq('data', data)
+    .eq('operatore_id', profiloId)
+    .in('stato', ['approvato', 'applicato'])
+    .limit(1)
+    .maybeSingle();
+  if (error) return null;
+  return modalitaConsumerDaPiano(piano?.contenuto, cfg, oraMin);
 }
 
 // Conta gli appuntamenti Business 'proposto' per il prossimo giorno lavorativo:
@@ -650,10 +735,10 @@ function riepilogoRilavorazioni(rows) {
 // a partire dalle attivita' realmente disponibili (stesso motore dei candidati).
 // Mostra solo attivita' non vuote; tiene separato il piano giornaliero dalla
 // coda immediatamente lavorabile. Non materializza task.
-async function briefingGiornata(supabase, cfg, { profiloId, oggi }) {
+async function briefingGiornata(supabase, cfg, { profiloId, oggi, oraParts }) {
   const data = oggi || todayRomeStr();
   const fascia = fasciaCorrente(cfg);
-  const parts = nowRomeParts();
+  const parts = oraParts || nowRomeParts();
   const saluto = parts.hh < 13 ? 'Buongiorno' : (parts.hh < 18 ? 'Buon pomeriggio' : 'Buonasera');
 
   const [pianoRes, sessioneRes] = await Promise.all([
@@ -666,15 +751,22 @@ async function briefingGiornata(supabase, cfg, { profiloId, oggi }) {
   const categorieApprovate = Array.isArray(piano?.contenuto?.categorie_approvate)
     ? piano.contenuto.categorie_approvate
     : (Array.isArray(piano?.contenuto?.categorie) ? piano.contenuto.categorie : []);
-  // La modalita' Consumer viene dal piano, non da una sessione aperta a mano.
-  const consumerModalita = categoriaConsumerPiano(piano?.contenuto, sessioneRes.data?.categoria);
+  // Fascia in corso: decide se KONA propone lead aziendali o se la giornata e'
+  // lavoro manuale sulle liste cartacee.
+  const attivita = attivitaDaPiano(piano?.contenuto, cfg, parts.hh * 60 + parts.mm);
+  // La modalita' Consumer segue la fascia in corso; solo fuori da ogni fascia si
+  // ricade sul piano (o su una sessione aperta a mano).
+  const consumerModalita = attivita
+    ? (attivita.consumer || null)
+    : (categoriaConsumerPiano(piano?.contenuto, sessioneRes.data?.categoria) || null);
+  const inAziendali = Boolean(attivita && attivita.opzione === 'aziendali');
 
   const [mattinaRilav, pomeriggioRilav, nonPresentati, passaggio, businessLeads, confermeCount] = await Promise.all([
     queryRilavorazioneUnificata(supabase, { profiloId, oggi: data, fascia: 'Mattina' }),
     queryRilavorazioneUnificata(supabase, { profiloId, oggi: data, fascia: 'Pomeriggio' }),
     queryNonPresentati(supabase, { profiloId }),
     queryChiamatePassaggio(supabase, { profiloId, oggi: data, passaggioStati: ['in_attesa'] }),
-    candidatiLead(supabase, cfg, { profiloId, oggi: data, pinnedOnly: false }),
+    inAziendali ? candidatiLead(supabase, cfg, { profiloId, oggi: data }) : Promise.resolve([]),
     confermeInAttesa(supabase, cfg, { profiloId, oggi: data })
   ]);
 
@@ -706,6 +798,19 @@ async function briefingGiornata(supabase, cfg, { profiloId, oggi }) {
     },
     consumer: consumerModalita
       ? { modalita: consumerModalita, etichetta: consumerModalita === 'telefoni_omaggio' ? 'Contatti Consumer (Telefoni omaggio)' : 'Contatti Consumer (Fibra/FWA)' }
+      : null,
+    // Attivita' programmata ADESSO (null fuori dalle fasce). La UI la usa per
+    // dire all'operatrice cosa sta facendo e per il contatore delle chiamate
+    // manuali; il motore la usa per decidere se proporre lead.
+    attivita_corrente: attivita
+      ? {
+        opzione: attivita.opzione,
+        etichetta: attivita.etichetta,
+        da: attivita.da,
+        a: attivita.a,
+        manuale: attivita.manuale,
+        origine: attivita.origine
+      }
       : null,
     categorie_approvate: categorieApprovate.map((c) => String(c)).filter(Boolean),
     piano: { stato: piano?.stato || null, sorgente: piano?.sorgente || null }
@@ -775,7 +880,7 @@ async function materializeNextTask({ supabase, cfg, profiloId, oggi, oraParts })
   const blacklistRows = blacklistRes.rows;
   const exclusionRows = exclusionRes.rows;
 
-  const candidates = await buildCandidates(supabase, cfg, { profiloId, oggi: oggi || todayRomeStr() });
+  const candidates = await buildCandidates(supabase, cfg, { profiloId, oggi: oggi || todayRomeStr(), oraParts });
   const candidatiScartati = [];
   for (const candidate of candidates) {
     const leadId = candidate.leadId || candidate.payload?.lead_id;
@@ -1797,5 +1902,9 @@ module.exports = {
   telefoniUnici,
   verificaTaskAttivo,
   attesaRipresentazioneSuperata,
-  _test: { attesaRipresentazioneSuperata, campoTesto, categoriaCorrisponde, fasciaCorrente, fasciaDaOra, mappaEsitoOutbound, mappaEsitoStandard, normTel, prossimaFascia, pureBlacklisted, pureEscluso, telefoniUnici, tentativoEsaurito, SKIP_REASONS, ETICHETTE_ATTIVITA, riepilogoRilavorazioni, categoriaConsumerPiano }
+  attivitaDaPiano,
+  attivitaFascia,
+  modalitaConsumerAttiva,
+  modalitaConsumerDaPiano,
+  _test: { attesaRipresentazioneSuperata, attivitaDaPiano, attivitaFascia, campoTesto, categoriaCorrisponde, fasciaCorrente, fasciaDaOra, mappaEsitoOutbound, mappaEsitoStandard, modalitaConsumerDaPiano, normTel, prossimaFascia, pureBlacklisted, pureEscluso, telefoniUnici, tentativoEsaurito, SKIP_REASONS, ETICHETTE_ATTIVITA, riepilogoRilavorazioni, categoriaConsumerPiano }
 };

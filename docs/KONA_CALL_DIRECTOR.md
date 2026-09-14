@@ -131,16 +131,23 @@ attivita' e costruisce la giornata a tappe:
 5. finche' resta tempo **richiede cosa mettere nel tempo che resta**, con gli
    spazi liberi residui; "basta cosi'" chiude;
 6. alla fine mostra il riepilogo e chiede conferma: solo allora scrive il piano
-   (stato `approvato`, sorgente `mirko`).
+   (stato `approvato`, sorgente `mirko`) salvando le fasce in
+   `contenuto.agenda_blocchi` come `[{opzione, da: "HH:MM", a: "HH:MM"}]`.
 
 Vincoli: le due liste Consumer sono una modalita' al giorno (la seconda viene
-rifiutata), e le ore indicate sono l'intenzione della giornata: il motore
-continua a lavorare **per priorita' dentro le finestre di lavoro**, non con un
-timer che cambia attivita' al minuto.
+rifiutata). Le fasce confermate **diventano vincolanti** per il motore: dentro
+"Lead Outbound Aziendali" KONA propone i lead delle categorie approvate, nelle
+fasce manuali non propone nulla e lascia il contatore delle chiamate
+all'operatrice; fuori dalle fasce restano lavorabili solo le priorita' 1-6.
+Se il piano non ha fasce proprie si usa la `programmazione_base` di
+configurazione, quindi la giornata ha sempre una forma anche senza aprire
+`/agenda`.
 
-Nella schermata dell'operatrice il briefing mostra le **categorie approvate** e,
-se non corrisponde nessun contatto, lo dice esplicitamente: un piano che non
-puo' partire si vede subito invece che a fine giornata.
+Nella schermata dell'operatrice il briefing mostra **cosa c'e' in corso adesso**
+(con la fascia oraria), i **lead aziendali pronti** e il lavoro in coda diviso fra
+MATTINA e POMERIGGIO; mostra anche le **categorie approvate** e, se non
+corrisponde nessun contatto, lo dice esplicitamente: un piano che non puo'
+partire si vede subito invece che a fine giornata.
 
 ### Attesa prima di riproporre non presentati e passaggi
 
@@ -187,13 +194,32 @@ Priorita' operative:
 4. appuntamenti non presentati;
 5. Passa a Cerea;
 6. Passa in negozio;
-7. campagne urgenti approvate (i lead bloccati dal proprietario);
-8. sessione Business standard (nuovi lead, filtrati dalle categorie approvate).
+7. lead outbound aziendali (solo dentro una fascia "Lead Outbound Aziendali",
+   filtrati dalle categorie approvate).
+
+Le priorita' 1-6 valgono sempre e vincono anche dentro le fasce manuali. I lead
+aziendali, invece, vengono proposti **solo** se la fascia in corso della
+programmazione del giorno e' "Lead Outbound Aziendali": nelle fasce manuali
+("Fisso", "Telefoni Omaggio") il sistema non propone nessun contatto e
+l'operatrice telefona sulle liste cartacee registrando ogni chiamata col
+contatore. Le vecchie priorita' 7 (campagne urgenti sui lead `pinned`) e 8
+(nuovi lead Business sempre proposti) non esistono piu': un lead bloccato dal
+proprietario e' un lead come gli altri e rientra nella lista se la sua categoria
+e' approvata.
+
+La fascia oraria in corso si legge in quest'ordine:
+
+1. `contenuto.agenda_blocchi` del piano del giorno, se presente (fasce scelte da
+   Mirko con l'agenda guidata su Telegram);
+2. `programmazione_base` di configurazione (09:00-10:30 aziendali,
+   10:31-12:30 Fisso, 15:30-17:00 aziendali, 17:01-19:00 Fisso);
+3. fuori da ogni fascia: nessuna attivita' programmata, quindi nessun lead
+   aziendale (le priorita' 1-6 restano comunque lavorabili).
 
 La coda viene **ricomposta a ogni contatto concluso**: non e' "finisco la
 categoria 1, poi la 2". Se fra un contatto e il successivo diventa dovuto un
-ricontatto o un non presentato, quello scavalca i nuovi lead Business. Dopo le
-18:00 (`orario_stop_business`) i nuovi lead Business non vengono piu' proposti.
+ricontatto o un non presentato, quello scavalca i nuovi lead. Dopo le 18:00
+(`orario_stop_business`) i nuovi lead Business non vengono piu' proposti.
 Gli eventi con attesa (non presentati, passaggi) compaiono solo quando
 l'attesa di `giorni_attesa_ripresentazione` e' scaduta.
 
@@ -281,27 +307,39 @@ Stati:
    riepilogo e conferma. Nessun titolo o dettaglio degli eventi privati. Dopo
    la sincronizzazione l'esito viene completato e KONA passa al contatto
    successivo; un retry dello stesso task non duplica l'evento.
-7. `consumer` — fase automatica quando il piano prevede Consumer e non restano
-   task materializzabili: KONA **avvia da solo la sessione Consumer dal piano**
-   (`avvia_consumer`), cerca il CF/P.IVA, mostra o raccoglie l'anagrafica completa
-   e registra l'esito canonico senza aprire `registra-chiamata.html`. L'esito
-   `Appuntamento` apre lo schermo `negozio`, che riusa
-   `get_slot_disponibili` + prenotazione nel calendario del negozio (nessun
-   Google Calendar personale).
+7. `manuale` — la schermata delle **fasce manuali** ("Fisso", "Telefoni
+   Omaggio"). KONA non propone nessun contatto: mostra l'attivita' in corso con
+   la sua fascia oraria, il contatore delle chiamate registrate
+   (`chiamate_fascia`, letto dalla sessione e non dal browser) e il pulsante
+   `Registra chiamata` (esito + nota facoltativa) che chiama
+   `registra_chiamata_manuale`. La categoria la decide la programmazione, non
+   l'operatrice. `Aggiorna fascia` rilegge lo stato e rimette l'operatrice sulla
+   fase giusta quando la fascia cambia, `Censisci cliente` apre il flusso
+   Consumer completo per chi vuole anche l'anagrafica.
+8. `consumer` — fase automatica quando la fascia in corso e' una lista Consumer
+   e non restano task materializzabili: KONA **avvia da solo la sessione
+   Consumer della fascia** (`avvia_consumer`), cerca il CF/P.IVA, mostra o
+   raccoglie l'anagrafica completa e registra l'esito canonico senza aprire
+   `registra-chiamata.html`. L'esito `Appuntamento` apre lo schermo `negozio`,
+   che riusa `get_slot_disponibili` + prenotazione nel calendario del negozio
+   (nessun Google Calendar personale).
 
-La modalita' Consumer del piano usa il campo canonico `consumer`; per i piani
-Telegram gia' esistenti resta compatibile anche con `categoria_sessione`. La
-prenotazione negozio e la registrazione dell'esito sono compensate: se l'esito
+La modalita' Consumer della fascia in corso (`fibra_fwa` o `telefoni_omaggio`)
+viene da `agenda_blocchi` del piano o dalla `programmazione_base`; solo fuori da
+ogni fascia resta il fallback sul campo canonico `consumer` del piano (e sul
+legacy Telegram `categoria_sessione`), cosi' le direttive scritte prima
+dell'agenda guidata continuano a funzionare.
+La prenotazione negozio e la registrazione dell'esito sono compensate: se l'esito
 non viene salvato, l'appuntamento appena creato viene rimosso.
-8. `negozio` — calendario del negozio per il contatto Consumer gia' caricato
+9. `negozio` — calendario del negozio per il contatto Consumer gia' caricato
    nella scheda agente (anagrafica, motivo, slot e conferma). Reusa API,
    disponibilita' e prenotazione del flusso Call Center esistente, senza
    duplicare la logica backend.
-9. `transition` — breve passaggio quando cambia **famiglia** (conferme,
-   rilavorazioni, Business, campagne urgenti, Consumer), mai fra task della
-   stessa famiglia. L'ingresso nel Consumer e il completamento sono gestiti.
-10. `completed` — fine delle attivita' previste, con `Ricontrolla`.
-11. `error` — errore con `Riprova`, senza perdere il task corrente.
+10. `transition` — breve passaggio quando cambia **famiglia** (conferme,
+    rilavorazioni, Business, Consumer), mai fra task della stessa famiglia.
+    L'ingresso nel Consumer e il completamento sono gestiti.
+11. `completed` — fine delle attivita' previste, con `Ricontrolla`.
+12. `error` — errore con `Riprova`, senza perdere il task corrente.
 
 La barra agente mostra avanzamento e fase corrente. Gli strumenti persistenti
 `Ricerca numero`, `Chiamate di oggi` e `Pausa` restano nella stessa pagina:

@@ -212,7 +212,7 @@
 
   function aggiornaAvanzamento(screen) {
     var index = ['welcome', 'briefing'].indexOf(screen) !== -1 ? 1
-      : ['contact', 'consumer'].indexOf(screen) !== -1 ? 2
+      : ['contact', 'consumer', 'manuale'].indexOf(screen) !== -1 ? 2
         : ['outcome', 'followup', 'calendar', 'negozio'].indexOf(screen) !== -1 ? 3
           : ['transition', 'completed'].indexOf(screen) !== -1 ? 4 : 1;
     for (var i = 1; i <= 4; i += 1) {
@@ -224,6 +224,7 @@
       briefing: ['Briefing della giornata', 'Controlla il piano preparato per oggi.'],
       contact: ['Prossimo contatto', 'Ti mostro una sola lavorazione alla volta.'],
       consumer: ['Acquisizione Consumer', 'Cerchiamo o censiamo il cliente senza uscire da KONA.'],
+      manuale: ['Fascia liste cartacee', 'Telefoni tu sulle liste e registri ogni chiamata fatta.'],
       outcome: ['Registrazione esito', 'Salvo il risultato nel Call Center condiviso.'],
       calendar: ['Calendario Business', 'Mostro soltanto le disponibilita\' reali del calendario collegato.'],
       negozio: ['Calendario negozio', 'Scegli uno slot Consumer disponibile.'],
@@ -313,7 +314,7 @@
   function renderBriefing() {
     var b = _stato.briefing || {};
     setText('konaBriefingTitolo', 'Programma della giornata');
-    setText('konaBriefingSottotitolo', 'KONA sceglie da solo cosa lavorare: qui vedi il piano dell\'intera giornata.');
+    setText('konaBriefingSottotitolo', 'KONA segue le fasce decise con il bot: dentro "Lead Outbound Aziendali" ti propone i lead, nelle fasce manuali telefoni tu sulle liste.');
 
     var aggiungiRiga = function (list, etichetta, conteggio, extraLabel) {
       var li = document.createElement('li');
@@ -329,6 +330,16 @@
 
     var list = document.getElementById('konaBriefingList');
     list.textContent = '';
+
+    // Attivita' in corso adesso: e' la prima cosa che deve sapere l'operatrice.
+    if (_stato.attivita_corrente) {
+      aggiungiRiga(
+        list,
+        'In corso adesso',
+        null,
+        etichettaFascia(_stato.attivita_corrente)
+      );
+    }
 
     // Categorie approvate: senza questa riga un piano senza contatti
     // corrispondenti si scopriva solo a fine giornata.
@@ -353,6 +364,12 @@
       list.appendChild(liAvviso);
     }
 
+    // Lead aziendali pronti: KONA li propone solo dentro la fascia "aziendali"
+    // decisa con il bot, quindi il conteggio e' zero nelle fasce manuali.
+    if (b.business && b.business.conteggio > 0) {
+      aggiungiRiga(list, 'Lead aziendali pronti', b.business.conteggio);
+    }
+
     // Sezione MATTINA
     var mattinaHead = document.createElement('li');
     mattinaHead.textContent = 'MATTINA';
@@ -362,11 +379,9 @@
     list.appendChild(mattinaHead);
     var nMattina = 0;
     (b.mattina || []).forEach(function (a) { aggiungiRiga(list, a.etichetta, a.conteggio); nMattina += a.conteggio; });
-    if (b.business && b.business.conteggio > 0) { aggiungiRiga(list, b.business.etichetta, b.business.conteggio); nMattina += b.business.conteggio; }
-    if (b.consumer) { aggiungiRiga(list, b.consumer.etichetta, 'manuale'); }
-    if (nMattina === 0 && !b.consumer && !(b.business && b.business.conteggio > 0)) {
+    if (nMattina === 0) {
       var liMattinaVuota = document.createElement('li');
-      liMattinaVuota.textContent = 'Nessuna attivita' + ' prevista.';
+      liMattinaVuota.textContent = 'Nessuna attivita' + ' in coda.';
       liMattinaVuota.style.color = 'var(--text-secondary)';
       list.appendChild(liMattinaVuota);
     }
@@ -381,14 +396,29 @@
     list.appendChild(pomHead);
     var nPom = 0;
     (b.pomeriggio || []).forEach(function (a) { aggiungiRiga(list, a.etichetta, a.conteggio); nPom += a.conteggio; });
-    if (b.business && b.business.conteggio > 0) { aggiungiRiga(list, b.business.etichetta, b.business.conteggio); nPom += b.business.conteggio; }
-    if (b.consumer) { aggiungiRiga(list, b.consumer.etichetta, 'manuale'); }
-    if (nPom === 0 && !b.consumer && !(b.business && b.business.conteggio > 0)) {
+    if (nPom === 0) {
       var liPomVuota = document.createElement('li');
-      liPomVuota.textContent = 'Nessuna attivita' + ' prevista.';
+      liPomVuota.textContent = 'Nessuna attivita' + ' in coda.';
       liPomVuota.style.color = 'var(--text-secondary)';
       list.appendChild(liPomVuota);
     }
+  }
+
+  // Etichetta leggibile di una fascia ("09:00-10:30 Lead Outbound Aziendali").
+  function etichettaFascia(att) {
+    if (!att) return '';
+    var orario = (typeof att.da === 'number' && typeof att.a === 'number')
+      ? ' (' + minutiHHmm(att.da) + '-' + minutiHHmm(att.a) + ')'
+      : '';
+    return (att.etichetta || att.opzione || '') + orario;
+  }
+
+  function minutiHHmm(minuti) {
+    var n = Number(minuti);
+    if (!isFinite(n) || n < 0) return '';
+    var ore = Math.floor(n / 60);
+    var min = n % 60;
+    return (ore < 10 ? '0' : '') + ore + ':' + (min < 10 ? '0' : '') + min;
   }
 
   async function avviaChiamate() {
@@ -409,6 +439,14 @@
 
   // Decide la fase successiva quando non ci sono piu' task materializzabili.
   function vaiAllaFaseSuccessiva(motivo) {
+    var att = _stato && _stato.attivita_corrente;
+    if (att && att.manuale) {
+      // Fascia di liste cartacee: KONA non propone contatti, si contano le
+      // chiamate che l'operatrice fa e registra.
+      renderManuale();
+      go('manuale');
+      return;
+    }
     var consumer = _stato && _stato.briefing && _stato.briefing.consumer;
     if (consumer) {
       _pendingTransition = { prossima: 'consumer' };
@@ -418,6 +456,63 @@
     }
     setText('konaCompletedTesto', 'Hai terminato le attivita' + ' previste. KONA e' + ' disponibile per eventuali nuove lavorazioni.');
     go('completed');
+  }
+
+  // -- Fascia manuale (liste cartacee) ----------------------------------------
+  // In questa fascia KONA non propone nessun contatto: l'operatrice telefona
+  // sulle liste di carta e registra ogni chiamata. Il conteggio e' reale perche'
+  // vive nella sessione (kona_call_director_sessione_attivita) e non nel browser.
+
+  function renderManuale() {
+    var att = (_stato && _stato.attivita_corrente) || {};
+    setText('konaManualeFascia', etichettaFascia(att) || 'Fascia in corso');
+    setText('konaManualeTitolo', att.etichetta || 'Lavoro manuale sulle liste');
+    setText('konaManualeContatore', String(num(_stato && _stato.chiamate_fascia)));
+    setText('konaManualeStatus', '');
+  }
+
+  async function registraChiamataManuale() {
+    if (_salvataggioInCorso) { toast('Operazione gia\' in corso. Attendi la conferma.', 'warning'); return; }
+    var esito = (document.getElementById('konaManualeEsito') || {}).value || 'chiamata';
+    var note = campo('konaManualeNota');
+    _salvataggioInCorso = true;
+    try {
+      var res = await apiFetch(TASK, jsonBody({ action: 'registra_chiamata_manuale', esito: esito, note: note }));
+      if (!res.registrata) {
+        // La fascia e' cambiata mentre lavorava: niente conteggio falso.
+        setText('konaManualeStatus', 'La fascia e\' cambiata: aggiorno la schermata.');
+        await aggiornaFascia();
+        return;
+      }
+      _stato.chiamate_fascia = res.totale_sessione;
+      if (res.attivita_corrente) _stato.attivita_corrente = res.attivita_corrente;
+      renderManuale();
+      var notaInput = document.getElementById('konaManualeNota');
+      if (notaInput) notaInput.value = '';
+      toast('Chiamata registrata (' + res.totale_sessione + ' in questa fascia).');
+    } catch (e) {
+      mostraErrore(e.message);
+    } finally {
+      _salvataggioInCorso = false;
+    }
+  }
+
+  // Rilegge lo stato dal server e rimette l'operatrice sulla fase giusta: se la
+  // fascia e' cambiata (o e' finita) non resta bloccata sul contatore.
+  async function aggiornaFascia() {
+    try {
+      _stato = await apiFetch(STATUS, { method: 'GET' });
+      if (!_stato.abilitato) { await caricaStato(); return; }
+      var att = _stato.attivita_corrente;
+      if (att && att.manuale) {
+        renderManuale();
+        go('manuale');
+        return;
+      }
+      await avviaChiamate();
+    } catch (e) {
+      mostraErrore(e.message);
+    }
   }
 
   // -- Contact ----------------------------------------------------------------
@@ -1582,6 +1677,7 @@
   }
 
   root.KonaCD = {
+    aggiornaFascia: aggiornaFascia,
     annullaFollowup: annullaFollowup,
     apriNegozio: apriNegozio,
     apriRicercaInbound: apriRicercaInbound,
@@ -1589,6 +1685,7 @@
     apriStorico: apriStorico,
     avvia: avvia,
     avviaChiamate: avviaChiamate,
+    avviaConsumer: avviaConsumer,
     boot: boot,
     chiudiSkip: chiudiSkip,
     chiudiCorrezione: chiudiCorrezione,
@@ -1604,6 +1701,7 @@
     indietroCalendar: indietroCalendar,
     indietroNegozio: indietroNegozio,
     iniziaChiamata: iniziaChiamata,
+    registraChiamataManuale: registraChiamataManuale,
     registraConsumer: registraConsumer,
     selezionaModalitaRicontatto: selezionaModalitaRicontatto,
     ricontrolla: ricontrolla,
@@ -1614,6 +1712,6 @@
     toggleCorrezioneRicontatto: toggleCorrezioneRicontatto,
     togglePausa: togglePausa,
     toggleSpiegazioneSkip: toggleSpiegazioneSkip,
-    _test: { messaggioTransizione: messaggioTransizione, famiglia: famiglia, TITOLI_TIPO: TITOLI_TIPO }
+    _test: { etichettaFascia: etichettaFascia, messaggioTransizione: messaggioTransizione, famiglia: famiglia, TITOLI_TIPO: TITOLI_TIPO }
   };
 })(window);

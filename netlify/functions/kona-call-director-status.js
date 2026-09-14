@@ -41,9 +41,25 @@ exports.handler = async (event) => {
     const [budget, report, sessione, briefing] = await Promise.all([
       budgetSnapshot(client, cfg, monthRomeKey(data)),
       reportGiornaliero(client, cfg, { data }),
-      client.from('kona_call_director_sessioni').select('categoria, tipo').eq('data', data).eq('operatore_id', check.profiloId).eq('stato', 'attiva').limit(1).maybeSingle(),
+      client.from('kona_call_director_sessioni').select('id, categoria, tipo').eq('data', data).eq('operatore_id', check.profiloId).eq('stato', 'attiva').limit(1).maybeSingle(),
       briefingGiornata(client, cfg, { profiloId: check.profiloId, oggi: data })
     ]);
+    // Contatore delle chiamate manuali registrate nella sessione aperta
+    // (mattina/pomeriggio): e' il numero che l'operatrice vede mentre lavora le
+    // liste cartacee.
+    const attivitaCorrente = briefing.attivita_corrente || null;
+    let chiamateFascia = 0;
+    if (sessione?.data?.id) {
+      const { count } = await client.from('kona_call_director_sessione_attivita')
+        .select('id', { count: 'exact', head: true }).eq('sessione_id', sessione.data.id);
+      chiamateFascia = Number(count) || 0;
+    }
+
+    // La modalita' Consumer segue la fascia in corso; la sessione aperta resta
+    // come fallback per le giornate senza programmazione.
+    const modalitaBlocco = attivitaCorrente && attivitaCorrente.manuale
+      ? ((briefing.consumer && briefing.consumer.modalita) || null)
+      : null;
 
     return jsonOk({
       abilitato: true,
@@ -55,13 +71,18 @@ exports.handler = async (event) => {
       saluto: briefing.saluto,
       fascia_corrente: briefing.fascia,
       in_orario: briefing.in_orario,
-      consumer_modalita: sessione?.data?.categoria || null,
+      // La modalita' Consumer segue la fascia in corso; la sessione aperta resta
+      // come fallback per le giornate senza programmazione.
+      consumer_modalita: modalitaBlocco || sessione?.data?.categoria || null,
+      attivita_corrente: attivitaCorrente,
+      chiamate_fascia: chiamateFascia,
       briefing: {
         conferme: briefing.conferme,
         mattina: briefing.mattina,
         pomeriggio: briefing.pomeriggio,
         business: briefing.business,
         consumer: briefing.consumer,
+        attivita_corrente: attivitaCorrente,
         categorie_approvate: briefing.categorie_approvate,
         piano: briefing.piano
       },

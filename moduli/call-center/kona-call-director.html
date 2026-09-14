@@ -73,6 +73,10 @@
         .kona-result-head { display:flex; justify-content:space-between; gap:12px; font-size:13px; }
         .kona-result-meta { margin-top:5px; color:var(--text-secondary); font-size:12px; line-height:1.5; }
         .kona-empty { padding:20px; text-align:center; color:var(--text-secondary); }
+        .kona-fascia { display:inline-block; margin-bottom:10px; padding:3px 12px; border-radius:999px; background:var(--primary-bg,#FFF3E0); color:var(--primary); font-size:12px; font-weight:700; }
+        .kona-counter { display:flex; align-items:center; gap:16px; margin:16px 0; padding:16px 18px; border-radius:18px; background:linear-gradient(135deg,#0b2748,#154d78); color:#fff; }
+        .kona-counter-value { font-size:34px; font-weight:800; line-height:1; }
+        .kona-counter-label { font-size:12px; line-height:1.45; color:#c7d7ea; }
         @media (max-width:760px) {
           .kona-agent-bar { align-items:flex-start; flex-wrap:wrap; }
           .kona-tools { width:100%; }
@@ -246,6 +250,45 @@
                         <div class="kona-cta">
                             <button class="btn btn-primary btn-lg" onclick="KonaCD.continuaDopoTransizione()">Continua</button>
                         </div>
+                    </div>
+                </section>
+
+                <!-- manuale: fascia di liste cartacee, KONA non propone contatti -->
+                <section class="kona-screen" data-screen="manuale">
+                    <div class="kona-card">
+                        <div class="kona-fascia" id="konaManualeFascia"></div>
+                        <div class="kona-title" id="konaManualeTitolo">Lavoro manuale sulle liste</div>
+                        <div class="kona-subtitle">In questa fascia KONA non propone contatti: telefoni tu sulle liste cartacee e registri ogni chiamata fatta.</div>
+                        <div class="kona-counter">
+                            <div class="kona-counter-value" id="konaManualeContatore">0</div>
+                            <div class="kona-counter-label">chiamate registrate in questa fascia.<br>Il conteggio resta anche se ricarichi la pagina.</div>
+                        </div>
+                        <div class="kona-consumer-grid">
+                            <div class="kona-field">
+                                <label for="konaManualeEsito">Esito della chiamata</label>
+                                <select id="konaManualeEsito" class="form-control">
+                                    <option value="chiamata">Chiamata effettuata</option>
+                                    <option value="non_risposto">Non risposto</option>
+                                    <option value="non_interessato">Non interessato</option>
+                                    <option value="interessato">Interessato</option>
+                                    <option value="appuntamento">Appuntamento</option>
+                                    <option value="altro">Altro</option>
+                                </select>
+                            </div>
+                            <div class="kona-field wide">
+                                <label for="konaManualeNota">Note (facoltative)</label>
+                                <textarea id="konaManualeNota" class="form-control" rows="2"></textarea>
+                            </div>
+                        </div>
+                        <div class="kona-actions">
+                            <button class="btn btn-primary btn-lg" type="button" onclick="KonaCD.registraChiamataManuale()">Registra chiamata</button>
+                        </div>
+                        <div class="kona-actions">
+                            <button class="btn btn-secondary btn-sm" type="button" onclick="KonaCD.aggiornaFascia()">Aggiorna fascia</button>
+                            <button class="btn btn-secondary btn-sm" type="button" onclick="KonaCD.avviaConsumer()">Censisci cliente</button>
+                            <button class="btn btn-secondary btn-sm" type="button" onclick="KonaCD.terminaGiornata()">Termina giornata</button>
+                        </div>
+                        <div id="konaManualeStatus" style="font-size:12px;color:var(--text-secondary);margin-top:10px"></div>
                     </div>
                 </section>
 

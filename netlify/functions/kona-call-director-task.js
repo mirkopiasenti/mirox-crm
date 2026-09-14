@@ -9,6 +9,10 @@
  *   esito      -> registra esito valido / skip motivato / blacklist (persistita)
  *   sospendi   -> sospende il task attivo (un solo task lavorabile per operatrice)
  *   riprendi   -> riattiva il task sospeso (deterministico: ne esiste uno solo)
+ *   avvia_consumer -> apre la sessione Consumer della fascia in corso
+ *   registra_chiamata_manuale -> conta una chiamata fatta sulle liste cartacee
+ *                 (fascia manuale: KONA non propone contatti, l'operatrice
+ *                 telefona e registra)
  *
  * Il dettaglio contatto (nome, telefono, ecc.) e' restituito SOLO all'operatore
  * in questa function: mai in Telegram, mai nei log. Gli esiti passano dal
@@ -17,7 +21,7 @@
  */
 
 const { authAndEnabled } = require('./_lib/kona-cd-config');
-const { categoriaConsumerPiano, getTaskLavorabile, materializeNextTask, prenotaAppuntamentoNegozio, verificaTaskAttivo, getTaskDettaglio, registerEsito, registraChiamataConsumerCanonica } = require('./_lib/kona-cd-engine');
+const { getTaskLavorabile, materializeNextTask, modalitaConsumerAttiva, prenotaAppuntamentoNegozio, verificaTaskAttivo, getTaskDettaglio, registerEsito, registraChiamataConsumerCanonica } = require('./_lib/kona-cd-engine');
 const { enqueueNotifica } = require('./_lib/kona-cd-notifiche');
 const { notificaEsauriti } = require('./_lib/kona-cd-conferme');
 const { nowRomeParts, todayRomeStr } = require('./_lib/kona-cd-time');
@@ -310,25 +314,29 @@ exports.handler = async (event) => {
 
       case 'avvia_consumer': {
         // KONA determina e apre automaticamente la sessione Consumer prevista
-        // dal piano: l'operatore non sceglie la modalita' e non serve una
-        // sessione aperta a mano in precedenza.
+        // dalla FASCIA IN CORSO della programmazione (non piu' da un campo
+        // generico del piano): l'operatore non sceglie la modalita'.
         const data = todayRomeStr();
-        const tipo = nowRomeParts().hh >= 15 ? 'pomeriggio' : 'mattina';
-        const [pianoRes, sessioneRes] = await Promise.all([
-          client.from('kona_call_director_piani')
-            .select('contenuto, stato')
-            .eq('data', data).eq('operatore_id', profiloId)
-            .in('stato', ['approvato', 'applicato']).limit(1).maybeSingle(),
+        const parts = nowRomeParts();
+        const tipo = parts.hh >= 15 ? 'pomeriggio' : 'mattina';
+        const [fascia, sessioneRes] = await Promise.all([
+          modalitaConsumerAttiva(client, cfg, { profiloId, oggi: data, oraParts: parts }),
           client.from('kona_call_director_sessioni')
             .select('categoria').eq('data', data).eq('operatore_id', profiloId)
             .eq('stato', 'attiva').limit(1).maybeSingle()
         ]);
-        const { data: piano, error: pianoError } = pianoRes;
-        if (pianoError) return jsonError(500, pianoError.message);
-        const categoria = categoriaConsumerPiano(piano?.contenuto, sessioneRes.data?.categoria);
+        // La sessione aperta a mano resta valida solo se la fascia in corso non
+        // e' una fascia "aziendali" (lead dalle liste).
+        const inAziendali = Boolean(fascia && fascia.dal_blocco && !fascia.manuale);
+        const categoria = !inAziendali
+          ? ((fascia && fascia.modalita) || sessioneRes.data?.categoria || null)
+          : null;
         if (!categoria) {
-          // Fallback: se il piano non dichiara Consumer, nessuna sessione.
-          return jsonOk({ consumer: null, motivo: 'nessuna_modalita_consumer_nel_piano' });
+          return jsonOk({
+            consumer: null,
+            motivo: inAziendali ? 'fascia_aziendali_in_corso' : 'nessuna_modalita_consumer_in_corso',
+            attivita_corrente: fascia ? { opzione: fascia.opzione, etichetta: fascia.etichetta, da: fascia.da, a: fascia.a } : null
+          });
         }
         const { error: sessioneOpenError } = await client.from('kona_call_director_sessioni').upsert(
           { data, operatore_id: profiloId, tipo, stato: 'attiva', categoria, aperta_at: new Date().toISOString(), chiusa_at: null, note: { obiettivo_minuti: null } },
@@ -336,6 +344,53 @@ exports.handler = async (event) => {
         );
         if (sessioneOpenError) return jsonError(500, sessioneOpenError.message);
         return jsonOk({ consumer: { modalita: categoria }, sessione: true, tipo });
+      }
+
+      // Una chiamata fatta sulle LISTE CARTACEE della fascia in corso. Non crea
+      // un contatto nel CRM (il cliente non e' censito): registra solo l'esito
+      // nella sessione, cosi' il contatore della fascia e' reale. La categoria
+      // la decide la programmazione, non l'operatrice.
+      case 'registra_chiamata_manuale': {
+        const data = todayRomeStr();
+        const parts = nowRomeParts();
+        const tipo = parts.hh >= 15 ? 'pomeriggio' : 'mattina';
+        const fascia = await modalitaConsumerAttiva(client, cfg, { profiloId, oggi: data, oraParts: parts });
+        const categoria = fascia && fascia.manuale ? fascia.modalita : null;
+        if (!categoria) {
+          return jsonOk({
+            registrata: false,
+            motivo: (fascia && fascia.dal_blocco) ? 'fascia_non_manuale' : 'nessuna_fascia_manuale_in_corso',
+            attivita_corrente: fascia ? { opzione: fascia.opzione, etichetta: fascia.etichetta, da: fascia.da, a: fascia.a } : null
+          });
+        }
+        const esito = String(body.esito || 'chiamata');
+        if (!['chiamata', 'non_risposto', 'non_interessato', 'interessato', 'passa_in_negozio', 'altro', 'appuntamento'].includes(esito)) {
+          return jsonError(400, 'Esito chiamata manuale non valido');
+        }
+        const { data: sessione, error: sessioneError } = await client.from('kona_call_director_sessioni').upsert(
+          { data, operatore_id: profiloId, tipo, stato: 'attiva', categoria, aperta_at: new Date().toISOString(), chiusa_at: null, note: { obiettivo_minuti: null } },
+          { onConflict: 'data,operatore_id,tipo' }
+        ).select('id, categoria').single();
+        if (sessioneError || !sessione) return jsonError(500, sessioneError?.message || 'Sessione manuale non aperta');
+
+        const { data: attivita, error } = await client.from('kona_call_director_sessione_attivita').insert({
+          sessione_id: sessione.id,
+          operatore_id: profiloId,
+          categoria,
+          esito,
+          note: String(body.note || '').slice(0, 500) || null
+        }).select('id, created_at').single();
+        if (error || !attivita) return jsonError(500, error?.message || 'Registrazione chiamata manuale fallita');
+        const { count } = await client.from('kona_call_director_sessione_attivita')
+          .select('id', { count: 'exact', head: true }).eq('sessione_id', sessione.id);
+        return jsonOk({
+          registrata: true,
+          categoria,
+          esito,
+          attivita,
+          totale_sessione: Number(count) || 0,
+          attivita_corrente: { opzione: fascia.opzione, etichetta: fascia.etichetta, da: fascia.da, a: fascia.a }
+        });
       }
 
       case 'registra_attivita_consumer': {

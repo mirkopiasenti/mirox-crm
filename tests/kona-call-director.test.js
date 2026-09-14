@@ -148,6 +148,15 @@ function baseCfg() {
     orario_mattina: { inizio: '09:00', fine: '12:30' },
     orario_pomeriggio: { inizio: '15:30', fine: '19:00' },
     orario_stop_business: '18:00',
+    // Programmazione base operativa: se il piano del giorno non porta fasce
+    // proprie, la giornata si divide cosi' (aziendali = lead dalle liste,
+    // fibra_fwa = lavoro manuale sulle liste cartacee).
+    programmazione_base: [
+      { opzione: 'aziendali', da: '09:00', a: '10:30' },
+      { opzione: 'fibra_fwa', da: '10:31', a: '12:30' },
+      { opzione: 'aziendali', da: '15:30', a: '17:00' },
+      { opzione: 'fibra_fwa', da: '17:01', a: '19:00' }
+    ],
     durata_sessione_business_minuti: 90,
     durata_appuntamento_minuti: 45,
     distanza_km_indicativa: 20,
@@ -818,10 +827,12 @@ test('materializeNextTask: errore blacklist -> FAIL-CLOSED, nessun task', async 
 });
 
 test('FLUSSO REALE: blacklist -> impossibile riproporre', async () => {
-  // 1) materializza un candidato lead
+  // 1) materializza un candidato lead (fascia "aziendali" con categorie approvate)
   const blacklistRows = [];
   const db = makeSupabase({
     'kona_call_director_task.select': () => ({ data: [] }),
+    // Fascia in corso: la programmazione base mette "aziendali" alle 09:00-10:30.
+    'kona_call_director_piani.select': () => ({ data: { contenuto: { categorie_approvate: ['bar'] }, stato: 'approvato' }, error: null }),
     'blacklist.select': (q) => {
       // addBlacklist usa .eq('cf_piva') per il controllo esistenza -> non esistente
       const haFiltroCf = q.filters.some(([op, k]) => op === 'eq' && k === 'cf_piva');
@@ -830,6 +841,8 @@ test('FLUSSO REALE: blacklist -> impossibile riproporre', async () => {
     },
     'kona_call_director_esclusioni.select': () => ({ data: [] }),
     'kona_call_director_appuntamenti_business.select': () => ({ data: [] }),
+    'kona_call_director_arricchimenti.select': () => ({ data: [] }),
+    'kona_call_director_comuni.select': () => ({ data: [] }),
     'chiamate.select': () => ({ data: [] }),
     'call_center_lead_outbound.select': () => ({
       data: [{ id: LEAD, ragione_sociale: 'Bar Roma', telefono_raw: '3331234567', telefono_norm: '', email: '', localita: '', provincia: '', categoria: 'Bar', partita_iva: '', codice_fiscale: 'BARROMA01G23H456Z', zona: '', stato_lead: 'nuovo', pinned: false, do_not_call: false, prossimo_followup_at: null, times_seen: 0, first_import_at: '2026-08-01' }]
@@ -943,6 +956,7 @@ test('Business standard bloccato alle 18:00 (orario_stop_business)', async () =>
   const cfg = baseCfg();
   cfg.orario_stop_business = '00:00';
   const db = makeSupabase({
+    'kona_call_director_piani.select': () => ({ data: { contenuto: { categorie_approvate: ['bar'] }, stato: 'approvato' }, error: null }),
     'call_center_lead_outbound.select': () => ({ data: [{ id: LEAD, ragione_sociale: 'A', telefono_raw: '333', telefono_norm: '', email: '', localita: '', provincia: '', categoria: 'Bar', partita_iva: '', codice_fiscale: '', zona: '', stato_lead: 'nuovo', pinned: false, do_not_call: false, prossimo_followup_at: null, times_seen: 0, first_import_at: '2026-08-01' }] }),
     'kona_call_director_appuntamenti_business.select': () => ({ data: [] }),
     'chiamate.select': () => ({ data: [] }),
@@ -950,7 +964,7 @@ test('Business standard bloccato alle 18:00 (orario_stop_business)', async () =>
     'vw_rilavorazione_ricontatti_unificata.select': () => ({ data: [] })
   });
   const candidati = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 10, mm: 0 } });
-  assert.ok(!candidati.some((c) => c.tipo === 'sessione_business' && c.priority === 7));
+  assert.ok(!candidati.some((c) => c.tipo === 'sessione_business'));
 });
 
 test('Business standard bloccato senza categorie approvate nel piano', async () => {
@@ -964,9 +978,68 @@ test('Business standard bloccato senza categorie approvate nel piano', async () 
       return { data: [{ id: LEAD, ragione_sociale: 'A', telefono_raw: '333', categoria: 'Bar', stato_lead: 'nuovo', pinned: false, do_not_call: false }] };
     }
   });
-  const candidati = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27' });
-  assert.equal(leadQueryEseguita, true, 'la campagna urgente continua a interrogare i lead pinned');
+  // Fascia "aziendali" in corso (10:00), ma il piano non approva categorie:
+  // la lettura dei lead non parte nemmeno e non si propone nulla.
+  const candidati = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 10, mm: 0 } });
+  assert.equal(leadQueryEseguita, false, 'senza categorie approvate i lead non vengono nemmeno letti');
   assert.ok(!candidati.some((c) => c.tipo === 'sessione_business'));
+});
+
+test('programmazione: i lead aziendali arrivano solo nella fascia "aziendali"', async () => {
+  const cfg = baseCfg();
+  cfg.orario_stop_business = null;
+  const db = makeSupabase({
+    'kona_call_director_piani.select': () => ({ data: { contenuto: { categorie_approvate: ['bar'] }, stato: 'approvato' }, error: null }),
+    'call_center_lead_outbound.select': () => ({ data: [{ id: LEAD, ragione_sociale: 'Bar A', telefono_raw: '333', telefono_norm: '', localita: 'Legnago', provincia: 'VR', categoria: 'Bar', stato_lead: 'nuovo', pinned: true, do_not_call: false, prossimo_followup_at: null, times_seen: 0, first_import_at: '2026-08-01' }] }),
+    'kona_call_director_appuntamenti_business.select': () => ({ data: [] }),
+    'kona_call_director_arricchimenti.select': () => ({ data: [] }),
+    'kona_call_director_comuni.select': () => ({ data: [] }),
+    'chiamate.select': () => ({ data: [] }),
+    'vw_rilavorazione_ricontatti_unificata.select': () => ({ data: [] })
+  });
+  // 10:00 -> fascia "aziendali" della programmazione base: il lead arriva,
+  // anche se e' marcato `pinned` (le campagne urgenti non sono piu' una
+  // priorita' separata: un lead bloccato e' un lead come gli altri).
+  const inAziendali = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 10, mm: 0 } });
+  assert.equal(inAziendali.filter((c) => c.tipo === 'sessione_business').length, 1);
+  // 11:00 -> fascia manuale "Fisso": nessun contatto proposto dal sistema.
+  const inManuale = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 11, mm: 0 } });
+  assert.equal(inManuale.filter((c) => c.tipo === 'sessione_business').length, 0);
+  // 13:00 -> fuori dalle fasce programmate: nessun contatto.
+  const fuoriFascia = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 13, mm: 0 } });
+  assert.equal(fuoriFascia.filter((c) => c.tipo === 'sessione_business').length, 0);
+  // Nessuna priorita' 7 (campagne urgenti) in nessun caso.
+  assert.ok(!inAziendali.some((c) => c.priority === 7));
+  assert.ok(!inManuale.some((c) => c.priority === 7));
+});
+
+test('programmazione: le fasce del piano vincono sulla base operativa', async () => {
+  const cfg = baseCfg();
+  cfg.orario_stop_business = null;
+  const db = makeSupabase({
+    // Il piano di oggi dice: solo "telefoni omaggio" dalle 15:30 alle 19:00.
+    'kona_call_director_piani.select': () => ({
+      data: { contenuto: { categorie_approvate: ['bar'], agenda_blocchi: [{ opzione: 'telefoni_omaggio', da: '15:30', a: '19:00' }] }, stato: 'approvato' },
+      error: null
+    }),
+    'call_center_lead_outbound.select': () => ({ data: [{ id: LEAD, ragione_sociale: 'Bar A', telefono_raw: '333', telefono_norm: '', localita: 'Legnago', provincia: 'VR', categoria: 'Bar', stato_lead: 'nuovo', pinned: false, do_not_call: false, prossimo_followup_at: null, times_seen: 0, first_import_at: '2026-08-01' }] }),
+    'kona_call_director_appuntamenti_business.select': () => ({ data: [] }),
+    'kona_call_director_arricchimenti.select': () => ({ data: [] }),
+    'kona_call_director_comuni.select': () => ({ data: [] }),
+    'vw_rilavorazione_ricontatti_unificata.select': () => ({ data: [] })
+  });
+  // 10:00: la base operativa direbbe "aziendali", ma il piano del giorno comanda:
+  // a quell'ora non c'e' nessuna fascia -> nessun lead.
+  const dieci = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 10, mm: 0 } });
+  assert.equal(dieci.filter((c) => c.tipo === 'sessione_business').length, 0);
+  // 16:00: fascia manuale del piano -> nessun lead proposto.
+  const sedici = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 16, mm: 0 } });
+  assert.equal(sedici.filter((c) => c.tipo === 'sessione_business').length, 0);
+  // L'attivita' risolta e' quella manuale, con l'etichetta giusta.
+  const attivita = await engine.attivitaFascia(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 16, mm: 0 } });
+  assert.equal(attivita.opzione, 'telefoni_omaggio');
+  assert.equal(attivita.manuale, true);
+  assert.equal(attivita.origine, 'piano');
 });
 
 test('Business standard usa esclusivamente le categorie del piano approvato', async () => {
@@ -987,8 +1060,10 @@ test('Business standard usa esclusivamente le categorie del piano approvato', as
     'kona_call_director_arricchimenti.select': () => ({ data: [] }),
     'kona_call_director_comuni.select': () => ({ data: [] })
   });
-  const candidati = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27' });
-  assert.ok(lettureLead >= 2);
+  const candidati = await engine.buildCandidates(db, cfg, { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 10, mm: 0 } });
+  // Una sola lettura dei lead: le campagne urgenti (query `pinned=true`) non
+  // esistono piu' come priorita' separata.
+  assert.equal(lettureLead, 1);
   const standard = candidati.filter((c) => c.tipo === 'sessione_business');
   assert.equal(standard.length, 1);
   assert.equal(standard[0].nome, 'Bar A');
@@ -1376,12 +1451,14 @@ test('briefingGiornata: senza candidati non espone categorie vuote', async () =>
     'kona_call_director_sessioni.select': () => ({ data: null }),
     'kona_call_director_piani.select': () => ({ data: null })
   });
-  const res = await engine.briefingGiornata(db, baseCfg(), { profiloId: PROFILO, oggi: '2026-08-27' });
+  // 13:00 = pausa, fuori da ogni fascia programmata: nessuna attivita' in corso.
+  const res = await engine.briefingGiornata(db, baseCfg(), { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 13, mm: 0 } });
   assert.deepEqual(res.mattina, []);
   assert.deepEqual(res.pomeriggio, []);
   assert.equal(res.business.conteggio, 0);
   assert.equal(res.conferme, 0);
   assert.equal(res.consumer, null);
+  assert.equal(res.attivita_corrente, null);
   assert.ok(res.saluto);
 });
 
@@ -1400,13 +1477,15 @@ test('briefingGiornata: mattina/pomeriggio separati, solo categorie con conteggi
     'kona_call_director_sessioni.select': () => ({ data: { categoria: 'telefoni_omaggio' } }),
     'kona_call_director_piani.select': () => ({ data: null })
   });
-  const res = await engine.briefingGiornata(db, baseCfg(), { profiloId: PROFILO, oggi: '2026-08-27' });
+  // 13:00 = pausa: fuori dalle fasce, la sessione aperta a mano resta il fallback.
+  const res = await engine.briefingGiornata(db, baseCfg(), { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 13, mm: 0 } });
   // fascia null -> ricontatto disponibile sia mattina sia pomeriggio
   assert.ok(res.mattina.some((a) => a.tipo === 'ricontatto_programmato' && a.conteggio === 1));
   assert.ok(res.pomeriggio.some((a) => a.tipo === 'ricontatto_programmato' && a.conteggio === 1));
   assert.ok(res.mattina.every((a) => a.conteggio > 0));
   assert.ok(res.pomeriggio.every((a) => a.conteggio > 0));
   assert.equal(res.consumer.modalita, 'telefoni_omaggio');
+  assert.equal(res.attivita_corrente, null);
 });
 
 test('briefingGiornata: consumer deriva dal piano, non dalla sessione aperta a mano', async () => {
@@ -1420,9 +1499,48 @@ test('briefingGiornata: consumer deriva dal piano, non dalla sessione aperta a m
     'kona_call_director_sessioni.select': () => ({ data: null }),
     'kona_call_director_piani.select': () => ({ data: { stato: 'applicato', sorgente: 'default', contenuto: { consumer: 'fibra_fwa', categorie_approvate: ['bar'] } } })
   });
-  const res = await engine.briefingGiornata(db, baseCfg(), { profiloId: PROFILO, oggi: '2026-08-27' });
+  // 13:00 = pausa: fuori dalle fasce comanda il campo Consumer del piano.
+  const res = await engine.briefingGiornata(db, baseCfg(), { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 13, mm: 0 } });
   assert.equal(res.consumer.modalita, 'fibra_fwa');
   assert.deepEqual(res.categorie_approvate, ['bar']);
+});
+
+test('briefingGiornata: dentro la fascia "aziendali" nessuna modalita Consumer', async () => {
+  const db = makeSupabase({
+    'kona_call_director_appuntamenti_business.select': () => ({ data: [] }),
+    'kona_call_director_conferme.select': () => ({ data: [] }),
+    'vw_rilavorazione_ricontatti_unificata.select': () => ({ data: [] }),
+    'chiamate.select': () => ({ data: [] }),
+    'call_center_lead_outbound.select': () => ({ data: [] }),
+    'kona_call_director_arricchimenti.select': () => ({ data: [] }),
+    // Sessione Consumer aperta a mano in mattinata: dentro "aziendali" non conta.
+    'kona_call_director_sessioni.select': () => ({ data: { categoria: 'fibra_fwa' } }),
+    'kona_call_director_piani.select': () => ({ data: { stato: 'approvato', sorgente: 'mirko', contenuto: { categorie_approvate: ['bar'] } } })
+  });
+  const dentro = await engine.briefingGiornata(db, baseCfg(), { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 10, mm: 0 } });
+  assert.equal(dentro.consumer, null);
+  assert.equal(dentro.attivita_corrente.opzione, 'aziendali');
+  assert.equal(dentro.attivita_corrente.manuale, false);
+  // Stessa giornata, fascia manuale "Fisso": la modalita' Consumer riappare.
+  const manuale = await engine.briefingGiornata(db, baseCfg(), { profiloId: PROFILO, oggi: '2026-08-27', oraParts: { hh: 11, mm: 0 } });
+  assert.equal(manuale.consumer.modalita, 'fibra_fwa');
+  assert.equal(manuale.attivita_corrente.opzione, 'fibra_fwa');
+  assert.equal(manuale.attivita_corrente.manuale, true);
+});
+
+test('modalitaConsumerDaPiano: la fascia in corso comanda sul campo del piano', () => {
+  const cfg = baseCfg();
+  const piano = {
+    consumer: 'telefoni_omaggio',
+    agenda_blocchi: [{ opzione: 'aziendali', da: '09:00', a: '10:30' }, { opzione: 'fibra_fwa', da: '10:31', a: '12:30' }]
+  };
+  assert.equal(engine._test.modalitaConsumerDaPiano(piano, cfg, 10 * 60).modalita, null);
+  assert.equal(engine._test.modalitaConsumerDaPiano(piano, cfg, 11 * 60).modalita, 'fibra_fwa');
+  // Fuori dalle fasce: fallback sul campo Consumer del piano.
+  assert.equal(engine._test.modalitaConsumerDaPiano(piano, cfg, 13 * 60).modalita, 'telefoni_omaggio');
+  // Fascia "aziendali" non manuale -> nessuna lista cartacea.
+  assert.equal(engine._test.modalitaConsumerDaPiano(piano, cfg, 10 * 60).manuale, false);
+  assert.equal(engine._test.modalitaConsumerDaPiano(piano, cfg, 11 * 60).manuale, true);
 });
 
 test('categoria Consumer: supporta campo canonico, legacy Telegram e fallback sessione', () => {
@@ -2331,6 +2449,72 @@ test('avviso categorie: dice quanti contatti corrispondono o quali nomi usare', 
   assert.match(ko, /Ristorazione \(2\)/);
   // Nessuna categoria richiesta: nessun avviso.
   assert.equal(await telegramWebhook._test.avvisoCategorie(db, []), '');
+});
+
+test('agenda guidata: le fasce scelte col bot finiscono nel piano e guidano il motore', async () => {
+  const piani = [];
+  const db = makeSupabase({
+    'kona_call_director_profili.select': () => ({ data: [{ profilo_id: PROFILO }] }),
+    'kona_call_director_piani.select': () => ({ data: null, error: null }),
+    'kona_call_director_piani.upsert': (q) => { piani.push(q.value); return { data: null, error: null }; },
+    'kona_call_director_telegram.upsert': () => ({ data: null, error: null })
+  });
+  const scritti = await telegramWebhook._test.scriviPianoDirettiva(db, 4242, {
+    data: '2026-09-15',
+    categorie: ['Bar'],
+    nota: '09:00-10:30 Lead Outbound Aziendali; 10:31-12:30 Fisso (liste cartacee)',
+    modalitaConsumer: 'fibra_fwa',
+    blocchi: [
+      { opzione: 'aziendali', da: '09:00', a: '10:30' },
+      { opzione: 'fibra_fwa', da: '10:31', a: '12:30' }
+    ]
+  });
+  assert.equal(scritti, 1);
+  assert.equal(piani.length, 1);
+  // Il piano salvato porta le fasce in forma leggibile ("HH:MM").
+  assert.deepEqual(piani[0].contenuto.agenda_blocchi, [
+    { opzione: 'aziendali', da: '09:00', a: '10:30' },
+    { opzione: 'fibra_fwa', da: '10:31', a: '12:30' }
+  ]);
+  // E il motore le legge davvero: lead aziendali solo nella prima fascia.
+  const cfg = baseCfg();
+  const dentro = engine._test.attivitaDaPiano(piani[0].contenuto, cfg, 9 * 60 + 30);
+  const manuale = engine._test.attivitaDaPiano(piani[0].contenuto, cfg, 11 * 60);
+  assert.equal(dentro.opzione, 'aziendali');
+  assert.equal(dentro.manuale, false);
+  assert.equal(dentro.origine, 'piano');
+  assert.equal(manuale.opzione, 'fibra_fwa');
+  assert.equal(manuale.manuale, true);
+  // Fuori dalle fasce scritte: nessuna attivita' (la base non si intromette).
+  assert.equal(engine._test.attivitaDaPiano(piani[0].contenuto, cfg, 13 * 60), null);
+});
+
+test('agenda guidata: un piano senza fasce ricade sulla programmazione base', () => {
+  const cfg = baseCfg();
+  const attivita = engine._test.attivitaDaPiano({ categorie_approvate: ['Bar'] }, cfg, 10 * 60);
+  assert.equal(attivita.opzione, 'aziendali');
+  assert.equal(attivita.origine, 'base');
+});
+
+test('fascia manuale: la UI mostra attivita in corso, contatore e pulsante di registrazione', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/kona-call-director.html'), 'utf8');
+  // Il motore non propone contatti: si passa alla schermata del lavoro manuale.
+  assert.match(js, /att\.manuale[\s\S]{0,120}renderManuale\(\)/);
+  // Contatore letto dallo stato server (chiamate_fascia), non dal browser.
+  assert.match(js, /setText\('konaManualeContatore', String\(num\(_stato && _stato\.chiamate_fascia\)\)\)/);
+  // Registrazione chiamata manuale + aggiornamento fascia.
+  assert.match(js, /action: 'registra_chiamata_manuale'/);
+  assert.match(js, /registraChiamataManuale: registraChiamataManuale/);
+  assert.match(js, /aggiornaFascia: aggiornaFascia/);
+  assert.match(js, /avviaConsumer: avviaConsumer/);
+  // La schermata esiste nell'HTML con i tre elementi richiesti.
+  assert.match(html, /data-screen="manuale"/);
+  assert.match(html, /id="konaManualeTitolo"/);
+  assert.match(html, /id="konaManualeContatore"/);
+  assert.match(html, /onclick="KonaCD\.registraChiamataManuale\(\)"/);
+  // Niente emoji nella pagina.
+  assert.ok(!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(html), 'la pagina non deve contenere emoji');
 });
 
 test('assistente: gli argomenti del modello sono ripuliti e limitati', () => {

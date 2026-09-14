@@ -53,6 +53,22 @@ const CONFIG_DEFAULTS = {
   // E' un default di codice: per modificarlo dal pannello Admin servirebbe una
   // colonna dedicata in kona_call_director_config.
   giorni_attesa_ripresentazione: 5,
+  // Programmazione BASE della giornata, usata quando il piano del giorno non
+  // definisce le proprie fasce. L'ordine operativo e' sempre: prima le priorita'
+  // 1-6 del motore, poi l'attivita' della fascia in corso.
+  // - `aziendali`: lead outbound proposti automaticamente dal sistema (dalle
+  //   liste, filtrati dalle categorie approvate);
+  // - `fibra_fwa` (nome visibile "Fisso") e `telefoni_omaggio`: lavoro MANUALE
+  //   sulle liste cartacee, nessun contatto proposto, ogni chiamata registrata
+  //   e conteggiata.
+  // E' un default di codice: per modificarlo dal pannello Admin servirebbe una
+  // colonna dedicata in kona_call_director_config.
+  programmazione_base: [
+    { opzione: 'aziendali', da: '09:00', a: '10:30' },
+    { opzione: 'fibra_fwa', da: '10:31', a: '12:30' },
+    { opzione: 'aziendali', da: '15:30', a: '17:00' },
+    { opzione: 'fibra_fwa', da: '17:01', a: '19:00' }
+  ],
   distanza_km_indicativa: 20,
   richieste_web_max_per_lead: 2,
   lead_notte_obiettivo: 50,

@@ -688,17 +688,25 @@ Regole permanenti:
   routing espone `manual_fallback`; il bypass non disattiva KONA per gli altri;
 - la pagina operatore e' una macchina a stati esplicita (una sola schermata
   visibile): `welcome` → `briefing` → `contact` → `outcome` → `followup`/`calendar`
-  → `transition` → `consumer`/`negozio` → `completed`/`error`. Il briefing
-  dell'intera giornata (MATTINA/POMERIGGIO, solo categorie non vuote) e' calcolato
+  → `transition` → `manuale`/`consumer`/`negozio` → `completed`/`error`. Il
+  briefing (attivita' in corso, lead aziendali pronti, coda MATTINA/POMERIGGIO,
+  solo categorie non vuote) e' calcolato
   server-side da `briefingGiornata` (riusa i candidati); le transizioni avvengono
   per famiglia, mai fra task della stessa famiglia. Il calendario compare solo
   dopo `Appuntamento`: Business usa Google personale, Consumer usa lo schermo
   `negozio` che riusa `get_slot_disponibili` + prenotazione del flusso CC
   (migration additiva `073` per l'esito `appuntamento`); la scheda Consumer
   esegue lookup CF/P.IVA e upsert completo dell'anagrafica senza aprire
-  `registra-chiamata.html`; KONA avvia da solo la
-  sessione Consumer dal piano (`avvia_consumer`), leggendo il campo canonico
-  `consumer` e il legacy Telegram `categoria_sessione`; la prenotazione negozio
+  `registra-chiamata.html`. Le priorita' sono 1-6 (conferme, ricontatti, non
+  risposti, non presentati, Passa a Cerea, Passa in negozio) piu' i **lead
+  outbound aziendali**, proposti SOLO dentro una fascia "Lead Outbound
+  Aziendali" della programmazione del giorno (`contenuto.agenda_blocchi` del
+  piano, altrimenti `programmazione_base`); le fasce manuali ("Fisso", "Telefoni
+  Omaggio") non propongono contatti e usano lo schermo `manuale` (attivita' in
+  corso + contatore `chiamate_fascia` + `registra_chiamata_manuale`); KONA avvia
+  da solo la sessione Consumer della fascia (`avvia_consumer`), con fallback sul
+  campo canonico `consumer` e sul legacy Telegram `categoria_sessione`; la
+  prenotazione negozio
   viene rimossa in compensazione se la registrazione dell'esito fallisce;
 - ogni chiamata alle Functions dalla pagina agente mostra il loading condiviso
   e intercetta i click finche' la risposta non e' conclusa. Le operazioni
@@ -763,10 +771,15 @@ Regole permanenti:
   fa scegliere le categorie reali, chiede l'orario e finche' resta tempo
   richiede cosa mettere nel tempo residuo; le due liste Consumer sono una
   modalita' al giorno; nessuna scrittura sul piano prima della conferma finale
-  (`applicaAgenda` → `scriviPianoDirettiva`). Le ore sono l'intenzione della
-  giornata: il motore lavora per priorita' dentro le finestre, non con un timer;
-- **il briefing dell'operatrice mostra le categorie approvate** e avvisa quando
-  nessun contatto corrisponde;
+  (`applicaAgenda` → `scriviPianoDirettiva`). Alla conferma le fasce vengono
+  salvate in `contenuto.agenda_blocchi` (`[{opzione, da:"HH:MM", a:"HH:MM"}]`) e
+  **diventano vincolanti**: lead aziendali solo dentro la fascia "aziendali",
+  nessun contatto proposto nelle fasce manuali, priorita' 1-6 sempre attive;
+  senza fasce proprie si usa la `programmazione_base` di configurazione;
+- **il briefing dell'operatrice mostra l'attivita' in corso** (con fascia
+  oraria), i lead aziendali pronti, le categorie approvate e avvisa quando
+  nessun contatto corrisponde; nella fascia manuale compare il contatore
+  `chiamate_fascia` con il pulsante `registra_chiamata_manuale`;
 - chiedere la ricerca web a DeepSeek deve **fallire**
   (`provider_non_supporta_web_search`), mai degradare in silenzio:
   su OpenAI restano `arricchimento` (ricerca web) e `altro` (valutazione skip);
