@@ -163,8 +163,10 @@ exports.handler = async (event) => {
       risposta = await cmdCategorie(client, chatId, domani);
     } else if (text.startsWith('/agenda')) {
       // Costruzione guidata della giornata: prima il giorno, poi le attivita'.
+      // `cfg` e' obbligatorio: senza, le finestre di lavoro risultavano vuote e
+      // lo stato dell'agenda finiva salvato sotto la chat sbagliata.
       const giorno = /domani/.test(text) ? domani : data;
-      ({ risposta, markup } = await avviaAgenda(client, chatId, giorno, { oggi: data, domani }));
+      ({ risposta, markup } = await avviaAgenda(client, cfg, chatId, giorno, { oggi: data, domani }));
     } else if (text === '/sospendi') {
       ({ risposta, markup } = await proponiConferma(client, chatId, 'sospendi', {}, { oggi: data, domani }));
     } else if (text === '/riattiva') {
@@ -569,7 +571,13 @@ function agendaScaduta(a) {
 }
 
 // Avvia l'agenda per una giornata GIA' scelta dal chiamante.
+// `cfg` deve essere la configurazione: se arriva qualcos'altro (capitava quando
+// un chiamante dimenticava l'argomento) NON si scrive nessuno stato a meta',
+// perche' un'agenda senza orari resterebbe appesa nella conversazione.
 async function avviaAgenda(client, cfg, chatId, giorno, contesto = {}) {
+  if (!cfg || typeof cfg !== 'object' || !chatId) {
+    return { risposta: 'Agenda non avviata per un errore interno di configurazione. Riprova con /agenda.', markup: null };
+  }
   const stato = {
     attiva: true,
     data: giorno,
@@ -986,4 +994,4 @@ async function rispostaSenzaIa(client, chatId, conv, text, data, domani, esito) 
 }
 
 // Esposti per i test: la function Netlify usa soltanto `handler`.
-module.exports._test = { applicaAgenda, avvisoCategorie, categorieDisponibili, etichettaCategorie, scriviPianoDirettiva };
+module.exports._test = { applicaAgenda, avviaAgenda, avvisoCategorie, categorieDisponibili, etichettaCategorie, gestisciAgendaCallback, scriviPianoDirettiva };

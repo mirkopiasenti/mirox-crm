@@ -510,10 +510,14 @@ async function candidatiRilavorazione(supabase, { profiloId, oggi, fascia, cfg }
 // Le campagne urgenti (lead `pinned`, vecchia priorita' 7) NON esistono piu'
 // come priorita' dedicate: un lead bloccato e' un lead come gli altri e rientra
 // in questa lista se la sua categoria e' approvata.
-async function candidatiLead(supabase, cfg, { profiloId, oggi }) {
+async function candidatiLead(supabase, cfg, { profiloId, oggi, oraParts }) {
+  // L'ora di riferimento e' quella del chiamante (o l'ora reale). Usare sempre
+  // l'orologio invece dell'ora passata rendeva il motore non deterministico:
+  // dopo le 18:00 i lead sparivano anche valutando una fascia diversa.
   if (cfg?.orario_stop_business) {
     const stop = parseHHmm(cfg.orario_stop_business);
-    const nowMin = nowRomeParts().hh * 60 + nowRomeParts().mm;
+    const parts = oraParts || nowRomeParts();
+    const nowMin = (Number(parts.hh) || 0) * 60 + (Number(parts.mm) || 0);
     if (stop !== null && nowMin >= stop) return [];
   }
 
@@ -605,7 +609,7 @@ async function buildCandidates(supabase, cfg, { profiloId, oggi, oraParts }) {
 
   const attivita = await attivitaFascia(supabase, cfg, { profiloId, oggi, oraParts });
   if (attivita && attivita.opzione === 'aziendali') {
-    candidates.push(...(await candidatiLead(supabase, cfg, { profiloId, oggi })));
+    candidates.push(...(await candidatiLead(supabase, cfg, { profiloId, oggi, oraParts })));
   }
   candidates.sort((a, b) => a.priority - b.priority);
   return candidates;
@@ -766,7 +770,7 @@ async function briefingGiornata(supabase, cfg, { profiloId, oggi, oraParts }) {
     queryRilavorazioneUnificata(supabase, { profiloId, oggi: data, fascia: 'Pomeriggio' }),
     queryNonPresentati(supabase, { profiloId }),
     queryChiamatePassaggio(supabase, { profiloId, oggi: data, passaggioStati: ['in_attesa'] }),
-    inAziendali ? candidatiLead(supabase, cfg, { profiloId, oggi: data }) : Promise.resolve([]),
+    inAziendali ? candidatiLead(supabase, cfg, { profiloId, oggi: data, oraParts: parts }) : Promise.resolve([]),
     confermeInAttesa(supabase, cfg, { profiloId, oggi: data })
   ]);
 

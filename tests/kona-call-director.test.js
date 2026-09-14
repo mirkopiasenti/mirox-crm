@@ -2451,6 +2451,71 @@ test('avviso categorie: dice quanti contatti corrispondono o quali nomi usare', 
   assert.equal(await telegramWebhook._test.avvisoCategorie(db, []), '');
 });
 
+test('agenda guidata: /agenda passa la configurazione e salva lo stato sulla chat giusta', async () => {
+  const CHAT = 4242;
+  // Stato conversazione persistito davvero: `aggiornaConversazione` rilegge la
+  // riga e la rifonde col patch, quindi il mock deve ricordarsela.
+  let riga = null;
+  const scritti = [];
+  const db = makeSupabase({
+    'kona_call_director_telegram.select': () => ({ data: riga }),
+    'kona_call_director_telegram.upsert': (q) => {
+      scritti.push(q.value);
+      riga = { chat_id: q.value.chat_id, stato_conversazione: q.value.stato_conversazione };
+      return { data: null, error: null };
+    }
+  });
+  const esito = await telegramWebhook._test.avviaAgenda(db, baseCfg(), CHAT, '2026-09-15', { oggi: '2026-09-14', domani: '2026-09-15' });
+  // Il caso reale del collaudo: argomento `cfg` dimenticato -> "[object Object]"
+  // e "Non trovo orari di lavoro configurati".
+  assert.ok(!/\[object Object\]/.test(esito.risposta), 'la data non deve diventare [object Object]');
+  assert.ok(!/Non trovo orari di lavoro/.test(esito.risposta), 'le finestre di lavoro devono essere configurate');
+  assert.match(esito.risposta, /09:00-12:30/);
+  assert.match(esito.risposta, /15:30-19:00/);
+  assert.match(esito.risposta, /domani 15\/09\/2026/);
+  // Lo stato dell'agenda vive nella chat che l'ha chiesta: e' cosi' che i
+  // pulsanti "Lead Outbound Aziendali" / "Fisso" / "Telefoni Omaggio" la ritrovano.
+  assert.ok(scritti.length >= 1);
+  assert.equal(riga.chat_id, CHAT);
+  assert.equal(riga.stato_conversazione.agenda.data, '2026-09-15');
+  assert.equal(riga.stato_conversazione.agenda.stato_fase, 'scelta_opzione');
+  assert.deepEqual(riga.stato_conversazione.agenda.blocchi, []);
+});
+
+test('agenda guidata: dopo /agenda i pulsanti ritrovano l\'agenda in costruzione', async () => {
+  const CHAT = 4242;
+  let riga = null;
+  const db = makeSupabase({
+    'kona_call_director_telegram.select': () => ({ data: riga }),
+    'kona_call_director_telegram.upsert': (q) => {
+      riga = { chat_id: q.value.chat_id, stato_conversazione: q.value.stato_conversazione };
+      return { data: null, error: null };
+    },
+    'call_center_lead_outbound.select': () => ({ data: [{ categoria: 'Bar' }, { categoria: 'Bar' }, { categoria: 'Negozi' }] })
+  });
+  await telegramWebhook._test.avviaAgenda(db, baseCfg(), CHAT, '2026-09-15', { oggi: '2026-09-14', domani: '2026-09-15' });
+  // Il pulsante "Lead Outbound Aziendali": prima del fix lo stato era salvato
+  // sotto la data invece che sotto la chat e la risposta era "non c'e' nessuna
+  // agenda in costruzione".
+  const dopo = await telegramWebhook._test.gestisciAgendaCallback(db, baseCfg(), CHAT, 'aziendali');
+  assert.ok(!/nessuna agenda in costruzione/.test(dopo.testo), dopo.testo);
+  assert.match(dopo.testo, /Quali categorie di contatti aziendali/);
+  assert.match(dopo.testo, /Bar \(2\)/);
+  assert.equal(riga.stato_conversazione.agenda.stato_fase, 'scelta_categorie');
+  assert.equal(riga.stato_conversazione.agenda.opzione, 'aziendali');
+});
+
+test('agenda guidata: senza configurazione non si scrive nessuno stato a meta\'', async () => {
+  const scritti = [];
+  const db = makeSupabase({
+    'kona_call_director_telegram.select': () => ({ data: null }),
+    'kona_call_director_telegram.upsert': (q) => { scritti.push(q.value); return { data: null, error: null }; }
+  });
+  const esito = await telegramWebhook._test.avviaAgenda(db, 4242, 4242, '2026-09-15', {});
+  assert.match(esito.risposta, /errore interno/);
+  assert.equal(scritti.length, 0);
+});
+
 test('agenda guidata: le fasce scelte col bot finiscono nel piano e guidano il motore', async () => {
   const piani = [];
   const db = makeSupabase({
