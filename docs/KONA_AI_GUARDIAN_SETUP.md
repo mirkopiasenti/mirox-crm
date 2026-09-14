@@ -7,7 +7,7 @@ La prima versione realizza un unico agente, senza gerarchie:
 - gli utenti autenticati aprono l'azione flottante KONA AI Guardian e scelgono `Segnala un problema` oppure `Proponi una miglioria`;
 - Guardian fa una domanda breve per volta e al massimo due chiarimenti dopo la descrizione iniziale; poi registra comunque la richiesta;
 - la richiesta viene registrata in tabelle Supabase server-only e notificata nella chat Telegram privata di Mirko;
-- Mirko puo' usare testo o messaggi vocali, aprire una richiesta, chiedere un'analisi Guardian, approvarne la lavorazione o archiviarla;
+- Mirko scrive in chat **solo testo** (i vocali non sono piu' supportati), apre una richiesta, chiede un'analisi Guardian, ne approva la lavorazione o la archivia;
 - analisi, approvazione lavorazione e archiviazione partono solo da pulsanti Telegram e lasciano audit nel database;
 - le email tecniche automatiche sono rimosse; `mirox-send-email` e tutte le email operative restano attivi.
 
@@ -20,8 +20,7 @@ Le migration `067_kona_ai_codex_esecuzioni.sql` e `068_kona_ai_observer.sql` pre
 Il progetto usa un modello ibrido:
 
 - **interno al CRM**: identita', incidenti, conversazioni, permessi, audit, Telegram e approvazioni;
-- **OpenAI Responses API**: raccolta guidata e ragionamento conversazionale con output strutturato;
-- **OpenAI Audio Transcriptions**: trascrizione dei messaggi vocali Telegram gia' conclusi; nessuna conversazione live;
+- **OpenAI Responses API**: raccolta guidata e ragionamento conversazionale con output strutturato. La trascrizione audio (OpenAI Audio Transcriptions) è stata **rimossa il 2026-09-14**: i messaggi vocali Telegram non sono più supportati e il bot chiede di scrivere il testo;
 - **Codex**: analisi read-only del repository e preparazione delle modifiche in un ambiente isolato, attivate da un'approvazione specifica dell'amministratore.
 
 La separazione evita che il modello conversazionale possieda credenziali di deploy o possa modificare autonomamente produzione.
@@ -37,7 +36,7 @@ Non collegare il Guardian direttamente al database condiviso di produzione. Prim
 5. usare la branch `codex/kona-ai-guardian-staging` e verificare che il workflow `.github/workflows/ci.yml` sia verde (completato il 2026-08-10);
 6. creare soltanto l'utente Mirko, associarlo a un profilo `admin` e impostare `KONA_AI_OWNER_PROFILE_ID`; l'invito deve atterrare su `imposta-password.html`, dove Mirko sceglie autonomamente la password (account, profilo ed env var completati il 2026-08-10);
 7. configurare inizialmente OpenAI e Telegram solo sul sito staging; raccolta, analisi e bot sono stati verificati qui il 2026-08-10;
-8. provare entrambi i tipi di richiesta, domande, notifica, vocale, analisi, approvazione lavorazione e archiviazione prima di valutare la produzione.
+8. provare entrambi i tipi di richiesta, domande, notifica, analisi, approvazione lavorazione e archiviazione prima di valutare la produzione (i vocali non sono più supportati: il bot risponde chiedendo il testo).
 
 La prima versione e' stata quindi attivata sul production `mirox-crm.it`: env OpenAI/Telegram, profilo proprietario, worker HMAC, dispatcher GitHub e Observer sono configurati sul Netlify ufficiale. Le migration additive `065`–`068` sono applicate e verificate sul Supabase production `lbgwamhjkjjfwgusafbi`; non modificano le tabelle Call Center condivise. Il bot `@MiroxAiGuardianBot` e' riservato al webhook production e il bot staging già creato è `@KonaAiGuardianBot`.
 
@@ -56,9 +55,9 @@ Netlify registra comunque le scheduled functions presenti in `netlify.toml`; ent
 | `MIROX_DEPLOY_ENV` | Identifica l'ambiente e protegge build e cron | `production` sul sito ufficiale, `staging` sul sito di test |
 | `MIROX_PUBLIC_SUPABASE_URL` | URL pubblico Supabase usato dal browser | Necessario sullo staging; production usa la configurazione ufficiale della build |
 | `MIROX_PUBLIC_SUPABASE_ANON_KEY` | Publishable/anon key Supabase; mai service role | Necessaria sullo staging; production usa la configurazione ufficiale della build |
-| `OPENAI_API_KEY` | Responses API e trascrizione vocali; solo lato server | Production e staging |
+| `OPENAI_API_KEY` | Responses API del Guardian; solo lato server. Non serve più per l'audio (trascrizione rimossa il 2026-09-14) | Production e staging |
 | `OPENAI_GUARDIAN_MODEL` | Modello conversazionale opzionale. Default `gpt-5.6-luna` | Production e staging |
-| `OPENAI_TRANSCRIBE_MODEL` | Modello di trascrizione opzionale. Default `gpt-transcribe` | Production e staging |
+| `OPENAI_TRANSCRIBE_MODEL` | **Non più usata**: la trascrizione dei vocali è stata rimossa | Rimosso |
 | `TELEGRAM_GUARDIAN_BOT_TOKEN` | Token del bot Telegram dedicato a Guardian | Un bot distinto per ciascun ambiente |
 | `TELEGRAM_GUARDIAN_OWNER_CHAT_ID` | Unico `chat_id` autorizzato: quello di Mirko | Production e staging |
 | `TELEGRAM_GUARDIAN_WEBHOOK_SECRET` | Segreto casuale inviato da Telegram nell'header del webhook | Un valore distinto per ciascun ambiente |
@@ -112,7 +111,7 @@ Comandi disponibili:
 - `/apri KG-000001` imposta la richiesta attiva;
 - `/nuovo descrizione` crea un problema direttamente da Telegram;
 - `/nuovo_miglioria descrizione` crea una proposta di miglioria;
-- messaggi e vocali normali vengono collegati alla richiesta attiva.
+- i messaggi normali vengono collegati alla richiesta attiva; un vocale riceve la richiesta di scrivere il testo (nessuna trascrizione).
 
 ## Approvazioni e limiti
 

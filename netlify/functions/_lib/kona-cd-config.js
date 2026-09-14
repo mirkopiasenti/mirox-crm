@@ -17,15 +17,27 @@ const CONFIG_DEFAULTS = {
   budget_mensile_eur: 50,
   riserva_arricchimento_eur: 40,
   riserva_dialogo_eur: 10,
+  // Tetto dedicato all'assistente Telegram (DeepSeek): 10 EUR/mese, come
+  // richiesto. Separato dal budget totale e dalle altre riserve.
+  riserva_telegram_eur: 10,
   modello_openai: 'gpt-5.6-luna',
   // Prezzi ufficiali OpenAI al 2026-08-27: GPT-5.6 Luna input $0.20/M,
   // output $1.20/M, web search reasoning $10.00/1000 chiamate. Verificabili
   // da admin in kona_call_director_config.prezzi_openai.
   prezzi_openai: { 'gpt-5.6-luna': { input: 0.20, output: 1.20, web_search: 0.01 } },
-  // Fattore conservativo per convertire i prezzi OpenAI in USD nel budget EUR.
+  // Modello e prezzi DeepSeek: `deepseek-flash` = DeepSeek V4.1 Flash.
+  // Tariffa peak (conservativa) da api-docs.deepseek.com/quick_start/pricing.
+  modello_deepseek: 'deepseek-flash',
+  prezzi_deepseek: { 'deepseek-flash': { input: 0.30, output: 1.20 } },
+  // Provider IA per attivita': solo il dialogo Telegram usa DeepSeek. La
+  // ricerca dei dati aziendali su web resta su OpenAI (DeepSeek non la offre).
+  provider_per_attivita: { telegram: 'deepseek' },
+  // Fattore conservativo per convertire i prezzi in USD nel budget EUR.
   usd_to_eur: 1,
   soglie_budget: [70, 85, 95, 100],
   max_chiamate_openai_ora: 120,
+  // Tetto orario dei messaggi Telegram interpretati dall'IA (0 = congelato).
+  max_messaggi_telegram_ora: 60,
   giorni_lavorativi: [1, 2, 3, 4, 5],
   ferie: [],
   orario_mattina: { inizio: '09:00', fine: '12:30' },
@@ -91,11 +103,22 @@ async function getConfig(supabase) {
     cfg.budget_mensile_eur = num(row.budget_mensile_eur, cfg.budget_mensile_eur);
     cfg.riserva_arricchimento_eur = num(row.riserva_arricchimento_eur, cfg.riserva_arricchimento_eur);
     cfg.riserva_dialogo_eur = num(row.riserva_dialogo_eur, cfg.riserva_dialogo_eur);
+    cfg.riserva_telegram_eur = num(row.riserva_telegram_eur, cfg.riserva_telegram_eur);
     cfg.modello_openai = String(row.modello_openai || cfg.modello_openai);
     cfg.prezzi_openai = parseJson(row.prezzi_openai, cfg.prezzi_openai) || {};
+    cfg.modello_deepseek = String(row.modello_deepseek || cfg.modello_deepseek);
+    cfg.prezzi_deepseek = parseJson(row.prezzi_deepseek, cfg.prezzi_deepseek) || {};
+    // La mappa dei provider si FONDE con i default: una chiave assente nella
+    // riga DB (o una colonna non ancora migrata) non deve far ricadere
+    // l'assistente Telegram su OpenAI, che non e' cio' che la config vuole.
+    cfg.provider_per_attivita = {
+      ...CONFIG_DEFAULTS.provider_per_attivita,
+      ...(parseJson(row.provider_per_attivita, {}) || {})
+    };
     cfg.usd_to_eur = num(row.usd_to_eur, cfg.usd_to_eur);
     cfg.soglie_budget = Array.isArray(row.soglie_budget) ? row.soglie_budget : cfg.soglie_budget;
     cfg.max_chiamate_openai_ora = num(row.max_chiamate_openai_ora, cfg.max_chiamate_openai_ora);
+    cfg.max_messaggi_telegram_ora = num(row.max_messaggi_telegram_ora, cfg.max_messaggi_telegram_ora);
     cfg.giorni_lavorativi = Array.isArray(row.giorni_lavorativi) ? row.giorni_lavorativi : cfg.giorni_lavorativi;
     cfg.ferie = Array.isArray(row.ferie) ? row.ferie : cfg.ferie;
     cfg.orario_mattina = parseJson(row.orario_mattina, cfg.orario_mattina) || cfg.orario_mattina;
@@ -130,6 +153,8 @@ async function getConfig(supabase) {
   }
   const envModel = String(process.env.KONA_CALL_DIRECTOR_OPENAI_MODEL || '').trim();
   if (envModel) cfg.modello_openai = envModel;
+  const envDeepseek = String(process.env.KONA_CALL_DIRECTOR_DEEPSEEK_MODEL || '').trim();
+  if (envDeepseek) cfg.modello_deepseek = envDeepseek;
   return cfg;
 }
 

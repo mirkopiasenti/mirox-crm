@@ -96,8 +96,12 @@ function validateStructured(value, schema) {
 // Costo per il modello (prezzi da config, mai hardcodati).
 // Ritorna { ok:false } se modello o prezzi sconosciuti/non numerici: il
 // chiamante DEVE fallire (mai conteggiare zero).
-function estimateCost(cfg, model, usage, webCount) {
-  const prices = (cfg && cfg.prezzi_openai && cfg.prezzi_openai[model]) || null;
+//
+// Le due funzioni `...Con` sono la versione GENERICA (tabella prezzi passata
+// dal chiamante): le usano sia OpenAI sia DeepSeek, cosi' la logica di stima e
+// di fail-closed esiste una volta sola e non puo' divergere tra provider.
+function estimateCostCon(prezzi, cfg, model, usage, webCount) {
+  const prices = (prezzi && prezzi[model]) || null;
   if (!prices) return { ok: false, motivo: 'prezzo_non_configurato', model };
   const inputPrice = Number(prices.input) / 1e6;
   const outputPrice = Number(prices.output) / 1e6;
@@ -111,11 +115,15 @@ function estimateCost(cfg, model, usage, webCount) {
   return { ok: true, eur: Math.round(eur * 1e6) / 1e6, note: null };
 }
 
+function estimateCost(cfg, model, usage, webCount) {
+  return estimateCostCon(cfg?.prezzi_openai, cfg, model, usage, webCount);
+}
+
 // Stima conservativa del costo POTENZIALE (usata per la prenotazione prima
 // della chiamata): input dalla lunghezza, output dal massimo consentito,
 // web dal limite di tool. Fail-safe se il prezzo non e' noto.
-function estimatePotential(cfg, model, { inputLen, maxOutputTokens, webCount }) {
-  const prices = (cfg && cfg.prezzi_openai && cfg.prezzi_openai[model]) || null;
+function estimatePotentialCon(prezzi, cfg, model, { inputLen, maxOutputTokens, webCount }) {
+  const prices = (prezzi && prezzi[model]) || null;
   if (!prices) return { ok: false, motivo: 'prezzo_non_configurato', model };
   const inputPrice = Number(prices.input) / 1e6;
   const outputPrice = Number(prices.output) / 1e6;
@@ -128,6 +136,10 @@ function estimatePotential(cfg, model, { inputLen, maxOutputTokens, webCount }) 
   if (!Number.isFinite(usdToEur) || usdToEur <= 0) return { ok: false, motivo: 'cambio_usd_eur_non_valido', model };
   const eur = (inputTokens * inputPrice + (Number(maxOutputTokens) || 0) * outputPrice + (Number(webCount) || 0) * webPrice) * usdToEur;
   return { ok: true, eur: Math.max(0.0001, Math.round(eur * 1e6) / 1e6) };
+}
+
+function estimatePotential(cfg, model, opts) {
+  return estimatePotentialCon(cfg?.prezzi_openai, cfg, model, opts);
 }
 
 // Registra il costo nel budget_log (unica fonte dello speso).
@@ -358,11 +370,13 @@ async function openaiStructured({
 
 module.exports = {
   estimateCost,
+  estimateCostCon,
   estimatePotential,
+  estimatePotentialCon,
   extractOutputText,
   logUsage,
   openaiStructured,
   validateStructured,
   webSearchSources,
-  _test: { countWebSearches, estimateCost, estimatePotential, validateStructured, webSearchSources }
+  _test: { countWebSearches, estimateCost, estimateCostCon, estimatePotential, estimatePotentialCon, validateStructured, webSearchSources }
 };

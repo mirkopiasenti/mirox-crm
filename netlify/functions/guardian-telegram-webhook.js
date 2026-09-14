@@ -20,9 +20,7 @@ const {
 } = require('./_lib/guardian-codex');
 const {
   answerCallbackQuery,
-  downloadTelegramFile,
-  sendTelegramMessage,
-  transcribeVoice
+  sendTelegramMessage
 } = require('./_lib/telegram');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -198,7 +196,7 @@ async function openIncident(supabase, chatId, incident) {
     '',
     ...(history.length ? ['Ultimi messaggi:', ...history] : []),
     '',
-    'Da ora i tuoi messaggi e vocali saranno collegati a questa richiesta.'
+    'Da ora i tuoi messaggi di testo saranno collegati a questa richiesta.'
   ].join('\n'), { reply_markup: incidentNotificationKeyboard(incident.id) });
 }
 
@@ -705,16 +703,13 @@ async function handleOwnerConversation(supabase, chatId, session, text, metadata
 
 async function handleMessage(supabase, update, chatId, session) {
   const message = update.message;
-  let text = cleanText(message?.text, 4000);
-  let metadata = {};
-  if (!text && message?.voice?.file_id) {
-    await sendTelegramMessage(chatId, 'Trascrizione del vocale in corso.');
-    const file = await downloadTelegramFile(message.voice.file_id);
-    text = cleanText(await transcribeVoice(file), 4000);
-    metadata = { input_type: 'voice', telegram_file_id: message.voice.file_id };
-  }
+  const text = cleanText(message?.text, 4000);
+  const metadata = {};
   if (!text) {
-    await sendTelegramMessage(chatId, 'Invia un messaggio di testo o un vocale.');
+    // Nessuna trascrizione audio: il bot Guardian lavora solo su testo.
+    await sendTelegramMessage(chatId, message?.voice || message?.audio || message?.video_note
+      ? 'I messaggi vocali non sono supportati: scrivi il messaggio come testo.'
+      : 'Invia un messaggio di testo.');
     return;
   }
 
@@ -729,7 +724,7 @@ async function handleMessage(supabase, update, chatId, session) {
       '/nuovo descrizione crea un problema da Telegram',
       '/nuovo_miglioria descrizione crea una miglioria da Telegram',
       '',
-      'Puoi usare testo o messaggi vocali. Non è attiva una conversazione vocale dal vivo.'
+      'Scrivi il messaggio come testo: i vocali non sono supportati.'
     ].join('\n'));
     return;
   }

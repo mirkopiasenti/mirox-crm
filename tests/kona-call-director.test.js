@@ -22,6 +22,10 @@ const notif = L('kona-cd-notifiche');
 const google = L('kona-cd-google');
 const report = L('kona-cd-report');
 const telegram = L('kona-cd-telegram');
+const deepseek = L('kona-cd-deepseek');
+const ai = L('kona-cd-ai');
+const assistente = L('kona-cd-assistente');
+const guardianTelegram = L('telegram');
 const dist = L('kona-cd-distances');
 const taskEndpoint = require(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-task.js'));
 
@@ -107,6 +111,12 @@ function makeSupabase(handlers) {
     rpc: async (name, params) => {
       const handler = wrapped['rpc.' + name];
       if (handler) return handler({ name, params });
+      // La migration 078 (RPC v2) e' simulata ASSENTE finche' il test non
+      // definisce un handler: e' lo stato reale finche' non viene applicata, e
+      // obbliga il codice a esercitare il fallback sulla v1.
+      if (name === 'kona_cd_reserve_budget_v2') {
+        return { data: null, error: { code: 'PGRST202', message: 'Could not find the function public.kona_cd_reserve_budget_v2' } };
+      }
       if (name === 'kona_cd_reserve_budget_v1') return { data: { ok: true }, error: null };
       if (name === 'kona_cd_acquire_job_v1') return { data: [], error: null };
       return { data: true, error: null };
@@ -122,9 +132,14 @@ function baseCfg() {
     budget_mensile_eur: 50,
     riserva_arricchimento_eur: 40,
     riserva_dialogo_eur: 10,
+    riserva_telegram_eur: 10,
     modello_openai: 'gpt-5.6-luna',
     usd_to_eur: 1,
     prezzi_openai: { 'gpt-5.6-luna': { input: 0.20, output: 1.20, web_search: 0.01 } },
+    modello_deepseek: 'deepseek-flash',
+    prezzi_deepseek: { 'deepseek-flash': { input: 0.30, output: 1.20 } },
+    provider_per_attivita: { telegram: 'deepseek' },
+    max_messaggi_telegram_ora: 60,
     soglie_budget: [70, 85, 95, 100],
     giorni_lavorativi: [1, 2, 3, 4, 5],
     ferie: [],
@@ -1859,3 +1874,340 @@ test('anagrafica Consumer: conferma esplicita prima di sovrascrivere un cliente 
   assert.match(registra, /Confermi che e\\' il cliente giusto\?/);
   assert.match(js, /nome: res\.cliente \? \(res\.cliente\.ragione_sociale/);
 });
+
+// =============================================================================
+// Assistente Telegram: DeepSeek V4.1 Flash, conferme, budget dedicato
+// =============================================================================
+
+function deepseekOkPayload(value, usage) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      choices: [{ message: { content: JSON.stringify(value) } }],
+      usage: usage || { prompt_tokens: 1200, completion_tokens: 80, total_tokens: 1280 }
+    })
+  };
+}
+
+// Database finto per le chiamate budget dell'assistente Telegram.
+function dbAssistente(extra = {}) {
+  return makeSupabase({
+    'kona_call_director_budget_log.select': (q) => (q.head ? { count: 0, data: null, error: null } : { data: [], error: null }),
+    'kona_call_director_budget_riserve.select': () => ({ data: [], error: null }),
+    'kona_call_director_budget_log.insert': () => ({ data: null, error: null }),
+    'kona_call_director_budget_riserve.update': () => ({ data: [], error: null }),
+    ...extra
+  });
+}
+
+test('config KONA: DeepSeek V4.1 Flash con riserva Telegram da 10 euro al mese', () => {
+  assert.equal(config.CONFIG_DEFAULTS.modello_deepseek, 'deepseek-flash');
+  assert.equal(config.CONFIG_DEFAULTS.riserva_telegram_eur, 10);
+  assert.equal(config.CONFIG_DEFAULTS.max_messaggi_telegram_ora, 60);
+  assert.deepEqual(config.CONFIG_DEFAULTS.provider_per_attivita, { telegram: 'deepseek' });
+  // Tariffa PEAK ufficiale DeepSeek: stima conservativa, mai al ribasso.
+  assert.deepEqual(config.CONFIG_DEFAULTS.prezzi_deepseek, { 'deepseek-flash': { input: 0.30, output: 1.20 } });
+});
+
+test('deepseek: il prompt di sistema contiene la parola json richiesta dall API', () => {
+  assert.match(deepseek.istruzioniConJson('Sei un assistente'), /json/i);
+  const giaPresente = 'Rispondi in JSON con un oggetto.';
+  assert.equal(deepseek.istruzioniConJson(giaPresente), giaPresente);
+});
+
+test('deepseek: modello ufficiale, estrazione contenuto e token', () => {
+  assert.equal(deepseek.MODELLO_DEFAULT, 'deepseek-flash');
+  assert.equal(deepseek.modelloDeepseek({}), 'deepseek-flash');
+  assert.equal(deepseek.modelloDeepseek({ modello_deepseek: 'deepseek-v4-pro' }), 'deepseek-v4-pro');
+  assert.equal(deepseek.extractContent({ choices: [{ message: { content: ' ok ' } }] }), 'ok');
+  assert.deepEqual(deepseek.extractUsage({ usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 } }), {
+    input_tokens: 5, output_tokens: 2, total_tokens: 7
+  });
+});
+
+test('dispatcher IA: Telegram su DeepSeek, le altre attivita su OpenAI', () => {
+  assert.equal(ai.providerPer(baseCfg(), 'telegram'), 'deepseek');
+  assert.equal(ai.providerPer(baseCfg(), 'arricchimento'), 'openai');
+  assert.equal(ai.providerPer(baseCfg(), 'piano'), 'openai');
+  // Config assente o provider sconosciuto: si resta su OpenAI (default prudente).
+  assert.equal(ai.providerPer({}, 'telegram'), 'openai');
+  assert.equal(ai.providerPer({ provider_per_attivita: { telegram: 'chissa' } }, 'telegram'), 'openai');
+});
+
+test('dispatcher IA: la ricerca web su DeepSeek FALLISCE, non degrada in silenzio', async () => {
+  const registrate = [];
+  const db = makeSupabase({
+    'kona_call_director_budget_log.insert': (q) => { registrate.push(q.value); return { data: null, error: null }; }
+  });
+  const esito = await ai.aiStructured({
+    supabase: db, cfg: baseCfg(), activity: 'arricchimento', provider: 'deepseek',
+    webSearch: true, instructions: 'x', input: 'y', schema: { type: 'object' }
+  });
+  assert.equal(esito.ok, false);
+  assert.equal(esito.error_code, 'provider_non_supporta_web_search');
+  assert.equal(registrate.length, 1);
+  assert.equal(registrate[0].dettagli.provider, 'deepseek');
+});
+
+test('deepseek: chiamata JSON, costo registrato come telegram e riserva liberata', async () => {
+  process.env.KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY = 'test-key';
+  const inserimenti = [];
+  const riserve = [];
+  const liberate = [];
+  const corpi = [];
+  const db = dbAssistente({
+    'rpc.kona_cd_reserve_budget_v2': ({ params }) => { riserve.push(params); return { data: { ok: true, disponibile: 9.9 }, error: null }; },
+    'kona_call_director_budget_log.insert': (q) => { inserimenti.push(q.value); return { data: null, error: null }; },
+    'kona_call_director_budget_riserve.update': (q) => { liberate.push(q.value); return { data: [], error: null }; }
+  });
+  const restore = mockFetchFor([['api.deepseek.com', (url, options) => {
+    corpi.push(JSON.parse(options.body));
+    return deepseekOkPayload({ azione: 'stato', risposta: 'Tutto regolare', confidenza: 0.9 });
+  }]]);
+  try {
+    const esito = await deepseek.deepseekStructured({
+      supabase: db, cfg: baseCfg(), activity: 'telegram', name: 'test',
+      instructions: 'Classifica il messaggio', input: 'come va?',
+      schema: { type: 'object', properties: { azione: { type: 'string' } }, required: ['azione'] }
+    });
+    assert.equal(esito.ok, true);
+    assert.equal(esito.value.azione, 'stato');
+    assert.equal(esito.provider, 'deepseek');
+
+    // Richiesta HTTP: modello ufficiale, JSON output, thinking disattivata.
+    assert.equal(corpi[0].model, 'deepseek-flash');
+    assert.deepEqual(corpi[0].response_format, { type: 'json_object' });
+    assert.deepEqual(corpi[0].thinking, { type: 'disabled' });
+    assert.equal(corpi[0].stream, false);
+    assert.match(corpi[0].messages[0].content, /json/i);
+    assert.equal(corpi[0].messages[1].content, 'come va?');
+
+    // Prenotazione con riserva Telegram dedicata e tetto orario separato.
+    assert.equal(riserve[0].p_attivita, 'telegram');
+    assert.equal(riserve[0].p_riserva_telegram_eur, 10);
+    assert.equal(riserve[0].p_max_telegram_ora, 60);
+
+    // Costo reale = token x tariffa peak (input 0.30, output 1.20 per 1M).
+    const atteso = Math.round(((1200 * 0.30 + 80 * 1.20) / 1e6) * 1e6) / 1e6;
+    assert.equal(inserimenti[0].attivita, 'telegram');
+    assert.equal(inserimenti[0].modello, 'deepseek-flash');
+    assert.equal(inserimenti[0].costo_stimato_eur, atteso);
+    assert.equal(inserimenti[0].dettagli.provider, 'deepseek');
+    // La riserva viene liberata: il costo vive solo nel registro budget_log.
+    assert.equal(liberate.length, 1);
+    assert.equal(liberate[0].stato, 'liberato');
+  } finally {
+    restore();
+  }
+});
+
+test('deepseek: output vuoto = errore registrato, mai costo zero nascosto', async () => {
+  process.env.KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY = 'test-key';
+  const inserimenti = [];
+  const db = dbAssistente({
+    'rpc.kona_cd_reserve_budget_v2': () => ({ data: { ok: true }, error: null }),
+    'kona_call_director_budget_log.insert': (q) => { inserimenti.push(q.value); return { data: null, error: null }; }
+  });
+  const restore = mockFetchFor([['api.deepseek.com', () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '' } }], usage: { prompt_tokens: 10, completion_tokens: 0 } }) })]]);
+  try {
+    const esito = await deepseek.deepseekStructured({
+      supabase: db, cfg: baseCfg(), activity: 'telegram', instructions: 'x', input: 'y', schema: { type: 'object' }
+    });
+    assert.equal(esito.ok, false);
+    assert.equal(esito.error_code, 'empty_output');
+    assert.equal(inserimenti[0].dettagli.esito, 'empty_output');
+    assert.equal(inserimenti[0].input_tokens, 10);
+  } finally {
+    restore();
+  }
+});
+
+test('budget: la spesa Telegram ha una riserva dedicata e non entra nel dialogo', async () => {
+  const db = makeSupabase({
+    'kona_call_director_budget_log.select': () => ({ data: [
+      { attivita: 'telegram', costo_stimato_eur: 1.5, web_ricerche: 0 },
+      { attivita: 'dialogo', costo_stimato_eur: 1, web_ricerche: 0 }
+    ] }),
+    'kona_call_director_budget_riserve.select': () => ({ data: [] })
+  });
+  const snap = await budget.budgetSnapshot(db, baseCfg(), '2026-09');
+  assert.equal(snap.riserva_telegram.budget, 10);
+  assert.equal(snap.riserva_telegram.speso, 1.5);
+  assert.equal(snap.riserva_telegram.rimasto, 8.5);
+  assert.equal(snap.telegram_messaggi, 1);
+  // Il tetto Telegram e' separato: non consuma la riserva del dialogo.
+  assert.equal(snap.riserva_dialogo.speso, 1);
+});
+
+test('budget: il tetto Telegram blocca la spesa anche senza la RPC v2', async () => {
+  let chiamateV1 = 0;
+  const db = makeSupabase({
+    'rpc.kona_cd_reserve_budget_v1': () => { chiamateV1 += 1; return { data: { ok: true }, error: null }; },
+    'kona_call_director_budget_log.select': (q) => {
+      // La lettura deve filtrare per ATTIVITA: senza il filtro il tetto
+      // Telegram conterebbe anche la spesa OpenAI.
+      assert.ok(q.filters.some((f) => f[0] === 'eq' && f[1] === 'attivita' && f[2] === 'telegram'));
+      return { data: [{ costo_stimato_eur: 9.999 }], error: null };
+    },
+    'kona_call_director_budget_riserve.select': () => ({ data: [], error: null })
+  });
+  const esito = await budget.tryReserveBudget({
+    supabase: db, cfg: baseCfg(), mese: '2026-09', attivita: 'telegram', importoEur: 0.01, chiave: 'k1'
+  });
+  assert.equal(esito.ok, false);
+  assert.equal(esito.motivo, 'riserva_esaurita');
+  assert.equal(esito.riserva, 'telegram');
+  assert.equal(chiamateV1, 0, 'nessuna prenotazione deve essere creata oltre il tetto');
+});
+
+test('budget: con la RPC v2 la riserva Telegram e il tetto orario sono atomici', async () => {
+  const riserve = [];
+  const db = makeSupabase({
+    'rpc.kona_cd_reserve_budget_v2': ({ params }) => { riserve.push(params); return { data: { ok: true }, error: null }; },
+    'kona_call_director_budget_log.select': () => ({ data: [], error: null }),
+    'kona_call_director_budget_riserve.select': () => ({ data: [], error: null })
+  });
+  const esito = await budget.tryReserveBudget({
+    supabase: db, cfg: baseCfg(), mese: '2026-09', attivita: 'telegram', importoEur: 0.01, chiave: 'k2'
+  });
+  assert.equal(esito.ok, true);
+  assert.equal(riserve.length, 1);
+  assert.equal(riserve[0].p_riserva_telegram_eur, 10);
+  assert.equal(riserve[0].p_max_telegram_ora, 60);
+  // Le riserve OpenAI restano invariate.
+  assert.equal(riserve[0].p_riserva_arricchimento_eur, 40);
+  assert.equal(riserve[0].p_riserva_dialogo_eur, 10);
+});
+
+test('migration 078: RPC v2 additiva, riserva Telegram e nessuna modifica alla v1', () => {
+  const sql = fs.readFileSync(path.resolve(__dirname, '..', 'database/078_kona_call_director_telegram_ai.sql'), 'utf8');
+  assert.match(sql, /riserva_telegram_eur numeric\(10,2\) NOT NULL DEFAULT 10\.00/);
+  assert.match(sql, /max_messaggi_telegram_ora integer NOT NULL DEFAULT 60/);
+  assert.match(sql, /CREATE OR REPLACE FUNCTION public\.kona_cd_reserve_budget_v2/);
+  assert.match(sql, /'altro','telegram'\)\)/);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.kona_cd_reserve_budget_v2[\s\S]*TO service_role/);
+  assert.doesNotMatch(sql, /CREATE OR REPLACE FUNCTION public\.kona_cd_reserve_budget_v1/);
+  assert.doesNotMatch(sql, /DROP\s+(?:TABLE|COLUMN)/i);
+});
+
+test('conferme: "si"/"no" riconosciuti senza chiamare l IA', () => {
+  for (const si of ['si', 'sì', 'Si!', 'ok', 'confermo', 'vai', 'procedi', 'fai']) {
+    assert.equal(assistente.confermaDeterministica(si), 'si', `"${si}" deve valere si`);
+  }
+  for (const no of ['no', 'No.', 'annulla', 'lascia stare', 'stop', 'cancella']) {
+    assert.equal(assistente.confermaDeterministica(no), 'no', `"${no}" deve valere no`);
+  }
+  assert.equal(assistente.confermaDeterministica('forse, vediamo'), null);
+  assert.equal(assistente.confermaDeterministica(''), null);
+});
+
+test('conferme: le azioni delicate richiedono conferma, le letture no', () => {
+  for (const azione of ['sospendi', 'riattiva', 'approva_piano', 'telefoni_omaggio', 'direttiva']) {
+    assert.equal(assistente.richiedeConferma(azione), true, `${azione} deve chiedere conferma`);
+  }
+  for (const azione of ['stato', 'report', 'piano', 'aiuto', 'categorie', 'altro']) {
+    assert.equal(assistente.richiedeConferma(azione), false, `${azione} non deve chiedere conferma`);
+  }
+  assert.equal(assistente.richiedeConferma('sconosciuta'), false);
+});
+
+test('conferme: una proposta vecchia non e piu eseguibile', () => {
+  const adesso = Date.parse('2026-09-10T10:00:00.000Z');
+  const valida = assistente.azioneInAttesa('sospendi', {});
+  assert.equal(assistente.confermaValida(valida, adesso), true);
+  const vecchia = { azione: 'sospendi', creato_at: '2026-09-10T09:00:00.000Z' };
+  assert.equal(assistente.confermaValida(vecchia, adesso), false);
+  assert.equal(assistente.confermaValida(null, adesso), false);
+  assert.equal(assistente.confermaValida({ azione: 'sospendi' }, adesso), false);
+});
+
+test('conferme: il riassunto nomina sempre l azione proposta', () => {
+  assert.match(assistente.riassuntoConferma('sospendi', {}), /SOSPENDA/);
+  assert.match(assistente.riassuntoConferma('riattiva', {}), /RIATTIVI/);
+  assert.match(assistente.riassuntoConferma('approva_piano', { data: '2026-09-11' }), /2026-09-11/);
+  const direttiva = assistente.riassuntoConferma('direttiva', { data: '2026-09-11', categorie: ['Bar'], nota: 'priorita centro' });
+  assert.match(direttiva, /Bar/);
+  assert.match(direttiva, /priorita centro/);
+});
+
+test('assistente: gli argomenti del modello sono ripuliti e limitati', () => {
+  const contesto = { oggi: '2026-09-10', domani: '2026-09-11' };
+  const out = assistente.normalizzaArgomenti({
+    data: 'domani',
+    categorie: ['Bar', '', 'Officine', 'a'.repeat(80), 1, 2, 3, 4, 5, 6, 7, 8],
+    nota: 'n'.repeat(900)
+  }, contesto);
+  assert.equal(out.data, '2026-09-11');
+  assert.equal(out.categorie.length, 8);
+  assert.equal(out.categorie[0], 'Bar');
+  assert.ok(out.categorie.every((c) => c.length <= 40));
+  assert.equal(out.nota.length, 500);
+  assert.equal(assistente.normalizzaArgomenti({ data: 'oggi' }, contesto).data, '2026-09-10');
+  assert.equal(assistente.normalizzaArgomenti({ data: '2026-09-12' }, contesto).data, '2026-09-12');
+  assert.equal(assistente.normalizzaArgomenti({ data: 'la settimana prossima' }, contesto).data, null);
+});
+
+test('assistente: un azione non prevista dal modello diventa "altro"', async () => {
+  process.env.KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY = 'test-key';
+  const db = dbAssistente({
+    'rpc.kona_cd_reserve_budget_v2': () => ({ data: { ok: true }, error: null })
+  });
+  const restore = mockFetchFor([['api.deepseek.com', () => deepseekOkPayload({ azione: 'spegni_tutto_per_sempre', risposta: 'ok', confidenza: 1 })]]);
+  try {
+    const esito = await assistente.interpreta({ supabase: db, cfg: baseCfg(), testo: 'fai qualcosa', contesto: { dati: {} } });
+    assert.equal(esito.ok, true);
+    assert.equal(esito.azione, 'altro');
+  } finally {
+    restore();
+  }
+});
+
+test('assistente: al modello arrivano solo aggregati, mai tabelle anagrafiche', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/kona-cd-assistente.js'), 'utf8');
+  for (const tabella of ['anagrafica', 'chiamate', 'appuntamenti', 'call_center_lead_outbound', 'profili']) {
+    assert.doesNotMatch(src, new RegExp(`from\\('${tabella}'`), `l assistente non deve leggere ${tabella}`);
+  }
+  // L'unico testo che esce e' costruito da `contestoAssistente`.
+  assert.match(src, /async function contestoAssistente/);
+  const modello = assistente.istruzioniAssistente({ dati: { attivo: true } });
+  assert.match(modello, /Contesto corrente/);
+  assert.doesNotMatch(modello, /telefono|codice fiscale|email/i);
+});
+
+test('webhook Telegram: dialogo IA, conferme e nessuna trascrizione audio', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-telegram-webhook.js'), 'utf8');
+  assert.match(src, /require\('\.\/_lib\/kona-cd-assistente'\)/);
+  assert.match(src, /async function gestisciLinguaggioNaturale/);
+  assert.match(src, /async function proponiConferma/);
+  assert.match(src, /async function eseguiAzione/);
+  assert.match(src, /tipo === 'conf'/);
+  // I comandi con la barra che cambiano stato NON eseguono: propongono.
+  assert.match(src, /text === '\/sospendi'[\s\S]{0,220}proponiConferma/);
+  assert.match(src, /text === '\/riattiva'[\s\S]{0,220}proponiConferma/);
+  assert.match(src, /text === '\/approva'[\s\S]{0,320}proponiConferma/);
+  // Nessun audio: il vocale riceve una richiesta di scrivere il testo.
+  assert.match(src, /I messaggi vocali non sono supportati/);
+  assert.doesNotMatch(src, /audio\/transcriptions/);
+  assert.doesNotMatch(src, /transcribeVoice|downloadTelegramFile/);
+  // Una risposta diversa da si/no fa DECADERE la proposta: un "si" scritto piu'
+  // tardi non deve eseguire l'azione vecchia mai confermata.
+  assert.match(src, /conferma_abbandonata/);
+  // La tastiera di conferma arriva dall'assistente.
+  const assistenteSrc = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/kona-cd-assistente.js'), 'utf8');
+  assert.match(assistenteSrc, /callback_data: 'conf:si'/);
+  assert.match(assistenteSrc, /callback_data: 'conf:no'/);
+});
+
+test('bot Guardian: la trascrizione dei vocali e stata rimossa', () => {
+  const lib = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/telegram.js'), 'utf8');
+  assert.doesNotMatch(lib, /audio\/transcriptions/);
+  assert.doesNotMatch(lib, /transcribeVoice|downloadTelegramFile/);
+  const webhook = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/guardian-telegram-webhook.js'), 'utf8');
+  assert.doesNotMatch(webhook, /transcribeVoice|downloadTelegramFile/);
+  assert.match(webhook, /I messaggi vocali non sono supportati/);
+  assert.equal(typeof guardianTelegram.transcribeVoice, 'undefined');
+  assert.equal(typeof guardianTelegram.downloadTelegramFile, 'undefined');
+  assert.equal(typeof guardianTelegram.sendTelegramMessage, 'function');
+});
+

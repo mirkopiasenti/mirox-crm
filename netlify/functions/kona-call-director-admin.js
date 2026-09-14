@@ -29,8 +29,12 @@ const CONFIG_EDITABILI = {
   usd_to_eur: 'num',
   riserva_arricchimento_eur: 'num',
   riserva_dialogo_eur: 'num',
+  riserva_telegram_eur: 'num',
   modello_openai: 'str',
   prezzi_openai: 'json',
+  modello_deepseek: 'str',
+  prezzi_deepseek: 'json',
+  provider_per_attivita: 'json',
   soglie_budget: 'json',
   giorni_lavorativi: 'json',
   orario_mattina: 'json',
@@ -61,6 +65,7 @@ const CONFIG_EDITABILI = {
   notifiche_immediate: 'json',
   soglia_affidabilita_arricchimento: 'num',
   max_chiamate_openai_ora: 'num',
+  max_messaggi_telegram_ora: 'num',
   orario_stop_business: 'str',
   durata_sessione_business_minuti: 'num',
   ferie: 'json'
@@ -81,13 +86,15 @@ function dataIsoValida(value) {
 
 function validaConfigPatch(cfg) {
   const nonNegative = [
-    'budget_mensile_eur', 'riserva_arricchimento_eur', 'riserva_dialogo_eur',
+    'budget_mensile_eur', 'riserva_arricchimento_eur', 'riserva_dialogo_eur', 'riserva_telegram_eur',
+    'max_chiamate_openai_ora', 'max_messaggi_telegram_ora',
     'lead_notte_obiettivo', 'soglia_lead_minime', 'distanza_km_indicativa'
   ];
   if (nonNegative.some((k) => !Number.isFinite(Number(cfg[k])) || Number(cfg[k]) < 0)) {
     return 'Valore numerico negativo o non valido nella configurazione';
   }
-  if (Number(cfg.riserva_arricchimento_eur) + Number(cfg.riserva_dialogo_eur) > Number(cfg.budget_mensile_eur)) {
+  const sommaRiserve = Number(cfg.riserva_arricchimento_eur) + Number(cfg.riserva_dialogo_eur) + Number(cfg.riserva_telegram_eur);
+  if (sommaRiserve > Number(cfg.budget_mensile_eur)) {
     return 'La somma delle riserve non puo superare il budget mensile';
   }
   if (!Number.isFinite(Number(cfg.usd_to_eur)) || Number(cfg.usd_to_eur) <= 0) return 'usd_to_eur deve essere maggiore di zero';
@@ -103,6 +110,16 @@ function validaConfigPatch(cfg) {
   if (!prezzi || typeof prezzi !== 'object' || Array.isArray(prezzi) || !prezzi[cfg.modello_openai]) return 'prezzi_openai deve includere il modello configurato';
   const prezzoModello = prezzi[cfg.modello_openai];
   if (!prezzoModello || ['input', 'output', 'web_search'].some((k) => !Number.isFinite(Number(prezzoModello[k])) || Number(prezzoModello[k]) < 0)) return 'prezzi_openai non valido';
+  // DeepSeek: la ricerca web non esiste, quindi la tabella prezzi non ha
+  // `web_search`. Se il modello non ha prezzo il costo non e' stimabile e
+  // l'assistente Telegram si blocca: meglio un errore di configurazione qui.
+  const prezziDeepseek = cfg.prezzi_deepseek;
+  if (!prezziDeepseek || typeof prezziDeepseek !== 'object' || Array.isArray(prezziDeepseek) || !prezziDeepseek[cfg.modello_deepseek]) return 'prezzi_deepseek deve includere il modello configurato';
+  const prezzoDeepseek = prezziDeepseek[cfg.modello_deepseek];
+  if (!prezzoDeepseek || ['input', 'output'].some((k) => !Number.isFinite(Number(prezzoDeepseek[k])) || Number(prezzoDeepseek[k]) < 0)) return 'prezzi_deepseek non valido';
+  const provider = cfg.provider_per_attivita;
+  if (!provider || typeof provider !== 'object' || Array.isArray(provider)) return 'provider_per_attivita non valido';
+  if (Object.values(provider).some((p) => !['openai', 'deepseek'].includes(String(p)))) return 'provider_per_attivita ammette solo openai o deepseek';
   if (!Array.isArray(cfg.conferme_ore) || cfg.conferme_ore.some((o) => !orarioValido(o))) return 'conferme_ore non valido';
   for (const fascia of [cfg.orario_mattina, cfg.orario_pomeriggio]) {
     if (!fascia || !orarioValido(fascia.inizio) || !orarioValido(fascia.fine) || fascia.inizio >= fascia.fine) return 'Fascia operativa non valida';
@@ -276,8 +293,12 @@ function configPublic(cfg) {
     usd_to_eur: cfg.usd_to_eur,
     riserva_arricchimento_eur: cfg.riserva_arricchimento_eur,
     riserva_dialogo_eur: cfg.riserva_dialogo_eur,
+    riserva_telegram_eur: cfg.riserva_telegram_eur,
     modello_openai: cfg.modello_openai,
     prezzi_openai: cfg.prezzi_openai,
+    modello_deepseek: cfg.modello_deepseek,
+    prezzi_deepseek: cfg.prezzi_deepseek,
+    provider_per_attivita: cfg.provider_per_attivita,
     soglie_budget: cfg.soglie_budget,
     giorni_lavorativi: cfg.giorni_lavorativi,
     ferie: cfg.ferie,
@@ -292,6 +313,7 @@ function configPublic(cfg) {
     soglia_lead_minime: cfg.soglia_lead_minime,
     soglia_affidabilita_arricchimento: cfg.soglia_affidabilita_arricchimento,
     max_chiamate_openai_ora: cfg.max_chiamate_openai_ora,
+    max_messaggi_telegram_ora: cfg.max_messaggi_telegram_ora,
     orario_inizio_arricchimento: cfg.orario_inizio_arricchimento,
     orario_report_sera: cfg.orario_report_sera,
     orario_reminder_sera: cfg.orario_reminder_sera,

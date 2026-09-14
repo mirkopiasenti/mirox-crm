@@ -4,9 +4,13 @@
  * - Secret token: header X-Telegram-Bot-Api-Secret-Token, confronto timing-safe.
  * - Allowlist chat_id: risponde SOLO al proprietario (KONA_CALL_DIRECTOR_OWNER_CHAT_ID).
  * - Stato conversazione server-side in kona_call_director_telegram.
- * - Supporta testo libero, comandi, pulsanti inline e callback_query.
- * - Decisioni (approva piano / categorie / sospensione) auditate nello storico.
- * - I cambiamenti della giornata vengono applicati (non a metà di un contatto).
+ * - Comandi con la barra (deterministici) + dialogo in LINGUAGGIO NATURALE
+ *   interpretato dall'assistente IA (DeepSeek V4.1 Flash, `_lib/kona-cd-assistente`).
+ * - Le azioni che cambiano qualcosa (sospendi, riattiva, approva piano,
+ *   telefoni omaggio, direttiva) NON vengono mai eseguite su interpretazione:
+ *   il bot le ripropone in chiaro e aspetta "si" o "no". Le letture (stato,
+ *   report, piano) rispondono subito.
+ * - I messaggi VOCALI non sono supportati: nessuna trascrizione audio.
  * - Nessun dato personale cliente nel testo. Gli errori interni vengono
  *   registrati nella conversazione (HTTP 200 per ack Telegram, mai errori nascosti).
  *
@@ -23,19 +27,30 @@ const { getConfig } = require('./_lib/kona-cd-config');
 const { budgetSnapshot } = require('./_lib/kona-cd-budget');
 const { reportGiornaliero, propostaPianoGiorno, applicaPianoDefault, pianoDi, salvaPiano } = require('./_lib/kona-cd-report');
 const { timingSafeEqualText, sendMessage, answerCallbackQuery, getOwnerChatId } = require('./_lib/kona-cd-telegram');
-const { addDaysStr, monthRomeKey, nextWorkingDay, todayRomeStr } = require('./_lib/kona-cd-time');
+const { monthRomeKey, nextWorkingDay, todayRomeStr } = require('./_lib/kona-cd-time');
 const { cleanLog, nowIso } = require('./_lib/kona-cd-util');
+const {
+  azioneInAttesa, confermaDeterministica, confermaValida, contestoAssistente,
+  interpreta, richiedeConferma, tastieraConferma
+} = require('./_lib/kona-cd-assistente');
 
 const AIUTO = [
-  'KONA Call Director - Comandi:',
+  'KONA Call Director - puoi scrivermi in italiano, non servono i comandi.',
+  'Esempi: "come sta andando oggi?", "quanti appuntamenti abbiamo?",',
+  '"prepara il piano di domani", "sospendi tutto".',
+  '',
+  'Comandi rapidi (gratuiti, nessuna IA):',
   '/stato - stato globale e budget',
   '/report - report di oggi (aggregati)',
   '/piano [domani] - piano Business proposto',
   '/approva - approva il piano',
   '/categorie - approva/modifica le categorie da chiamare',
-  '/sospendi - sospensione immediata (globale off + task in pausa)',
-  '/riattiva - riattiva il sistema',
-  '/aiuto - questo elenco'
+  '/sospendi - sospensione immediata (chiede conferma)',
+  '/riattiva - riattiva il sistema (chiede conferma)',
+  '/aiuto - questo elenco',
+  '',
+  'Le azioni che cambiano qualcosa chiedono sempre conferma: rispondi "si" o "no".',
+  'I messaggi vocali non sono supportati: scrivi il testo.'
 ].join('\n');
 
 function inlinePiano(dataDomani) {
@@ -117,32 +132,41 @@ exports.handler = async (event) => {
     }
 
     const text = String(message?.text || '').trim();
+    const haVocale = Boolean(message?.voice || message?.audio || message?.video_note);
     let risposta = null;
     let markup = null;
 
     if (!text) {
-      risposta = 'Comando non riconosciuto. /aiuto per l\'elenco.';
+      risposta = haVocale
+        ? 'I messaggi vocali non sono supportati: scrivimi il testo (o /aiuto).'
+        : 'Comando non riconosciuto. /aiuto per l\'elenco.';
     } else if (text === '/aiuto') {
       risposta = AIUTO;
     } else if (text === '/stato') {
       risposta = await cmdStato(client, cfg, data);
     } else if (text === '/report') {
       risposta = await cmdReport(client, cfg, data);
-    } else if (text === '/piano' || text === '/piano domani') {
-      risposta = await cmdPiano(client, cfg, domani);
-      markup = inlinePiano(domani);
+    } else if (text.startsWith('/piano')) {
+      const giorno = /domani/.test(text) ? domani : data;
+      risposta = await cmdPiano(client, cfg, giorno);
+      markup = inlinePiano(giorno);
     } else if (text === '/approva') {
-      risposta = await cmdApprova(client, cfg, domani, chatId);
+      // Anche il comando esplicito passa dalla conferma: la regola e' "nessuna
+      // azione che cambia qualcosa senza un si", qualunque sia la richiesta.
+      ({ risposta, markup } = await proponiConferma(client, chatId, 'approva_piano', { data: domani }));
     } else if (text === '/categorie') {
       risposta = await cmdCategorie(client, chatId, domani);
     } else if (text === '/sospendi') {
-      risposta = await cmdSospendi(client, chatId);
+      ({ risposta, markup } = await proponiConferma(client, chatId, 'sospendi', { data: domani }));
     } else if (text === '/riattiva') {
-      risposta = await cmdRiattiva(client, chatId);
+      ({ risposta, markup } = await proponiConferma(client, chatId, 'riattiva', { data: domani }));
     } else {
-      // Dialogo libero: se il proprietario sta rispondendo alla domanda sul
-      // piano, la sua risposta viene applicata come direttiva/nota sul piano.
-      risposta = await gestisciDialogo(client, cfg, chatId, text, domani);
+      // Dialogo in linguaggio naturale, interpretato dall'assistente IA.
+      const esito = await gestisciLinguaggioNaturale(
+        client, cfg, chatId, stato.stato_conversazione || {}, text, data, domani
+      );
+      risposta = esito.testo;
+      markup = esito.markup || null;
     }
 
     if (risposta) {
@@ -168,7 +192,21 @@ async function gestisciCallback(client, cfg, chatId, callback) {
   const giorno = dati[2] || nextWorkingDay(todayRomeStr(), cfg.giorni_lavorativi, cfg.ferie);
   let risposta = null;
 
-  if (tipo === 'piano' && arg === 'vedi') risposta = await cmdPiano(client, cfg, giorno);
+  if (tipo === 'conf') {
+    // Conferma o annullamento dell'azione in attesa. Il click sul pulsante e'
+    // gia' una decisione esplicita: si esegue.
+    const stato = await caricaStato(client, chatId);
+    const attesa = stato.stato_conversazione?.azione_in_attesa;
+    if (arg === 'si') {
+      risposta = confermaValida(attesa)
+        ? (await eseguiAzione(client, cfg, chatId, attesa.azione, attesa.argomenti, giorno)).testo
+        : 'Non c\'e\' piu\' nulla da confermare.';
+    } else {
+      await aggiornaConversazione(client, chatId, { azione_in_attesa: null });
+      if (attesa?.azione) await audita(client, chatId, 'azione_annullata', { azione: attesa.azione });
+      risposta = 'Annullato: non ho fatto nulla.';
+    }
+  } else if (tipo === 'piano' && arg === 'vedi') risposta = await cmdPiano(client, cfg, giorno);
   else if (tipo === 'piano' && arg === 'approva') risposta = await cmdApprova(client, cfg, giorno, chatId);
   else if (tipo === 'piano' && arg === 'telefoni_omaggio') risposta = await cmdTelefoniOmaggio(client, cfg, giorno, chatId);
   else risposta = 'Azione non riconosciuta.';
@@ -218,7 +256,8 @@ async function cmdStato(client, cfg, data) {
     `Attivo: ${cfg.attivo_globale ? 'SI' : 'NO'}`,
     `Modalita' osservazione: ${cfg.modalita_osservazione ? 'SI' : 'NO'}`,
     `Operatrici abilitate: ${operatori.length}`,
-    `Budget ${budget.mese}: speso ${budget.speso.toFixed(2)} su ${budget.budget.toFixed(2)} euro (${budget.percentuale}%)`
+    `Budget ${budget.mese}: speso ${budget.speso.toFixed(2)} su ${budget.budget.toFixed(2)} euro (${budget.percentuale}%)`,
+    `Assistente Telegram: ${budget.riserva_telegram.speso.toFixed(2)} su ${budget.riserva_telegram.budget.toFixed(2)} euro (${budget.telegram_messaggi} messaggi)`
   ].join('\n');
 }
 
@@ -304,49 +343,135 @@ async function cmdRiattiva(client, chatId) {
   return 'KONA Call Director riattivato e task sospesi ripresi.';
 }
 
-// Dialogo libero: risposta alla domanda sulle categorie o sul piano.
-async function gestisciDialogo(client, cfg, chatId, text, domani) {
-  const stato = await caricaStato(client, chatId);
-  const conv = stato.stato_conversazione || {};
-  if (conv.in_attesa_categorie) {
-    const categorie = text.split(',').map((c) => c.trim()).filter(Boolean);
-    await audita(client, chatId, 'categorie_approvate', { categorie });
-    // Patch sullo stato CORRENTE: la vecchia upsert ripartiva dalla copia letta
-    // prima di `audita` e cancellava la voce di audit appena registrata.
-    await aggiornaConversazione(client, chatId, { in_attesa_categorie: false, categorie_approvate: categorie });
-    const operatori = await operatoriAbilitati(client);
-    for (const opId of operatori) {
-      const esistente = await pianoDi(client, { data: domani, operatoreId: opId });
-      const contenuto = { ...(esistente?.contenuto || {}), categorie_approvate: categorie };
-      const salvato = await salvaPiano(client, {
-        data: domani,
-        operatoreId: opId,
-        contenuto: cleanLog(contenuto),
-        sorgente: 'mirko',
-        stato: 'approvato'
-      });
-      if (!salvato.ok) throw new Error('Impossibile salvare le categorie approvate');
-    }
-    return `Categorie approvate: ${categorie.join(', ')}.`;
-  }
-  const lower = text.toLowerCase();
-  const categoriaSessione = lower.includes('telefono') && lower.includes('omaggio')
-    ? 'telefoni_omaggio'
-    : (lower.includes('fibra') || lower.includes('fwa')) ? 'fibra_fwa'
-      : lower.includes('business') ? 'business' : null;
+// -- Conferma delle azioni delicate -------------------------------------------
+
+// Propone un'azione delicata: la salva come PENDENTE e chiede conferma.
+// Nessuna scrittura sul sistema avviene qui.
+async function proponiConferma(client, chatId, azione, argomenti) {
+  const attesa = azioneInAttesa(azione, argomenti || {});
+  await aggiornaConversazione(client, chatId, { azione_in_attesa: attesa, in_attesa_categorie: false });
+  await audita(client, chatId, 'conferma_richiesta', { azione });
+  return {
+    risposta: `${attesa.riassunto}\n\nRispondi "si" oppure "no".`,
+    markup: tastieraConferma()
+  };
+}
+
+// Esegue un'azione GIA' confermata.
+async function eseguiAzione(client, cfg, chatId, azione, argomenti = {}, giornoDefault) {
+  const giorno = argomenti?.data || giornoDefault || nextWorkingDay(todayRomeStr(), cfg.giorni_lavorativi, cfg.ferie);
+  let testo;
+  if (azione === 'sospendi') testo = await cmdSospendi(client, chatId);
+  else if (azione === 'riattiva') testo = await cmdRiattiva(client, chatId);
+  else if (azione === 'approva_piano') testo = await cmdApprova(client, cfg, giorno, chatId);
+  else if (azione === 'telefoni_omaggio') testo = await cmdTelefoniOmaggio(client, cfg, giorno, chatId);
+  else if (azione === 'direttiva') testo = await applicaDirettiva(client, cfg, chatId, giorno, argomenti);
+  else testo = `Azione non riconosciuta: ${azione}`;
+  await aggiornaConversazione(client, chatId, { azione_in_attesa: null, in_attesa_categorie: false });
+  await audita(client, chatId, 'azione_confermata', { azione, data: giorno });
+  return { testo };
+}
+
+// Categoria di sessione dedotta dal testo libero (stesso comportamento di prima).
+function categoriaDaTesto(testo) {
+  const lower = String(testo || '').toLowerCase();
+  if (lower.includes('telefono') && lower.includes('omaggio')) return 'telefoni_omaggio';
+  if (lower.includes('fibra') || lower.includes('fwa')) return 'fibra_fwa';
+  if (lower.includes('business')) return 'business';
+  return null;
+}
+
+// Applica al piano la direttiva confermata (categorie e/o nota libera).
+async function applicaDirettiva(client, cfg, chatId, data, argomenti = {}) {
+  const categorie = Array.isArray(argomenti.categorie) ? argomenti.categorie : [];
+  const nota = String(argomenti.nota || '').slice(0, 1000);
+  const categoriaSessione = categoriaDaTesto(`${nota} ${categorie.join(' ')}`);
   const operatori = await operatoriAbilitati(client);
   for (const opId of operatori) {
-    const esistente = await pianoDi(client, { data: domani, operatoreId: opId });
+    const esistente = await pianoDi(client, { data, operatoreId: opId });
     const contenuto = {
       ...(esistente?.contenuto || {}),
-      direttiva_mirko: text.slice(0, 1000),
+      ...(nota ? { direttiva_mirko: nota } : {}),
+      ...(categorie.length ? { categorie_approvate: categorie } : {}),
       ...(categoriaSessione ? { categoria_sessione: categoriaSessione } : {}),
       ...(['telefoni_omaggio', 'fibra_fwa'].includes(categoriaSessione) ? { consumer: categoriaSessione } : {})
     };
-    await salvaPiano(client, {
-      data: domani, operatoreId: opId, contenuto: cleanLog(contenuto), sorgente: 'mirko', stato: 'approvato'
+    const salvato = await salvaPiano(client, {
+      data, operatoreId: opId, contenuto: cleanLog(contenuto), sorgente: 'mirko', stato: 'approvato'
     });
+    if (!salvato.ok) throw new Error('Impossibile salvare la direttiva sul piano');
   }
-  await audita(client, chatId, 'direttiva_libera_approvata', { data: domani, categoria_sessione: categoriaSessione });
-  return `Direttiva registrata e approvata per ${domani}: ${text.slice(0, 500)}`;
+  await audita(client, chatId, 'direttiva_libera_approvata', { data, categoria_sessione: categoriaSessione, categorie });
+  const riepilogo = categorie.length ? `Categorie: ${categorie.join(', ')}` : (nota || 'nessun dettaglio');
+  return `Direttiva registrata e approvata per ${data}. ${riepilogo}`.slice(0, 900);
+}
+
+// -- Dialogo libero ------------------------------------------------------------
+
+// Unico ingresso del testo libero. Ordine:
+//   1. conferma/annullamento deterministico di un'azione in attesa (gratis);
+//   2. interpretazione IA del messaggio;
+//   3. letture eseguite subito, azioni delicate solo PROPOSTE.
+async function gestisciLinguaggioNaturale(client, cfg, chatId, conv, text, data, domani) {
+  const attesa = conv?.azione_in_attesa;
+  if (attesa && confermaValida(attesa)) {
+    const scelta = confermaDeterministica(text);
+    if (scelta === 'si') return await eseguiAzione(client, cfg, chatId, attesa.azione, attesa.argomenti, domani);
+    if (scelta === 'no') {
+      await aggiornaConversazione(client, chatId, { azione_in_attesa: null });
+      await audita(client, chatId, 'azione_annullata', { azione: attesa.azione });
+      return { testo: 'Annullato: non ho fatto nulla.' };
+    }
+    // Risposta che non e' un si/no: la proposta DECADE. Senza questo, un "si"
+    // scritto piu' tardi (dopo una domanda diversa) eseguirebbe l'azione
+    // vecchia, mai confermata: esattamente il rischio da evitare.
+    await aggiornaConversazione(client, chatId, { azione_in_attesa: null });
+    await audita(client, chatId, 'conferma_abbandonata', { azione: attesa.azione });
+    conv = { ...conv, azione_in_attesa: null };
+  } else if (attesa) {
+    // Conferma scaduta: non si esegue nulla di proposto troppo tempo prima.
+    await aggiornaConversazione(client, chatId, { azione_in_attesa: null });
+  }
+
+  const operatori = await operatoriAbilitati(client);
+  const contesto = await contestoAssistente(client, cfg, { oggi: data, domani, operatori, conv });
+  const esito = await interpreta({ supabase: client, cfg, testo: text, contesto });
+
+  if (!esito.ok) return await rispostaSenzaIa(client, chatId, conv, text, domani, esito);
+
+  if (richiedeConferma(esito.azione)) {
+    if (!esito.argomenti.data) esito.argomenti.data = domani;
+    const proposta = await proponiConferma(client, chatId, esito.azione, esito.argomenti);
+    return { testo: `${proposta.risposta}`, markup: proposta.markup };
+  }
+
+  if (esito.azione === 'stato') return { testo: await cmdStato(client, cfg, data) };
+  if (esito.azione === 'report') return { testo: await cmdReport(client, cfg, data) };
+  if (esito.azione === 'piano') {
+    const giorno = esito.argomenti.data || domani;
+    return { testo: await cmdPiano(client, cfg, giorno) };
+  }
+  if (esito.azione === 'aiuto') return { testo: AIUTO };
+  if (esito.azione === 'categorie') return { testo: await cmdCategorie(client, chatId, domani) };
+  if (esito.azione === 'conferma') {
+    return { testo: 'Non c\'e\' nessuna azione in attesa di conferma. /aiuto per l\'elenco.' };
+  }
+  if (esito.azione === 'annulla') {
+    return { testo: 'Non c\'e\' nulla da annullare.' };
+  }
+  // 'altro': risposta libera dell'assistente (senza dati inventati: il prompt
+  // vieta di produrre numeri non presenti nel contesto).
+  return { testo: esito.risposta || `Non ho capito. ${AIUTO}` };
+}
+
+// IA non disponibile: nessuna azione viene eseguita. Se Mirko stava rispondendo
+// alla domanda sulle categorie, la conferma viene comunque chiesta in modo
+// deterministico, cosi' il flusso non si blocca.
+async function rispostaSenzaIa(client, chatId, conv, text, domani, esito) {
+  if (conv?.in_attesa_categorie) {
+    const categorie = text.split(',').map((c) => c.trim()).filter(Boolean).slice(0, 8);
+    const proposta = await proponiConferma(client, chatId, 'direttiva', { categorie, data: domani, nota: '' });
+    return { testo: `Assistente non disponibile (${esito.error_code}). ${proposta.risposta}`, markup: proposta.markup };
+  }
+  return { testo: `Adesso non riesco a interpretare (${esito.error_code}).\n\n${AIUTO}` };
 }

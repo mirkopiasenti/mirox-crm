@@ -34,6 +34,13 @@ i due env switch e il toggle globale sono `true`, un solo profilo test e'
 abilitato, la modalità osservazione resta `true` e Google Calendar e' collegato
 con ultimo sync `ok`. Production resta invariata.
 
+Al database di test sono applicate anche le migration `076` e `077`. La `078`
+(assistente Telegram con DeepSeek) e' scritta ma **non e' ancora applicata**: va
+eseguita a mano sul database di test. Introduce la riserva Telegram da 10
+EUR/mese e la RPC di budget `kona_cd_reserve_budget_v2`; finche' non e'
+applicata, il codice usa automaticamente la `v1` e verifica comunque il tetto
+Telegram prima di ogni chiamata.
+
 Per il test del 31/08 Isabella usa il profilo `test` e inserisce manualmente i
 contatti Consumer reali dentro l'agente. Quei dati sono salvati soltanto nel
 Supabase test, non diventano dati del CRM production e vanno eliminati dopo il
@@ -43,9 +50,52 @@ collaudo.
 
 KONA Call Director coordina l'operatore autorizzato del Call Center con un
 solo contatto visibile alla volta. Il motore delle priorita' e' deterministico;
-OpenAI e' confinato ad arricchimento Business da fonti pubbliche, valutazione
-degli skip, dialogo, proposta del piano e analisi aggregata della giornata.
-Non genera script telefonici.
+l'IA e' confinata ad arricchimento Business da fonti pubbliche, valutazione
+degli skip, proposta del piano e analisi aggregata della giornata. Non genera
+script telefonici.
+
+Due provider, con capacita' diverse (la scelta e' in
+`kona_call_director_config.provider_per_attivita`, non nel codice):
+
+- **OpenAI** — ricerca web per i dati aziendali dei lead Business, valutazione
+  degli skip, proposta del piano, analisi giornaliera. E' l'unico provider con
+  ricerca web: se la ricerca viene chiesta a DeepSeek la chiamata **fallisce**
+  invece di degradare in silenzio.
+- **DeepSeek V4.1 Flash** (`deepseek-flash`) — dialogo in linguaggio naturale
+  del bot Telegram. Nessuna ricerca web, nessuna trascrizione audio.
+
+### Assistente Telegram in linguaggio naturale
+
+Al bot si puo' scrivere in italiano ("come sta andando oggi?", "prepara il piano
+di domani", "sospendi tutto"). L'assistente classifica il messaggio e risponde.
+Regole non negoziabili:
+
+- le **letture** (stato, report, piano, aiuto) rispondono subito;
+- le **azioni che cambiano qualcosa** (sospendi, riattiva, approva piano,
+  telefoni omaggio, direttiva sul piano) non vengono **mai** eseguite
+  sull'interpretazione: il bot le ripropone in chiaro e aspetta un "si" oppure
+  un "no". Una proposta non confermata scade dopo 30 minuti. Vale anche per i
+  comandi con la barra: `/sospendi` chiede conferma;
+- "si"/"no" sono riconosciuti **senza** chiamare l'IA (nessun costo, risposta
+  immediata);
+- se il modello non e' disponibile nessuna azione viene eseguita: il bot
+  risponde con l'elenco dei comandi;
+- al modello arrivano **solo aggregati** (numero di task, appuntamenti, budget,
+  zone). Mai nomi, telefoni, codici fiscali o email dei clienti: l'unico
+  oggetto che esce dal server e' costruito da `contestoAssistente`.
+- i **messaggi vocali non sono supportati** (nessuna trascrizione): il bot
+  chiede di scrivere il testo.
+
+Costo: l'assistente ha una riserva dedicata di **10 EUR/mese**
+(`riserva_telegram_eur`) e un tetto di 60 messaggi interpretati all'ora
+(`max_messaggi_telegram_ora`). La spesa e' registrata nel registro budget con
+attivita' `telegram`, quindi e' distinguibile da quella OpenAI. Il tetto orario
+Telegram e' separato da `max_chiamate_openai_ora`: una raffica di messaggi non
+consuma il tetto delle chiamate.
+
+**Trasferimento dati extra-UE**: il testo dei messaggi di Mirko viene inviato a
+DeepSeek (server in Cina). Non contiene dati di clienti, ma il trasferimento va
+citato nell'informativa privacy del Titolare.
 
 Priorita' operative:
 
@@ -203,6 +253,9 @@ piano, esiti) resta la fonte di verita': il frontend non simula completamenti.
 - Telegram e log non ricevono PII; gli appuntamenti privati di Mirko non sono
   mostrati all'operatore, che vede solo le fasce disponibili.
 - I dati Consumer identificativi non vengono inviati a OpenAI.
+- Al modello che interpreta i messaggi Telegram arrivano soltanto aggregati, e
+  nessuna azione che cambia lo stato viene eseguita senza un "si" esplicito.
+- I messaggi vocali non vengono trascritti: nessun audio inviato a provider.
 - Le 25 tabelle `kona_call_director_*` sono server-only con RLS e privilegi
   riservati alla service role.
 - Le correzioni esito sono atomiche e ammesse solo nella giornata corrente
@@ -216,6 +269,7 @@ piano, esiti) resta la fonte di verita': il frontend non simula completamenti.
 Prima del collaudo operativo servono:
 
 - progetto OpenAI dedicato e chiave server-side;
+- account DeepSeek con chiave server-side per l'assistente Telegram;
 - OAuth Google Calendar per il calendario personale di Mirko Piasenti;
 - bot Telegram separato e relativo `chat_id` proprietario;
 - dataset autorevole delle coordinate dei comuni;
@@ -230,6 +284,8 @@ La migration `070` deve essere gia' presente, perche'
 | `KONA_CALL_DIRECTOR_ENABLED` | `false`; passare a `true` solo durante il collaudo controllato |
 | `KONA_CALL_DIRECTOR_OPENAI_API_KEY` | chiave del progetto OpenAI dedicato, solo server-side |
 | `KONA_CALL_DIRECTOR_OPENAI_MODEL` | modello approvato e coerente con i prezzi configurati |
+| `KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY` | chiave DeepSeek del dialogo Telegram, solo server-side |
+| `KONA_CALL_DIRECTOR_DEEPSEEK_MODEL` | opzionale, default `deepseek-flash` (DeepSeek V4.1 Flash) |
 | `KONA_CALL_DIRECTOR_GOOGLE_CLIENT_ID` | OAuth client ID |
 | `KONA_CALL_DIRECTOR_GOOGLE_CLIENT_SECRET` | OAuth client secret |
 | `KONA_CALL_DIRECTOR_GOOGLE_REDIRECT_URI` | callback dell'ambiente verso `kona-cc-google-callback` |
@@ -266,22 +322,29 @@ esterno controllato.
    pubblica la branch `kona-call-director` con service role del solo database
    test. Dal 2026-08-29 i due interruttori sono attivi esclusivamente per il
    collaudo controllato.
-7. Salvare e ricontrollare: budget 50 euro, riserve 40/10, cambio USD/EUR,
-   prezzo del modello, 50 lead/notte, due web search massime, sessione Business
-   90 minuti, durata appuntamento 45 minuti, raggio indicativo 20 km e orari.
-8. Collegare Google dal pannello Admin. Verificare lettura free/busy,
+7. Salvare e ricontrollare: budget 50 euro, riserve 40/10/10, cambio USD/EUR,
+   prezzo del modello OpenAI e del modello DeepSeek, 50 lead/notte, due web
+   search massime, sessione Business 90 minuti, durata appuntamento 45 minuti,
+   raggio indicativo 20 km e orari.
+8. Applicare a mano `database/078_kona_call_director_telegram_ai.sql` al solo
+   database di test e impostare `KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY`. Senza la
+   migration l'assistente funziona lo stesso (fallback sulla RPC `v1` con
+   controllo del tetto in JS), ma il tetto Telegram non e' atomico.
+9. Collegare Google dal pannello Admin. Verificare lettura free/busy,
    creazione, modifica e annullamento di un appuntamento di prova; controllare
    che Isabella non veda titolo o dettagli degli eventi privati.
-9. Registrare il webhook Telegram dell'ambiente sulla function dedicata usando
-   lo stesso secret configurato in Netlify. Provare `/stato`, `/piano`,
-   `/approva`, `/sospendi`, `/riattiva` e un messaggio libero.
-10. Abilitare soltanto il profilo di Isabella e mantenere
+10. Registrare il webhook Telegram dell'ambiente sulla function dedicata usando
+    lo stesso secret configurato in Netlify. Provare `/stato`, `/piano`,
+    `/approva`, `/sospendi`, `/riattiva`, un messaggio libero e la conferma
+    "si"/"no". Verificare che un vocale riceva la richiesta di scrivere il testo.
+11. Abilitare soltanto il profilo di Isabella e mantenere
     `modalita_osservazione=true`; lasciare ancora spento il toggle globale.
-11. Portare `KONA_CALL_DIRECTOR_ENABLED=true` e
+12. Portare `KONA_CALL_DIRECTOR_ENABLED=true` e
     `KONA_CALL_DIRECTOR_STAGING_RUN=true`, poi attivare il toggle globale dal
     pannello Admin. Questo ordine rende l'attivazione deliberata e reversibile.
-12. Eseguire almeno un ciclo completo di prova e verificare database, pagina
-    operatore, report Telegram, audit e consumo budget.
+13. Eseguire almeno un ciclo completo di prova e verificare database, pagina
+    operatore, report Telegram, audit e consumo budget (compresa la voce
+    Telegram separata).
 
 ### Preparazione operativa del 31/08/2026
 

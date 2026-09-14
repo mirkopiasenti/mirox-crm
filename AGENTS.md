@@ -153,7 +153,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `mirox-send-email.js` (POST) — mailer autenticato
 - `guardian-incidents.js` (GET/POST action-based) — endpoint autenticato della pagina `Segnala Problema`. Ogni richiesta nasce come `problema` o `miglioria`; la raccolta Structured Outputs usa domande e criteri diversi per i due tipi. Gli operatori creano/proseguono solo le proprie richieste; gli admin possono elencarle tutte. Identita', contesto sicuro e ownership sono derivati lato server; tabelle Guardian mai accessibili direttamente dal browser. Il fallback deterministico non blocca l'operatore.
 - `guardian-telemetry-ingest.js` (POST) — endpoint autenticato per batch di massimo 20 eventi e 64 KB. Ripulisce nuovamente il payload, forza l'ambiente server, calcola fingerprint, deduplica gli `event_id` e aggiorna `kona_ai_eventi_tecnici`/`kona_ai_segnali`.
-- `guardian-telegram-webhook.js` (POST) — webhook pubblico solo per necessita' Telegram, protetto da `X-Telegram-Bot-Api-Secret-Token`, confronto constant-time e allowlist rigida `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`. Accetta testo o vocali conclusi, trascritti via Audio Transcriptions; gestisce `/richieste` (con alias `/incidenti`), `/salute`, `/apri`, `/nuovo`, `/nuovo_miglioria`, analisi Guardian, archiviazione e `Approva lavorazione`. Qualunque pulsante operativo collega automaticamente la sessione Telegram alla richiesta scelta, così i messaggi liberi successivi restano nella conversazione corretta; `Archivia` azzera invece la richiesta attiva. `/salute` espone soltanto contatori e checkpoint tecnici dell'Observer, senza dati CRM. L'approvazione crea un audit `prepara_fix` e porta la richiesta a `fix_approvato`, ma non esegue codice finche' Codex non e' collegato.
+- `guardian-telegram-webhook.js` (POST) — webhook pubblico solo per necessita' Telegram, protetto da `X-Telegram-Bot-Api-Secret-Token`, confronto constant-time e allowlist rigida `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`. Accetta **solo testo** (i messaggi vocali ricevono una richiesta di scrivere il testo: la trascrizione Audio Transcriptions è stata rimossa il 2026-09-14); gestisce `/richieste` (con alias `/incidenti`), `/salute`, `/apri`, `/nuovo`, `/nuovo_miglioria`, analisi Guardian, archiviazione e `Approva lavorazione`. Qualunque pulsante operativo collega automaticamente la sessione Telegram alla richiesta scelta, così i messaggi liberi successivi restano nella conversazione corretta; `Archivia` azzera invece la richiesta attiva. `/salute` espone soltanto contatori e checkpoint tecnici dell'Observer, senza dati CRM. L'approvazione crea un audit `prepara_fix` e porta la richiesta a `fix_approvato`, ma non esegue codice finche' Codex non e' collegato.
 - `guardian-codex-worker.js` (POST) — endpoint interno protetto da firma HMAC. Gestisce claim con lease, heartbeat e risultato delle esecuzioni `analisi_codex`, `analisi_automatica`, `scansione_migliorie`, `prepara_patch`, `test_staging` e `rilascio_produzione`; recupera al workflow soltanto contesto Guardian ridotto e invia l'esito a Telegram. Gli esiti automatici sono tradotti in sezioni comprensibili (`Che cosa significa`, conclusione, singola informazione necessaria e prossimo passo). Se `safe_to_prepare_patch` e' falso o mancano dati, il bottone patch viene sostituito da `Aggiungi informazioni`. Per `prepara_patch`, `RICHIEDE_INFORMAZIONI` e `BLOCCATA` chiudono regolarmente il lease senza fingere una modifica e senza abilitare i test staging. Non accetta JWT, non espone segreti e non concede accesso browser alle tabelle.
 - `guardian-telemetry-ingest.js` deve esportare esplicitamente `handler`: viene importato da `_lib/with-telemetry.js` anche durante il caricamento del worker; un export incoerente rompe il bundle Netlify prima della verifica HMAC.
 - `cron-rientro-sim.js` (scheduled `0 7 * * *`) — notifica giornaliera switch SIM. **Non auth-gated** (chiamata dal cron Netlify, non da utente). Con `MIROX_DEPLOY_ENV=staging` termina subito con `skipped`, senza DB o email.
@@ -175,7 +175,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
   I template sono dichiarati anche in `netlify.toml` tramite `included_files`; il resolver deve supportare sia il layout sorgente (`_lib/../_templates`) sia quello appiattito da Netlify/esbuild (`functions/_templates`). Non basarsi su un unico `__dirname/../_templates`, perché in produzione risolverebbe erroneamente `/var/task/netlify/_templates`.
 - `_lib/score-integrity.js` — parser stretto dei punteggi catalogo e verifica condivisa dei quattro componenti, dei totali gara/extra e delle colonne legacy. Usato sia alla creazione sia in Verifica Contratti.
 - `_lib/kona-ai-guardian.js` — prompt, Structured Outputs, fallback di raccolta, analisi proprietario, codici `KG-*` e notifica Telegram. Le istruzioni vietano di fingere accesso a repository/log/database e richiedono approvazione per le azioni successive.
-- `_lib/telegram.js` — client REST Telegram, download vocali max 25 MB e trascrizione OpenAI `gpt-transcribe`. Token e chiavi restano esclusivamente nelle env vars Netlify.
+- `_lib/telegram.js` — client REST Telegram **solo testo** (`sendTelegramMessage`, `answerCallbackQuery`, `telegramRequest`). La trascrizione dei vocali è stata rimossa il 2026-09-14: nessun download audio e nessuna chiamata a OpenAI Audio Transcriptions. Token e chiavi restano esclusivamente nelle env vars Netlify.
 
 ### 3. Database (Supabase Postgres)
 
@@ -624,7 +624,7 @@ Il bottone "Admin" dentro `moduli/upload-contratti-vendita.html` è stato **rimo
 KONA Call Director vive nelle tabelle server-only `kona_call_director_*`, nelle
 function `kona-call-director-*` e nelle due pagine operatore/admin. Prima di
 modificarlo o attivarlo leggere `docs/KONA_CALL_DIRECTOR.md` e le migration
-`database/072_kona_call_director.sql`-`075_kona_call_director_parita_rilavorazioni.sql`.
+`database/072_kona_call_director.sql`-`078_kona_call_director_telegram_ai.sql`.
 
 Regole permanenti:
 
@@ -635,9 +635,15 @@ Regole permanenti:
 
 - l'attivazione richiede insieme `KONA_CALL_DIRECTOR_ENABLED=true`, toggle
   globale DB e profilo operatore abilitato; l'env assente deve restare spento;
-- le migration `072`, `073`, `074` e `075` sono applicate soltanto al Supabase test
-  dedicato `yyorullxmdxhnunsfwwa`; production non contiene tabelle KONA Call
-  Director;
+- le migration `072`, `073`, `074`, `075`, `076` e `077` sono applicate soltanto
+  al Supabase test dedicato `yyorullxmdxhnunsfwwa`; production non contiene
+  tabelle KONA Call Director;
+- la migration `078_kona_call_director_telegram_ai.sql` e' scritta ma **non e'
+  ancora applicata** (va eseguita a mano sul database di test): introduce
+  `riserva_telegram_eur` (10 EUR/mese), `max_messaggi_telegram_ora`,
+  `modello_deepseek`/`prezzi_deepseek`, `provider_per_attivita` e la RPC
+  `kona_cd_reserve_budget_v2`. Finche' non e' applicata il codice usa la `v1`
+  con controllo non atomico del tetto Telegram;
 - il sito Netlify test `mirox-kona-call-director-test.netlify.app` e' collegato
   alla branch `kona-call-director`, usa la service role protetta del solo
   Supabase test e pubblica automaticamente ogni push della branch;
@@ -725,8 +731,24 @@ Regole permanenti:
   errore `Nessun task`. La cancellazione Google considera conclusivi 404 e 410,
   perche' entrambi indicano che l'evento non esiste piu';
 - credenziali, integrazioni e deploy vanno validati prima sul test dedicato;
-- non inviare PII a Telegram, dati Consumer a OpenAI o dettagli privati del
-  calendario Google all'operatore;
+- l'assistente Telegram interpreta il messaggio con DeepSeek V4.1 Flash
+  (`_lib/kona-cd-assistente.js` + `_lib/kona-cd-ai.js`). Regole non negoziabili:
+  al modello arrivano **solo aggregati** (`contestoAssistente`, nessuna tabella
+  anagrafica); le azioni che cambiano stato (`sospendi`, `riattiva`,
+  `approva_piano`, `telefoni_omaggio`, `direttiva`) vengono solo **proposte** e
+  attuate dopo un "si" esplicito, mai su interpretazione; "si"/"no" sono
+  deterministici e gratuiti; una proposta scade dopo 30 minuti. I **vocali non
+  sono trascritti**;
+- chiedere la ricerca web a DeepSeek deve **fallire**
+  (`provider_non_supporta_web_search`), mai degradare in silenzio:
+  l'arricchimento aziendale resta su OpenAI;
+- il costo dell'assistente Telegram vive nella riserva `riserva_telegram_eur`
+  (10 EUR/mese) con attivita' `telegram` e tetto orario separato da
+  `max_chiamate_openai_ora`: non mescolare la spesa DeepSeek con quella OpenAI;
+- il trasferimento del testo dei messaggi a DeepSeek e' extra-UE: nessun dato
+  personale dei clienti e citazione nell'informativa privacy;
+- non inviare PII a Telegram, dati Consumer a OpenAI o a DeepSeek, ne' dettagli
+  privati del calendario Google all'operatore;
 - con il cron Netlify nativo non impostare `KONA_CALL_DIRECTOR_CRON_SECRET`;
 - non inventare coordinate dei comuni e non modificare tabelle Call Center
   condivise per aggirare il dominio KONA;
@@ -744,7 +766,7 @@ Il reporter globale `js/mirox-error-reporter.js` e tutte le email automatiche pe
 1. Qualunque utente autenticato apre `moduli/segnala-problema.html`, sceglie `Segnala un problema` oppure `Proponi una miglioria` e conversa con Guardian tramite `guardian-incidents`.
 2. Guardian fa una domanda breve alla volta usando un percorso dedicato: per i problemi raccoglie atteso/reale/errore/riproducibilita'; per le migliorie raccoglie funzionamento attuale, obiettivo, utenti, beneficio ed esempi. Dopo la descrizione iniziale puo' porre al massimo due chiarimenti; raggiunto il limite registra comunque la richiesta e rimanda i dubbi alla conversazione Telegram con l'amministratore. Quando completa imposta la richiesta a `ricevuto`, assegna un codice unico `KG-000001`, conferma all'operatore l'invio all'`amministratore` senza mostrare il nome di Mirko e notifica Telegram indicando il tipo.
 3. Gli operatori possono soltanto creare e completare le proprie richieste. Non possono vedere richieste altrui, approvare analisi, cambiare priorita' o avviare azioni.
-4. `guardian-telegram-webhook` accetta esclusivamente il secret token configurato e `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`. Mirko puo' usare testo o vocali gia' conclusi; niente conversazione audio live.
+4. `guardian-telegram-webhook` accetta esclusivamente il secret token configurato e `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`. Mirko scrive **solo testo**: i messaggi vocali non vengono piu' trascritti (l'audio è stato rimosso il 2026-09-14) e ricevono la richiesta di scrivere il messaggio.
 5. Il cron Observer raccoglie eccezioni frontend, errori HTTP 5xx, errori Functions/provider, fallimenti cron/CI e segnali di performance soltanto dopo sanitizzazione server-side. Deduplica per fingerprint e apre un incidente automatico `monitoraggio` solo al superamento delle soglie; un singolo evento non genera rumore Telegram. In particolare un `network_error` senza stato HTTP, anche durante login/upload/finalizzazione, resta `bassa` con una sola occorrenza: viene aperto dopo almeno tre occorrenze oppure due operatori coinvolti. I nomi interni (`network_error`, `Failed to fetch`, stack) non sono usati come spiegazione principale nel messaggio al proprietario.
 6. Per gli incidenti automatici il workflow `guardian-observer-analysis.yml` analizza in sola lettura il commit correlato, produce JSON validato e restituisce fatti, causa probabile, proposta, verifiche e criteri di accettazione. L'output è trattato come diagnosi, non come autorizzazione a modificare il codice.
 7. Analisi Guardian, analisi Codex read-only, preparazione patch, test staging, proposta di rilascio e archiviazione richiedono pulsanti Telegram separati. Ogni decisione viene registrata in `kona_ai_approvazioni`; l'esecuzione tecnica e' registrata in `kona_ai_esecuzioni`.
@@ -768,7 +790,7 @@ La migration additiva `065_kona_ai_guardian.sql` crea quattro tabelle server-onl
 
 Guardian e' attivo sul production `mirox-crm.it`, collegato al Supabase `lbgwamhjkjjfwgusafbi`; qui le env OpenAI/Telegram e il `KONA_AI_OWNER_PROFILE_ID` del profilo Mirko production sono configurati. Il bot `@MiroxAiGuardianBot` usa esclusivamente il webhook ufficiale. Il sito `mirox-crm-staging.netlify.app` e il Supabase `blwgxrszvsoqcmcmhhqr` restano l'ambiente isolato per sviluppi e validazioni senza dati reali e usano il bot già dedicato `@KonaAiGuardianBot`.
 
-Env vars: `OPENAI_API_KEY`, `OPENAI_GUARDIAN_MODEL`, `OPENAI_TRANSCRIBE_MODEL`, `TELEGRAM_GUARDIAN_BOT_TOKEN`, `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`, `TELEGRAM_GUARDIAN_WEBHOOK_SECRET`, `KONA_AI_OWNER_PROFILE_ID`, `GUARDIAN_OBSERVER_ENABLED`, `GUARDIAN_OBSERVER_DAILY_BUDGET`, `GUARDIAN_OBSERVER_MODEL`, `GUARDIAN_OBSERVER_REF`, `GUARDIAN_OBSERVER_WEEKLY_SCAN`, `GUARDIAN_TELEMETRY_HASH_SECRET`. Mai esporle nel frontend o committarle. Setup completo: `docs/KONA_AI_GUARDIAN_SETUP.md`.
+Env vars: `OPENAI_API_KEY`, `OPENAI_GUARDIAN_MODEL`, `TELEGRAM_GUARDIAN_BOT_TOKEN`, `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`, `TELEGRAM_GUARDIAN_WEBHOOK_SECRET`, `KONA_AI_OWNER_PROFILE_ID`, `GUARDIAN_OBSERVER_ENABLED`, `GUARDIAN_OBSERVER_DAILY_BUDGET`, `GUARDIAN_OBSERVER_MODEL`, `GUARDIAN_OBSERVER_REF`, `GUARDIAN_OBSERVER_WEEKLY_SCAN`, `GUARDIAN_TELEMETRY_HASH_SECRET`. Mai esporle nel frontend o committarle. Setup completo: `docs/KONA_AI_GUARDIAN_SETUP.md`. La env `OPENAI_TRANSCRIBE_MODEL` non è più usata (trascrizione vocali rimossa il 2026-09-14).
 
 ---
 ## Sistema consensi privacy GDPR (dal 2026-06-26)
