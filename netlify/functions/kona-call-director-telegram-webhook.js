@@ -290,13 +290,34 @@ async function cmdReport(client, cfg, data) {
   ].join('\n');
 }
 
+// "Mostrami il piano": prima cosa KONA fara' in giornata (fasce, categorie,
+// liste Consumer), poi gli appuntamenti Business. Prima mostrava solo gli
+// appuntamenti e con zero appuntamenti rispondeva "nessun appuntamento
+// programmato", che non dice nulla sulla giornata.
 async function cmdPiano(client, cfg, data) {
+  const operatori = await operatoriAbilitati(client);
+  const piano = operatori.length
+    ? await pianoDi(client, { data, operatoreId: operatori[0] })
+    : null;
+  const descrizione = agenda.descriviPiano(piano?.contenuto, cfg);
+  const righe = [
+    descrizione.dalPiano
+      ? `Piano ${data} (scelto con /agenda)`
+      : `Piano ${data} (programmazione base)`
+  ];
+  if (descrizione.righe.length) righe.push(...descrizione.righe.map((r) => `- ${r}`));
+  else righe.push('- nessuna fascia di lavoro: nessun contatto proposto');
+  righe.push(descrizione.categorie.length
+    ? `Categorie aziendali approvate: ${descrizione.categorie.join(', ')}`
+    : 'Nessuna categoria aziendale approvata: i lead aziendali non partiranno.');
+  if (descrizione.consumer) righe.push(`Liste Consumer: ${descrizione.consumerEtichetta}`);
+
   const proposta = await propostaPianoGiorno(client, cfg, { data });
-  if (proposta.totale === 0) return `Piano ${data}: nessun appuntamento Business programmato.`;
-  const righe = (proposta.perZona || [])
-    .map((z) => `${z.zona}: ${z.n} appuntamenti (${z.finestra.da}-${z.finestra.a})`)
-    .join('\n');
-  return `Piano ${data}\n${righe}\n\n${proposta.suggerimento}`;
+  righe.push(proposta.totale > 0
+    ? `Appuntamenti Business: ${(proposta.perZona || []).map((z) => `${z.zona} (${z.n})`).join(', ')}`
+    : 'Nessun appuntamento Business programmato.');
+  if (proposta.totale > 0 && proposta.suggerimento) righe.push('', proposta.suggerimento);
+  return righe.join('\n').slice(0, 2000);
 }
 
 async function cmdApprova(client, cfg, data, chatId) {
@@ -1007,4 +1028,4 @@ async function rispostaSenzaIa(client, chatId, conv, text, data, domani, esito) 
 }
 
 // Esposti per i test: la function Netlify usa soltanto `handler`.
-module.exports._test = { applicaAgenda, avviaAgenda, avvisoCategorie, categorieDisponibili, etichettaCategorie, gestisciAgendaCallback, scriviPianoDirettiva };
+module.exports._test = { applicaAgenda, avviaAgenda, avvisoCategorie, categorieDisponibili, cmdPiano, etichettaCategorie, gestisciAgendaCallback, scriviPianoDirettiva };

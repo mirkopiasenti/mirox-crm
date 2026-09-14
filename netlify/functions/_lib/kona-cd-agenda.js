@@ -261,6 +261,31 @@ function riepilogoAgenda(agenda = {}, cfg) {
   ].join('\n');
 }
 
+// Fotografia del piano di una giornata in righe leggibili: e' quello che KONA
+// fara' DAVVERO (fasce della giornata, categorie aziendali, liste Consumer).
+// Serve a chi chiede "mostrami il piano": gli appuntamenti Business da soli non
+// dicono niente di quello che succede in giornata.
+function descriviPiano(contenuto, cfg) {
+  const dalPiano = normalizzaBlocchi(contenuto?.agenda_blocchi);
+  const { blocchi, origine } = blocchiGiorno(contenuto, cfg);
+  const grezze = Array.isArray(contenuto?.categorie_approvate)
+    ? contenuto.categorie_approvate
+    : (Array.isArray(contenuto?.categorie) ? contenuto.categorie : []);
+  const categorie = grezze.map((c) => String(c).trim()).filter(Boolean);
+  const consumerGrezzo = String(contenuto?.consumer || contenuto?.categoria_sessione || '');
+  const opzioneConsumer = OPZIONI.find((o) => o.consumer && o.consumer === consumerGrezzo);
+  const righe = righeBlocchi({ blocchi }).map((r) => r);
+  return {
+    origine,
+    dalPiano: dalPiano.length > 0,
+    fasce: blocchi.length,
+    righe,
+    categorie,
+    consumer: opzioneConsumer ? opzioneConsumer.consumer : null,
+    consumerEtichetta: opzioneConsumer ? opzioneConsumer.etichetta : null
+  };
+}
+
 // Testo con cui il bot ripropone le opzioni per il tempo che resta.
 function domandaOpzioni(agenda = {}, cfg) {
   const finestre = finestreGiorno(cfg);
@@ -301,6 +326,7 @@ module.exports = {
   blocchiGiorno,
   buchiResidui,
   componiBlocco,
+  descriviPiano,
   domandaOpzioni,
   finestreGiorno,
   fmtDurata,
@@ -319,7 +345,7 @@ module.exports = {
   tastieraConfermaAgenda,
   tastieraOpzioni,
   _test: {
-    attivitaCorrente, bloccoManuale, blocchiGiorno, buchiResidui, componiBlocco, domandaOpzioni,
+    attivitaCorrente, bloccoManuale, blocchiGiorno, buchiResidui, componiBlocco, descriviPiano, domandaOpzioni,
     finestreGiorno, fmtDurata, fmtHHmm, minutiPianificati, minutiResidui, minutiTotali,
     normalizzaBlocchi, opzioneDaTesto, opzionePerId, opzioniDisponibili, parseIntervallo,
     riepilogoAgenda, righeBlocchi, serializzaBlocchi

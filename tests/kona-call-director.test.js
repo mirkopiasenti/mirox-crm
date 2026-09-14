@@ -2528,6 +2528,58 @@ test('agenda guidata: senza operatrici abilitate il piano non viene scritto e lo
   assert.ok(riga.stato_conversazione.agenda);
 });
 
+test('piano del giorno: descrive fasce, categorie e liste Consumer (non solo gli appuntamenti)', () => {
+  const cfg = baseCfg();
+  // Piano scelto con /agenda: comanda lui, non la programmazione base.
+  const dalPiano = agenda.descriviPiano({
+    agenda_blocchi: [{ opzione: 'aziendali', da: '15:30', a: '17:00' }],
+    categorie_approvate: ['Bar', 'Negozio'],
+    consumer: 'telefoni_omaggio'
+  }, cfg);
+  assert.equal(dalPiano.dalPiano, true);
+  assert.deepEqual(dalPiano.righe, ['15:30-17:00 Lead Outbound Aziendali']);
+  assert.deepEqual(dalPiano.categorie, ['Bar', 'Negozio']);
+  assert.equal(dalPiano.consumer, 'telefoni_omaggio');
+  // Piano senza fasce: si mostra la programmazione base e lo si dice.
+  const base = agenda.descriviPiano(null, cfg);
+  assert.equal(base.dalPiano, false);
+  assert.equal(base.origine, 'base');
+  assert.equal(base.righe.length, 4);
+  assert.deepEqual(base.categorie, []);
+  assert.equal(base.consumer, null);
+});
+
+test('cmdPiano: "mostrami il piano" mostra la giornata anche senza appuntamenti', async () => {
+  const db = makeSupabase({
+    'kona_call_director_profili.select': () => ({ data: [{ profilo_id: PROFILO }] }),
+    'kona_call_director_piani.select': () => ({
+      data: {
+        contenuto: {
+          agenda_blocchi: [{ opzione: 'fibra_fwa', da: '10:31', a: '12:30' }],
+          categorie_approvate: ['Bar']
+        }
+      },
+      error: null
+    }),
+    'kona_call_director_appuntamenti_business.select': () => ({ data: [] })
+  });
+  const testo = await telegramWebhook._test.cmdPiano(db, baseCfg(), '2026-09-15');
+  assert.match(testo, /Piano 2026-09-15 \(scelto con \/agenda\)/);
+  assert.match(testo, /10:31-12:30 Fisso \(liste cartacee\)/);
+  assert.match(testo, /Categorie aziendali approvate: Bar/);
+  // La riga finale non puo' essere l'unica risposta: il caso del collaudo.
+  assert.match(testo, /Nessun appuntamento Business programmato\./);
+  assert.ok(testo.split('\n').length > 3);
+});
+
+test('report serale: niente parentesi vuote e piano di domani leggibile', () => {
+  const dispatcher = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-dispatcher.js'), 'utf8');
+  // "Conferme oggi: 0 ()" era il caso reale: le parentesi solo se c'e' l'elenco.
+  assert.match(dispatcher, /esitiConferme \? ` \(\$\{esitiConferme\}\)` : ''/);
+  assert.ok(!/Conferme oggi: \$\{report\.conferme\.totali\} \(\$\{Object\.entries/.test(dispatcher));
+  assert.match(dispatcher, /descriviPiano\(pianoDomani\?\.contenuto, cfg\)/);
+});
+
 test('agenda guidata: senza configurazione non si scrive nessuno stato a meta\'', async () => {
   const scritti = [];
   const db = makeSupabase({
@@ -2647,6 +2699,9 @@ test('assistente: al modello arrivano solo aggregati, mai tabelle anagrafiche', 
   const modello = assistente.istruzioniAssistente({ dati: { attivo: true } });
   assert.match(modello, /Contesto corrente/);
   assert.doesNotMatch(modello, /telefono|codice fiscale|email/i);
+  // "Modificare il piano" deve diventare una direttiva (e il sistema chiede la
+  // giornata), non una domanda generica del modello: e' il caso del collaudo.
+  assert.match(modello, /MODIFICARE o CAMBIARE il piano/);
 });
 
 test('webhook Telegram: dialogo IA, conferme e nessuna trascrizione audio', () => {

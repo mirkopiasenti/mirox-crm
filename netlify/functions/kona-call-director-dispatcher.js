@@ -35,6 +35,7 @@ const { runRetention } = require('./_lib/kona-cd-retention');
 const { analisiGiornata, applicaPianoDefault, pianoDi, propostaPianoGiorno, reportGiornaliero, salvaPiano } = require('./_lib/kona-cd-report');
 const { enqueueNotifica, processaNotifiche } = require('./_lib/kona-cd-notifiche');
 const { materializeNextTask } = require('./_lib/kona-cd-engine');
+const { descriviPiano } = require('./_lib/kona-cd-agenda');
 const { finestraAttiva } = require('./_lib/kona-cd-conferme');
 const { calendarIdFor, deleteEvent, findEventByKonaId, getAccessToken, insertEvent, updateEventTime } = require('./_lib/kona-cd-google');
 const { timingSafeEqualText } = require('./_lib/kona-cd-telegram');
@@ -162,14 +163,30 @@ async function eseguiReportSera(supabase, cfg, data) {
   const report = await reportGiornaliero(supabase, cfg, { data });
   const analisi = await analisiGiornata(supabase, cfg, { data });
   const domani = nextWorkingDay(data, cfg.giorni_lavorativi, cfg.ferie);
-  const piano = await propostaPianoGiorno(supabase, cfg, { data: domani });
+  const proposta = await propostaPianoGiorno(supabase, cfg, { data: domani });
+  // Il piano di domani per il bot e' quello che KONA fara' in giornata: fasce,
+  // categorie e liste Consumer. Gli appuntamenti Business sono una riga in piu'.
+  const operatori = await operatoriAbilitati(supabase);
+  const pianoDomani = operatori.length
+    ? await pianoDi(supabase, { data: domani, operatoreId: operatori[0] })
+    : null;
+  const descrizione = descriviPiano(pianoDomani?.contenuto, cfg);
+  // Le parentesi con gli esiti restano solo se c'e' qualcosa da elencare.
+  const esitiConferme = Object.entries(report.conferme.esiti || {}).map(([k, v]) => `${k} ${v}`).join(', ');
   const lines = [
     `KONA Call Director - Report ${data}`,
     `Task oggi: ${report.task.totali}`,
-    `Conferme oggi: ${report.conferme.totali} (${Object.entries(report.conferme.esiti).map(([k, v]) => `${k} ${v}`).join(', ')})`,
+    `Conferme oggi: ${report.conferme.totali}${esitiConferme ? ` (${esitiConferme})` : ''}`,
     `Appuntamenti Business: ${report.appuntamenti_business.totali}`,
     `Budget ${report.budget.mese}: ${report.budget.speso.toFixed(2)} euro su ${report.budget.budget.toFixed(2)}`,
-    piano.totale > 0 ? `Piano ${domani}: ${piano.perZona.map((z) => `${z.zona} (${z.n})`).join(', ')}` : `Piano ${domani}: nessun appuntamento programmato`
+    `Piano ${domani}${descrizione.dalPiano ? ' (scelto con /agenda)' : ' (programmazione base)'}:`,
+    ...(descrizione.righe.length ? descrizione.righe.map((r) => `- ${r}`) : ['- nessuna fascia di lavoro']),
+    descrizione.categorie.length
+      ? `Categorie aziendali approvate: ${descrizione.categorie.join(', ')}`
+      : 'Nessuna categoria aziendale approvata: i lead aziendali non partiranno.',
+    proposta.totale > 0
+      ? `Appuntamenti Business domani: ${proposta.perZona.map((z) => `${z.zona} (${z.n})`).join(', ')}`
+      : 'Appuntamenti Business domani: nessuno'
   ];
   if (analisi.ok) lines.push(`Commento: ${analisi.commento}`, `Suggerimento: ${analisi.suggerimento}`);
   lines.push('', 'Domanda aperta: confermi o modifichi il piano di domani? (rispondi su questo bot)');
