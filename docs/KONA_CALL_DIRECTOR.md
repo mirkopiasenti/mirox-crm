@@ -34,11 +34,10 @@ i due env switch e il toggle globale sono `true`, un solo profilo test e'
 abilitato, la modalità osservazione resta `true` e Google Calendar e' collegato
 con ultimo sync `ok`. Production resta invariata.
 
-Al database di test sono applicate anche le migration `076` e `077`. La `078`
-(assistente Telegram con DeepSeek) e' scritta ma **non e' ancora applicata**: va
-eseguita a mano sul database di test. Introduce la riserva Telegram da 10
-EUR/mese e la RPC di budget `kona_cd_reserve_budget_v2`; finche' non e'
-applicata, il codice usa automaticamente la `v1` e verifica comunque il tetto
+Al database di test sono applicate anche le migration `076`, `077` e `078`.
+La `078` (assistente Telegram con DeepSeek) introduce la riserva Telegram da 10
+EUR/mese, la mappa dei provider e la RPC di budget `kona_cd_reserve_budget_v2`;
+il codice mantiene comunque il fallback sulla `v1` con verifica del tetto
 Telegram prima di ogni chiamata.
 
 Per il test del 31/08 Isabella usa il profilo `test` e inserisce manualmente i
@@ -57,12 +56,17 @@ script telefonici.
 Due provider, con capacita' diverse (la scelta e' in
 `kona_call_director_config.provider_per_attivita`, non nel codice):
 
-- **OpenAI** — ricerca web per i dati aziendali dei lead Business, valutazione
-  degli skip, proposta del piano, analisi giornaliera. E' l'unico provider con
-  ricerca web: se la ricerca viene chiesta a DeepSeek la chiamata **fallisce**
-  invece di degradare in silenzio.
+- **OpenAI** — ricerca web per i dati aziendali dei lead Business e valutazione
+  degli skip. E' l'unico provider con ricerca web: se la ricerca viene chiesta a
+  DeepSeek la chiamata **fallisce** invece di degradare in silenzio.
 - **DeepSeek V4.1 Flash** (`deepseek-flash`) — dialogo in linguaggio naturale
-  del bot Telegram. Nessuna ricerca web, nessuna trascrizione audio.
+  del bot Telegram, **proposta del piano** giornaliero e **analisi della
+  giornata**. Nessuna ricerca web, nessuna trascrizione audio.
+
+La mappa effettiva e' `provider_per_attivita` fuso con i default di codice:
+`{telegram, piano, analisi}` vanno su DeepSeek, tutto il resto su OpenAI.
+Spostare un'attivita' e' una riga di configurazione (modificabile dal pannello
+Admin), non una modifica di codice.
 
 ### Assistente Telegram in linguaggio naturale
 
@@ -91,11 +95,17 @@ Costo: l'assistente ha una riserva dedicata di **10 EUR/mese**
 (`max_messaggi_telegram_ora`). La spesa e' registrata nel registro budget con
 attivita' `telegram`, quindi e' distinguibile da quella OpenAI. Il tetto orario
 Telegram e' separato da `max_chiamate_openai_ora`: una raffica di messaggi non
-consuma il tetto delle chiamate.
+consuma il tetto delle chiamate, e il tetto dei messaggi non limita piano e
+analisi (che sono chiamate di sistema, non messaggi).
 
-**Trasferimento dati extra-UE**: il testo dei messaggi di Mirko viene inviato a
-DeepSeek (server in Cina). Non contiene dati di clienti, ma il trasferimento va
-citato nell'informativa privacy del Titolare.
+Piano giornaliero e analisi della giornata usano lo stesso provider DeepSeek ma
+restano fuori dalla riserva Telegram: sono attivita' `piano` e `analisi`, quindi
+ricadono nella riserva "dialogo" (`riserva_dialogo_eur`) del budget dedicato.
+
+**Trasferimento dati extra-UE**: il testo dei messaggi di Mirko e gli aggregati
+della giornata (conteggi, zone, budget) vengono inviati a DeepSeek (server in
+Cina). Non contengono dati di clienti, ma il trasferimento va citato
+nell'informativa privacy del Titolare.
 
 Priorita' operative:
 
@@ -335,7 +345,9 @@ esterno controllato.
    search massime, sessione Business 90 minuti, durata appuntamento 45 minuti,
    raggio indicativo 20 km e orari.
 8. Applicare a mano `database/078_kona_call_director_telegram_ai.sql` al solo
-   database di test e impostare `KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY`. Senza la
+   database di test (fatto il 2026-09-14) e impostare
+   `KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY` **seguita da un nuovo deploy**: le env
+   di Netlify entrano nelle function solo al deploy successivo. Senza la
    migration l'assistente funziona lo stesso (fallback sulla RPC `v1` con
    controllo del tetto in JS), ma il tetto Telegram non e' atomico.
 9. Collegare Google dal pannello Admin. Verificare lettura free/busy,

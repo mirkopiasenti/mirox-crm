@@ -64,13 +64,39 @@ function extractUsage(payload) {
   };
 }
 
+// Esempio di JSON costruito dallo schema. La documentazione DeepSeek chiede di
+// accompagnare il `json_object` con un esempio della forma attesa: senza, il
+// modello deve indovinare struttura e nomi dei campi (OpenAI non ne ha bisogno
+// perche' impone lo schema strict, DeepSeek no).
+function esempioDaSchema(schema) {
+  if (!schema || typeof schema !== 'object') return null;
+  const tipo = Array.isArray(schema.type) ? schema.type.find((t) => t !== 'null') : schema.type;
+  if (tipo === 'object' || schema.properties) {
+    const out = {};
+    for (const [key, prop] of Object.entries(schema.properties || {})) out[key] = esempioDaSchema(prop);
+    return out;
+  }
+  if (tipo === 'array') return schema.items ? [esempioDaSchema(schema.items)] : [];
+  if (tipo === 'number' || tipo === 'integer') return 0;
+  if (tipo === 'boolean') return false;
+  if (tipo === 'null') return null;
+  return '';
+}
+
 // Il JSON output di DeepSeek richiede che il prompt contenga la parola "json".
 // L'istruzione viene AGGIUNTA qui, non lasciata al chiamante: cosi' la
 // richiesta resta valida anche se un domani cambia il prompt dell'assistente.
-function istruzioniConJson(instructions) {
+function istruzioniConJson(instructions, schema) {
   const base = cleanText(instructions, 8000);
-  if (/json/i.test(base)) return base;
-  return `${base} Rispondi esclusivamente con un oggetto json valido, senza testo fuori dal json.`;
+  const parti = [];
+  if (!/json/i.test(base)) parti.push('Rispondi esclusivamente con un oggetto json valido, senza testo fuori dal json.');
+  const esempio = schema ? esempioDaSchema(schema) : null;
+  if (esempio && Object.keys(esempio).length > 0) {
+    parti.push(`Esempio di json atteso: ${JSON.stringify(esempio)}`);
+  }
+  // Il testo dell'esempio contiene comunque la parola "json": il vincolo della
+  // documentazione DeepSeek e' soddisfatto in ogni caso.
+  return [base, ...parti].join(' ');
 }
 
 function numOr(value, fallback) {
@@ -124,7 +150,10 @@ async function deepseekStructured({
     return { ok: false, error_code: 'budget_prezzo_ignoto', error: potenziale.motivo };
   }
 
-  if (!(await rateLimitTelegramOk(supabase, cfg))) {
+  // Il tetto orario dei MESSAGGI vale solo per l'assistente Telegram: piano e
+  // analisi sono chiamate di sistema e hanno gia' il proprio tetto (le
+  // prenotazioni non-telegram, applicato atomicamente dalla RPC di budget).
+  if (activity === 'telegram' && !(await rateLimitTelegramOk(supabase, cfg))) {
     return { ok: false, error_code: 'rate_limited', error: 'Troppi messaggi Telegram nell\'ultima ora' };
   }
 
@@ -146,7 +175,7 @@ async function deepseekStructured({
   const body = {
     model,
     messages: [
-      { role: 'system', content: istruzioniConJson(instructions) },
+      { role: 'system', content: istruzioniConJson(instructions, schema) },
       { role: 'user', content: cleanText(input, 20000) }
     ],
     response_format: { type: 'json_object' },
@@ -244,6 +273,7 @@ module.exports = {
   ENV_CHIAVE,
   MODELLO_DEFAULT,
   deepseekStructured,
+  esempioDaSchema,
   extractContent,
   extractUsage,
   getApiKey,
@@ -251,5 +281,5 @@ module.exports = {
   istruzioniConJson,
   modelloDeepseek,
   rateLimitTelegramOk,
-  _test: { extractContent, extractUsage, istruzioniConJson, modelloDeepseek }
+  _test: { esempioDaSchema, extractContent, extractUsage, istruzioniConJson, modelloDeepseek }
 };

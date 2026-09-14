@@ -138,7 +138,7 @@ function baseCfg() {
     prezzi_openai: { 'gpt-5.6-luna': { input: 0.20, output: 1.20, web_search: 0.01 } },
     modello_deepseek: 'deepseek-flash',
     prezzi_deepseek: { 'deepseek-flash': { input: 0.30, output: 1.20 } },
-    provider_per_attivita: { telegram: 'deepseek' },
+    provider_per_attivita: { telegram: 'deepseek', piano: 'deepseek', analisi: 'deepseek' },
     max_messaggi_telegram_ora: 60,
     soglie_budget: [70, 85, 95, 100],
     giorni_lavorativi: [1, 2, 3, 4, 5],
@@ -1905,7 +1905,9 @@ test('config KONA: DeepSeek V4.1 Flash con riserva Telegram da 10 euro al mese',
   assert.equal(config.CONFIG_DEFAULTS.modello_deepseek, 'deepseek-flash');
   assert.equal(config.CONFIG_DEFAULTS.riserva_telegram_eur, 10);
   assert.equal(config.CONFIG_DEFAULTS.max_messaggi_telegram_ora, 60);
-  assert.deepEqual(config.CONFIG_DEFAULTS.provider_per_attivita, { telegram: 'deepseek' });
+  // Piano giornaliero e analisi della giornata girano su DeepSeek: su OpenAI
+  // resta solo cio' che richiede la ricerca web o la valutazione degli skip.
+  assert.deepEqual(config.CONFIG_DEFAULTS.provider_per_attivita, { telegram: 'deepseek', piano: 'deepseek', analisi: 'deepseek' });
   // Tariffa PEAK ufficiale DeepSeek: stima conservativa, mai al ribasso.
   assert.deepEqual(config.CONFIG_DEFAULTS.prezzi_deepseek, { 'deepseek-flash': { input: 0.30, output: 1.20 } });
 });
@@ -1947,10 +1949,13 @@ test('deepseek: modello ufficiale, estrazione contenuto e token', () => {
   });
 });
 
-test('dispatcher IA: Telegram su DeepSeek, le altre attivita su OpenAI', () => {
+test('dispatcher IA: Telegram, piano e analisi su DeepSeek; ricerca web su OpenAI', () => {
   assert.equal(ai.providerPer(baseCfg(), 'telegram'), 'deepseek');
+  assert.equal(ai.providerPer(baseCfg(), 'piano'), 'deepseek');
+  assert.equal(ai.providerPer(baseCfg(), 'analisi'), 'deepseek');
+  // Valutazione degli skip e arricchimento restano su OpenAI.
   assert.equal(ai.providerPer(baseCfg(), 'arricchimento'), 'openai');
-  assert.equal(ai.providerPer(baseCfg(), 'piano'), 'openai');
+  assert.equal(ai.providerPer(baseCfg(), 'altro'), 'openai');
   // Config assente o provider sconosciuto: si resta su OpenAI (default prudente).
   assert.equal(ai.providerPer({}, 'telegram'), 'openai');
   assert.equal(ai.providerPer({ provider_per_attivita: { telegram: 'chissa' } }, 'telegram'), 'openai');
@@ -1969,6 +1974,86 @@ test('dispatcher IA: la ricerca web su DeepSeek FALLISCE, non degrada in silenzi
   assert.equal(esito.error_code, 'provider_non_supporta_web_search');
   assert.equal(registrate.length, 1);
   assert.equal(registrate[0].dettagli.provider, 'deepseek');
+});
+
+test('deepseek: l esempio di json e costruito dallo schema (richiesta della documentazione)', () => {
+  const schema = {
+    type: 'object',
+    properties: {
+      commento: { type: 'string' },
+      priorita: { type: 'array', items: { type: 'string' } },
+      punteggio: { type: 'number' }
+    },
+    required: ['commento', 'priorita']
+  };
+  assert.deepEqual(deepseek.esempioDaSchema(schema), { commento: '', priorita: [''], punteggio: 0 });
+  assert.equal(deepseek.esempioDaSchema(null), null);
+  const istruzioni = deepseek.istruzioniConJson('Analizza gli aggregati.', schema);
+  assert.match(istruzioni, /json/i);
+  assert.match(istruzioni, /Esempio di json atteso/);
+  assert.match(istruzioni, /"priorita":\[""\]/);
+  // Con un prompt che non nomina json la richiesta resta valida comunque.
+  assert.match(deepseek.istruzioniConJson('Analizza gli aggregati.'), /json/i);
+});
+
+test('validateStructured: controlla anche array e oggetti annidati', () => {
+  const schema = {
+    type: 'object',
+    properties: {
+      piano: { type: 'string' },
+      priorita: { type: 'array', items: { type: 'string' } },
+      dettaglio: { type: 'object', properties: { zona: { type: 'string' } }, required: ['zona'] }
+    },
+    required: ['piano', 'priorita']
+  };
+  // Forma corretta.
+  assert.equal(openai._test.validateStructured({ piano: 'x', priorita: ['a', 'b'] }, schema).ok, true);
+  assert.equal(openai._test.validateStructured({ piano: 'x', priorita: [] }, schema).ok, true);
+  // DeepSeek non impone lo schema: un array di oggetti al posto di stringhe
+  // deve essere RIFIUTATO, non persistito com'e'.
+  const annidato = openai._test.validateStructured({ piano: 'x', priorita: [{ testo: 'a' }] }, schema);
+  assert.equal(annidato.ok, false);
+  assert.match(annidato.error, /priorita\[0\]/);
+  // Oggetto annidato senza il campo obbligatorio.
+  const oggetto = openai._test.validateStructured({ piano: 'x', priorita: [], dettaglio: {} }, schema);
+  assert.equal(oggetto.ok, false);
+  assert.match(oggetto.error, /dettaglio\.zona/);
+  // Campo obbligatorio assente al primo livello.
+  assert.equal(openai._test.validateStructured({ priorita: [] }, schema).ok, false);
+});
+
+test('analisi giornaliera: con la mappa provider va su DeepSeek (non su OpenAI)', async () => {
+  process.env.KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY = 'test-key';
+  const inserimenti = [];
+  const db = makeSupabase({
+    'kona_call_director_task.select': () => ({ data: [] }),
+    'kona_call_director_conferme.select': () => ({ data: [] }),
+    'kona_call_director_appuntamenti_business.select': () => ({ data: [] }),
+    'kona_call_director_sessioni.select': () => ({ data: [] }),
+    'kona_call_director_sessione_attivita.select': () => ({ data: [] }),
+    'kona_call_director_budget_log.select': (q) => (q.head ? { count: 0, data: null, error: null } : { data: [] }),
+    'kona_call_director_budget_riserve.select': () => ({ data: [] }),
+    'kona_call_director_budget_log.insert': (q) => { inserimenti.push(q.value); return { data: null, error: null }; },
+    'kona_call_director_budget_riserve.update': () => ({ data: [], error: null }),
+    'rpc.kona_cd_reserve_budget_v2': () => ({ data: { ok: true }, error: null })
+  });
+  const restore = mockFetchFor([
+    ['api.deepseek.com', () => deepseekOkPayload({ commento: 'Giornata regolare.', suggerimento: 'Riprendere i ricontatti.' })],
+    ['api.openai.com', () => { throw new Error('OpenAI non deve essere chiamata per l analisi'); }]
+  ]);
+  try {
+    const esito = await report.analisiGiornata(db, baseCfg(), { data: '2026-09-14' });
+    assert.equal(esito.ok, true);
+    assert.equal(esito.provider, 'deepseek');
+    assert.equal(esito.commento, 'Giornata regolare.');
+    // La spesa e' registrata come attivita 'analisi' con provider deepseek.
+    assert.equal(inserimenti.length, 1);
+    assert.equal(inserimenti[0].attivita, 'analisi');
+    assert.equal(inserimenti[0].modello, 'deepseek-flash');
+    assert.equal(inserimenti[0].dettagli.provider, 'deepseek');
+  } finally {
+    restore();
+  }
 });
 
 test('deepseek: chiamata JSON, costo registrato come telegram e riserva liberata', async () => {

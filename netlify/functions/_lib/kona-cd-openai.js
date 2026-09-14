@@ -68,29 +68,50 @@ function typeMatches(expected, value) {
   return true;
 }
 
-// Validazione top-level dello schema (required + tipi). Il parsing JSON strict
-// e' gia' garantito dall'API; qui difendiamo il chiamante da output anomali.
+// Validazione RICORSIVA dello schema (required + tipi, oggetti e array).
+// OpenAI garantisce lo schema strict, DeepSeek no: con il suo `json_object` la
+// forma e' "attesa" ma non imposta, quindi un array di stringhe puo' arrivare
+// come array di oggetti. Qui il chiamante viene difeso su tutta la struttura,
+// non solo sul primo livello: un output fuori forma viene rifiutato (e il
+// chiamante degrada al fallback deterministico) invece di essere persistito.
 function validateStructured(value, schema) {
   if (!schema || typeof schema !== 'object') return { ok: true };
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return { ok: false, error: 'output non oggetto' };
   }
-  if (schema.type === 'object' && Array.isArray(schema.required)) {
-    for (const key of schema.required) {
-      if (!(key in value)) return { ok: false, error: `campo richiesto mancante: ${key}` };
-    }
-  }
-  const properties = schema.properties || {};
-  for (const [key, prop] of Object.entries(properties)) {
-    if (value[key] === undefined) continue;
-    const expected = Array.isArray(prop.type) ? prop.type : [prop.type];
-    if (expected.includes('null') && value[key] === null) continue;
+  const errore = validaNodo(value, schema, 'output');
+  return errore ? { ok: false, error: errore } : { ok: true };
+}
+
+function validaNodo(value, schema, percorso) {
+  if (!schema || typeof schema !== 'object') return null;
+  const expected = Array.isArray(schema.type) ? schema.type : (schema.type ? [schema.type] : []);
+  if (expected.length > 0) {
+    if (expected.includes('null') && value === null) return null;
     const nonNull = expected.filter((t) => t !== 'null');
-    if (nonNull.length === 1 && !typeMatches(nonNull[0], value[key])) {
-      return { ok: false, error: `tipo non valido per ${key}: atteso ${nonNull.join('/')}` };
+    if (nonNull.length > 0 && !nonNull.some((t) => typeMatches(t, value))) {
+      return `tipo non valido per ${percorso}: atteso ${nonNull.join('/')}`;
     }
   }
-  return { ok: true };
+  if (Array.isArray(value) && schema.items) {
+    for (let i = 0; i < value.length; i += 1) {
+      const errore = validaNodo(value[i], schema.items, `${percorso}[${i}]`);
+      if (errore) return errore;
+    }
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value) && schema.properties) {
+    for (const [key, prop] of Object.entries(schema.properties)) {
+      if (value[key] === undefined) {
+        if (Array.isArray(schema.required) && schema.required.includes(key)) {
+          return `campo richiesto mancante: ${percorso}.${key}`;
+        }
+        continue;
+      }
+      const errore = validaNodo(value[key], prop, `${percorso}.${key}`);
+      if (errore) return errore;
+    }
+  }
+  return null;
 }
 
 // Costo per il modello (prezzi da config, mai hardcodati).
@@ -361,7 +382,7 @@ async function openaiStructured({
     } finally {
       await libera();
     }
-    return { ok: true, value, usage, webCount, webSources, costEur: cost.eur, note: cost.note };
+    return { ok: true, value, usage, webCount, webSources, costEur: cost.eur, note: cost.note, provider: 'openai' };
   }
   await logUsage({ supabase, cfg, activity, model, details: { ...details, esito: 'exhausted', errore: cleanLog(lastError?.message || String(lastError), 400) } });
   await libera();

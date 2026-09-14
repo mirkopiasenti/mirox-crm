@@ -29,9 +29,11 @@ const CONFIG_DEFAULTS = {
   // Tariffa peak (conservativa) da api-docs.deepseek.com/quick_start/pricing.
   modello_deepseek: 'deepseek-flash',
   prezzi_deepseek: { 'deepseek-flash': { input: 0.30, output: 1.20 } },
-  // Provider IA per attivita': solo il dialogo Telegram usa DeepSeek. La
-  // ricerca dei dati aziendali su web resta su OpenAI (DeepSeek non la offre).
-  provider_per_attivita: { telegram: 'deepseek' },
+  // Provider IA per attivita'. DeepSeek: dialogo Telegram, piano giornaliero e
+  // analisi della giornata. Su OpenAI restano le attivita' che richiedono la
+  // ricerca web (`arricchimento`) e la valutazione degli skip (`altro`), perche'
+  // DeepSeek non offre la ricerca web.
+  provider_per_attivita: { telegram: 'deepseek', piano: 'deepseek', analisi: 'deepseek' },
   // Fattore conservativo per convertire i prezzi in USD nel budget EUR.
   usd_to_eur: 1,
   soglie_budget: [70, 85, 95, 100],

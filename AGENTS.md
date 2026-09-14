@@ -635,15 +635,14 @@ Regole permanenti:
 
 - l'attivazione richiede insieme `KONA_CALL_DIRECTOR_ENABLED=true`, toggle
   globale DB e profilo operatore abilitato; l'env assente deve restare spento;
-- le migration `072`, `073`, `074`, `075`, `076` e `077` sono applicate soltanto
-  al Supabase test dedicato `yyorullxmdxhnunsfwwa`; production non contiene
-  tabelle KONA Call Director;
-- la migration `078_kona_call_director_telegram_ai.sql` e' scritta ma **non e'
-  ancora applicata** (va eseguita a mano sul database di test): introduce
-  `riserva_telegram_eur` (10 EUR/mese), `max_messaggi_telegram_ora`,
-  `modello_deepseek`/`prezzi_deepseek`, `provider_per_attivita` e la RPC
-  `kona_cd_reserve_budget_v2`. Finche' non e' applicata il codice usa la `v1`
-  con controllo non atomico del tetto Telegram;
+- le migration `072`, `073`, `074`, `075`, `076`, `077` e `078` sono applicate
+  soltanto al Supabase test dedicato `yyorullxmdxhnunsfwwa`; production non
+  contiene tabelle KONA Call Director;
+- la migration `078_kona_call_director_telegram_ai.sql` (applicata dall'utente
+  il 2026-09-14) introduce `riserva_telegram_eur` (10 EUR/mese),
+  `max_messaggi_telegram_ora`, `modello_deepseek`/`prezzi_deepseek`,
+  `provider_per_attivita` e la RPC `kona_cd_reserve_budget_v2`. Il codice
+  mantiene il fallback sulla `v1` con controllo non atomico del tetto Telegram;
 - il sito Netlify test `mirox-kona-call-director-test.netlify.app` e' collegato
   alla branch `kona-call-director`, usa la service role protetta del solo
   Supabase test e pubblica automaticamente ogni push della branch;
@@ -741,7 +740,12 @@ Regole permanenti:
   sono trascritti**;
 - chiedere la ricerca web a DeepSeek deve **fallire**
   (`provider_non_supporta_web_search`), mai degradare in silenzio:
-  l'arricchimento aziendale resta su OpenAI;
+  su OpenAI restano `arricchimento` (ricerca web) e `altro` (valutazione skip);
+- **piano giornaliero e analisi della giornata girano su DeepSeek** (attivita'
+  `piano`/`analisi`, mappa `provider_per_attivita` in `kona-cd-ai.js`). Poiche'
+  DeepSeek non impone lo schema, `validateStructured` e' ricorsivo e il prompt
+  include un esempio di json costruito dallo schema: un output fuori forma viene
+  rifiutato e si ricade sul risultato deterministico;
 - il costo dell'assistente Telegram vive nella riserva `riserva_telegram_eur`
   (10 EUR/mese) con attivita' `telegram` e tetto orario separato da
   `max_chiamate_openai_ora`: non mescolare la spesa DeepSeek con quella OpenAI;

@@ -10,7 +10,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 - **Email**: Gmail SMTP via nodemailer + template DB (`email_template` + `email_log`)
 - **SMS transactional**: Smshosting REST API (consensi privacy via OTP — vedi `docs/SMSHOSTING_SETUP.md`)
 - **KONA AI Guardian**: OpenAI Responses API per raccolta/analisi strutturata. Solo testo: la trascrizione dei vocali Telegram è stata rimossa il 2026-09-14
-- **KONA Call Director**: motore deterministico + OpenAI (ricerca web sui dati aziendali) e DeepSeek V4.1 Flash (`deepseek-flash`) per il dialogo Telegram in linguaggio naturale
+- **KONA Call Director**: motore deterministico + OpenAI (ricerca web sui dati aziendali e valutazione degli skip) e DeepSeek V4.1 Flash (`deepseek-flash`) per il dialogo Telegram in linguaggio naturale, la proposta del piano e l'analisi della giornata
 - **Canale proprietario**: bot Telegram privato limitato al solo `chat_id` di Mirko
 - **Hosting**: Netlify (build statica a lista consentita in `dist/` + functions + cron schedules)
 

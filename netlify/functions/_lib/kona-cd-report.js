@@ -2,13 +2,16 @@
 
 const { budgetSnapshot } = require('./kona-cd-budget');
 const { distanzaKm } = require('./kona-cd-distances');
-const { openaiStructured } = require('./kona-cd-openai');
+const { aiStructured } = require('./kona-cd-ai');
 const { monthRomeKey, parseHHmm, romeDayRange, todayRomeStr } = require('./kona-cd-time');
 const { cleanLog, isUuid, nowIso } = require('./kona-cd-util');
 
 // Report giornaliero (19:10) e proposta piano Business (giorno/zona).
 // - Il report su Telegram NON contiene PII: solo conteggi, esiti e metriche.
-// - L'analisi di giornata via OpenAI riceve SOLO aggregati, mai dati clienti.
+// - L'analisi di giornata riceve SOLO aggregati, mai dati clienti.
+// - Il provider lo decide `kona_call_director_config.provider_per_attivita`
+//   (via `aiStructured`): oggi `analisi` va su DeepSeek. Cambiarlo e' una riga
+//   di configurazione, non una modifica di codice.
 
 // Conteggi aggregati della giornata (nessun dato identificativo).
 async function reportGiornaliero(supabase, cfg, { data } = {}) {
@@ -71,8 +74,8 @@ async function reportGiornaliero(supabase, cfg, { data } = {}) {
   };
 }
 
-// Analisi qualitativa della giornata (OpenAI, SOLI aggregati). Fallback
-// deterministico se manca la chiave / budget / errore: mai bloccare il report.
+// Analisi qualitativa della giornata (SOLI aggregati). Fallback deterministico
+// se manca la chiave / budget / errore: mai bloccare il report.
 async function analisiGiornata(supabase, cfg, { data } = {}) {
   const report = await reportGiornaliero(supabase, cfg, { data });
   const input = cleanLog(report);
@@ -91,7 +94,7 @@ async function analisiGiornata(supabase, cfg, { data } = {}) {
     required: ['commento', 'suggerimento'],
     additionalProperties: false
   };
-  const result = await openaiStructured({
+  const result = await aiStructured({
     supabase,
     cfg,
     activity: 'analisi',
@@ -104,7 +107,12 @@ async function analisiGiornata(supabase, cfg, { data } = {}) {
     details: { data: report.data }
   });
   if (!result.ok) return { ok: false, error: result.error, fallback: true };
-  return { ok: true, commento: result.value.commento, suggerimento: result.value.suggerimento };
+  return {
+    ok: true,
+    commento: result.value.commento,
+    suggerimento: result.value.suggerimento,
+    provider: result.provider || 'openai'
+  };
 }
 
 // Persistenza piano giornaliero (tabella kona_call_director_piani, UNIQUE data+operatore).

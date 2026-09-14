@@ -3,20 +3,21 @@
  *
  * Azioni:
  *   proposta       -> piano del giorno (default domani): determinismo per zona +
- *                     proposta OpenAI (solo aggregati) -> persistita 'proposta'
+ *                     arricchimento IA (solo aggregati) -> persistita 'proposta'
  *   approva        -> admin: piano -> 'approvato' (approvata_at/da)
  *   applica_default-> applica il piano default (solo se non approvato da Mirko)
  *   piano          -> legge il piano persistito per operatore/giorno
  *
- * Privacy: a OpenAI passano solo conteggi/zona/finestre, mai nomi o dati
- * personali. Il piano su Telegram idem.
+ * Privacy: all'IA passano solo conteggi/zona/finestre, mai nomi o dati
+ * personali. Il piano su Telegram idem. Il provider e' quello configurato in
+ * `provider_per_attivita` (oggi DeepSeek per l'attivita' `piano`).
  */
 
 const { createClient } = require('@supabase/supabase-js');
 
 const { authAndEnabled, getConfig } = require('./_lib/kona-cd-config');
 const { requireAuth } = require('./_lib/require-auth');
-const { openaiStructured } = require('./_lib/kona-cd-openai');
+const { aiStructured } = require('./_lib/kona-cd-ai');
 const { applicaPianoDefault, pianoDi, propostaPianoGiorno, salvaPiano } = require('./_lib/kona-cd-report');
 const { addDaysStr, todayRomeStr } = require('./_lib/kona-cd-time');
 const { cleanLog, isUuid, jsonError, jsonOk, readJsonBody } = require('./_lib/kona-cd-util');
@@ -80,14 +81,18 @@ exports.handler = async (event) => {
           '(conteggi e zone, nessun dato personale). Produci un piano operativo',
           'breve e concreto in italiano (max 4 frasi) e una lista priorita\'.'
         ].join(' ');
-        const ai = await openaiStructured({
+        const ai = await aiStructured({
           supabase: client, cfg, activity: 'piano', name: 'kona_piano_giorno',
           instructions, input, schema, maxOutputTokens: 400, webSearch: false,
           details: { data }
         });
         const contenuto = {
           deterministica: { totale: deterministica.totale, perZona: deterministica.perZona, suggerimento: deterministica.suggerimento },
-          ...(ai.ok ? { analisi: { piano: ai.value.piano, priorita: ai.value.priorita } } : { analisi: null })
+          // `provider` registra chi ha prodotto l'analisi: la colonna `sorgente`
+          // accetta solo i valori storici ('openai'/'default'/'mirko') e significa
+          // "proposta dell'IA", quindi il nome reale del provider vive qui dentro,
+          // senza toccare il vincolo del database.
+          ...(ai.ok ? { analisi: { piano: ai.value.piano, priorita: ai.value.priorita, provider: ai.provider || 'openai' } } : { analisi: null })
         };
         const salvataggio = await salvaPiano(client, {
           data, operatoreId: profiloId, contenuto, sorgente: 'openai', stato: 'proposta'
