@@ -775,7 +775,12 @@ Regole permanenti:
   salvate in `contenuto.agenda_blocchi` (`[{opzione, da:"HH:MM", a:"HH:MM"}]`) e
   **diventano vincolanti**: lead aziendali solo dentro la fascia "aziendali",
   nessun contatto proposto nelle fasce manuali, priorita' 1-6 sempre attive;
-  senza fasce proprie si usa la `programmazione_base` di configurazione;
+  senza fasce proprie si usa la `programmazione_base` di configurazione. La
+  giornata si puo' cambiare a agenda aperta ("domani" o una data esplicita
+  `15/09`, `15/09/2026`, `2026-09-15`): senza attivita' gia' scelte si riparte
+  sulla giornata nuova, altrimenti il bot avvisa. `dataDaTesto` valida le date
+  (esistente, non passata, entro 60 giorni) e non scambia mai un orario
+  ("15:30-17:00", "17.01-19.00") per una data;
 - **il briefing dell'operatrice mostra l'attivita' in corso** (con fascia
   oraria), i lead aziendali pronti, le categorie approvate e avvisa quando
   nessun contatto corrisponde; nella fascia manuale compare il contatore
