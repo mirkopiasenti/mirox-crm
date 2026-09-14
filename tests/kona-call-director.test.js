@@ -2528,6 +2528,83 @@ test('agenda guidata: senza operatrici abilitate il piano non viene scritto e lo
   assert.ok(riga.stato_conversazione.agenda);
 });
 
+test('giorno scritto a parole: date esplicite si\', orari e durate no', () => {
+  const ctx = { oggi: '2026-09-14', domani: '2026-09-15' };
+  const giorno = (t) => assistente._test.giornoDaTesto(t, ctx);
+  // Il caso reale del collaudo: "voglio costruire l'agenda per martedì 15/09/2026".
+  assert.equal(giorno('Voglio costruire l\'agenda per martedì 15/09/2026'), '2026-09-15');
+  assert.equal(giorno('domani'), '2026-09-15');
+  assert.equal(giorno('oggi'), '2026-09-14');
+  assert.equal(giorno('15/09'), '2026-09-15');
+  assert.equal(giorno('2026-09-15'), '2026-09-15');
+  assert.equal(giorno('15-09-2026'), '2026-09-15');
+  assert.equal(giorno('15.09.2026'), '2026-09-15');
+  assert.equal(giorno('richiamare il 20/09'), '2026-09-20');
+  // Gli orari e le durate NON sono date: senza questo, "15:30-17:00" diventava
+  // una data inesistente e l'agenda rifiutava l'orario appena scritto.
+  assert.equal(giorno('15:30-17:00'), null);
+  assert.equal(giorno('17.01-19.00'), null);
+  assert.equal(giorno('17:01 - 19:00'), null);
+  assert.equal(giorno('90 minuti'), null);
+  assert.equal(giorno('1 ora e mezza'), null);
+  assert.equal(giorno('Bar'), null);
+  assert.equal(giorno('3331234567'), null);
+  // Date non utilizzabili: motivo esplicito, non "non ho capito".
+  assert.equal(assistente._test.dataDaTesto('1/1/2020', ctx).motivo, 'data_passata');
+  assert.equal(assistente._test.dataDaTesto('15/13/2026', ctx).motivo, 'data_non_valida');
+  assert.equal(assistente._test.dataDaTesto('30/12/2026', ctx).motivo, 'data_troppo_lontana');
+});
+
+test('agenda guidata: si puo\' cambiare giornata a agenda aperta', async () => {
+  const CHAT = 4242;
+  let riga = null;
+  const db = makeSupabase({
+    'kona_call_director_telegram.select': () => ({ data: riga }),
+    'kona_call_director_telegram.upsert': (q) => {
+      riga = { chat_id: q.value.chat_id, stato_conversazione: q.value.stato_conversazione };
+      return { data: null, error: null };
+    },
+    'call_center_lead_outbound.select': () => ({ data: [] })
+  });
+  const contesto = { oggi: '2026-09-14', domani: '2026-09-15' };
+  await telegramWebhook._test.avviaAgenda(db, baseCfg(), CHAT, '2026-09-14', contesto);
+  // Nessuna attivita' ancora scelta: la giornata si cambia senza perdere nulla.
+  const cambio = await telegramWebhook._test.gestisciAgendaTesto(
+    db, baseCfg(), CHAT, riga.stato_conversazione,
+    'Voglio costruire l\'agenda per martedì 15/09/2026', contesto
+  );
+  assert.match(cambio.testo, /Cambio giornata: domani 15\/09\/2026/);
+  assert.match(cambio.testo, /09:00-12:30/);
+  assert.equal(riga.stato_conversazione.agenda.data, '2026-09-15');
+  // Con attivita' gia' messe non si butta via niente in silenzio.
+  riga.stato_conversazione.agenda.blocchi = [{ opzione: 'aziendali', da: 540, a: 630 }];
+  const conBlocchi = await telegramWebhook._test.gestisciAgendaTesto(
+    db, baseCfg(), CHAT, riga.stato_conversazione, 'facciamo il 16/09', contesto
+  );
+  assert.match(conBlocchi.testo, /ci sono gia' 1 attivita'/);
+  assert.equal(riga.stato_conversazione.agenda.data, '2026-09-15');
+});
+
+test('agenda guidata: una data non utilizzabile viene spiegata', async () => {
+  const CHAT = 4242;
+  let riga = null;
+  const db = makeSupabase({
+    'kona_call_director_telegram.select': () => ({ data: riga }),
+    'kona_call_director_telegram.upsert': (q) => {
+      riga = { chat_id: q.value.chat_id, stato_conversazione: q.value.stato_conversazione };
+      return { data: null, error: null };
+    },
+    'call_center_lead_outbound.select': () => ({ data: [] })
+  });
+  const contesto = { oggi: '2026-09-14', domani: '2026-09-15' };
+  await telegramWebhook._test.avviaAgenda(db, baseCfg(), CHAT, '2026-09-14', contesto);
+  const esito = await telegramWebhook._test.gestisciAgendaTesto(
+    db, baseCfg(), CHAT, riga.stato_conversazione, 'facciamo il 1/1/2020', contesto
+  );
+  assert.match(esito.testo, /quella data e' passata/);
+  assert.ok(!/Non ho capito quale attivita'/.test(esito.testo));
+});
+
 test('piano del giorno: descrive fasce, categorie e liste Consumer (non solo gli appuntamenti)', () => {
   const cfg = baseCfg();
   // Piano scelto con /agenda: comanda lui, non la programmazione base.

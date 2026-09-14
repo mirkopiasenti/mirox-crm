@@ -30,7 +30,7 @@ const { timingSafeEqualText, sendMessage, answerCallbackQuery, getOwnerChatId } 
 const { monthRomeKey, nextWorkingDay, todayRomeStr } = require('./_lib/kona-cd-time');
 const { cleanLog, nowIso } = require('./_lib/kona-cd-util');
 const {
-  azioneInAttesa, confermaDeterministica, confermaValida, contestoAssistente, etichettaGiorno,
+  azioneInAttesa, confermaDeterministica, confermaValida, contestoAssistente, dataDaTesto, etichettaGiorno,
   giornoDaTesto, giornoRichiesto, interpreta, richiedeConferma, tastieraConferma
 } = require('./_lib/kona-cd-assistente');
 const { ENV_CHIAVE, isConfigured: assistenteConfigurato } = require('./_lib/kona-cd-deepseek');
@@ -617,6 +617,7 @@ async function avviaAgenda(client, cfg, chatId, giorno, contesto = {}) {
       finestre.length
         ? `Le ore di lavoro sono ${finestre.map((f) => `${agenda.fmtHHmm(f.da)}-${agenda.fmtHHmm(f.a)}`).join(' e ')} (${agenda.fmtDurata(agenda.minutiTotali(finestre))}).`
         : 'Non trovo orari di lavoro configurati.',
+      'Per un\'altra giornata scrivi "domani" oppure la data (per esempio 16/09).',
       '',
       agenda.domandaOpzioni(stato, cfg)
     ].join('\n'),
@@ -830,11 +831,48 @@ async function gestisciAgendaTesto(client, cfg, chatId, conv, text, contesto) {
     return { testo: 'Agenda annullata: non ho scritto nulla nel piano.' };
   }
 
+  // Cambio giornata a agenda aperta ("voglio costruire l'agenda per martedi'
+  // 15/09/2026"). Se non c'e' ancora nessuna attivita' si riparte sulla
+  // giornata nuova; se qualcosa e' gia' stato messo non si butta via niente in
+  // silenzio.
+  const chiesto = giornoDaTesto(text, contesto);
+  if (chiesto && chiesto !== stato.data) {
+    if ((stato.blocchi || []).length) {
+      return {
+        testo: [
+          `Sto costruendo l'agenda di ${etichettaGiorno(stato.data, contesto)} e ci sono gia' ${stato.blocchi.length} attivita'.`,
+          `Confermala con "basta cosi'", oppure scrivi "annulla" e poi /agenda per ${etichettaGiorno(chiesto, contesto)}.`
+        ].join('\n')
+      };
+    }
+    const nuova = await avviaAgenda(client, cfg, chatId, chiesto, contesto);
+    return {
+      testo: [`Cambio giornata: ${etichettaGiorno(chiesto, contesto)}.`, '', nuova.risposta].join('\n'),
+      markup: nuova.markup
+    };
+  }
+  // Data scritta ma non utilizzabile: dirlo, invece di rispondere "non ho
+  // capito quale attivita' vuoi" a chi ha appena indicato una giornata.
+  const esplicita = dataDaTesto(text, contesto);
+  if (esplicita.motivo) {
+    const motivo = esplicita.motivo === 'data_passata'
+      ? 'quella data e\' passata'
+      : (esplicita.motivo === 'data_troppo_lontana'
+        ? 'quella data e\' troppo in la\' nel tempo'
+        : 'quella data non esiste');
+    return { testo: `Non posso usare quella giornata: ${motivo}. Scrivi "oggi", "domani" oppure una data valida.` };
+  }
+
   if (stato.stato_fase === 'scelta_opzione') {
     const opzione = agenda.opzioneDaTesto(t);
     if (!opzione) {
       return {
-        testo: [`Non ho capito quale attivita' vuoi. Scegli una di queste:`, '', agenda.domandaOpzioni(stato, cfg)].join('\n'),
+        testo: [
+          'Non ho capito quale attivita\' vuoi. Scegli con i pulsanti qui sotto,',
+          'oppure scrivi "domani" (o una data) per cambiare giornata.',
+          '',
+          agenda.domandaOpzioni(stato, cfg)
+        ].join('\n'),
         markup: agenda.tastieraOpzioni(stato)
       };
     }
@@ -1028,4 +1066,4 @@ async function rispostaSenzaIa(client, chatId, conv, text, data, domani, esito) 
 }
 
 // Esposti per i test: la function Netlify usa soltanto `handler`.
-module.exports._test = { applicaAgenda, avviaAgenda, avvisoCategorie, categorieDisponibili, cmdPiano, etichettaCategorie, gestisciAgendaCallback, scriviPianoDirettiva };
+module.exports._test = { applicaAgenda, avviaAgenda, avvisoCategorie, categorieDisponibili, cmdPiano, etichettaCategorie, gestisciAgendaCallback, gestisciAgendaTesto, scriviPianoDirettiva };

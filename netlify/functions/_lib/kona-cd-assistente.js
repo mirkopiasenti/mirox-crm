@@ -116,16 +116,69 @@ function normalizzaArgomenti(value, contesto) {
   };
 }
 
+// Una data scritta per esteso diventa una giornata ISO: "15/09/2026",
+// "15-09-2026", "2026-09-15", "15/09" (anno corrente). "martedi 15/09/2026"
+// funziona perche' la data c'e'.
+// Gli ORARI non devono passare per una data ("15:30-17:00", "17.01-19.00"):
+// per questo i separatori del giorno e del mese devono essere uguali, l'anno
+// deve essere di 4 cifre (o 2 con gli stessi separatori), la forma abbreviata
+// richiede la barra e i ":" escludono il match.
+// Ritorna { iso, motivo }: `motivo` e' valorizzato quando il testo conteneva
+// una data ma non e' utilizzabile (inesistente, passata o troppo lontana).
+const GIORNI_AVANTI_MAX = 60;
+const RE_DATA_ISO = /(?<![\d:.])(\d{4})-(\d{2})-(\d{2})(?![\d:])/;
+const RE_DATA_4ANNI = /(?<![\d:.])(\d{1,2})([/.\-])(\d{1,2})\2(\d{4})(?![\d:])/;
+const RE_DATA_2ANNI = /(?<![\d:.])(\d{1,2})([/.\-])(\d{1,2})\2(\d{2})(?![\d:])/;
+const RE_DATA_BREVE = /(?<![\d:.])(\d{1,2})\/(\d{1,2})(?![\d:])/;
+
+function dataDaTesto(testo, contesto = {}) {
+  const t = String(testo || '').toLowerCase();
+  const oggi = /^\d{4}-\d{2}-\d{2}$/.test(String(contesto.oggi || '')) ? contesto.oggi : null;
+  let anno = null;
+  let mese = null;
+  let giorno = null;
+  const iso = t.match(RE_DATA_ISO);
+  if (iso) {
+    [anno, mese, giorno] = [iso[1], iso[2], iso[3]];
+  } else {
+    const esteso = t.match(RE_DATA_4ANNI) || t.match(RE_DATA_2ANNI);
+    if (esteso) {
+      [giorno, mese] = [esteso[1], esteso[3]];
+      anno = esteso[4].length === 2 ? `20${esteso[4]}` : esteso[4];
+    } else {
+      const breve = t.match(RE_DATA_BREVE);
+      if (!breve) return { iso: null, motivo: null };
+      [giorno, mese] = [breve[1], breve[2]];
+      if (!oggi) return { iso: null, motivo: 'data_incompleta' };
+      anno = oggi.slice(0, 4);
+    }
+  }
+  const g = Number(giorno);
+  const m = Number(mese);
+  const a = Number(anno);
+  const data = new Date(Date.UTC(a, m - 1, g));
+  const valida = data.getUTCFullYear() === a && data.getUTCMonth() === m - 1 && data.getUTCDate() === g;
+  if (!valida) return { iso: null, motivo: 'data_non_valida' };
+  const isoStr = `${anno}-${String(m).padStart(2, '0')}-${String(g).padStart(2, '0')}`;
+  if (!oggi) return { iso: isoStr, motivo: null };
+  const limite = new Date(Date.parse(`${oggi}T00:00:00Z`) + GIORNI_AVANTI_MAX * 86400000)
+    .toISOString().slice(0, 10);
+  if (isoStr < oggi) return { iso: null, motivo: 'data_passata' };
+  if (isoStr > limite) return { iso: null, motivo: 'data_troppo_lontana' };
+  return { iso: isoStr, motivo: null };
+}
+
 // Il giorno scritto ESPLICITAMENTE da Mirko vince su qualunque interpretazione
 // del modello: se nel suo testo c'e' "oggi" la direttiva e' per oggi, se c'e'
-// "domani" e' per domani. Il modello non deve poter spostare una richiesta di
-// oggi a domani (e' successo: "il piano di oggi pomeriggio" finiva su domani).
+// "domani" e' per domani, se c'e' una data e' quella. Il modello non deve poter
+// spostare una richiesta di oggi a domani (e' successo: "il piano di oggi
+// pomeriggio" finiva su domani).
 function giornoDaTesto(testo, contesto = {}) {
   const t = String(testo || '').toLowerCase();
   // "domani" e' controllato per primo: "da domani" non e' "oggi".
   if (/\bdomani\b/.test(t)) return contesto.domani || null;
   if (/\boggi\b/.test(t)) return contesto.oggi || null;
-  return null;
+  return dataDaTesto(t, contesto).iso;
 }
 
 // Etichetta leggibile di una data ISO: "oggi 14/09/2026", "domani 15/09/2026"
@@ -334,6 +387,7 @@ module.exports = {
   azioneInAttesa,
   confermaDeterministica,
   contestoAssistente,
+  dataDaTesto,
   etichettaGiorno,
   giornoDaTesto,
   giornoRichiesto,
@@ -345,5 +399,5 @@ module.exports = {
   schemaIntento,
   tastieraConferma,
   confermaValida,
-  _test: { confermaDeterministica, confermaValida, etichettaGiorno, giornoDaTesto, giornoRichiesto, normalizzaArgomenti, richiedeConferma, riassuntoConferma }
+  _test: { confermaDeterministica, confermaValida, dataDaTesto, etichettaGiorno, giornoDaTesto, giornoRichiesto, normalizzaArgomenti, richiedeConferma, riassuntoConferma }
 };
