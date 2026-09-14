@@ -107,6 +107,21 @@ async function loadBlacklistSet(supabase) {
   return selectPaged(supabase, 'blacklist', 'cf_piva, cellulare, nome_cognome');
 }
 
+// Una categoria di contatto corrisponde a una delle categorie approvate nel
+// piano? La regola vive qui, in UN solo posto: la usano il filtro dei candidati
+// e il controllo che avvisa Mirko quando la sua direttiva non corrisponde a
+// nessun contatto (una direttiva con nomi inventati non deve produrre una
+// giornata senza telefonate senza dirlo).
+function categoriaCorrisponde(categoriaLead, categorieApprovate) {
+  const categoria = String(categoriaLead || '').trim().toLowerCase();
+  if (!categoria) return false;
+  const approvate = (Array.isArray(categorieApprovate) ? categorieApprovate : [])
+    .map((c) => String(c || '').trim().toLowerCase())
+    .filter(Boolean);
+  if (approvate.length === 0) return false;
+  return approvate.some((c) => categoria.includes(c) || c.includes(categoria));
+}
+
 // Confronto con CF/PIVA e TUTTI i numeri disponibili, normalizzati.
 function pureBlacklisted(blacklistRows, { cf_piva, telefoni }) {
   const cf = String(cf_piva || '').trim().toUpperCase();
@@ -501,10 +516,7 @@ async function candidatiLead(supabase, cfg, { profiloId, oggi, pinnedOnly }) {
       const due = new Date(row.prossimo_followup_at);
       if (!Number.isNaN(due.getTime()) && due.getTime() > Date.now()) return false;
     }
-    if (!pinnedOnly) {
-      const categoria = String(row.categoria || '').trim().toLowerCase();
-      if (!categoria || !categorieApprovate.some((c) => categoria.includes(c) || c.includes(categoria))) return false;
-    }
+    if (!pinnedOnly && !categoriaCorrisponde(row.categoria, categorieApprovate)) return false;
     return true;
   });
   if (filtrati.length === 0) return [];
@@ -1738,6 +1750,7 @@ module.exports = {
   applicaEsitoSorgente,
   briefingGiornata,
   buildCandidates,
+  categoriaCorrisponde,
   categoriaConsumerPiano,
   fasciaCorrente,
   getActiveTask,
@@ -1761,5 +1774,5 @@ module.exports = {
   tentativoPersistente,
   telefoniUnici,
   verificaTaskAttivo,
-  _test: { campoTesto, fasciaCorrente, fasciaDaOra, mappaEsitoOutbound, mappaEsitoStandard, normTel, prossimaFascia, pureBlacklisted, pureEscluso, telefoniUnici, tentativoEsaurito, SKIP_REASONS, ETICHETTE_ATTIVITA, riepilogoRilavorazioni, categoriaConsumerPiano }
+  _test: { campoTesto, categoriaCorrisponde, fasciaCorrente, fasciaDaOra, mappaEsitoOutbound, mappaEsitoStandard, normTel, prossimaFascia, pureBlacklisted, pureEscluso, telefoniUnici, tentativoEsaurito, SKIP_REASONS, ETICHETTE_ATTIVITA, riepilogoRilavorazioni, categoriaConsumerPiano }
 };

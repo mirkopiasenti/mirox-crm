@@ -84,6 +84,18 @@ Regole non negoziabili:
   immediata);
 - se il modello non e' disponibile nessuna azione viene eseguita: il bot
   risponde con l'elenco dei comandi;
+- **il giorno non viene mai scelto di nascosto.** Se Mirko scrive "oggi" o
+  "domani" quella giornata vince su qualunque deduzione del modello; se non lo
+  dice, il bot **chiede** per quale giorno e aspetta "oggi"/"domani" (non esiste
+  un default automatico a domani: una direttiva "di oggi" e' finita sul piano di
+  domani ed e' il motivo di questa regola). La richiesta di conferma mostra
+  sempre `oggi 14/09/2026` / `domani 15/09/2026`, mai una data ISO nuda;
+- **le categorie di una direttiva sono le categorie dei CONTATTI**
+  ("Ristorazione", "Negozi", "Servizi", ...), non le offerte ("fissi",
+  "mobile"): sono quelle che il motore confronta per decidere chi chiamare. Se
+  nessun contatto corrisponde, il bot lo dice subito con l'elenco dei nomi
+  disponibili, invece di lasciare una giornata senza telefonate. Orari,
+  offerte e priorita' vanno nella nota libera;
 - al modello arrivano **solo aggregati** (numero di task, appuntamenti, budget,
   zone). Mai nomi, telefoni, codici fiscali o email dei clienti: l'unico
   oggetto che esce dal server e' costruito da `contestoAssistente`.

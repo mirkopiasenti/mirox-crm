@@ -107,6 +107,37 @@ function normalizzaArgomenti(value, contesto) {
   };
 }
 
+// Il giorno scritto ESPLICITAMENTE da Mirko vince su qualunque interpretazione
+// del modello: se nel suo testo c'e' "oggi" la direttiva e' per oggi, se c'e'
+// "domani" e' per domani. Il modello non deve poter spostare una richiesta di
+// oggi a domani (e' successo: "il piano di oggi pomeriggio" finiva su domani).
+function giornoDaTesto(testo, contesto = {}) {
+  const t = String(testo || '').toLowerCase();
+  // "domani" e' controllato per primo: "da domani" non e' "oggi".
+  if (/\bdomani\b/.test(t)) return contesto.domani || null;
+  if (/\boggi\b/.test(t)) return contesto.oggi || null;
+  return null;
+}
+
+// Etichetta leggibile di una data ISO: "oggi 14/09/2026", "domani 15/09/2026"
+// oppure "15/09/2026". Un ISO nudo nella richiesta di conferma si legge male e
+// rende difficile accorgersi di un giorno sbagliato.
+function etichettaGiorno(iso, contesto = {}) {
+  const data = String(iso || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return data || 'giorno non indicato';
+  const [anno, mese, giorno] = data.split('-');
+  const breve = `${giorno}/${mese}/${anno}`;
+  if (data === contesto.oggi) return `oggi ${breve}`;
+  if (data === contesto.domani) return `domani ${breve}`;
+  return breve;
+}
+
+// La data e' obbligatoria per le azioni che scrivono su un piano: senza una
+// data NON si sceglie un default silenzioso, si chiede.
+function giornoRichiesto(azione) {
+  return ['direttiva', 'approva_piano', 'telefoni_omaggio'].includes(String(azione || ''));
+}
+
 function istruzioniAssistente(contesto) {
   return [
     'Sei l\'assistente Telegram di KONA Call Director, il sistema di call center',
@@ -122,8 +153,8 @@ function istruzioniAssistente(contesto) {
     '- sospendi: vuole fermare tutto subito.',
     '- riattiva: vuole riaccendere il sistema.',
     '- telefoni_omaggio: vuole il piano Telefoni omaggio da liste cartacee.',
-    '- direttiva: da\' un\'indicazione libera sul piano di domani (per esempio un',
-    '  elenco di categorie o una nota operativa).',
+    '- direttiva: da\' un\'indicazione libera sul piano di UNA giornata (per',
+    '  esempio un elenco di categorie o una nota operativa).',
     '- conferma / annulla: risponde si o no a una domanda precedente.',
     '- aiuto: chiede l\'elenco dei comandi.',
     '- altro: tutto il resto (domande generiche, saluti).',
@@ -133,6 +164,13 @@ function istruzioniAssistente(contesto) {
     '- Se non sei sicuro dell\'azione, usa "altro" e chiedi di precisare.',
     '- Per una richiesta distruttiva o ambigua ("ferma", "lascia perdere") usa',
     '  l\'azione corrispondente solo se la richiesta e\' chiara; altrimenti "altro".',
+    '- Nel campo "data" metti "oggi" o "domani" SOLO se Mirko ha detto quale',
+    '  giornata intende ("oggi pomeriggio" -> "oggi"). Se non lo ha detto, lascia',
+    '  "data" vuota: sara\' il sistema a chiedere quale giorno, non a indovinarlo.',
+    '- Le CATEGORIE sono quelle dei contatti ("Ristorazione", "Negozi", "Servizi",',
+    '  "Bar", "Officine", ...), non le offerte ("fissi", "mobile"): metti in',
+    '  "categorie" solo nomi di categoria di contatti. Orari, offerte e priorita\'',
+    '  vanno nella "nota".',
     '- "risposta" e\' il testo che verra\' mostrato a Mirko: massimo 400 caratteri,',
     '  nessuna emoji, nessun dato personale dei clienti.',
     '- "confidenza" e\' un numero fra 0 e 1.',
@@ -202,32 +240,41 @@ async function interpreta({ supabase, cfg, testo, contesto }) {
   if (!result.ok) return { ok: false, error_code: result.error_code, error: result.error };
 
   const azione = AZIONI.includes(String(result.value?.azione || '')) ? String(result.value.azione) : 'altro';
+  // ATTENZIONE al contesto passato qui: `normalizzaArgomenti` legge
+  // `contesto.oggi`/`contesto.domani`, non `contesto.dati.data_oggi`.
+  const giorni = { oggi: contesto?.oggi || null, domani: contesto?.domani || null };
+  const argomenti = normalizzaArgomenti(result.value, giorni);
+  // La giornata scritta da Mirko vince su quella dedotta dal modello.
+  const giornoEsplicito = giornoDaTesto(testo, giorni);
+  if (giornoEsplicito) argomenti.data = giornoEsplicito;
   return {
     ok: true,
     azione,
-    argomenti: normalizzaArgomenti(result.value, contesto?.dati || {}),
+    argomenti,
     risposta: cleanText(String(result.value?.risposta || ''), 800),
     confidenza: Number(result.value?.confidenza) || 0,
     cost_eur: result.costEur || 0
   };
 }
 
-// Testo della richiesta di conferma per un'azione delicata.
-function riassuntoConferma(azione, argomenti = {}) {
-  const giorno = argomenti.data || 'domani';
+// Testo della richiesta di conferma per un'azione delicata. Il giorno e'
+// SEMPRE in forma leggibile ("oggi 14/09/2026", "domani 15/09/2026"): un ISO
+// nudo si legge male e ha gia' fatto confermare per sbaglio il giorno dopo.
+function riassuntoConferma(azione, argomenti = {}, contesto = {}) {
+  const giorno = argomenti.data ? etichettaGiorno(argomenti.data, contesto) : 'giorno non indicato';
   switch (azione) {
     case 'sospendi':
       return 'Vuoi che SOSPENDA KONA Call Director? (globale off e task attivi in pausa)';
     case 'riattiva':
       return 'Vuoi che RIATTIVI KONA Call Director e riprenda i task sospesi?';
     case 'approva_piano':
-      return `Vuoi che approvi il piano del ${giorno} per tutte le operatrici abilitate?`;
+      return `Vuoi che approvi il piano di ${giorno} per tutte le operatrici abilitate?`;
     case 'telefoni_omaggio':
-      return `Vuoi che imposti il piano del ${giorno} su Telefoni omaggio (liste cartacee)?`;
+      return `Vuoi che imposti il piano di ${giorno} su Telefoni omaggio (liste cartacee)?`;
     case 'direttiva': {
       const elenco = argomenti.categorie?.length ? `Categorie: ${argomenti.categorie.join(', ')}. ` : '';
       const nota = argomenti.nota ? `Nota: ${argomenti.nota}` : '';
-      return `Vuoi che applichi questa direttiva al piano del ${giorno}? ${elenco}${nota}`.trim();
+      return `Vuoi che applichi questa direttiva al piano di ${giorno}? ${elenco}${nota}`.trim();
     }
     default:
       return `Vuoi che esegua: ${azione}?`;
@@ -245,12 +292,12 @@ function tastieraConferma() {
 }
 
 // Voce di audit/stato per l'azione in attesa.
-function azioneInAttesa(azione, argomenti) {
+function azioneInAttesa(azione, argomenti, contesto = {}) {
   return {
     azione,
     argomenti,
     creato_at: nowIso(),
-    riassunto: riassuntoConferma(azione, argomenti)
+    riassunto: riassuntoConferma(azione, argomenti, contesto)
   };
 }
 
@@ -261,6 +308,9 @@ module.exports = {
   azioneInAttesa,
   confermaDeterministica,
   contestoAssistente,
+  etichettaGiorno,
+  giornoDaTesto,
+  giornoRichiesto,
   interpreta,
   istruzioniAssistente,
   normalizzaArgomenti,
@@ -269,5 +319,5 @@ module.exports = {
   schemaIntento,
   tastieraConferma,
   confermaValida,
-  _test: { confermaDeterministica, confermaValida, normalizzaArgomenti, richiedeConferma, riassuntoConferma }
+  _test: { confermaDeterministica, confermaValida, etichettaGiorno, giornoDaTesto, giornoRichiesto, normalizzaArgomenti, richiedeConferma, riassuntoConferma }
 };

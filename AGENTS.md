@@ -738,6 +738,16 @@ Regole permanenti:
   attuate dopo un "si" esplicito, mai su interpretazione; "si"/"no" sono
   deterministici e gratuiti; una proposta scade dopo 30 minuti. I **vocali non
   sono trascritti**;
+- **il giorno di una direttiva non si sceglie di nascosto**: "oggi"/"domani"
+  scritti dall'utente vincono su qualunque deduzione del modello; se il giorno
+  non e' indicato il bot CHIEDE per quale giornata (nessun default automatico a
+  domani: una richiesta "di oggi" finiva sul piano di domani) e la richiesta di
+  conferma mostra `oggi 14/09/2026` / `domani 15/09/2026`;
+- **le categorie di una direttiva sono quelle dei CONTATTI** ("Ristorazione",
+  "Negozi", ...), non le offerte ("fissi", "mobile"): la corrispondenza vive in
+  `categoriaCorrisponde` (`_lib/kona-cd-engine.js`, una sola implementazione) e
+  se nessun contatto corrisponde il bot avvisa con l'elenco dei nomi
+  disponibili invece di lasciare la giornata senza telefonate;
 - chiedere la ricerca web a DeepSeek deve **fallire**
   (`provider_non_supporta_web_search`), mai degradare in silenzio:
   su OpenAI restano `arricchimento` (ricerca web) e `altro` (valutazione skip);

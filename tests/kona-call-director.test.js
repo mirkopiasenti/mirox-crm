@@ -2231,10 +2231,67 @@ test('conferme: una proposta vecchia non e piu eseguibile', () => {
 test('conferme: il riassunto nomina sempre l azione proposta', () => {
   assert.match(assistente.riassuntoConferma('sospendi', {}), /SOSPENDA/);
   assert.match(assistente.riassuntoConferma('riattiva', {}), /RIATTIVI/);
-  assert.match(assistente.riassuntoConferma('approva_piano', { data: '2026-09-11' }), /2026-09-11/);
+  assert.match(assistente.riassuntoConferma('approva_piano', { data: '2026-09-11' }), /11\/09\/2026/);
   const direttiva = assistente.riassuntoConferma('direttiva', { data: '2026-09-11', categorie: ['Bar'], nota: 'priorita centro' });
   assert.match(direttiva, /Bar/);
   assert.match(direttiva, /priorita centro/);
+});
+
+test('giorno: "oggi" resta oggi, "domani" resta domani (bug del piano spostato)', () => {
+  const contesto = { oggi: '2026-09-14', domani: '2026-09-15' };
+  assert.equal(assistente.giornoDaTesto('voglio modificare il piano di oggi pomeriggio', contesto), '2026-09-14');
+  assert.equal(assistente.giornoDaTesto('prepara il piano di domani', contesto), '2026-09-15');
+  assert.equal(assistente.giornoDaTesto('domani pomeriggio fissi', contesto), '2026-09-15');
+  assert.equal(assistente.giornoDaTesto('cambia le categorie', contesto), null);
+  assert.equal(assistente.giornoDaTesto('', contesto), null);
+  // Etichetta leggibile: un ISO nudo si legge male e ha gia' fatto confermare
+  // per sbaglio il giorno dopo.
+  assert.equal(assistente.etichettaGiorno('2026-09-14', contesto), 'oggi 14/09/2026');
+  assert.equal(assistente.etichettaGiorno('2026-09-15', contesto), 'domani 15/09/2026');
+  assert.equal(assistente.etichettaGiorno('2026-10-01', contesto), '01/10/2026');
+  assert.equal(assistente.etichettaGiorno(null, contesto), 'giorno non indicato');
+  // Il giorno e' obbligatorio solo dove serve davvero.
+  assert.equal(assistente.giornoRichiesto('direttiva'), true);
+  assert.equal(assistente.giornoRichiesto('approva_piano'), true);
+  assert.equal(assistente.giornoRichiesto('telefoni_omaggio'), true);
+  assert.equal(assistente.giornoRichiesto('sospendi'), false);
+  assert.equal(assistente.giornoRichiesto('riattiva'), false);
+});
+
+test('assistente: una richiesta "di oggi" non viene spostata a domani dal modello', async () => {
+  process.env.KONA_CALL_DIRECTOR_DEEPSEEK_API_KEY = 'test-key';
+  const db = dbAssistente({
+    'rpc.kona_cd_reserve_budget_v2': () => ({ data: { ok: true }, error: null })
+  });
+  // Il modello sbaglia data e dice "domani"; il testo di Mirko dice "oggi".
+  const restore = mockFetchFor([['api.deepseek.com', () => deepseekOkPayload({
+    azione: 'direttiva', data: 'domani', categorie: ['Bar'], nota: 'pomeriggio', risposta: 'ok', confidenza: 0.9
+  })]]);
+  try {
+    const contesto = { oggi: '2026-09-14', domani: '2026-09-15', dati: { data_oggi: '2026-09-14', data_domani: '2026-09-15' } };
+    const esito = await assistente.interpreta({ supabase: db, cfg: baseCfg(), testo: 'modifica il piano di oggi pomeriggio', contesto });
+    assert.equal(esito.ok, true);
+    assert.equal(esito.azione, 'direttiva');
+    // Il giorno scritto da Mirko vince su quello dedotto dal modello.
+    assert.equal(esito.argomenti.data, '2026-09-14');
+  } finally {
+    restore();
+  }
+});
+
+test('categorie: solo i nomi delle categorie dei contatti fanno partire le chiamate', () => {
+  // La regola vive nel motore (una sola implementazione, usata anche dal
+  // filtro dei candidati).
+  const match = engine._test.categoriaCorrisponde;
+  assert.equal(match('Ristorazione', ['ristorazione']), true);
+  assert.equal(match('Bar e locali', ['bar']), true);
+  assert.equal(match('Bar', ['bar e locali']), true);
+  assert.equal(match('Ristorazione', ['Bar', 'Negozi']), false);
+  // Il caso reale: "clienti aziendali" e "fissi" non sono categorie di contatti.
+  assert.equal(match('Ristorazione', ['clienti aziendali', 'fissi']), false);
+  assert.equal(match('Negozi', ['clienti aziendali', 'fissi']), false);
+  assert.equal(match('', ['Bar']), false);
+  assert.equal(match('Bar', []), false);
 });
 
 test('assistente: gli argomenti del modello sono ripuliti e limitati', () => {
@@ -2303,6 +2360,16 @@ test('webhook Telegram: dialogo IA, conferme e nessuna trascrizione audio', () =
   // della variabile (e il promemoria che serve un nuovo deploy).
   assert.match(src, /Assistente non configurato: manca la variabile/);
   assert.match(src, /Interpretazione IA: \$\{assistenteConfigurato\(\)/);
+  // Il giorno non viene mai scelto di nascosto per un'azione che scrive su un
+  // piano: se Mirko non lo dice, si chiede, e la risposta "oggi"/"domani"
+  // completa la proposta.
+  assert.doesNotMatch(src, /argomenti\.data = domani/);
+  assert.match(src, /async function chiediGiorno/);
+  assert.match(src, /in_attesa_giorno/);
+  // Le categorie di una direttiva che non corrispondono a nessun contatto
+  // vengono segnalate, con i nomi disponibili.
+  assert.match(src, /async function avvisoCategorie/);
+  assert.match(src, /nessun contatto corrisponde a queste categorie/);
   // La tastiera di conferma arriva dall'assistente.
   const assistenteSrc = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/kona-cd-assistente.js'), 'utf8');
   assert.match(assistenteSrc, /callback_data: 'conf:si'/);

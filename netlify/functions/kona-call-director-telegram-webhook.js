@@ -30,10 +30,11 @@ const { timingSafeEqualText, sendMessage, answerCallbackQuery, getOwnerChatId } 
 const { monthRomeKey, nextWorkingDay, todayRomeStr } = require('./_lib/kona-cd-time');
 const { cleanLog, nowIso } = require('./_lib/kona-cd-util');
 const {
-  azioneInAttesa, confermaDeterministica, confermaValida, contestoAssistente,
-  interpreta, richiedeConferma, tastieraConferma
+  azioneInAttesa, confermaDeterministica, confermaValida, contestoAssistente, etichettaGiorno,
+  giornoDaTesto, giornoRichiesto, interpreta, richiedeConferma, tastieraConferma
 } = require('./_lib/kona-cd-assistente');
 const { ENV_CHIAVE, isConfigured: assistenteConfigurato } = require('./_lib/kona-cd-deepseek');
+const { categoriaCorrisponde } = require('./_lib/kona-cd-engine');
 
 const AIUTO = [
   'KONA Call Director - puoi scrivermi in italiano, non servono i comandi.',
@@ -154,13 +155,13 @@ exports.handler = async (event) => {
     } else if (text === '/approva') {
       // Anche il comando esplicito passa dalla conferma: la regola e' "nessuna
       // azione che cambia qualcosa senza un si", qualunque sia la richiesta.
-      ({ risposta, markup } = await proponiConferma(client, chatId, 'approva_piano', { data: domani }));
+      ({ risposta, markup } = await proponiConferma(client, chatId, 'approva_piano', { data: domani }, { oggi: data, domani }));
     } else if (text === '/categorie') {
       risposta = await cmdCategorie(client, chatId, domani);
     } else if (text === '/sospendi') {
-      ({ risposta, markup } = await proponiConferma(client, chatId, 'sospendi', { data: domani }));
+      ({ risposta, markup } = await proponiConferma(client, chatId, 'sospendi', {}, { oggi: data, domani }));
     } else if (text === '/riattiva') {
-      ({ risposta, markup } = await proponiConferma(client, chatId, 'riattiva', { data: domani }));
+      ({ risposta, markup } = await proponiConferma(client, chatId, 'riattiva', {}, { oggi: data, domani }));
     } else {
       // Dialogo in linguaggio naturale, interpretato dall'assistente IA.
       const esito = await gestisciLinguaggioNaturale(
@@ -349,13 +350,36 @@ async function cmdRiattiva(client, chatId) {
 
 // Propone un'azione delicata: la salva come PENDENTE e chiede conferma.
 // Nessuna scrittura sul sistema avviene qui.
-async function proponiConferma(client, chatId, azione, argomenti) {
-  const attesa = azioneInAttesa(azione, argomenti || {});
+async function proponiConferma(client, chatId, azione, argomenti, contesto = {}) {
+  const attesa = azioneInAttesa(azione, argomenti || {}, contesto);
   await aggiornaConversazione(client, chatId, { azione_in_attesa: attesa, in_attesa_categorie: false });
-  await audita(client, chatId, 'conferma_richiesta', { azione });
+  await audita(client, chatId, 'conferma_richiesta', { azione, data: attesa.argomenti?.data || null });
   return {
     risposta: `${attesa.riassunto}\n\nRispondi "si" oppure "no".`,
     markup: tastieraConferma()
+  };
+}
+
+// Chiede per QUALE giornata, invece di sceglierne una in silenzio: una
+// direttiva "per oggi" non deve finire su domani (e' successo davvero).
+// L'azione resta in sospeso SENZA data: al messaggio successivo "oggi"/"domani"
+// viene completata e riproposta per la conferma.
+async function chiediGiorno(client, chatId, azione, argomenti, contesto = {}) {
+  const attesa = {
+    azione,
+    argomenti: { ...(argomenti || {}), data: null },
+    creato_at: nowIso(),
+    in_attesa_giorno: true,
+    riassunto: null
+  };
+  await aggiornaConversazione(client, chatId, { azione_in_attesa: attesa, in_attesa_categorie: false });
+  await audita(client, chatId, 'giorno_richiesto', { azione });
+  return {
+    testo: [
+      `Per quale giornata vuoi ${azione === 'direttiva' ? 'applicare questa direttiva' : 'questa azione'}?`,
+      `Scrivi "oggi" (${etichettaGiorno(contesto.oggi, contesto)}) oppure "domani" (${etichettaGiorno(contesto.domani, contesto)}).`,
+      'Il giorno lo scegli tu: non lo decido io.'
+    ].join('\n')
   };
 }
 
@@ -405,7 +429,37 @@ async function applicaDirettiva(client, cfg, chatId, data, argomenti = {}) {
   }
   await audita(client, chatId, 'direttiva_libera_approvata', { data, categoria_sessione: categoriaSessione, categorie });
   const riepilogo = categorie.length ? `Categorie: ${categorie.join(', ')}` : (nota || 'nessun dettaglio');
-  return `Direttiva registrata e approvata per ${data}. ${riepilogo}`.slice(0, 900);
+  const avviso = await avvisoCategorie(client, categorie);
+  const testo = [`Direttiva registrata e approvata per ${data}. ${riepilogo}`, avviso ? '' : null, avviso]
+    .filter((riga) => riga !== null).join('\n');
+  return testo.slice(0, 900);
+}
+
+// Le categorie di una direttiva sono i nomi delle categorie dei CONTATTI
+// ("Ristorazione", "Negozi", ...), non le offerte ("fissi", "mobile") ne'
+// descrizioni generiche. Se nessun contatto corrisponde, la giornata
+// rimarrebbe senza telefonate: meglio dirlo subito, con i nomi disponibili.
+async function avvisoCategorie(client, categorie) {
+  if (!Array.isArray(categorie) || categorie.length === 0) return '';
+  const { data, error } = await client
+    .from('call_center_lead_outbound')
+    .select('categoria')
+    .eq('do_not_call', false)
+    .in('stato_lead', ['nuovo', 'da_contattare', 'ricontattare'])
+    .limit(1000);
+  if (error || !Array.isArray(data)) return '';
+  const disponibili = [...new Set(data.map((r) => String(r.categoria || '').trim()).filter(Boolean))];
+  const corrispondenti = data.filter((r) => categoriaCorrisponde(r.categoria, categorie)).length;
+  if (corrispondenti > 0) {
+    return `Contatti disponibili con queste categorie: ${corrispondenti}.`;
+  }
+  const elenco = disponibili.slice(0, 12).join(', ') || 'nessuno';
+  return [
+    'ATTENZIONE: nessun contatto corrisponde a queste categorie, quindi il piano',
+    'non produrra\' telefonate Business. Le categorie dei contatti disponibili sono:',
+    `${elenco}.`,
+    'Ripeti la direttiva usando uno di questi nomi.'
+  ].join('\n');
 }
 
 // -- Dialogo libero ------------------------------------------------------------
@@ -415,8 +469,25 @@ async function applicaDirettiva(client, cfg, chatId, data, argomenti = {}) {
 //   2. interpretazione IA del messaggio;
 //   3. letture eseguite subito, azioni delicate solo PROPOSTE.
 async function gestisciLinguaggioNaturale(client, cfg, chatId, conv, text, data, domani) {
+  const contestoGiorni = { oggi: data, domani };
   const attesa = conv?.azione_in_attesa;
-  if (attesa && confermaValida(attesa)) {
+  if (attesa && !confermaValida(attesa)) {
+    // Conferma scaduta: non si esegue nulla di proposto troppo tempo prima.
+    await aggiornaConversazione(client, chatId, { azione_in_attesa: null });
+    conv = { ...conv, azione_in_attesa: null };
+  } else if (attesa && attesa.in_attesa_giorno) {
+    // Stavamo aspettando il giorno. Se ora Mirko lo dice, l'azione riparte con
+    // la data giusta; altrimenti il chiarimento decade e il messaggio viene
+    // interpretato come una richiesta nuova.
+    const giorno = giornoDaTesto(text, contestoGiorni);
+    if (giorno) {
+      const proposta = await proponiConferma(client, chatId, attesa.azione, { ...(attesa.argomenti || {}), data: giorno }, contestoGiorni);
+      return { testo: proposta.risposta, markup: proposta.markup };
+    }
+    await aggiornaConversazione(client, chatId, { azione_in_attesa: null });
+    await audita(client, chatId, 'conferma_abbandonata', { azione: attesa.azione, motivo: 'giorno_non_indicato' });
+    conv = { ...conv, azione_in_attesa: null };
+  } else if (attesa) {
     const scelta = confermaDeterministica(text);
     if (scelta === 'si') return await eseguiAzione(client, cfg, chatId, attesa.azione, attesa.argomenti, domani);
     if (scelta === 'no') {
@@ -430,20 +501,22 @@ async function gestisciLinguaggioNaturale(client, cfg, chatId, conv, text, data,
     await aggiornaConversazione(client, chatId, { azione_in_attesa: null });
     await audita(client, chatId, 'conferma_abbandonata', { azione: attesa.azione });
     conv = { ...conv, azione_in_attesa: null };
-  } else if (attesa) {
-    // Conferma scaduta: non si esegue nulla di proposto troppo tempo prima.
-    await aggiornaConversazione(client, chatId, { azione_in_attesa: null });
   }
 
   const operatori = await operatoriAbilitati(client);
   const contesto = await contestoAssistente(client, cfg, { oggi: data, domani, operatori, conv });
   const esito = await interpreta({ supabase: client, cfg, testo: text, contesto });
 
-  if (!esito.ok) return await rispostaSenzaIa(client, chatId, conv, text, domani, esito);
+  if (!esito.ok) return await rispostaSenzaIa(client, chatId, conv, text, data, domani, esito);
 
   if (richiedeConferma(esito.azione)) {
-    if (!esito.argomenti.data) esito.argomenti.data = domani;
-    const proposta = await proponiConferma(client, chatId, esito.azione, esito.argomenti);
+    // Nessun giorno scelto di nascosto: se Mirko non ha detto QUALE giornata,
+    // si chiede. Un default silenzioso ("domani") ha gia' fatto scrivere una
+    // direttiva "di oggi" sul piano di domani.
+    if (!esito.argomenti.data && giornoRichiesto(esito.azione)) {
+      return await chiediGiorno(client, chatId, esito.azione, esito.argomenti, contestoGiorni);
+    }
+    const proposta = await proponiConferma(client, chatId, esito.azione, esito.argomenti, contestoGiorni);
     return { testo: `${proposta.risposta}`, markup: proposta.markup };
   }
 
@@ -469,10 +542,10 @@ async function gestisciLinguaggioNaturale(client, cfg, chatId, conv, text, data,
 // IA non disponibile: nessuna azione viene eseguita. Se Mirko stava rispondendo
 // alla domanda sulle categorie, la conferma viene comunque chiesta in modo
 // deterministico, cosi' il flusso non si blocca.
-async function rispostaSenzaIa(client, chatId, conv, text, domani, esito) {
+async function rispostaSenzaIa(client, chatId, conv, text, data, domani, esito) {
   if (conv?.in_attesa_categorie) {
     const categorie = text.split(',').map((c) => c.trim()).filter(Boolean).slice(0, 8);
-    const proposta = await proponiConferma(client, chatId, 'direttiva', { categorie, data: domani, nota: '' });
+    const proposta = await proponiConferma(client, chatId, 'direttiva', { categorie, data: domani, nota: '' }, { oggi: data, domani });
     return { testo: `Assistente non disponibile (${esito.error_code}). ${proposta.risposta}`, markup: proposta.markup };
   }
   // Chiave mancante: errore di CONFIGURAZIONE, non guasto temporaneo. Il
