@@ -37,7 +37,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `scripts/build-static.js` | Build Netlify: copia in `dist/` soltanto i file pubblici, genera `dist/js/config.js` con ambiente/release e inietta la telemetria nelle pagine autenticate |
 | `dist/` | Output locale della build, ignorato da Git. Non contiene backend, migration, test o documentazione |
 | `netlify/functions/` | Endpoint server-side (vedi sotto) |
-| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`, `pdf-disdetta`, `score-integrity`, `kona-ai-guardian`, `telegram`, i `kona-cd-*` tra cui `kona-cd-openai`, `kona-cd-deepseek`, `kona-cd-ai`, `kona-cd-assistente` e `kona-cd-budget`, `guardian-codex`, `guardian-telemetry`, `guardian-triage`, `with-telemetry`) |
+| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`, `pdf-disdetta`, `score-integrity`, `kona-ai-guardian`, `telegram`, i `kona-cd-*` tra cui `kona-cd-openai`, `kona-cd-deepseek`, `kona-cd-ai`, `kona-cd-assistente`, `kona-cd-agenda` e `kona-cd-budget`, `guardian-codex`, `guardian-telemetry`, `guardian-triage`, `with-telemetry`) |
 | `netlify/functions/_templates/disdette/` | I quattro moduli PDF WindTre originali usati come sfondo immutabile dal Compilatore disdette |
 | `tests/` | Test automatici Node (`node:test`): regressioni vendita, sicurezza/XSS, PDF privacy, sintassi e link locali |
 | `.github/workflows/ci.yml` | CI GitHub: build e test con Node 22 su pull request e branch `main`/`staging` |

@@ -754,6 +754,18 @@ Regole permanenti:
   (`categorieDisponibili` + `etichettaCategorie` nel webhook). Non
   reintrodurre elenchi di esempio inventati: hanno gia' fatto scrivere
   direttive con nomi inesistenti;
+- **la modalita' Consumer e' una scelta esplicita** (`modalita_consumer`), mai
+  dedotta dalle parole della nota: "fibra" e' anche un'offerta e riconfigurava
+  la giornata da sola;
+- **agenda guidata** (`/agenda`, azione `agenda`, `_lib/kona-cd-agenda.js`): il
+  bot propone le attivita' (lead aziendali, liste Fibra/FWA, telefoni omaggio),
+  fa scegliere le categorie reali, chiede l'orario e finche' resta tempo
+  richiede cosa mettere nel tempo residuo; le due liste Consumer sono una
+  modalita' al giorno; nessuna scrittura sul piano prima della conferma finale
+  (`applicaAgenda` → `scriviPianoDirettiva`). Le ore sono l'intenzione della
+  giornata: il motore lavora per priorita' dentro le finestre, non con un timer;
+- **il briefing dell'operatrice mostra le categorie approvate** e avvisa quando
+  nessun contatto corrisponde;
 - chiedere la ricerca web a DeepSeek deve **fallire**
   (`provider_non_supporta_web_search`), mai degradare in silenzio:
   su OpenAI restano `arricchimento` (ricerca web) e `altro` (valutazione skip);

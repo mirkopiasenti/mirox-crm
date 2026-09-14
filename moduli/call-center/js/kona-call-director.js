@@ -330,6 +330,29 @@
     var list = document.getElementById('konaBriefingList');
     list.textContent = '';
 
+    // Categorie approvate: senza questa riga un piano senza contatti
+    // corrispondenti si scopriva solo a fine giornata.
+    var categorie = Array.isArray(b.categorie_approvate) ? b.categorie_approvate.filter(Boolean) : [];
+    var liCategorie = document.createElement('li');
+    var spanCategorie = document.createElement('span');
+    spanCategorie.textContent = categorie.length
+      ? 'Categorie aziendali approvate'
+      : 'Categorie aziendali approvate';
+    var badgeCategorie = document.createElement('span');
+    badgeCategorie.className = 'kona-badge';
+    badgeCategorie.textContent = categorie.length ? categorie.join(', ') : 'nessuna';
+    liCategorie.appendChild(spanCategorie);
+    liCategorie.appendChild(badgeCategorie);
+    liCategorie.style.borderBottom = 'none';
+    list.appendChild(liCategorie);
+    if (categorie.length && b.business && b.business.conteggio === 0) {
+      var liAvviso = document.createElement('li');
+      liAvviso.textContent = 'Nessun contatto corrisponde a queste categorie: le chiamate aziendali non partiranno.';
+      liAvviso.style.color = 'var(--text-secondary)';
+      liAvviso.style.borderBottom = 'none';
+      list.appendChild(liAvviso);
+    }
+
     // Sezione MATTINA
     var mattinaHead = document.createElement('li');
     mattinaHead.textContent = 'MATTINA';

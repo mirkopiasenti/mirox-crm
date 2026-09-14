@@ -73,7 +73,6 @@ Admin), non una modifica di codice.
 Al bot si puo' scrivere in italiano ("come sta andando oggi?", "prepara il piano
 di domani", "sospendi tutto"). L'assistente classifica il messaggio e risponde.
 Regole non negoziabili:
-
 - le **letture** (stato, report, piano, aiuto) rispondono subito;
 - le **azioni che cambiano qualcosa** (sospendi, riattiva, approva piano,
   telefoni omaggio, direttiva sul piano) non vengono **mai** eseguite
@@ -103,11 +102,45 @@ Regole non negoziabili:
   numero di contatti per categoria, e lo stesso elenco compare nell'avviso
   quando una direttiva non corrisponde a nulla. Le due modalita' **Consumer**
   sono invece fisse: `telefoni_omaggio` (liste cartacee) e `fibra_fwa`;
+- **la modalita' Consumer e' una scelta esplicita**, mai dedotta dalle parole
+  della nota: "fibra" e' anche il nome di un'offerta. L'assistente la dichiara
+  in un campo dedicato (`modalita_consumer`) solo quando Mirko chiede
+  esplicitamente di lavorare le liste; una nota che nomina la fibra non
+  riconfigura piu' la giornata;
 - al modello arrivano **solo aggregati** (numero di task, appuntamenti, budget,
   zone). Mai nomi, telefoni, codici fiscali o email dei clienti: l'unico
   oggetto che esce dal server e' costruito da `contestoAssistente`.
 - i **messaggi vocali non sono supportati** (nessuna trascrizione): il bot
   chiede di scrivere il testo.
+
+### Agenda guidata (`/agenda`)
+
+Invece di dettare una direttiva in un colpo solo, il bot **propone** le
+attivita' e costruisce la giornata a tappe:
+
+1. si sceglie la giornata (oggi o domani) e il bot mostra le ore di lavoro
+   configurate (`orario_mattina` + `orario_pomeriggio`) e quanto tempo c'e' in
+   totale;
+2. propone le tre attivita' con i pulsanti: **lead outbound aziendali**,
+   **liste Consumer Fibra/FWA**, **liste Consumer telefoni omaggio**;
+3. per i lead aziendali chiede prima le **categorie reali** (con il numero di
+   contatti, lette da `call_center_lead_outbound`) oppure "tutte";
+4. chiede l'**orario** del blocco ("15:30-17:00", "90 minuti", "17:00"); un
+   orario fuori dalle finestre o sovrapposto viene rifiutato con gli spazi
+   liberi;
+5. finche' resta tempo **richiede cosa mettere nel tempo che resta**, con gli
+   spazi liberi residui; "basta cosi'" chiude;
+6. alla fine mostra il riepilogo e chiede conferma: solo allora scrive il piano
+   (stato `approvato`, sorgente `mirko`).
+
+Vincoli: le due liste Consumer sono una modalita' al giorno (la seconda viene
+rifiutata), e le ore indicate sono l'intenzione della giornata: il motore
+continua a lavorare **per priorita' dentro le finestre di lavoro**, non con un
+timer che cambia attivita' al minuto.
+
+Nella schermata dell'operatrice il briefing mostra le **categorie approvate** e,
+se non corrisponde nessun contatto, lo dice esplicitamente: un piano che non
+puo' partire si vede subito invece che a fine giornata.
 
 Costo: l'assistente ha una riserva dedicata di **10 EUR/mese**
 (`riserva_telegram_eur`) e un tetto di 60 messaggi interpretati all'ora

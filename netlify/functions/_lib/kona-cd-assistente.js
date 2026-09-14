@@ -33,12 +33,14 @@ const { cleanLog, cleanText, nowIso } = require('./kona-cd-util');
 
 // Azioni che l'assistente puo' proporre.
 const AZIONI = [
-  'stato', 'report', 'piano', 'aiuto', 'categorie',
+  'stato', 'report', 'piano', 'aiuto', 'categorie', 'agenda',
   'approva_piano', 'sospendi', 'riattiva', 'telefoni_omaggio', 'direttiva',
   'conferma', 'annulla', 'altro'
 ];
 
 // Azioni che MODIFICANO lo stato: mai eseguite senza un "si" esplicito.
+// `agenda` non e' qui: non scrive nulla, avvia una procedura guidata che si
+// conclude con una conferma esplicita.
 const AZIONI_DELICATE = ['approva_piano', 'sospendi', 'riattiva', 'telefoni_omaggio', 'direttiva'];
 
 // Dopo questo tempo una conferma in sospeso decade (non si conferma per sbaglio
@@ -77,6 +79,7 @@ function schemaIntento() {
       azione: { type: 'string', enum: AZIONI },
       data: { type: 'string' },
       categorie: { type: 'array' },
+      modalita_consumer: { type: 'string', enum: ['', 'telefoni_omaggio', 'fibra_fwa'] },
       nota: { type: 'string' },
       risposta: { type: 'string' },
       confidenza: { type: 'number' }
@@ -100,8 +103,14 @@ function normalizzaArgomenti(value, contesto) {
     : dataGrezza === 'domani' ? contesto?.domani
       : /^\d{4}-\d{2}-\d{2}$/.test(dataGrezza) ? dataGrezza
         : null;
+  // Modalita' Consumer: SOLO se il modello la dichiara esplicitamente.
+  // Mai dedotta dalle parole della nota: "fibra" e' anche il nome di un'offerta
+  // e non deve riconfigurare la giornata da sola.
+  const consumerGrezzo = String(value?.modalita_consumer || '').trim().toLowerCase();
+  const modalita_consumer = ['telefoni_omaggio', 'fibra_fwa'].includes(consumerGrezzo) ? consumerGrezzo : null;
   return {
     categorie,
+    modalita_consumer,
     data,
     nota: cleanText(String(value?.nota || ''), 500)
   };
@@ -132,10 +141,11 @@ function etichettaGiorno(iso, contesto = {}) {
   return breve;
 }
 
-// La data e' obbligatoria per le azioni che scrivono su un piano: senza una
-// data NON si sceglie un default silenzioso, si chiede.
+// La data e' obbligatoria per le azioni che scrivono su un piano (o che ne
+// costruiscono uno, come l'agenda): senza una data NON si sceglie un default
+// silenzioso, si chiede.
 function giornoRichiesto(azione) {
-  return ['direttiva', 'approva_piano', 'telefoni_omaggio'].includes(String(azione || ''));
+  return ['direttiva', 'approva_piano', 'telefoni_omaggio', 'agenda'].includes(String(azione || ''));
 }
 
 function istruzioniAssistente(contesto) {
@@ -150,6 +160,11 @@ function istruzioniAssistente(contesto) {
     '- piano: chiede il piano di una giornata.',
     '- categorie: chiede quali categorie far chiamare OPPURE quali categorie sono',
     '  disponibili ("quali categorie posso scegliere?", "che categorie ho?").',
+    '- agenda: vuole COSTRUIRE la giornata con te, attivita\' per attivita\'',
+    '  ("prepariamo la giornata", "programmiamo le chiamate", "organizza oggi",',
+    '  "riempi il pomeriggio"). Usala quando chiede di decidere cosa fare e in',
+    '  quali orari; NON usarla se chiede solo di vedere il piano gia\' fatto (in',
+    '  quel caso e\' "piano").',
     '- approva_piano: approva il piano gia\' proposto.',
     '- sospendi: vuole fermare tutto subito.',
     '- riattiva: vuole riaccendere il sistema.',
@@ -172,6 +187,11 @@ function istruzioniAssistente(contesto) {
     '  "Bar", "Officine", ...), non le offerte ("fissi", "mobile"): metti in',
     '  "categorie" solo nomi di categoria di contatti. Orari, offerte e priorita\'',
     '  vanno nella "nota".',
+    '- "modalita_consumer" va compilata SOLO se Mirko chiede esplicitamente di',
+    '  lavorare le LISTE Consumer: "telefoni_omaggio" per le liste telefoni',
+    '  omaggio, "fibra_fwa" per le liste fibra/FWA da chiamare a mano. Se parla di',
+    '  fibra come OFFERTA da proporre, o non e\' chiaro, lasciala vuota: non',
+    '  dedurla mai dalla nota.',
     '- "risposta" e\' il testo che verra\' mostrato a Mirko: massimo 400 caratteri,',
     '  nessuna emoji, nessun dato personale dei clienti.',
     '- "confidenza" e\' un numero fra 0 e 1.',

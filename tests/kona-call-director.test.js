@@ -26,6 +26,7 @@ const deepseek = L('kona-cd-deepseek');
 const ai = L('kona-cd-ai');
 const assistente = L('kona-cd-assistente');
 const guardianTelegram = L('telegram');
+const agenda = L('kona-cd-agenda');
 const dist = L('kona-cd-distances');
 const taskEndpoint = require(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-task.js'));
 const telegramWebhook = require(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-telegram-webhook.js'));
@@ -2424,5 +2425,124 @@ test('bot Guardian: la trascrizione dei vocali e stata rimossa', () => {
   assert.equal(typeof guardianTelegram.transcribeVoice, 'undefined');
   assert.equal(typeof guardianTelegram.downloadTelegramFile, 'undefined');
   assert.equal(typeof guardianTelegram.sendTelegramMessage, 'function');
+});
+
+// =============================================================================
+// Agenda guidata: il bot propone, Mirko sceglie, si riempiono le ore
+// =============================================================================
+
+const CFG_ORARI = {
+  orario_mattina: { inizio: '09:00', fine: '12:30' },
+  orario_pomeriggio: { inizio: '15:30', fine: '19:00' }
+};
+
+test('agenda: finestre di lavoro, durate e spazi liberi', () => {
+  const finestre = agenda.finestreGiorno(CFG_ORARI);
+  assert.deepEqual(finestre, [{ da: 540, a: 750 }, { da: 930, a: 1140 }]);
+  assert.equal(agenda.minutiTotali(finestre), 420);
+  assert.equal(agenda.fmtDurata(420), '7 ore');
+  assert.equal(agenda.fmtDurata(90), '1 ora e 30 minuti');
+  assert.equal(agenda.fmtHHmm(930), '15:30');
+  // Uno spazio occupato si toglie dai liberi.
+  const liberi = agenda.buchiResidui(finestre, [{ da: 930, a: 1020 }]);
+  assert.deepEqual(liberi, [{ da: 540, a: 750 }, { da: 1020, a: 1140 }]);
+  assert.equal(agenda.minutiResidui(finestre, [{ da: 930, a: 1020 }]), 330);
+  assert.equal(agenda.minutiPianificati([{ da: 930, a: 1020 }]), 90);
+});
+
+test('agenda: orari scritti in modi diversi vengono capiti', () => {
+  assert.deepEqual(agenda.parseIntervallo('15:30-17:00'), { ok: true, da: 930, a: 1020 });
+  assert.deepEqual(agenda.parseIntervallo('dalle 15:30 alle 17:00'), { ok: true, da: 930, a: 1020 });
+  assert.deepEqual(agenda.parseIntervallo('17.01 - 19.00'), { ok: true, da: 1021, a: 1140 });
+  assert.deepEqual(agenda.parseIntervallo('90 minuti'), { ok: true, durata: 90 });
+  assert.deepEqual(agenda.parseIntervallo('1 ora e mezza'), { ok: true, durata: 90 });
+  assert.deepEqual(agenda.parseIntervallo("mezz'ora"), { ok: true, durata: 30 });
+  assert.deepEqual(agenda.parseIntervallo('2 ore'), { ok: true, durata: 120 });
+  // Un solo orario: si prende lo spazio che comincia li'.
+  assert.deepEqual(agenda.parseIntervallo('16:00'), { ok: true, da: 960 });
+  assert.equal(agenda.parseIntervallo('piu tardi').ok, false);
+  assert.equal(agenda.parseIntervallo('').ok, false);
+  assert.equal(agenda.parseIntervallo('17:00-15:00').ok, false);
+});
+
+test('agenda: un blocco non esce dalle finestre ne si sovrappone', () => {
+  const finestre = agenda.finestreGiorno(CFG_ORARI);
+  const primo = agenda.componiBlocco(agenda.parseIntervallo('15:30-17:00'), finestre, []);
+  assert.deepEqual(primo.blocco, { da: 930, a: 1020 });
+  // Fuori orario (prima dell'apertura e dopo la chiusura).
+  assert.equal(agenda.componiBlocco(agenda.parseIntervallo('08:00-09:30'), finestre, []).errore, 'fuori_finestra');
+  assert.equal(agenda.componiBlocco(agenda.parseIntervallo('18:00-20:00'), finestre, []).errore, 'fuori_finestra');
+  // Sovrapposizione con un blocco esistente.
+  const secondo = agenda.componiBlocco(agenda.parseIntervallo('16:00-18:00'), finestre, [primo.blocco]);
+  assert.equal(secondo.errore, 'fuori_finestra');
+  // Durata piu' lunga dello spazio libero.
+  assert.equal(agenda.componiBlocco({ durata: 400 }, finestre, [primo.blocco]).errore, 'durata_troppo_lunga');
+  // Solo inizio: prende tutto lo spazio fino alla fine della finestra.
+  assert.deepEqual(agenda.componiBlocco(agenda.parseIntervallo('17:00'), finestre, [primo.blocco]).blocco, { da: 1020, a: 1140 });
+  // Nessun tempo residuo.
+  const pieno = [{ da: 540, a: 750 }, { da: 930, a: 1140 }];
+  assert.equal(agenda.componiBlocco(agenda.parseIntervallo('15:30-17:00'), finestre, pieno).errore, 'non_resta_tempo');
+});
+
+test('agenda: le opzioni proposte e le liste Consumer uniche al giorno', () => {
+  assert.deepEqual(agenda.OPZIONI.map((o) => o.id), ['aziendali', 'fibra_fwa', 'telefoni_omaggio']);
+  assert.equal(agenda.opzioneDaTesto('liste fibra').id, 'fibra_fwa');
+  assert.equal(agenda.opzioneDaTesto('telefoni omaggio').id, 'telefoni_omaggio');
+  assert.equal(agenda.opzioneDaTesto('lead aziendali').id, 'aziendali');
+  assert.equal(agenda.opzioneDaTesto('boh'), null);
+  // Scelta una lista Consumer, l'altra non viene piu' proposta.
+  const stato = { blocchi: [{ opzione: 'fibra_fwa', da: 930, a: 1020 }] };
+  const disponibili = agenda.opzioniDisponibili(stato).map((o) => o.id);
+  assert.deepEqual(disponibili, ['aziendali', 'fibra_fwa']);
+  assert.ok(!disponibili.includes('telefoni_omaggio'));
+  // Il riepilogo dice anche quanto tempo non e' coperto.
+  const testo = agenda.riepilogoAgenda({ data: '2026-09-14', blocchi: [{ opzione: 'fibra_fwa', da: 930, a: 1020 }] }, CFG_ORARI);
+  assert.match(testo, /15:30-17:00/);
+  assert.match(testo, /Tempo non coperto: 5 ore e 30 minuti/);
+});
+
+test('agenda: senza consumare tutte le ore il bot richiede cosa fare nel resto', () => {
+  const stato = { data: '2026-09-14', blocchi: [{ opzione: 'aziendali', da: 540, a: 750 }] };
+  const domanda = agenda.domandaOpzioni(stato, CFG_ORARI);
+  assert.match(domanda, /Ti restano 3 ore e 30 minuti/);
+  assert.match(domanda, /15:30-19:00/);
+  assert.match(domanda, /Cosa metto nel tempo che resta/);
+  const tastiera = agenda.tastieraOpzioni(stato);
+  assert.ok(tastiera.inline_keyboard.some((riga) => riga[0].callback_data === 'ag:stop'));
+});
+
+test('agenda: la modalita Consumer e una scelta esplicita, non una parola della nota', () => {
+  // L'assistente normalizza `modalita_consumer` solo se il modello la dichiara.
+  const base = { azione: 'direttiva', risposta: 'ok', confidenza: 0.9, data: 'oggi', nota: '17:01-19:00 fibra' };
+  const senza = assistente.normalizzaArgomenti(base, { oggi: '2026-09-14', domani: '2026-09-15' });
+  assert.equal(senza.modalita_consumer, null);
+  const con = assistente.normalizzaArgomenti({ ...base, modalita_consumer: 'fibra_fwa' }, { oggi: '2026-09-14' });
+  assert.equal(con.modalita_consumer, 'fibra_fwa');
+  // Valore non previsto: scartato.
+  assert.equal(assistente.normalizzaArgomenti({ ...base, modalita_consumer: 'qualsiasi' }, {}).modalita_consumer, null);
+});
+
+test('agenda: il webhook non deduce piu la modalita Consumer dalle parole', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-telegram-webhook.js'), 'utf8');
+  assert.doesNotMatch(src, /function categoriaDaTesto/);
+  assert.match(src, /async function avviaAgenda/);
+  assert.match(src, /async function gestisciAgendaTesto/);
+  assert.match(src, /async function gestisciAgendaCallback/);
+  assert.match(src, /async function scriviPianoDirettiva/);
+  assert.match(src, /arg === 'conferma'/);
+  // La tastiera di conferma dell'agenda vive nel modulo dell'agenda.
+  const agendaSrc = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/kona-cd-agenda.js'), 'utf8');
+  assert.match(agendaSrc, /ag:conferma/);
+  // L'agenda e' una procedura: nessuna scrittura sul piano prima della conferma.
+  const applica = src.slice(src.indexOf('async function applicaAgenda'), src.indexOf('async function gestisciAgendaCallback'));
+  assert.match(applica, /scriviPianoDirettiva/);
+  assert.match(applica, /agenda_applicata/);
+});
+
+test('briefing operatore: le categorie approvate sono visibili nella schermata', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  assert.match(js, /Categorie aziendali approvate/);
+  assert.match(js, /Nessun contatto corrisponde a queste categorie/);
+  assert.match(js, /b\.categorie_approvate/);
 });
 
