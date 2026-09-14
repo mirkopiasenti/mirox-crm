@@ -110,6 +110,13 @@ Regole non negoziabili:
 - al modello arrivano **solo aggregati** (numero di task, appuntamenti, budget,
   zone). Mai nomi, telefoni, codici fiscali o email dei clienti: l'unico
   oggetto che esce dal server e' costruito da `contestoAssistente`.
+- **"mostrami il piano" mostra la giornata, non solo gli appuntamenti.** Il
+  piano di una giornata e' reso leggibile da `descriviPiano`
+  (`_lib/kona-cd-agenda.js`): fasce con orari, categorie aziendali approvate e
+  liste Consumer. Se il piano non ha fasce proprie lo dice ("programmazione
+  base") invece di far credere che siano state scelte. Gli appuntamenti Business
+  restano una riga in piu' e la loro assenza non e' piu' l'intera risposta. Lo
+  stesso testo compare nel report serale delle 19:10 come piano di domani.
 - i **messaggi vocali non sono supportati** (nessuna trascrizione): il bot
   chiede di scrivere il testo.
 
