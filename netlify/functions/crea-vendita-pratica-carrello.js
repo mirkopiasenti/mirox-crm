@@ -52,6 +52,19 @@ function response(statusCode, payload) {
   };
 }
 
+// La RPC non esiste ancora su questo database? PostgREST risponde PGRST202
+// quando una migration non e' stata applicata: e' l'unico caso in cui
+// accettiamo il fallback a una versione precedente della funzione.
+// (Stesso criterio usato lato KONA in `kona-cd-budget.js`.)
+function funzioneAssente(error) {
+  if (!error) return false;
+  const code = String(error.code || '');
+  const message = String(error.message || '');
+  return code === 'PGRST202'
+    || /could not find the function/i.test(message)
+    || /function .* does not exist/i.test(message);
+}
+
 function cleanString(value) {
   if (value === undefined || value === null) return null;
   const trimmed = String(value).trim();
@@ -707,10 +720,23 @@ exports.handler = async (event) => {
     let cleanupCcEventi = null;
     let cleanupCcWarning = null;
     try {
-      const { data: cleanupResult, error: cleanupError } = await supabase.rpc(
-        'vendita_chiudi_eventi_cc_per_pratica',
-        { p_anagrafica_id: praticaRow.anagrafica_id, p_pratica_id: praticaRow.id }
+      // v2 (migration 079): chiude anche i NON PRESENTATI e marca gli
+      // appuntamenti del cliente come `esito_finale='vinta'`. La vendita deve
+      // togliere dalla coda del Call Center un cliente che ha gia' comprato, e
+      // il KPI "Chiusi / vinti" si legge da quel campo: senza la v2 un cliente
+      // passato e acquisito restava in coda come "non presentato".
+      // Fallback alla v1 finche' la migration non e' applicata: la v1 non
+      // fallisce, semplicemente non fa le due cose nuove.
+      const cleanupArgs = { p_anagrafica_id: praticaRow.anagrafica_id, p_pratica_id: praticaRow.id };
+      let { data: cleanupResult, error: cleanupError } = await supabase.rpc(
+        'vendita_chiudi_eventi_cc_per_pratica_v2',
+        { ...cleanupArgs, p_giorni_finestra: 90 }
       );
+      if (cleanupError && funzioneAssente(cleanupError)) {
+        const fallback = await supabase.rpc('vendita_chiudi_eventi_cc_per_pratica', cleanupArgs);
+        cleanupResult = fallback.data;
+        cleanupError = fallback.error;
+      }
       if (cleanupError) {
         cleanupCcWarning = cleanupError.message;
       } else {

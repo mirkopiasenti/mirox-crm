@@ -142,6 +142,25 @@ Nella schermata dell'operatrice il briefing mostra le **categorie approvate** e,
 se non corrisponde nessun contatto, lo dice esplicitamente: un piano che non
 puo' partire si vede subito invece che a fine giornata.
 
+### Attesa prima di riproporre non presentati e passaggi
+
+Chi non si e' presentato all'appuntamento, o chi ha detto che sarebbe passato in
+negozio (o a Cerea), **non viene richiamato il giorno stesso**: il cliente ha
+detto che passa fra qualche giorno. Questi eventi restano fuori dalla coda per
+`giorni_attesa_ripresentazione` giorni (default **5**, valore di configurazione)
+calcolati dalla data dell'appuntamento mancato o della chiamata che li ha
+generati; al quinto giorno tornano lavorabili. Con `0` tornano lavorabili subito
+(comportamento precedente).
+
+**Alla vendita si chiude tutto.** Quando una pratica viene finalizzata da Upload
+Contratti, per quel cliente la RPC `vendita_chiudi_eventi_cc_per_pratica_v2`
+(migration `079`) annulla gli appuntamenti ancora aperti, chiude le chiamate in
+rilavorazione e i passaggi, porta i **non presentati** a "lavorato" e marca
+`esito_finale='vinta'` sugli appuntamenti del cliente (quelli con esito ancora
+aperto, entro 90 giorni): cosi' un cliente che ha comprato non resta in coda e la
+vendita risulta vinta nel KPI Call Center. Senza la v2 (migration non applicata)
+il codice usa la v1: le due chiusure nuove non avvengono.
+
 Costo: l'assistente ha una riserva dedicata di **10 EUR/mese**
 (`riserva_telegram_eur`) e un tetto di 60 messaggi interpretati all'ora
 (`max_messaggi_telegram_ora`). La spesa e' registrata nel registro budget con
@@ -168,8 +187,15 @@ Priorita' operative:
 4. appuntamenti non presentati;
 5. Passa a Cerea;
 6. Passa in negozio;
-7. campagne urgenti approvate;
-8. sessione Business standard.
+7. campagne urgenti approvate (i lead bloccati dal proprietario);
+8. sessione Business standard (nuovi lead, filtrati dalle categorie approvate).
+
+La coda viene **ricomposta a ogni contatto concluso**: non e' "finisco la
+categoria 1, poi la 2". Se fra un contatto e il successivo diventa dovuto un
+ricontatto o un non presentato, quello scavalca i nuovi lead Business. Dopo le
+18:00 (`orario_stop_business`) i nuovi lead Business non vengono piu' proposti.
+Gli eventi con attesa (non presentati, passaggi) compaiono solo quando
+l'attesa di `giorni_attesa_ripresentazione` e' scaduta.
 
 La scheda contatto mostra telefono, CF/P.IVA, comune/provincia e l'indirizzo
 canonico disponibile: `via` + `civico` dall'anagrafica condivisa oppure

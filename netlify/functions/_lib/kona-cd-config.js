@@ -47,6 +47,12 @@ const CONFIG_DEFAULTS = {
   orario_stop_business: '18:00',
   durata_sessione_business_minuti: 90,
   durata_appuntamento_minuti: 45,
+  // Giorni di attesa prima di riproporre un appuntamento NON presentato o un
+  // passaggio in negozio/Cerea: il cliente ha detto che passa fra qualche
+  // giorno, quindi non si richiama il giorno stesso. 0 = subito (come prima).
+  // E' un default di codice: per modificarlo dal pannello Admin servirebbe una
+  // colonna dedicata in kona_call_director_config.
+  giorni_attesa_ripresentazione: 5,
   distanza_km_indicativa: 20,
   richieste_web_max_per_lead: 2,
   lead_notte_obiettivo: 50,

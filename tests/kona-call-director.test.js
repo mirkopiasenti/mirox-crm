@@ -2546,3 +2546,59 @@ test('briefing operatore: le categorie approvate sono visibili nella schermata',
   assert.match(js, /b\.categorie_approvate/);
 });
 
+// =============================================================================
+// Ripresentazione dopo 5 giorni e chiusura "vinto" alla vendita
+// =============================================================================
+
+test('ripresentazione: non presentati e passaggi tornano in coda solo dopo 5 giorni', () => {
+  const attesa = engine._test.attesaRipresentazioneSuperata;
+  // Il giorno stesso e nei giorni immediatamente successivi NON si ripropone.
+  assert.equal(attesa('2026-09-14T10:00:00Z', '2026-09-14', 5), false);
+  assert.equal(attesa('2026-09-13T10:00:00Z', '2026-09-14', 5), false);
+  assert.equal(attesa('2026-09-10T10:00:00Z', '2026-09-14', 5), false);
+  // Al quinto giorno torna lavorabile, e resta tale.
+  assert.equal(attesa('2026-09-09T10:00:00Z', '2026-09-14', 5), true);
+  assert.equal(attesa('2026-09-01T10:00:00Z', '2026-09-14', 5), true);
+  // Configurazione: 0 (o assente) = subito, come prima di questa regola.
+  assert.equal(attesa('2026-09-14T10:00:00Z', '2026-09-14', 0), true);
+  assert.equal(attesa('2026-09-14T10:00:00Z', '2026-09-14', undefined), true);
+  // Dati strani: non si blocca nulla per errore di formato.
+  assert.equal(attesa(null, '2026-09-14', 5), true);
+  assert.equal(attesa('data-storta', '2026-09-14', 5), true);
+  // Il valore e' configurabile e presente nei default.
+  assert.equal(config.CONFIG_DEFAULTS.giorni_attesa_ripresentazione, 5);
+});
+
+test('ripresentazione: il motore applica l attesa a non presentati e passaggi', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/_lib/kona-cd-engine.js'), 'utf8');
+  const rilav = src.slice(src.indexOf('async function candidatiRilavorazione'), src.indexOf('async function candidatiLead'));
+  // Due guardie: non presentati e passaggi negozio/Cerea.
+  const guardie = rilav.match(/attesaRipresentazioneSuperata\(row\.data_ora, oggi, cfg\?\.giorni_attesa_ripresentazione\)/g) || [];
+  assert.equal(guardie.length, 2);
+  // `cfg` deve arrivare a `candidatiRilavorazione`, altrimenti la regola non ha effetto.
+  assert.match(rilav, /async function candidatiRilavorazione\(supabase, \{ profiloId, oggi, fascia, cfg \}\)/);
+  assert.match(src, /candidatiRilavorazione\(supabase, \{ profiloId, oggi, fascia, cfg \}\)/);
+});
+
+test('vendita: alla vendita si chiudono anche i non presentati e si scrive "vinta"', () => {
+  const sql = fs.readFileSync(path.resolve(__dirname, '..', 'database/079_vendita_chiusura_vinto_eventi_cc.sql'), 'utf8');
+  assert.match(sql, /CREATE OR REPLACE FUNCTION public\.vendita_chiudi_eventi_cc_per_pratica_v2/);
+  // I due buchi segnalati:
+  assert.match(sql, /presentato = 'no'[\s\S]{0,120}non_presentato_stato = 'da_lavorare'/);
+  assert.match(sql, /SET non_presentato_stato = 'lavorato',\s*\n\s*esito_finale = 'vinta'/);
+  assert.match(sql, /SET esito_finale = 'vinta'/);
+  // La v1 deve restare intatta: nessuna ridefinizione, nessun DROP.
+  assert.doesNotMatch(sql, /CREATE OR REPLACE FUNCTION public\.vendita_chiudi_eventi_cc_per_pratica\(/);
+  assert.doesNotMatch(sql, /DROP\s+(?:FUNCTION|TABLE|COLUMN)/i);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.vendita_chiudi_eventi_cc_per_pratica_v2[\s\S]*TO authenticated, service_role/);
+});
+
+test('vendita: il carrello chiama la v2 e ricade sulla v1 se la migration manca', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'netlify/functions/crea-vendita-pratica-carrello.js'), 'utf8');
+  assert.match(src, /vendita_chiudi_eventi_cc_per_pratica_v2/);
+  assert.match(src, /funzioneAssente\(cleanupError\)/);
+  assert.match(src, /supabase\.rpc\('vendita_chiudi_eventi_cc_per_pratica', cleanupArgs\)/);
+  // La v2 riceve la finestra (per non riscrivere il KPI di mesi vecchi).
+  assert.match(src, /p_giorni_finestra: 90/);
+});
+

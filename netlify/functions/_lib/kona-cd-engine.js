@@ -330,6 +330,22 @@ async function queryChiamatePassaggio(supabase, { profiloId, oggi, passaggioStat
   return data;
 }
 
+// Attesa prima di riproporre un evento che il cliente ha rinviato da solo
+// ("passo io fra qualche giorno"): un appuntamento non presentato o un passaggio
+// in negozio/Cerea NON vanno riproposti il giorno stesso, ma dopo N giorni
+// (config `giorni_attesa_ripresentazione`, default 5). Con 0 o senza data
+// l'evento e' subito lavorabile, come prima.
+function attesaRipresentazioneSuperata(dataEvento, oggi, giorni) {
+  const attesa = Math.max(0, Number(giorni) || 0);
+  if (attesa === 0) return true;
+  const iso = String(dataEvento || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso) || !/^\d{4}-\d{2}-\d{2}$/.test(String(oggi || ''))) return true;
+  const evento = new Date(`${iso}T00:00:00Z`).getTime();
+  const riferimento = new Date(`${String(oggi).slice(0, 10)}T00:00:00Z`).getTime();
+  if (!Number.isFinite(evento) || !Number.isFinite(riferimento)) return true;
+  return (riferimento - evento) >= attesa * 24 * 60 * 60 * 1000;
+}
+
 // Appuntamenti non presentati: stessa selezione del tab Rilavorazione manuale.
 // Il proprietario e' l'operatore che aveva fissato l'appuntamento, non chi ha
 // eventualmente registrato la chiamata originaria.
@@ -396,7 +412,7 @@ async function candidatiConfermaBusiness(supabase, cfg, { profiloId, oggi }) {
     }));
 }
 
-async function candidatiRilavorazione(supabase, { profiloId, oggi, fascia }) {
+async function candidatiRilavorazione(supabase, { profiloId, oggi, fascia, cfg }) {
   const out = [];
   const mkStandard = (row, tipo, priority, descrizione) => ({
     tipo,
@@ -446,8 +462,12 @@ async function candidatiRilavorazione(supabase, { profiloId, oggi, fascia }) {
 
   // Non presentati: il manuale consente "Presentato (dimenticanza)" oppure
   // una nuova chiamata. La sorgente resta l'appuntamento fino all'esito.
+  // Chi non si e' presentato ha detto di passare "fra qualche giorno": non si
+  // ripropone il giorno stesso, ma dopo `giorni_attesa_ripresentazione` giorni
+  // dalla data dell'appuntamento mancato.
   const nonPresentati = await queryNonPresentati(supabase, { profiloId });
   for (const row of nonPresentati) {
+    if (!attesaRipresentazioneSuperata(row.data_ora, oggi, cfg?.giorni_attesa_ripresentazione)) continue;
     out.push({
       tipo: 'non_presentato',
       sorgenteId: row.id,
@@ -472,8 +492,10 @@ async function candidatiRilavorazione(supabase, { profiloId, oggi, fascia }) {
   // Passa a Cerea / Passa in negozio (chiamate standard con passaggio attivo).
   // Come il manuale, solo `in_attesa`: `ricontattare` indica che il controllo
   // originario e' gia' stato lavorato e non deve ricomparire.
+  // Anche qui vale l'attesa: il cliente ha detto che passa fra qualche giorno.
   const cerea = await queryChiamatePassaggio(supabase, { profiloId, oggi, passaggioStati: ['in_attesa'] });
   for (const row of cerea) {
+    if (!attesaRipresentazioneSuperata(row.data_ora, oggi, cfg?.giorni_attesa_ripresentazione)) continue;
     const esito = String(row.esito || '');
     if (esito === 'passa_a_cerea') out.push(mkStandard(row, 'passa_a_cerea', 5, 'Passa a Cerea'));
     if (esito === 'passa_in_negozio') out.push(mkStandard(row, 'passa_in_negozio', 6, 'Passa in negozio'));
@@ -569,7 +591,7 @@ async function buildCandidates(supabase, cfg, { profiloId, oggi }) {
   const fascia = fasciaCorrente(cfg);
   const candidates = [];
   candidates.push(...(await candidatiConfermaBusiness(supabase, cfg, { profiloId, oggi })));
-  candidates.push(...(await candidatiRilavorazione(supabase, { profiloId, oggi, fascia })));
+  candidates.push(...(await candidatiRilavorazione(supabase, { profiloId, oggi, fascia, cfg })));
   candidates.push(...(await candidatiLead(supabase, cfg, { profiloId, oggi, pinnedOnly: true })));
   candidates.push(...(await candidatiLead(supabase, cfg, { profiloId, oggi, pinnedOnly: false })));
   candidates.sort((a, b) => a.priority - b.priority);
@@ -1774,5 +1796,6 @@ module.exports = {
   tentativoPersistente,
   telefoniUnici,
   verificaTaskAttivo,
-  _test: { campoTesto, categoriaCorrisponde, fasciaCorrente, fasciaDaOra, mappaEsitoOutbound, mappaEsitoStandard, normTel, prossimaFascia, pureBlacklisted, pureEscluso, telefoniUnici, tentativoEsaurito, SKIP_REASONS, ETICHETTE_ATTIVITA, riepilogoRilavorazioni, categoriaConsumerPiano }
+  attesaRipresentazioneSuperata,
+  _test: { attesaRipresentazioneSuperata, campoTesto, categoriaCorrisponde, fasciaCorrente, fasciaDaOra, mappaEsitoOutbound, mappaEsitoStandard, normTel, prossimaFascia, pureBlacklisted, pureEscluso, telefoniUnici, tentativoEsaurito, SKIP_REASONS, ETICHETTE_ATTIVITA, riepilogoRilavorazioni, categoriaConsumerPiano }
 };
