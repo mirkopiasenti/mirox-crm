@@ -294,6 +294,8 @@
                         <div class="kona-title">Calendario del negozio (appuntamento Consumer)</div>
                         <div class="kona-subtitle">Il contatto Consumer viene prenotato nel calendario del negozio gia' usato dal Call Center.</div>
                         <div id="konaNegozioCliente" class="kona-client-summary"></div>
+                        <div class="kona-subtitle" style="margin-top:10px">Scegli il giorno:</div>
+                        <div id="konaNegozioDayList" class="kona-slotlist"></div>
                         <div class="kona-title" style="font-size:14px;margin-top:12px" id="konaNegozioGiorni"></div>
                         <div id="konaNegozioSlotWrap" class="hidden">
                             <div id="konaNegozioSlot" class="kona-slotlist"></div>
@@ -378,7 +380,7 @@
         <div class="modal-header"><h3 class="modal-title">Correggi esito della chiamata</h3><button class="modal-close" onclick="KonaCD.chiudiCorrezione()">&times;</button></div>
         <div class="modal-body">
             <input type="hidden" id="konaCorrezioneId">
-            <div class="form-group"><label for="konaCorrezioneEsito">Nuovo esito</label><select id="konaCorrezioneEsito" class="form-control" onchange="KonaCD.toggleCorrezioneRicontatto()"><option value="">Seleziona</option><option value="non_risposto">Non risposto</option><option value="non_interessato">Non interessato</option><option value="ricontattare">Ricontattare</option><option value="passa_in_negozio">Passa in negozio</option><option value="passa_a_cerea">Passa a Cerea</option></select></div>
+            <div class="form-group"><label for="konaCorrezioneEsito">Nuovo esito</label><select id="konaCorrezioneEsito" class="form-control" onchange="KonaCD.toggleCorrezioneRicontatto()"><option value="">Seleziona</option><option value="non_risposto">Non risposto</option><option value="non_interessato">Non interessato</option><option value="ricontattare">Ricontattare</option><option value="appuntamento">Appuntamento</option><option value="passa_in_negozio">Passa in negozio</option><option value="passa_a_cerea">Passa a Cerea</option></select></div>
             <div id="konaCorrezioneRicontatto" class="kona-consumer-grid hidden">
                 <div class="kona-field"><label for="konaCorrezioneData">Data ricontatto</label><input type="date" id="konaCorrezioneData" class="form-control"></div>
                 <div class="kona-field"><label for="konaCorrezioneFascia">Fascia</label><select id="konaCorrezioneFascia" class="form-control"><option value="">Seleziona</option><option value="Mattina">Mattina</option><option value="Pomeriggio">Pomeriggio</option></select></div>

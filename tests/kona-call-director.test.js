@@ -1798,3 +1798,64 @@ test('google: la rotazione del token non usa l\'upsert completo', () => {
   assert.doesNotMatch(getAccessToken, /storeToken\(supabase/);
   assert.match(getAccessToken, /rotateToken\(supabase/);
 });
+
+test('arricchimento: il contesto inviato all\'IA non contiene dati personali', () => {
+  const lead = {
+    ragione_sociale: 'Ferramenta Rossi',
+    localita: 'Legnago',
+    provincia: 'VR',
+    categoria: 'Ferramenta',
+    indirizzo: 'Via Roma 1',
+    partita_iva: '01234567890',
+    sito_internet: 'https://esempio.it',
+    // Campi che NON devono mai raggiungere il modello con la ricerca web.
+    telefono_raw: '0456020222',
+    telefono_norm: '0456020222',
+    email: 'info@esempio.it',
+    codice_fiscale: 'RSSMRA80A01H501U'
+  };
+  const contesto = arr.contestoArricchimento(lead, ['email']);
+  const serializzato = JSON.stringify(contesto);
+  assert.equal(contesto.telefono, undefined);
+  assert.equal(contesto.telefono_raw, undefined);
+  assert.equal(contesto.email, undefined);
+  assert.equal(contesto.codice_fiscale, undefined);
+  assert.ok(!/RSSMRA80A01H501U/.test(serializzato), 'il codice fiscale non deve comparire');
+  assert.ok(!/info@esempio\.it/.test(serializzato), 'l\'email non deve comparire');
+  assert.ok(!/0456020222/.test(serializzato), 'il telefono non deve comparire');
+  // I dati aziendali pubblici restano disponibili.
+  assert.equal(contesto.ragione_sociale, 'Ferramenta Rossi');
+  assert.equal(contesto.partita_iva, '01234567890');
+});
+
+test('calendario negozio: si possono scegliere piu\' giorni, non solo domani', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/kona-call-director.html'), 'utf8');
+  assert.match(js, /function prossimiGiorniLavorativi\(/);
+  assert.match(js, /function apriCalendarioNegozio\(/);
+  assert.match(js, /prossimiGiorniLavorativi\(10\)/);
+  // La data locale non deve passare da toISOString (slitta prima delle 02:00).
+  assert.match(js, /function isoLocale\(/);
+  const renderNegozio = js.slice(js.indexOf('async function apriNegozio('), js.indexOf('async function apriNegozioTask'));
+  assert.doesNotMatch(renderNegozio, /toISOString\(\)\.slice\(0, 10\)/);
+  assert.match(html, /id="konaNegozioDayList"/);
+});
+
+test('correzione esito: e\' previsto l\'esito Appuntamento e apre il calendario', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/kona-call-director.html'), 'utf8');
+  const select = html.slice(html.indexOf('id="konaCorrezioneEsito"'), html.indexOf('id="konaCorrezioneRicontatto"'));
+  assert.match(select, /<option value="appuntamento">Appuntamento<\/option>/);
+  assert.match(js, /async function apriNegozioPerCorrezione\(/);
+  assert.match(js, /if \(esito === 'appuntamento'\) \{[\s\S]*apriNegozioPerCorrezione/);
+  assert.match(js, /_negozioMode === 'correzione'/);
+});
+
+test('anagrafica Consumer: conferma esplicita prima di sovrascrivere un cliente esistente', () => {
+  const js = fs.readFileSync(path.resolve(__dirname, '..', 'moduli/call-center/js/kona-call-director.js'), 'utf8');
+  const registra = js.slice(js.indexOf('async function registraConsumer'), js.indexOf('async function togglePausa'));
+  assert.match(registra, /_consumer && _consumer\.anagrafica_id/);
+  assert.match(registra, /MiroxUI\.confirm\(/);
+  assert.match(registra, /Confermi che e\\' il cliente giusto\?/);
+  assert.match(js, /nome: res\.cliente \? \(res\.cliente\.ragione_sociale/);
+});

@@ -33,6 +33,11 @@
   var _negozioDay = null;
   var _negozioSelected = null;
   var _negozioMode = 'consumer';
+  // Contatto usato quando il calendario negozio si apre dal flusso di
+  // correzione esito (nessun form Consumer compilato a monte).
+  var _negozioContatto = null;
+  var _correzioneChiamata = null;
+  var _giorniNegozio = [];
   var _salvataggioInCorso = false;
   var _richiesteInCorso = 0;
   var _consumer = null;
@@ -1025,7 +1030,12 @@
         toast('Il contatto e\' in Black List e non puo\' essere lavorato.', 'danger');
         return;
       }
-      _consumer = { anagrafica_id: res.cliente ? res.cliente.id : null };
+      _consumer = {
+        anagrafica_id: res.cliente ? res.cliente.id : null,
+        // Serve per la conferma prima di sovrascrivere: si mostra all'operatrice
+        // QUALE cliente sta per essere aggiornato.
+        nome: res.cliente ? (res.cliente.ragione_sociale || res.cliente.nome_referente || '') : ''
+      };
       riempiConsumer(res.cliente);
       setText('konaConsumerLookupStatus', res.cliente
         ? 'Cliente trovato. Verifica i dati e prosegui con la chiamata.'
@@ -1041,6 +1051,16 @@
     if (!categoria) { toast('Attiva prima una modalita' + ' Consumer.'); return; }
     var errore = validaConsumer();
     if (errore) { toast(errore, 'warning'); return; }
+    // Il cliente esiste gia': i dati inseriti SOVRASCRIVONO quelli salvati.
+    // La conferma mostra quale cliente si sta aggiornando, per evitare che un
+    // codice fiscale digitato male sovrascriva l'anagrafica di un altro.
+    if (_consumer && _consumer.anagrafica_id) {
+      var confermaCliente = await root.MiroxUI.confirm(
+        'Stai per aggiornare l\'anagrafica di ' + (_consumer.nome || 'questo cliente')
+        + '. I dati salvati verranno sostituiti con quelli inseriti ora.\n\nConfermi che e\' il cliente giusto?'
+      );
+      if (!confermaCliente) return;
+    }
     if (esito === 'ricontattare' && !(dettagli && dettagli.data_ricontatto)) {
       toast('KONA assegnera\' automaticamente data e fascia del prossimo ricontatto.');
     }
@@ -1096,14 +1116,62 @@
     var cliente = datiConsumer();
     setText('konaNegozioCliente', (cliente.nome_referente || cliente.ragione_sociale) + ' - ' + cliente.cellulare + ' - ' + cliente.cf_piva);
     go('negozio');
-    try {
-      var domani = new Date();
-      domani.setDate(domani.getDate() + 1);
-      var data = domani.toISOString().slice(0, 10);
-      await caricaSlotNegozio(data);
-    } catch (e) {
-      document.getElementById('konaNegozioGiorni').textContent = e.message;
+    await apriCalendarioNegozio();
+  }
+
+  // Data locale in formato YYYY-MM-DD. NON si usa toISOString(): convertendo in
+  // UTC, prima delle 02:00 italiane la data slitta al giorno precedente.
+  function isoLocale(d) {
+    var m = String(d.getMonth() + 1);
+    var g = String(d.getDate());
+    return d.getFullYear() + '-' + (m.length < 2 ? '0' + m : m) + '-' + (g.length < 2 ? '0' + g : g);
+  }
+
+  // Prossimi N giorni lavorativi (lun-ven) a partire da domani.
+  function prossimiGiorniLavorativi(quanti) {
+    var out = [];
+    var d = new Date();
+    for (var i = 0; i < 60 && out.length < quanti; i += 1) {
+      d.setDate(d.getDate() + 1);
+      var g = d.getDay();
+      if (g === 0 || g === 6) continue;
+      out.push(isoLocale(d));
     }
+    return out;
+  }
+
+  function evidenziaGiornoNegozio(data) {
+    document.querySelectorAll('#konaNegozioDayList button').forEach(function (b) {
+      if (b.getAttribute('data-day') === data) b.classList.add('active');
+      else b.classList.remove('active');
+    });
+  }
+
+  // Mostra i giorni selezionabili e carica il primo.
+  // Prima veniva caricato SOLO "domani": l'operatrice non poteva scegliere il
+  // giorno realmente concordato con il cliente.
+  async function apriCalendarioNegozio() {
+    _giorniNegozio = prossimiGiorniLavorativi(10);
+    var box = document.getElementById('konaNegozioDayList');
+    box.textContent = '';
+    _giorniNegozio.forEach(function (data) {
+      var b = document.createElement('button');
+      b.className = 'btn btn-secondary btn-sm';
+      b.setAttribute('data-day', data);
+      // Mezzogiorno evita slittamenti di data nella formattazione.
+      b.textContent = new Date(data + 'T12:00:00').toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit' });
+      b.onclick = function () {
+        caricaSlotNegozio(data).catch(function (e) {
+          document.getElementById('konaNegozioGiorni').textContent = e.message;
+        });
+      };
+      box.appendChild(b);
+    });
+    if (_giorniNegozio.length === 0) {
+      document.getElementById('konaNegozioGiorni').textContent = 'Nessun giorno lavorativo disponibile.';
+      return;
+    }
+    await caricaSlotNegozio(_giorniNegozio[0]);
   }
 
   async function apriNegozioTask() {
@@ -1123,18 +1191,13 @@
     document.getElementById('konaNegozioConferma').disabled = true;
     setText('konaNegozioCliente', c.nome + ' - ' + c.cellulare + (c.cf_piva ? ' - ' + c.cf_piva : ''));
     go('negozio');
-    try {
-      var domani = new Date();
-      domani.setDate(domani.getDate() + 1);
-      await caricaSlotNegozio(domani.toISOString().slice(0, 10));
-    } catch (e) {
-      document.getElementById('konaNegozioGiorni').textContent = e.message;
-    }
+    await apriCalendarioNegozio();
   }
 
   async function caricaSlotNegozio(data) {
     var res = await apiFetch(DIALOG, jsonBody({ action: 'negozio_slot', data: data }));
     _negozioDay = data;
+    evidenziaGiornoNegozio(data);
     _negozioSlot = res.slots || [];
     _negozioSelected = null;
     hide('konaNegozioRiepilogo');
@@ -1166,7 +1229,17 @@
   }
 
   function indietroNegozio() {
-    go(_negozioMode === 'task' ? 'outcome' : 'consumer');
+    if (_negozioMode === 'task') { go('outcome'); return; }
+    if (_negozioMode === 'correzione') {
+      // La correzione e' gia' stata salvata: si torna alla scheda agente.
+      _negozioMode = 'consumer';
+      _negozioContatto = null;
+      _correzioneChiamata = null;
+      go('welcome');
+      caricaStato().catch(function () { /* ignore */ });
+      return;
+    }
+    go('consumer');
   }
 
   async function confermaNegozio() {
@@ -1182,6 +1255,38 @@
         _task = null;
         _negozioMode = 'consumer';
         await dopoEsito();
+      } catch (e) {
+        toast(e.message, 'danger');
+      } finally {
+        _salvataggioInCorso = false;
+      }
+      return;
+    }
+    // Prenotazione nata da una CORREZIONE esito: il contatto viene dalla
+    // chiamata corretta, non dal form Consumer.
+    if (_negozioMode === 'correzione') {
+      var categoriaCorrezione = _stato && _stato.consumer_modalita;
+      if (!categoriaCorrezione) { toast('Nessuna modalita' + ' Consumer attiva: avvia prima la sessione Consumer.'); return; }
+      _salvataggioInCorso = true;
+      try {
+        await apiFetch(DIALOG, jsonBody({
+          action: 'negozio_prenota',
+          nome: _negozioContatto.nome,
+          cf_piva: _negozioContatto.cf_piva,
+          telefono: _negozioContatto.telefono,
+          motivo: _negozioContatto.motivo,
+          copertura: 'FTTH',
+          note: _negozioContatto.note,
+          data_ora: _negozioSelected.start,
+          categoria: categoriaCorrezione,
+          anagrafica_id: _negozioContatto.anagrafica_id
+        }));
+        toast('Appuntamento negozio prenotato e correzione completata.', 'success');
+        _negozioMode = 'consumer';
+        _negozioContatto = null;
+        _correzioneChiamata = null;
+        go('welcome');
+        await caricaStato();
       } catch (e) {
         toast(e.message, 'danger');
       } finally {
@@ -1306,7 +1411,7 @@
       if (c.modificabile) {
         var actions = document.createElement('div'); actions.className = 'kona-actions';
         var button = document.createElement('button'); button.type = 'button'; button.className = 'btn btn-secondary btn-sm'; button.textContent = 'Correggi esito';
-        button.onclick = function () { apriCorrezione(c.id); };
+        button.onclick = function () { apriCorrezione(c); };
         actions.appendChild(button); row.appendChild(actions);
       }
       box.appendChild(row);
@@ -1319,14 +1424,56 @@
     });
   }
 
-  function apriCorrezione(id) {
-    document.getElementById('konaCorrezioneId').value = id;
+  function apriCorrezione(chiamata) {
+    // Si conserva l'intera riga: serve per aprire il calendario del negozio se
+    // la correzione diventa "Appuntamento" (prima si passava solo l'id).
+    _correzioneChiamata = chiamata || null;
+    document.getElementById('konaCorrezioneId').value = chiamata && chiamata.id ? chiamata.id : '';
     document.getElementById('konaCorrezioneEsito').value = '';
     document.getElementById('konaCorrezioneMotivo').value = '';
     document.getElementById('konaCorrezioneData').value = '';
     document.getElementById('konaCorrezioneFascia').value = '';
     hide('konaCorrezioneRicontatto');
     show('modalKonaCorrezione');
+  }
+
+  // Apre il calendario del negozio partendo da una correzione esito: il contatto
+  // arriva dalla chiamata corretta, non dal form Consumer.
+  async function apriNegozioPerCorrezione(chiamata) {
+    if (!chiamata) { toast('Contatto non disponibile per la prenotazione.', 'danger'); return; }
+    _negozioMode = 'correzione';
+    _negozioSlot = [];
+    _negozioDay = null;
+    _negozioSelected = null;
+    _negozioContatto = {
+      nome: chiamata.nome_cliente || 'Cliente',
+      telefono: chiamata.cellulare || '',
+      cf_piva: chiamata.cf_piva || '',
+      anagrafica_id: chiamata.anagrafica_id || null,
+      motivo: chiamata.motivo_chiamata || 'Appuntamento Consumer',
+      note: chiamata.note || null
+    };
+    if (!_negozioContatto.telefono) {
+      toast('La chiamata non ha un telefono: prenota dal Call Center manuale.', 'danger');
+      return;
+    }
+    // La prenotazione negozio richiede una sessione Consumer attiva: si prova ad
+    // aprirla dal piano, come fa la fase Consumer automatica.
+    try {
+      var sessione = await apiFetch(TASK, jsonBody({ action: 'avvia_consumer' }));
+      if (sessione && sessione.consumer && sessione.consumer.modalita) {
+        _stato = _stato || {};
+        _stato.consumer_modalita = sessione.consumer.modalita;
+      }
+    } catch (_) { /* la prenotazione segnalera' se manca la sessione */ }
+    document.getElementById('konaNegozioGiorni').textContent = '';
+    document.getElementById('konaNegozioSlot').textContent = '';
+    hide('konaNegozioSlotWrap');
+    hide('konaNegozioRiepilogo');
+    document.getElementById('konaNegozioConferma').disabled = true;
+    setText('konaNegozioCliente', _negozioContatto.nome + ' - ' + _negozioContatto.telefono + (_negozioContatto.cf_piva ? ' - ' + _negozioContatto.cf_piva : ''));
+    go('negozio');
+    await apriCalendarioNegozio();
   }
 
   function chiudiCorrezione() { hide('modalKonaCorrezione'); }
@@ -1353,6 +1500,13 @@
       }));
       chiudiCorrezione();
       toast('Esito corretto e audit registrato.', 'success');
+      // Correggere a "Appuntamento" registra solo l'esito: senza aprire il
+      // calendario l'appuntamento non esisterebbe e la correzione sarebbe
+      // incoerente (esito appuntamento senza appuntamento).
+      if (esito === 'appuntamento') {
+        await apriNegozioPerCorrezione(_correzioneChiamata);
+        return;
+      }
       await eseguiRicercaInbound();
     } catch (e) {
       toast(e.message, 'danger');

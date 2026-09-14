@@ -232,17 +232,13 @@ async function failJob(supabase, job, message) {
   if (error) throw new Error(error.message || 'fallimento_job_non_registrato');
 }
 
-// Estrae i valori mancanti via OpenAI (web_search). Schema a PROPRIETA' FISSE
-// (niente chiavi dinamiche), max 2 tool call (garantito da max_tool_calls),
-// fonti REALI dall'API (web_search_call.action.sources, mai dal testo).
-async function estraiValori({ supabase, cfg, lead, campi }) {
-  if (campi.length === 0) return { ok: true, valori: {}, affidabilita: 0, fonti: [] };
-
-  // Con la ricerca web attiva il prompt contiene SOLO dati aziendali pubblici.
-  // Telefono, email e codice fiscale non servono a trovare i campi mancanti e
-  // non vengono inviati all'esterno: la ricerca usa ragione sociale, P.IVA,
-  // indirizzo, localita' e sito.
-  const context = {
+// Contesto inviato al modello quando la ricerca web e' attiva: SOLO dati
+// aziendali pubblici (ragione sociale, P.IVA, indirizzo, localita', sito).
+// Telefono, email e codice fiscale NON devono mai comparire: la garanzia e'
+// coperta da un test dedicato che fallisce se qualcuno li reintroduce.
+// La funzione e' pura ed esportata proprio per renderla verificabile.
+function contestoArricchimento(lead, campi) {
+  return {
     ragione_sociale: lead.ragione_sociale,
     localita: lead.localita,
     provincia: lead.provincia,
@@ -252,6 +248,15 @@ async function estraiValori({ supabase, cfg, lead, campi }) {
     sito_internet: lead.sito_internet,
     campi_da_cercare: campi
   };
+}
+
+// Estrae i valori mancanti via OpenAI (web_search). Schema a PROPRIETA' FISSE
+// (niente chiavi dinamiche), max 2 tool call (garantito da max_tool_calls),
+// fonti REALI dall'API (web_search_call.action.sources, mai dal testo).
+async function estraiValori({ supabase, cfg, lead, campi }) {
+  if (campi.length === 0) return { ok: true, valori: {}, affidabilita: 0, fonti: [] };
+
+  const context = contestoArricchimento(lead, campi);
   const instructions = [
     'Sei un assistente di arricchimento dati B2B per un CRM. Il lead e\' un\'attivita\'',
     'commerciale italiana. Cerca SOLO fonti pubbliche ufficiali o affidabili.',
@@ -520,10 +525,11 @@ module.exports = {
   backoffMs,
   campiMancanti,
   completeJob,
+  contestoArricchimento,
   estraiValori,
   failJob,
   processArricchimento,
   startArricchimento,
   validaCampo,
-  _test: { applicaValori, backoffMs, validaCampo, campiMancanti }
+  _test: { applicaValori, backoffMs, contestoArricchimento, validaCampo, campiMancanti }
 };
