@@ -39,14 +39,15 @@ const { categoriaCorrisponde } = require('./_lib/kona-cd-engine');
 const AIUTO = [
   'KONA Call Director - puoi scrivermi in italiano, non servono i comandi.',
   'Esempi: "come sta andando oggi?", "quanti appuntamenti abbiamo?",',
-  '"prepara il piano di domani", "sospendi tutto".',
+  '"prepara il piano di domani", "sospendi tutto",',
+  '"quali categorie posso scegliere?" (te le elenco con quanti contatti hai).',
   '',
   'Comandi rapidi (gratuiti, nessuna IA):',
   '/stato - stato globale e budget',
   '/report - report di oggi (aggregati)',
   '/piano [domani] - piano Business proposto',
   '/approva - approva il piano',
-  '/categorie - approva/modifica le categorie da chiamare',
+  '/categorie - elenco delle categorie che puoi chiamare, poi scegli',
   '/sospendi - sospensione immediata (chiede conferma)',
   '/riattiva - riattiva il sistema (chiede conferma)',
   '/aiuto - questo elenco',
@@ -321,12 +322,66 @@ async function cmdTelefoniOmaggio(client, cfg, data, chatId) {
   return `Piano ${data}: Telefoni omaggio da liste cartacee. Sessione Consumer manuale registrata.`;
 }
 
+// Le categorie tra cui si puo' scegliere NON sono nel codice: sono i settori
+// dei contatti Business presenti in `call_center_lead_outbound`. Un elenco di
+// esempio inventato ("Bar, negozi, officine") ha gia' fatto scrivere una
+// direttiva con nomi inesistenti: qui si legge la realta'.
+async function categorieDisponibili(client) {
+  const { data, error } = await client
+    .from('call_center_lead_outbound')
+    .select('categoria')
+    .eq('do_not_call', false)
+    .in('stato_lead', ['nuovo', 'da_contattare', 'ricontattare'])
+    .limit(1000);
+  if (error || !Array.isArray(data)) return null;
+  const conteggi = new Map();
+  for (const row of data) {
+    const categoria = String(row.categoria || '').trim();
+    if (!categoria) continue;
+    conteggi.set(categoria, (conteggi.get(categoria) || 0) + 1);
+  }
+  return [...conteggi.entries()]
+    .map(([categoria, contatti]) => ({ categoria, contatti }))
+    .sort((a, b) => b.contatti - a.contatti || a.categoria.localeCompare(b.categoria));
+}
+
+function etichettaCategorie(elenco, massimo = 12) {
+  return elenco.slice(0, massimo).map((c) => `${c.categoria} (${c.contatti})`).join(', ');
+}
+
+// Le due modalita' Consumer sono invece fisse e note dal codice.
+const CATEGORIE_CONSUMER = [
+  'telefoni_omaggio (contatti Consumer da liste cartacee)',
+  'fibra_fwa (contatti Consumer Fibra/FWA)'
+];
+
 async function cmdCategorie(client, chatId, data) {
   await audita(client, chatId, 'categorie_richieste', { data });
   // Nessuna copia stantia dello stato: il flag si applica allo stato corrente
   // e non cancella la voce di audit appena registrata.
   await aggiornaConversazione(client, chatId, { in_attesa_categorie: true });
-  return 'Quali categorie vuoi chiamare domani? (es. "Bar, negozi, officine") Rispondi con l\'elenco.';
+  const elenco = await categorieDisponibili(client);
+  if (elenco === null) {
+    return 'Quali categorie vuoi chiamare? Scrivi l\'elenco separato da virgole.';
+  }
+  if (elenco.length === 0) {
+    return [
+      'Quali categorie vuoi chiamare? Al momento non ci sono contatti Business',
+      'disponibili in nessuna categoria.',
+      '',
+      'Le modalita\' Consumer (sempre disponibili, liste manuali) sono:',
+      ...CATEGORIE_CONSUMER.map((c) => `- ${c}`)
+    ].join('\n');
+  }
+  return [
+    'Quali categorie vuoi chiamare? Queste sono le categorie dei contatti Business',
+    'disponibili adesso (fra parentesi quanti contatti):',
+    etichettaCategorie(elenco),
+    '',
+    'Rispondi con uno o piu\' di questi nomi, separati da virgola.',
+    'Le modalita\' Consumer (liste manuali) sono invece:',
+    ...CATEGORIE_CONSUMER.map((c) => `- ${c}`)
+  ].join('\n');
 }
 
 async function cmdSospendi(client, chatId) {
@@ -441,24 +496,29 @@ async function applicaDirettiva(client, cfg, chatId, data, argomenti = {}) {
 // rimarrebbe senza telefonate: meglio dirlo subito, con i nomi disponibili.
 async function avvisoCategorie(client, categorie) {
   if (!Array.isArray(categorie) || categorie.length === 0) return '';
-  const { data, error } = await client
-    .from('call_center_lead_outbound')
-    .select('categoria')
-    .eq('do_not_call', false)
-    .in('stato_lead', ['nuovo', 'da_contattare', 'ricontattare'])
-    .limit(1000);
-  if (error || !Array.isArray(data)) return '';
-  const disponibili = [...new Set(data.map((r) => String(r.categoria || '').trim()).filter(Boolean))];
-  const corrispondenti = data.filter((r) => categoriaCorrisponde(r.categoria, categorie)).length;
+  const elenco = await categorieDisponibili(client);
+  if (elenco === null) return '';
+  const totale = elenco.reduce((somma, c) => somma + c.contatti, 0);
+  // La corrispondenza si conta sui NOMI disponibili: il filtro dei candidati
+  // usa la stessa regola (`categoriaCorrisponde`), quindi un nome approvato che
+  // non compare qui non produrra' nessun contatto.
+  const corrispondenti = elenco
+    .filter((c) => categoriaCorrisponde(c.categoria, categorie))
+    .reduce((somma, c) => somma + c.contatti, 0);
   if (corrispondenti > 0) {
-    return `Contatti disponibili con queste categorie: ${corrispondenti}.`;
+    return `Contatti disponibili con queste categorie: ${corrispondenti} su ${totale}.`;
   }
-  const elenco = disponibili.slice(0, 12).join(', ') || 'nessuno';
+  if (elenco.length === 0) {
+    return [
+      'ATTENZIONE: nessun contatto Business e\' disponibile in questo momento,',
+      'quindi il piano non produrra\' telefonate Business.'
+    ].join('\n');
+  }
   return [
     'ATTENZIONE: nessun contatto corrisponde a queste categorie, quindi il piano',
-    'non produrra\' telefonate Business. Le categorie dei contatti disponibili sono:',
-    `${elenco}.`,
-    'Ripeti la direttiva usando uno di questi nomi.'
+    'non produrra\' telefonate Business. Le categorie che puoi scegliere sono:',
+    `${etichettaCategorie(elenco)}.`,
+    'Ripeti la direttiva usando uno di questi nomi (contatti fra parentesi).'
   ].join('\n');
 }
 
@@ -565,3 +625,6 @@ async function rispostaSenzaIa(client, chatId, conv, text, data, domani, esito) 
   }
   return { testo: `Adesso non riesco a interpretare (${esito.error_code}).\n\n${AIUTO}` };
 }
+
+// Esposti per i test: la function Netlify usa soltanto `handler`.
+module.exports._test = { avvisoCategorie, categorieDisponibili, etichettaCategorie };

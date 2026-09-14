@@ -96,6 +96,13 @@ Regole non negoziabili:
   nessun contatto corrisponde, il bot lo dice subito con l'elenco dei nomi
   disponibili, invece di lasciare una giornata senza telefonate. Orari,
   offerte e priorita' vanno nella nota libera;
+- **l'elenco di ciò che si può scegliere è nei dati, non nel codice.** Non
+  esiste una lista fissa di categorie Business: sono i settori dei contatti
+  presenti in `call_center_lead_outbound`. Il comando `/categorie` (oppure la
+  domanda "quali categorie posso scegliere?") stampa l'elenco reale con il
+  numero di contatti per categoria, e lo stesso elenco compare nell'avviso
+  quando una direttiva non corrisponde a nulla. Le due modalita' **Consumer**
+  sono invece fisse: `telefoni_omaggio` (liste cartacee) e `fibra_fwa`;
 - al modello arrivano **solo aggregati** (numero di task, appuntamenti, budget,
   zone). Mai nomi, telefoni, codici fiscali o email dei clienti: l'unico
   oggetto che esce dal server e' costruito da `contestoAssistente`.

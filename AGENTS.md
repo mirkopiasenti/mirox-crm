@@ -748,6 +748,12 @@ Regole permanenti:
   `categoriaCorrisponde` (`_lib/kona-cd-engine.js`, una sola implementazione) e
   se nessun contatto corrisponde il bot avvisa con l'elenco dei nomi
   disponibili invece di lasciare la giornata senza telefonate;
+- **non esiste una lista fissa di categorie Business**: sono i settori dei
+  contatti in `call_center_lead_outbound`. `/categorie` (o la domanda "quali
+  categorie posso scegliere?") stampa l'elenco reale con i conteggi
+  (`categorieDisponibili` + `etichettaCategorie` nel webhook). Non
+  reintrodurre elenchi di esempio inventati: hanno gia' fatto scrivere
+  direttive con nomi inesistenti;
 - chiedere la ricerca web a DeepSeek deve **fallire**
   (`provider_non_supporta_web_search`), mai degradare in silenzio:
   su OpenAI restano `arricchimento` (ricerca web) e `altro` (valutazione skip);

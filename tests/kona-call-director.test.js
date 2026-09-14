@@ -28,6 +28,7 @@ const assistente = L('kona-cd-assistente');
 const guardianTelegram = L('telegram');
 const dist = L('kona-cd-distances');
 const taskEndpoint = require(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-task.js'));
+const telegramWebhook = require(path.resolve(__dirname, '..', 'netlify/functions/kona-call-director-telegram-webhook.js'));
 
 const PROFILO = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const LEAD = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -2292,6 +2293,43 @@ test('categorie: solo i nomi delle categorie dei contatti fanno partire le chiam
   assert.equal(match('Negozi', ['clienti aziendali', 'fissi']), false);
   assert.equal(match('', ['Bar']), false);
   assert.equal(match('Bar', []), false);
+});
+
+test('categorie disponibili: l elenco scelto da Mirko viene dai contatti reali', async () => {
+  const db = makeSupabase({
+    'call_center_lead_outbound.select': () => ({ data: [
+      { categoria: 'Ristorazione' }, { categoria: 'Ristorazione' }, { categoria: 'Negozi' },
+      { categoria: '  ' }, { categoria: 'Servizi' }, { categoria: 'Negozi' }
+    ] })
+  });
+  const elenco = await telegramWebhook._test.categorieDisponibili(db);
+  // Ordinato per numero di contatti, le categorie vuote escluse.
+  assert.deepEqual(elenco, [
+    { categoria: 'Negozi', contatti: 2 },
+    { categoria: 'Ristorazione', contatti: 2 },
+    { categoria: 'Servizi', contatti: 1 }
+  ]);
+  assert.equal(telegramWebhook._test.etichettaCategorie(elenco), 'Negozi (2), Ristorazione (2), Servizi (1)');
+  // Lettura fallita: nessun elenco inventato.
+  const rotto = makeSupabase({ 'call_center_lead_outbound.select': () => ({ data: null, error: { message: 'boom' } }) });
+  assert.equal(await telegramWebhook._test.categorieDisponibili(rotto), null);
+});
+
+test('avviso categorie: dice quanti contatti corrispondono o quali nomi usare', async () => {
+  const db = makeSupabase({
+    'call_center_lead_outbound.select': () => ({ data: [
+      { categoria: 'Ristorazione' }, { categoria: 'Ristorazione' }, { categoria: 'Negozi' }
+    ] })
+  });
+  const ok = await telegramWebhook._test.avvisoCategorie(db, ['ristorazione']);
+  assert.match(ok, /2 su 3/);
+  // Il caso reale del collaudo: "clienti aziendali" e "fissi" non esistono.
+  const ko = await telegramWebhook._test.avvisoCategorie(db, ['clienti aziendali', 'fissi']);
+  assert.match(ko, /nessun contatto corrisponde/);
+  assert.match(ko, /Negozi \(1\)/);
+  assert.match(ko, /Ristorazione \(2\)/);
+  // Nessuna categoria richiesta: nessun avviso.
+  assert.equal(await telegramWebhook._test.avvisoCategorie(db, []), '');
 });
 
 test('assistente: gli argomenti del modello sono ripuliti e limitati', () => {
