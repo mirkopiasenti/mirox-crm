@@ -83,12 +83,14 @@ Regole non negoziabili:
   immediata);
 - se il modello non e' disponibile nessuna azione viene eseguita: il bot
   risponde con l'elenco dei comandi;
-- **il giorno non viene mai scelto di nascosto.** Se Mirko scrive "oggi" o
-  "domani" quella giornata vince su qualunque deduzione del modello; se non lo
-  dice, il bot **chiede** per quale giorno e aspetta "oggi"/"domani" (non esiste
-  un default automatico a domani: una direttiva "di oggi" e' finita sul piano di
-  domani ed e' il motivo di questa regola). La richiesta di conferma mostra
-  sempre `oggi 14/09/2026` / `domani 15/09/2026`, mai una data ISO nuda;
+- **il giorno non viene mai scelto di nascosto.** Se Mirko scrive "oggi",
+  "domani" o una data ("15/09", "15/09/2026", "2026-09-15") quella giornata
+  vince su qualunque deduzione del modello; se non lo dice, il bot **chiede** per
+  quale giorno e aspetta "oggi"/"domani"/una data (non esiste un default
+  automatico a domani: una direttiva "di oggi" e' finita sul piano di domani ed
+  e' il motivo di questa regola). La richiesta di conferma mostra sempre
+  `oggi 14/09/2026` / `domani 15/09/2026`, mai una data ISO nuda. Orari e durate
+  non vengono mai letti come date;
 - **le categorie di una direttiva sono le categorie dei CONTATTI**
   ("Ristorazione", "Negozi", "Servizi", ...), non le offerte ("fissi",
   "mobile"): sono quelle che il motore confronta per decidere chi chiamare. Se
@@ -127,7 +129,13 @@ attivita' e costruisce la giornata a tappe:
 
 1. si sceglie la giornata (oggi o domani) e il bot mostra le ore di lavoro
    configurate (`orario_mattina` + `orario_pomeriggio`) e quanto tempo c'e' in
-   totale;
+   totale. La giornata si puo' cambiare **anche a agenda aperta** scrivendo
+   "domani" oppure una data: se non c'e' ancora nessuna attivita' si riparte
+   sulla giornata nuova, altrimenti il bot avvisa invece di buttare via il
+   lavoro fatto. Le date si possono scrivere per esteso ("15/09/2026",
+   "15-09-2026", "15.09.2026", "15/09", "2026-09-15") e vengono validate
+   (esistente, non passata, entro 60 giorni); gli **orari non sono date**, quindi
+   "15:30-17:00" e "17.01-19.00" restano orari;
 2. propone le tre attivita' con i pulsanti: **lead outbound aziendali**,
    **liste Consumer Fibra/FWA**, **liste Consumer telefoni omaggio**;
 3. per i lead aziendali chiede prima le **categorie reali** (con il numero di
