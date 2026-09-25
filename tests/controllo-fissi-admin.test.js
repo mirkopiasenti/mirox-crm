@@ -22,18 +22,21 @@ test('ripristino Controllo Fissi espone una sola azione e valida gli identificat
   );
 });
 
-test('ripristino Controllo Fissi è admin-only, atomico sullo stato e azzera la data effettiva', () => {
+test('ripristino Controllo Fissi è admin-only, atomico da Attivo o KO e azzera i campi di esito', () => {
   assert.match(endpointSource, /requireAuth\(event,\s*\{\s*adminOnly:\s*true\s*\}\)/);
-  assert.match(endpointSource, /\.eq\('stato', 'Attivo'\)/);
+  assert.match(endpointSource, /\.in\('stato',\s*\['Attivo',\s*'KO'\]\)/);
   assert.match(endpointSource, /stato:\s*'In Attivazione'/);
   assert.match(endpointSource, /data_attivazione:\s*null/);
+  assert.match(endpointSource, /motivo_ko:\s*null/);
   assert.match(endpointSource, /stato_cambiato_da:\s*adminId/);
 });
 
-test('frontend mostra il tasto solo agli admin sulle pratiche Attivo e usa il backend autenticato', () => {
+test('frontend mostra il ripristino solo agli admin sulle pratiche Attivo o KO e richiede conferma', () => {
   assert.match(htmlSource, /window\.__profilo\.ruolo === 'admin'/);
-  assert.match(htmlSource, /stato === 'Attivo' && isControlloFissiAdmin\(\)/);
+  assert.match(htmlSource, /stato === 'Attivo' \|\| stato === 'KO'\) && isControlloFissiAdmin\(\)/);
   assert.match(htmlSource, /Rimetti in attivazione/);
+  assert.match(htmlSource, /Vuoi davvero correggere l’esito <strong>KO<\/strong>/);
+  assert.match(htmlSource, /MiroxUI\.confirm\(/);
   assert.match(
     htmlSource,
     /MiroxApi\.fetch\('\/\.netlify\/functions\/gestisci-controllo-fissi'/
