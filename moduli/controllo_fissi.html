@@ -763,7 +763,7 @@ function openDettaglio(id) {
         </div>
       </div>`;
   } else {
-    const reopenButton = stato === 'Attivo' && isControlloFissiAdmin()
+    const reopenButton = (stato === 'Attivo' || stato === 'KO') && isControlloFissiAdmin()
       ? '<button type="button" class="btn-action btn-action-primary" onclick="ripristinaInAttivazione()">Rimetti in attivazione</button>'
       : '';
     footer = `
@@ -1008,13 +1008,16 @@ async function ripristinaInAttivazione() {
     MiroxUI.toast('Azione riservata agli amministratori', 'error');
     return;
   }
-  if (r.stato !== 'Attivo') {
-    MiroxUI.toast('La pratica non è più nello stato Attivo', 'warning');
+  if (r.stato !== 'Attivo' && r.stato !== 'KO') {
+    MiroxUI.toast('La pratica non è più nello stato Attivo o KO', 'warning');
     return;
   }
 
+  const daKo = r.stato === 'KO';
   const ok = await MiroxUI.confirm(
-    'Vuoi rimettere questa pratica in <strong>"In Attivazione"</strong>?<br><br>La data di attivazione effettiva verrà azzerata.',
+    daKo
+      ? 'Vuoi davvero correggere l’esito <strong>KO</strong> e rimettere questa pratica in <strong>"In Attivazione"</strong>?<br><br>Il motivo del KO verrà cancellato. Potrai inserire un nuovo esito quando la pratica sarà aggiornata.'
+      : 'Vuoi rimettere questa pratica in <strong>"In Attivazione"</strong>?<br><br>La data di attivazione effettiva verrà azzerata.',
     {
       title: 'Ripristina pratica Fisso',
       okText: 'Rimetti in attivazione',

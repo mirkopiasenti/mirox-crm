@@ -61,7 +61,7 @@ async function reopenActivation({ supabase, auth, body }) {
       stato_cambiato_da: adminId
     })
     .eq('id', id)
-    .eq('stato', 'Attivo')
+    .in('stato', ['Attivo', 'KO'])
     .select('id, stato, attivazione_prevista, data_attivazione, motivo_ko, stato_cambiato_at, stato_cambiato_da')
     .maybeSingle();
 
@@ -69,7 +69,7 @@ async function reopenActivation({ supabase, auth, body }) {
   if (!data) {
     return response(409, {
       success: false,
-      error: 'La pratica non è più nello stato Attivo oppure non è stata trovata'
+      error: 'La pratica non è più nello stato Attivo o KO, oppure non è stata trovata'
     });
   }
 
