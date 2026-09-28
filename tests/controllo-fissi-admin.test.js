@@ -33,6 +33,7 @@ test('ripristino Controllo Fissi è admin-only, atomico da Attivo o KO e azzera 
 
 test('frontend mostra il ripristino solo agli admin sulle pratiche Attivo o KO e richiede conferma', () => {
   assert.match(htmlSource, /window\.__profilo\.ruolo === 'admin'/);
+  assert.match(htmlSource, /await window\.__profiloPromise/);
   assert.match(htmlSource, /stato === 'Attivo' \|\| stato === 'KO'\) && isControlloFissiAdmin\(\)/);
   assert.match(htmlSource, /Rimetti in attivazione/);
   assert.match(htmlSource, /Vuoi davvero correggere l’esito <strong>KO<\/strong>/);

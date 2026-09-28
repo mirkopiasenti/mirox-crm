@@ -214,7 +214,12 @@ body {
 <script src="../js/mirox-ui.js"></script>
 <script src="../js/mirox-api.js"></script>
 
-<script>(async () => { window.__profilo = await Auth.richiediAuth(); })();</script>
+<script>
+window.__profiloPromise = Auth.richiediAuth().then(profilo => {
+  window.__profilo = profilo;
+  return profilo;
+});
+</script>
 
 <!-- Header uniforme Mirox -->
 <div class="header">
@@ -597,7 +602,8 @@ function renderElenco(wrap) {
 // ============================================================
 // POPUP DETTAGLIO
 // ============================================================
-function openDettaglio(id) {
+async function openDettaglio(id) {
+  await window.__profiloPromise;
   const r = CFState.righe.find(x => x.id === id);
   if (!r) { MiroxUI.toast('Pratica non trovata', 'error'); return; }
   CFState.editingId = id;
@@ -628,6 +634,9 @@ function openDettaglio(id) {
           <select id="cfStato" ${stato === 'Da completare' || stato === 'Attivo' || stato === 'KO' ? 'disabled' : ''} onchange="onStatoChange(this.value)">
             ${statoOptions}
           </select>
+          ${(stato === 'Attivo' || stato === 'KO') && isControlloFissiAdmin()
+            ? '<button type="button" class="btn-action btn-action-primary" style="margin-top:10px;" onclick="ripristinaInAttivazione()">Rimetti in attivazione</button>'
+            : ''}
         </div>
         <div class="det-field">
           <label>Ragione Sociale</label>
@@ -763,15 +772,12 @@ function openDettaglio(id) {
         </div>
       </div>`;
   } else {
-    const reopenButton = (stato === 'Attivo' || stato === 'KO') && isControlloFissiAdmin()
-      ? '<button type="button" class="btn-action btn-action-primary" onclick="ripristinaInAttivazione()">Rimetti in attivazione</button>'
-      : '';
     footer = `
       <div class="foot-actions" style="width:100%;">
         <div class="left">
           <button type="button" class="btn-action btn-action-secondary" data-mx-close>Chiudi</button>
         </div>
-        <div class="right">${reopenButton}</div>
+        <div class="right"></div>
       </div>`;
   }
 
