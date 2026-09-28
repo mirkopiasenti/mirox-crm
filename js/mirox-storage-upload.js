@@ -1,9 +1,10 @@
 /**
- * Upload PDF server-side per i moduli operativi Mirox.
+ * Upload server-side per i moduli operativi Mirox.
  *
  * Il browser non scrive direttamente nei bucket Supabase: il file passa dalla
- * Netlify Function autenticata, che verifica firma PDF, dimensione, bucket e
- * percorso prima di usare la service role.
+ * Netlify Function autenticata, che verifica formato, dimensione, bucket e
+ * percorso prima di usare la service role. Le immagini sono abilitate solo per
+ * gli allegati del bucket Segnalazioni.
  */
 (function () {
   async function upload({ file, bucket, path }) {
@@ -15,7 +16,7 @@
     }
 
     const formData = new FormData();
-    formData.append('file', file, file.name || 'documento.pdf');
+    formData.append('file', file, file.name || path.split('/').pop() || 'documento.pdf');
     formData.append('bucket', bucket);
     formData.append('path', path);
 
