@@ -222,7 +222,12 @@ Correzione richieste libere: la frase «Rimandami il report completo di oggi
 diretti e `invia_report` conducono al formatter originale della coda.
 Regressione esatta, varianti, date/tipi non validi, retry e memoria verificati.
 Prova reale OpenAI con dati sintetici: invio completo e sole chiamate riconosciuti;
-richiesta di sola spiegazione rimane testuale. Pubblicazione correzione in corso.
+richiesta di sola spiegazione rimane testuale. Correzione `98dfc79` pubblicata,
+Netlify `6ac4092ffb22420009086e70` confermato dai metadati pubblici. Ripetuta
+la frase esatta del job segnalato in una nuova consegna auditabile, preservando
+lo storico: `repair:natural-report:98dfc79` inviato 3/3 (testo, PNG, PNG),
+al primo tentativo alle 20:32:52 UTC, nessun errore o stato incerto.
+Memoria solo testuale e lease rilasciato verificati; CI `37370299191` in coda.
 
 Riferimenti verificati: [OpenAI Docs: function calling](https://developers.openai.com/api/docs/guides/function-calling),
 [Supabase: sicurezza Data API](https://supabase.com/docs/guides/api/securing-your-api),
