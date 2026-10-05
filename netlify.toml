@@ -44,3 +44,8 @@
 # processa la coda Telegram. Tutte le azioni di scrittura restano approvate da Mirko.
 [functions."cron-guardian-observer"]
   schedule = "*/5 * * * *"
+
+# MIROX AI - Target — orario e calendario Europe/Rome verificati nel codice.
+# Recupera la coda anche fuori dall'orario serale; abilitazione esplicita production.
+[functions."cron-target-reports"]
+  schedule = "*/5 * * * *"

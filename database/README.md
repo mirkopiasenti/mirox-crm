@@ -80,6 +80,8 @@ La correzione Guardian del 2026-08-21 non modifica lo schema: i callback Telegra
 | `071_bonifica_localita_anagrafica.sql` | Bonifica transazionale delle località storiche: 1.094 aggiornamenti verificati (formato, province derivabili, accorpamenti/frazioni e decisioni manuali), eliminazione della sola riga isolata `ALTEDO` e conservazione delle due anagrafiche con storico tramite azzeramento della località errata. Crea `mirox_anagrafica_localita_audit`, server-only e con RLS, includendo lo snapshot recuperabile del record eliminato. Le 119 province con sigla corrente ma in conflitto restano intenzionalmente escluse. **Applicata il 2026-08-26 a production `lbgwamhjkjjfwgusafbi`.** |
 | `072_limita_telefoni_cb_dashboard.sql` | Allinea `TELEFONI CB` di Gare Individuali e Avanzamento Mensile al KPI Customer Base Consumer: conta soltanto `Telefono Incluso` con dispositivo associato e `tipo_acquisto` VAR o Finanziamento, escludendo Cambi Piano e Caring. |
 
+| `20261005185700_mirox_ai_target.sql` | Nuove `mirox_target_sessioni` e `mirox_target_jobs` server-only: memoria, lease, coda con dedupe/checkpoint e stato incerto. RLS e grant espliciti alla sola service role; nessun cambio a tabelle CC/RPC esistenti. Migration applicata il 05/10/2026 a production `lbgwamhjkjjfwgusafbi`; versione locale allineata al registro Supabase. RLS e privilegi anon/authenticated/service_role verificati. |
+
 ## Bootstrap esclusivi staging
 
 | File | Cosa introduce |

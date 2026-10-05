@@ -10,6 +10,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 - **Email**: Gmail SMTP via nodemailer + template DB (`email_template` + `email_log`)
 - **SMS transactional**: Smshosting REST API (consensi privacy via OTP — vedi `docs/SMSHOSTING_SETUP.md`)
 - **KONA AI Guardian**: OpenAI Responses API per raccolta/analisi strutturata + Audio Transcriptions per i vocali Telegram conclusi
+- **MIROX AI - Target**: bot dedicato con report serali alle 19:45 Europe/Rome e dialogo su riepiloghi CRM; configurazione production completata, pubblicazione in corso ([setup](docs/MIROX_AI_TARGET.md))
 - **Canale proprietario**: bot Telegram privato limitato al solo `chat_id` di Mirko
 - **Hosting**: Netlify (build statica a lista consentita in `dist/` + functions + cron schedules)
 
@@ -30,13 +31,14 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `admin-kpi-call-center.html` | KPI **Call Center**. Chiamate Consumer e lead Business outbound, nuovi appuntamenti e rischedulati, vinti, persi, da esitare, non presentati e annullati reali; viste giornaliera, settimane del mese e mensile con confronto operatrici. Solo admin |
 | `moduli/` | 19 pagine funzionali Vendita / Post-Vendita / Applicazioni / KONA AI (`anagrafiche`, `apri_chiudi`, `switch_sim`, `ordini_smartphone`, `dispositivi_comodato`, `gestione_rimborsi`, `segnalazioni`, `simulatore_protecta`, `storico_cliente`, `ticket`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `dashboard_pezzi` (3 tab: Day by Day + Gare Individuali + Avanzamento Mensile, con export PNG), `upload-contratti-vendita`, `compilatore_disdette`, `segnala-problema`). `anagrafiche.html` è una card del tab Post-Vendita e offre elenco clienti, filtro cluster, selezione multipla dei comuni, ricerca nominativo, dettaglio, modifica confermata ed export Excel completo; nel popup di modifica il Comune usa autocomplete ISTAT e compila automaticamente la provincia. L'eliminazione è riservata agli admin e alle sole anagrafiche prive di collegamenti CRM |
 | `moduli/call-center/` | **Modulo Call Center integrato** — 11 pagine autenticate (`registra-chiamata`, `elenco-chiamate`, `rilavorazione`, `appuntamenti`, `appuntamenti-oggi`, `prenota-interno`, `esiti-appuntamenti`, `blacklist`, `call-center-lead-outbound`, `prenota-interno-outbound`, `registra-chiamata-outbound`) + `prenota.html` (form pubblico). `configurazione` è sotto Admin Mirox (`admin-call-center-config.html`) |
-| `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-safe` (escape HTML, URL/ID/colori sicuri), `mirox-storage`, `mirox-storage-upload`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `anagrafica-helper`, `vendita-storage-helper`, `admin-shell`; logica pagina Anagrafiche in `anagrafiche.js` e KPI in `admin-kpi-vendita-consumer.js` / `admin-kpi-call-center.js`. Il vecchio `mirox-error-reporter` email e' stato rimosso |
+| `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-safe` (escape HTML, URL/ID/colori sicuri), `mirox-storage`, `mirox-storage-upload`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `anagrafica-helper`, `vendita-storage-helper`, `admin-shell`, `dashboard-report-core` (motore puro Day/Mensile condiviso con Target); logica pagina Anagrafiche in `anagrafiche.js` e KPI in `admin-kpi-vendita-consumer.js` / `admin-kpi-call-center.js`. Il vecchio `mirox-error-reporter` email e' stato rimosso |
 | `css/` | `style.css`, `mirox-modules.css`, `admin-shell.css`, `admin-kpi.css` |
 | `assets/` | Logo, favicon e mascotte trasparente `kona-guardian-robot.png` |
 | `scripts/build-static.js` | Build Netlify: copia in `dist/` soltanto i file pubblici, genera `dist/js/config.js` con ambiente/release e inietta la telemetria nelle pagine autenticate |
+| `.backup-private/` | Credenziali e pacchetti privati, ignorati da Git; mai pubblici |
 | `dist/` | Output locale della build, ignorato da Git. Non contiene backend, migration, test o documentazione |
 | `netlify/functions/` | Endpoint server-side (vedi sotto) |
-| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`, `privacy-pdf-storage`, `pdf-disdetta`, `score-integrity`, `kona-ai-guardian`, `telegram`, `guardian-codex`, `guardian-telemetry`, `guardian-triage`, `with-telemetry`) |
+| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`, `privacy-pdf-storage`, `pdf-disdetta`, `score-integrity`, `kona-ai-guardian`, `telegram`, `guardian-codex`, `guardian-telemetry`, `guardian-triage`, `with-telemetry`, `target-reports`, `target-dialogue`, `target-queue`, `target-telegram`) |
 | `netlify/functions/_templates/disdette/` | I quattro moduli PDF WindTre originali usati come sfondo immutabile dal Compilatore disdette |
 | `tests/` | Test automatici Node (`node:test`): regressioni vendita, sicurezza/XSS, PDF privacy, sintassi e link locali |
 | `.github/workflows/ci.yml` | CI GitHub: build e test con Node 22 su pull request e branch `main`/`staging` |
@@ -44,6 +46,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `.github/workflows/guardian-observer-analysis.yml` | Analisi automatica e scansioni preventive in sandbox read-only sul commit che ha generato il segnale; nessun push o modifica repository |
 | `.github/codex/` | Prompt e schemi strutturati usati dai workflow Codex; i dati della segnalazione arrivano soltanto tramite il worker HMAC |
 | `docs/KONA_AI_GUARDIAN_SETUP.md` | Setup production, Telegram/OpenAI, approvazioni e confini del primo agente |
+| `docs/MIROX_AI_TARGET.md` | Requisiti, report, dialogo, setup bot dedicato, coda e collaudo Target |
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |
 | `database/staging/` | Bootstrap one-shot esclusivi del Supabase staging; non applicabili a production |
 | `netlify.toml` | Config Netlify, header di sicurezza (CSP/HSTS/Permissions-Policy) e cron |
@@ -52,10 +55,13 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 
 ### Netlify Functions
 
-Tutte le functions, eccetto i due cron Netlify, l'endpoint anon intenzionale `public-prenota` e il webhook Telegram protetto da secret token + allowlist del `chat_id`, richiedono `Authorization: Bearer <jwt>` valido — il client usa `MiroxApi.fetch()` che lo inietta automaticamente dalla sessione Supabase.
+Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenota`, i webhook Telegram Guardian/Target protetti da secret token e allowlist proprietario e i worker Guardian/Target protetti da HMAC. Il client CRM usa `MiroxApi.fetch()`; Target ha un canale backend dedicato.
 
 | Function | Metodo | Auth | Scopo |
 |---|---|---|---|
+| `target-telegram-webhook` | POST | secret Telegram + chat privata proprietario | Accoda testo/vocali nel bot dedicato Target; dedupe update e dialogo libero |
+| `target-worker-background` | POST background | HMAC + timestamp | Genera report/dialogo, memoria privata e consegna con checkpoint |
+| `cron-target-reports` | scheduled `*/5 * * * *` | cron Netlify | Report alle 19:45 italiane, calendario lavorativo, dedupe e risveglio coda Target |
 | `vendita-config` | GET | authenticated | Carica catalogo per il wizard contratti |
 | `admin-vendita-config` | GET / POST | **admin** | CRUD admin del catalogo |
 | `admin-kpi-vendita-consumer` | GET | **admin** | Aggrega i KPI Consumer o Business, selezionati tramite parametro `cluster`, per Mobile, Fisso, Customer Base, Luce & Gas, Allarmi e Assicurazioni; la scheda Customer Base è mostrata soltanto nel Consumer |
@@ -199,6 +205,14 @@ Dettagli e regole complete in [`AGENTS.md`](AGENTS.md); [`CLAUDE.md`](CLAUDE.md)
 | `OPENAI_API_KEY` | sì (per Guardian AI) | Responses API e Audio Transcriptions; solo lato server |
 | `OPENAI_GUARDIAN_MODEL` | no | Default `gpt-5.6-luna` |
 | `OPENAI_TRANSCRIBE_MODEL` | no | Default `gpt-transcribe` |
+| `TARGET_ENABLED` | per Target | `true` abilita il bot esclusivamente production; default spento |
+| `TELEGRAM_TARGET_BOT_TOKEN` | per Target | Token del bot MIROX AI - Target, backend-only |
+| `TELEGRAM_TARGET_OWNER_CHAT_ID` | per Target | chat_id privato di Mirko |
+| `TELEGRAM_TARGET_WEBHOOK_SECRET` | per Target | Segreto webhook dedicato, almeno 32 caratteri |
+| `TARGET_WORKER_SECRET` | per Target | Segreto HMAC distinto, almeno 32 caratteri |
+| `OPENAI_TARGET_API_KEY` | per Target | Chiave OpenAI dedicata a dialogo e trascrizioni Target; nessun fallback sulla chiave Guardian |
+| `OPENAI_TARGET_MODEL` | no | Modello dialogo Target; default `gpt-5.6-luna` |
+| `OPENAI_TARGET_TRANSCRIBE_MODEL` | no | Modello vocali Target; default `gpt-transcribe` |
 | `TELEGRAM_GUARDIAN_BOT_TOKEN` | sì (per Telegram Guardian) | Token del bot dedicato; mai nel frontend |
 | `TELEGRAM_GUARDIAN_OWNER_CHAT_ID` | sì (per Telegram Guardian) | Unico `chat_id` autorizzato, appartenente a Mirko |
 | `TELEGRAM_GUARDIAN_WEBHOOK_SECRET` | sì (per Telegram Guardian) | Segreto casuale verificato nell'header webhook |
@@ -377,6 +391,7 @@ su `main` dopo il merge. I deploy production restano attivi.
 
 - `cron-rientro-sim`: ogni giorno alle **07:00 UTC** (09:00 ora italiana estate / 08:00 inverno). Cerca pratiche `vendita_switch_sim` con `giorno_rientro = oggi` e `mail_rientro_inviata_at IS NULL`, invia notifica via template `rientro_sim`, imposta `mail_rientro_inviata_at = now()`. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o inviare email.
 - `cron-pulizia-operativa`: ogni giorno alle **02:30 UTC**. Scade gli OTP pending oltre termine, elimina i contatori del rate limit pubblico scaduti, recupera fino a 100 pratiche `bozza` più vecchie di 24 ore cancellando prima i PDF Storage e poi la pratica, rimuove dopo 90 giorni il contesto tecnico degli incidenti Guardian ed elimina gli eventi Observer oltre `expires_at`. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o modificare dati.
+- `cron-target-reports`: ogni **5 minuti**, crea i tre report alle **19:45 Europe/Rome**, lun-sab escluse festivita nazionali/Pasquetta; riprende la coda anche fuori orario. Richiede configurazione esplicita Target production.
 - `cron-guardian-observer`: ogni **5 minuti**. Legge eventi Guardian già ripuliti, aggiorna i gruppi, apre incidenti sopra soglia, avvia al massimo il budget giornaliero di analisi Codex read-only e consegna le notifiche Telegram dalla coda persistente. Non modifica codice o produzione; se il workflow non è configurato conserva la segnalazione e richiede un controllo manuale; non ripete il medesimo segnale senza limite.
 
 ## Link utili

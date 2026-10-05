@@ -36,3 +36,6 @@ npm-debug.log*
 .bin/
 supabase/.temp/
 supabase/.branches/
+
+# Credenziali e pacchetti privati (mai pubblici)
+.backup-private/

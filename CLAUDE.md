@@ -2,6 +2,17 @@
 
 Questo file viene letto automaticamente all'avvio di ogni sessione Claude. Contiene il contesto necessario per essere subito produttivi senza ri-esplorare il repo.
 
+## MIROX AI - Target (05/10/2026)
+
+Secondo bot privato di Mirko: tre report alle 19:45
+Europe/Rome, lun-sab escluse festivita nazionali/Pasquetta e dialogo libero.
+Motore condiviso `js/dashboard-report-core.js`, webhook Target dedicato, worker
+background HMAC e cron ogni 5 minuti; coda/memoria in due nuove tabelle server-only.
+Chiave OpenAI dedicata `OPENAI_TARGET_API_KEY` per testo e vocali, senza fallback
+Guardian. Nessuna modifica a tabelle CC condivise. Migration applicata e credenziali
+Production configurate il 05/10; pubblicazione autorizzata in corso. Regole complete in [AGENTS.md](AGENTS.md) e
+[setup Target](docs/MIROX_AI_TARGET.md).
+
 ## Cos'è questo progetto
 
 **Mirox CRM Vendita** — modulo di gestione vendite e post-vendita di Konatech. Static HTML + Netlify Functions (Node) + Supabase Postgres.

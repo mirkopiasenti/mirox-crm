@@ -19,7 +19,9 @@ test('TELEFONI CB è limitata ai telefoni Consumer in entrambe le dashboard mens
   assert.match(migration, /'dispositivo_associato', true/);
   assert.match(migration, /'tipo_acquisto', 'VAR'/);
   assert.match(migration, /'tipo_acquisto', 'Finanziamento'/);
-  assert.match(dashboard, /Array\.isArray\(regola\.or\)/);
-  assert.match(dashboard, /regola\.dispositivo_associato !== undefined/);
-  assert.match(dashboard, /regola\.tipo_acquisto/);
+  const engine = fs.readFileSync(path.join(root, 'js/dashboard-report-core.js'), 'utf8');
+  assert.match(dashboard, /MiroxDashboardReport.matchRegola/);
+  assert.match(engine, /Array\.isArray\(regola\.or\)/);
+  assert.match(engine, /regola\.dispositivo_associato !== undefined/);
+  assert.match(engine, /regola\.tipo_acquisto/);
 });

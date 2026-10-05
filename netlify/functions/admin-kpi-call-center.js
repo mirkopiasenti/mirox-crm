@@ -283,3 +283,6 @@ exports._test = {
   serializeSeries,
   yearRange
 };
+
+// API interna condivisa dal report Target: identiche definizioni del KPI.
+exports.reportHelpers = { buildProfileResolver, emptyMetrics, addCall, addAppointmentSet };

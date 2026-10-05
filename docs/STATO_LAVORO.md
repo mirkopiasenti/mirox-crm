@@ -3,6 +3,17 @@
 Aggiornato: 2026-10-05. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
+## MIROX AI - Target: configurazione production 05/10
+
+- Bot dedicato solo Mirko; tre report alle 19:45 Europe/Rome, lun-sab escluse festivita' nazionali/Pasquetta; aggiornamento manuale e dialogo libero testo/vocali, memoria 30 messaggi, strumenti read-only aggregati.
+- Vendite Day by Day: data contratto UTC come pagina, solo Legnago, esclusi reinserimenti, righe non-zero per operatore. CC: Consumer + outbound, tentativi/risposte/non risposte/nuovi fissati, spostamenti separati e totali. Mensile: Standard + sola Extra Gara P.IVA, Andamento/Eccedenza.
+- Motore puro `js/dashboard-report-core.js` condiviso dalla pagina; webhook dedicato, worker background HMAC, cron5min, coda con lease/checkpoint/429 e sospensione esiti ambigui.
+- `npm test`:198/198; build verificata. Rendering mensile prima/dopo identico sui dati reali,60 mesi calendario2024-28 coincidenti. Sola lettura prod:35contratti Legnago ottobre,8categorie. Migration applicata con RLS/grant verificati; nessun messaggio Telegram inviato al momento della preparazione deploy.
+- Anteprima privata `.backup-private/target-validation/report-2026-10-05.txt`; ottobre senza obiettivi (settembre30): configurazione Admin necessaria, non inventare Andamento.
+- Nuove tabelle server-only in migration locale `database/20261005185700_mirox_ai_target.sql`, generata CLI. Nessuna tabella CC alterata. Bot/token/chat/segreti e 8 variabili Netlify configurati solo Production, Secret Builds/Functions/Runtime (scope isolato non disponibile nel piano). Webhook e pubblicazione in corso, autorizzati esplicitamente dal proprietario.
+- Credenziali dedicate ricevute in `.backup-private/mirox-target-secrets.json` ignorato/0600: token `@MiroxAiTargetBot` e OpenAI validi; risposta sintetica reale riuscita senza dati CRM, modello vocali accessibile. Testo/vocali usano solo `OPENAI_TARGET_API_KEY`; segreti webhook/HMAC preparati privatamente. Chat privata riconfermata dal primo Avvia; webhook ancora da collegare.
+- Guide README/AGENTS/CLAUDE/database README + `docs/MIROX_AI_TARGET.md` aggiornate. Prossimo passo: push/deploy autorizzato, collegamento webhook, collaudo consegne e dialogo; vocali da verificare con un messaggio reale. Backup preesistente preservato.
+
 ## Guardian: distribuito production il 05/10/2026
 
 - 104messaggi settembre:80analisi fallite+5scan. Run campione invalid_api_key, workflow verde mascherava guasto; gia' OpenAI, nessun DeepSeek nel codice.

@@ -108,6 +108,7 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 
 | File JS | Espone | Uso |
 |---|---|---|
+| `js/dashboard-report-core.js` | `window.MiroxDashboardReport` / CommonJS server | Motore puro condiviso con Target: matching, pesi, calendario, righe Day e mensili |
 | `js/config.js` | `window.db`, `window.MiroxEnvironment` | Guard nel sorgente; la build genera il client con URL + publishable/anon key dell'ambiente |
 | `js/auth.js` | `window.Auth` | `richiediAuth()` guard, `logout()`, `getProfilo()`. Le operazioni sensibili sono autorizzate per ruolo lato server; il frontend non richiede password operative o una seconda immissione della password account |
 | `js/mirox-safe.js` | `window.MiroxSafe` | `escapeHtml`, `safeUrl`, `isUuid`, `isRecordId`, `safeCssColor`. Caricato da tutte le pagine per impedire che dati DB/input diventino markup, URL o handler eseguibili |
@@ -125,8 +126,11 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 
 ### 2. Server (`/netlify/functions/`, Node >=22)
 
-Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i cron Netlify, `public-prenota`, `guardian-telegram-webhook` e `guardian-codex-worker`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `guardian-telemetry-ingest` è autenticata e accetta soltanto eventi tecnici a schema chiuso; `guardian-codex-worker` è protetta da HMAC e da un lease server-only. Il webhook Guardian e' una seconda eccezione pubblica ma richiede sia il secret token Telegram sia il `chat_id` di Mirko. Nessuno degli endpoint è un endpoint anonimo generico. `admin-vendita-config`, `admin-kpi-vendita-consumer`, `admin-kpi-call-center`, `gestisci-controllo-fissi`, `elimina-vendita-contratto`, le action manuali di `gestisci-controllo-lg` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. Le funzioni Guardian condividono inoltre `guardian-telemetry`, `guardian-triage`, `with-telemetry` e l'outbox dell'Observer:
+Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i cron Netlify, `public-prenota`, `guardian-telegram-webhook`, `guardian-codex-worker`, `target-telegram-webhook` e `target-worker-background`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `guardian-telemetry-ingest` è autenticata e accetta soltanto eventi tecnici a schema chiuso; `guardian-codex-worker` è protetta da HMAC e da un lease server-only. Il webhook Guardian e' una seconda eccezione pubblica ma richiede sia il secret token Telegram sia il `chat_id` di Mirko. Nessuno degli endpoint è un endpoint anonimo generico. `admin-vendita-config`, `admin-kpi-vendita-consumer`, `admin-kpi-call-center`, `gestisci-controllo-fissi`, `elimina-vendita-contratto`, le action manuali di `gestisci-controllo-lg` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. Le funzioni Guardian condividono inoltre `guardian-telemetry`, `guardian-triage`, `with-telemetry` e l'outbox dell'Observer:
 
+- `target-telegram-webhook.js` (POST) — secret Telegram dedicato e chat privata Mirko; accoda testo/vocali Target con dedupe.
+- `target-worker-background.js` (POST background) — HMAC + timestamp, lease della sessione e checkpoint di invio; report, memoria e dialogo read-only.
+- `cron-target-reports.js` (scheduled `*/5 * * * *`) — crea i report alle 19:45 Europe/Rome con calendario nazionale, deduplica data e risveglia la coda; attivo solo con configurazione Target production.
 - `vendita-config.js` (GET) — catalogo per wizard
 - `admin-vendita-config.js` (GET/POST action-based) — CRUD admin offerte/opzioni/reload + replace regole documentali
 - `admin-kpi-vendita-consumer.js` (GET) — endpoint admin-only condiviso dai KPI Vendita Consumer e Business. Accetta soltanto `cluster=Consumer|Business`, poi aggrega Mobile, Fisso, Customer Base, Energia/Luce & Gas, Allarmi e Assicurazioni per anno/punto vendita; la scheda Customer Base è esposta dalla sola pagina Consumer. Combina `vendita_contratti` con le tabelle post-vendita per stati, tecnologie e attivazioni; legge inoltre modalità di pagamento Allarmi e `punteggio_gara_totale` Assicurazioni. Produce sia i totali sia le stesse metriche per operatore canonico, usate dal filtro globale, leggendo esclusivamente `profili.id`, `profili.nome` e `profili.alias_di`.
@@ -230,6 +234,7 @@ Le migration Guardian additive `065`–`068` sono applicate sul production `lbgw
 - `segnalazioni` (+ `segnalazioni_backup`)
 - `ticket` — badge in dashboard quando `stato='Da gestire'`
 - `email_template` (con `{{placeholder}}`), `email_log` (`status` IN sent/error)
+- `mirox_target_sessioni` / `mirox_target_jobs` — migration `20261005185700`: memoria, lease serializzazione e coda Target con dedupe/checkpoint. RLS e grant solo service role; applicata al production il 05/10/2026.
 - `dashboard_righe_giornaliera` — config righe dashboard custom
 - `mirox_public_rate_limits` — contatori temporanei del rate limit pubblico; fingerprint IP solo come SHA256, RLS attiva, nessun grant `anon`/`authenticated`. Scrittura/lettura tramite RPC service-role `mirox_public_rate_limit_v1` (migration `055`)
 
@@ -713,6 +718,34 @@ Guardian e' attivo su `mirox-crm.it`, Supabase `lbgwamhjkjjfwgusafbi`, bot `@Mir
 Env vars: `OPENAI_API_KEY`, `OPENAI_GUARDIAN_MODEL`, `OPENAI_TRANSCRIBE_MODEL`, `TELEGRAM_GUARDIAN_BOT_TOKEN`, `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`, `TELEGRAM_GUARDIAN_WEBHOOK_SECRET`, `KONA_AI_OWNER_PROFILE_ID`, `GUARDIAN_OBSERVER_ENABLED`, `GUARDIAN_OBSERVER_DAILY_BUDGET`, `GUARDIAN_OBSERVER_MODEL`, `GUARDIAN_OBSERVER_REF`, `GUARDIAN_OBSERVER_WEEKLY_SCAN`, `GUARDIAN_TELEMETRY_HASH_SECRET`. Mai esporle nel frontend o committarle. Setup completo: `docs/KONA_AI_GUARDIAN_SETUP.md`.
 
 ---
+## MIROX AI - Target (sviluppo 05/10/2026)
+
+Bot Telegram dedicato al solo proprietario, separato da Guardian. Tre report alle
+19:45 Europe/Rome, lun-sab escluse festivita' nazionali e Pasquetta, con recupero
+entro la stessa sera e aggiornamento manuale anche nei giorni esclusi.
+Day by Day: data contratto e righe configurate della pagina, solo Legnago,
+reinserimenti esclusi, pezzi per operatore e categorie a zero omesse. Il totale
+e' quello delle righe Day by Day (un contratto puo' contribuire a piu' righe).
+Mensile: Standard + sola Extra Gara P.IVA, stessi filtri post-vendita, punteggi,
+calendario, Andamento ed Eccedenza della pagina; obiettivo assente dichiarato.
+CC: Consumer + Business outbound, ogni tentativo conta, non_risposto distinto
+dagli altri esiti, nuovi fissati per created_at e spostamenti separati.
+Convenzione: il motore puro `js/dashboard-report-core.js` e' condiviso tra pagina
+e server; intervalli data contratto UTC come nella pagina, eventi CC Europe/Rome.
+Dialogo Responses API con memoria dedicata e strumenti di sola lettura per
+riepiloghi giornalieri/mensili e confronti; dati cliente, documenti e segreti
+esclusi. Non eredita workflow o poteri operativi Guardian.
+Chiave `OPENAI_TARGET_API_KEY` dedicata a dialogo e vocali, senza fallback Guardian;
+modelli indipendenti `OPENAI_TARGET_MODEL` e `OPENAI_TARGET_TRANSCRIBE_MODEL`
+(default `gpt-5.6-luna` e `gpt-transcribe`).
+Webhook: secret Telegram e allowlist proprietario/chat privata; worker background
+interno HMAC; cron ogni 5 minuti. Coda e memoria in nuove tabelle server-only,
+nessuna modifica alle tabelle CC condivise. Claim condizionale, consegna ordinata
+con checkpoint per messaggio; esito Telegram ambiguo sospeso per evitare duplicati.
+Abilitazione esplicita `TARGET_ENABLED=true` solo in production; token/chat/secret
+Target dedicati. Codice e migration locale non equivalgono ad attivazione.
+Setup e limiti: `docs/MIROX_AI_TARGET.md`.
+
 ## Sistema consensi privacy GDPR (dal 2026-06-26)
 
 Mirox archivia nel CRM di proprietà/gestione Kona Tech dati e documenti consegnati per la specifica pratica. Prima dell'invio il wizard registra la presa visione dell'informativa ex artt. 13-14 GDPR e, separatamente, l'eventuale consenso facoltativo ai ricontatti promozionali. I contatti di servizio sulla pratica specifica possono avvenire tramite chiamata, WhatsApp o email e non dipendono dal flag marketing. Il modulo non disciplina il contratto WindTre/altro fornitore né sostituisce la relativa informativa.
