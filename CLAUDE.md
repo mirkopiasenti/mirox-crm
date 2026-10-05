@@ -4,7 +4,7 @@ Questo file viene letto automaticamente all'avvio di ogni sessione Claude. Conti
 
 ## Identita per contratto (05/10/2026)
 
-Nuova regola documentata in AGENTS, sezione Documenti; il carrello carica una volta e il backend associa un PDF indipendente a ogni riga prima di `finalize`. Bonifica dello storico dal 1 luglio autorizzata, inclusi 3 casi con documento piu recente dello stesso cliente in altra pratica. Nessuna modifica schema/CC; risultati in `docs/IDENTITA_CONTRATTI_2026-10-05.md` e report operativi privati. Il proprietario ha autorizzato il push; verificare il deploy del commit esatto.
+Nuova regola documentata in AGENTS, sezione Documenti; il carrello carica una volta e il backend associa un PDF indipendente a ogni riga prima di `finalize`. Bonifica dello storico dal 1 luglio: 128contratti/129PDF verificati, inclusi 3riusi autorizzati dello stesso cliente;4residui senza PDF all'origine. Nessuna modifica schema/CC; risultati in `docs/IDENTITA_CONTRATTI_2026-10-05.md` e report operativi privati. Commit7c5afef online, Netlify6ac411ed e metadati/HTML verificati, CI37374083065 riuscita;221test del commit pulito. Backup preesistente escluso dal push.
 
 ## MIROX AI - Target (05/10/2026)
 

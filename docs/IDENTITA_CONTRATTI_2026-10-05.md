@@ -19,8 +19,13 @@ riga di contratto, anche nei carrelli, e sistemare lo storico dal 1 luglio 2026.
   Verifica Contratti continua a leggere gli allegati per `contratto_id`.
 - Nessuna migration, modifica RLS o tabella Call Center condivisa.
 
-**Pubblicazione autorizzata dal proprietario con «vai con push».**
-Codice testato; dopo il push verificare CI e deploy production del commit esatto.
+**Nuova regola pubblicata in produzione il 05/10/2026**, su richiesta «vai con push».
+Commit funzionale `7c5afef495ba819addcf0bc035864342bea9c26e`, deploy Netlify
+`6ac411ed17611f0008c6aa5e`: metadati pubblici e carrello HTTP 200 confermano
+SHA e regola esatti. Le due funzioni aggiornate rispondono 401 senza JWT.
+[CI 37374083065](https://github.com/mirkopiasenti/mirox-crm/actions/runs/37374083065)
+riuscita; 221 test del commit verificati anche in snapshot locale pulito.
+Controlli runtime eseguiti senza creare nuove pratiche.
 
 ## Bonifica applicata in produzione
 
@@ -65,5 +70,5 @@ la seconda esecuzione e stata approvata ed e riuscita. Nessun blocco residuo.
 - Query SQL finale conferma copertura, intervallo e presenza delle 129 copie.
 - Per quattro righe Energia di due clienti il PDF non e mai stato registrato:
   serve integrazione manuale, elenco privato `DA_INTEGRARE.md`.
-- Pubblicazione autorizzata; registrare l'esito delle verifiche post-deploy.
+- Pubblicazione e verifiche production/CI completate. Restano solo i PDF dei quattro residui.
 - Guide README/AGENTS/CLAUDE/database README e promemoria aggiornati.
