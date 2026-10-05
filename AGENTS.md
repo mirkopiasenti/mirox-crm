@@ -637,6 +637,12 @@ grezzi. Le scansioni preventive devono consegnare anche i fallimenti via outbox.
 Il workflow fallisce dopo la consegna di un esito tecnico negativo; codice e
 prompt del control plane si conservano prima del checkout del commit analizzato.
 
+Verifica runtime Guardian: workflow manuale `guardian-healthcheck.yml` su main,
+Environment production, action `health` del worker protetta da HMAC. Controlla
+Responses con testo sintetico senza dati CRM, identita' bot/webhook via GET e
+accessibilita' memoria DB. Non invia messaggi Telegram, non modifica dati o
+configurazioni e restituisce soltanto esiti/codici chiusi; nessuna chiave o log.
+
 ### Flusso e autorizzazioni
 
 1. Qualunque utente autenticato apre `moduli/segnala-problema.html`, sceglie `Segnala un problema` oppure `Proponi una miglioria` e conversa con Guardian tramite `guardian-incidents`.
@@ -668,10 +674,10 @@ Il proprietario conferma eliminato l'ambiente Guardian precedente e richiede
 modifiche e collaudo direttamente sul CRM ufficiale. Questa istruzione sostituisce
 il precedente requisito di un ambiente separato. Dettagli nel report Guardian.
 
-Correzioni locali dei segnali Guardian settembre: Ticket usa listener su dati
+Correzioni distribuite dei segnali Guardian settembre: Ticket usa listener su dati
 per aprire Lavorata anche con nomi contenenti apostrofi; Comodato elimina il
 controllo Apps Script dismesso; Apri/Chiudi azzera l'anteprima SIM tramite il
-renderer corrente quando la scelta torna a No. Non ancora distribuite.
+renderer corrente quando la scelta torna a No.
 
 ### Ambiente e segreti
 
@@ -803,9 +809,3 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 | Modificare le **regole di accesso pagine Call Center** | NON farlo da qui — è gestito dall'altro progetto. Coordinare con utente. |
 | **Promuovere un utente ad Admin** o gestire i permessi CC | Dashboard → Admin → Gestione Utenti (`admin-utenti.html`). Bottoni "Rendi Admin"/"Rendi Operatore" + modale "Permessi CC". Solo accessibile se sei admin |
 | **Aggiungere una nuova pagina al pannello Admin** | Nuova pagina `admin-<nome>.html` alla root con `css/admin-shell.css` + `js/admin-shell.js`, aggiungere mapping e voce nel reparto corretto di `admin-shell.js`, riusare guard pattern `Auth.richiediAuth()` + check `ruolo === 'admin'` (vedi sezione "Pannello Admin Mirox") |
-
-Verifica runtime Guardian: workflow manuale `guardian-healthcheck.yml` su main,
-Environment production, action `health` del worker protetta da HMAC. Controlla
-Responses con testo sintetico senza dati CRM, identita' bot/webhook via GET e
-accessibilita' memoria DB. Non invia messaggi Telegram, non modifica dati o
-configurazioni e restituisce soltanto esiti/codici chiusi; nessuna chiave o log.

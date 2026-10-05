@@ -33,7 +33,7 @@ Difetti verificati nel codice:
 - Claim outbox senza leggere la riga aggiornata poteva inviare due volte con cron
   concorrenti.
 
-## Correzioni preparate nel worktree
+## Correzioni distribuite in produzione
 
 Chat Telegram libera, memoria degli ultimi 30 messaggi nella sessione server-only,
 paragrafi conservati, contesto tecnico e collegamento tramite KG o risposta a una
@@ -60,7 +60,9 @@ nessun dato CRM o contenuto della chiave stampato. Secret GitHub aggiornato dopo
 `OPENAI_API_KEY_CODEX_WORKER`, data verificata 05/10/2026 13:23:38 Europe/Rome.
 Il primo invio era stato rifiutato da automatic approval review per mancanza di
 autorizzazione specifica; nessun blocco residuo sul salvataggio della chiave.
-La chiave Netlify della chat e' write-only e non e' stata letta o modificata.
+La chiave Netlify della chat e' write-only: il collaudo runtime ne ha confermato
+il rifiuto e, con autorizzazione specifica, e' stata sostituita il 05/10/2026
+alle 16:18:50 Europe/Rome. Non e' stata stampata o recuperata tramite API.
 
 Il proprietario conferma il 05/10 che il precedente ambiente Guardian e' stato
 eliminato e non va ricreato. Autorizza esplicitamente modifiche, collaudo e deploy
@@ -80,7 +82,7 @@ compatibilita' DB; nessun workflow dipende da un sito separato. PR draft verso
 main e merge autorizzato restano distinti; nessun merge automatico del worker.
 La proposta di rilascio riusa la PR gia' aperta dalla preparazione patch.
 Questa revisione viene distribuita direttamente in produzione su richiesta
-esplicita del proprietario. Esito deploy e collaudo aggiunti dopo verifica.
+esplicita del proprietario. Esiti deploy e collaudo verificati sotto.
 
 Un modello conversazionale non possiede l'accesso interattivo a repository/DB
 della chat Codex: legge il contesto fornito; l'analisi del codice resta un workflow
@@ -115,8 +117,37 @@ una riproduzione: non classificati come risolti dalla correzione Guardian.
 
 148 test Node e build statica riusciti; include regressioni di conversazione,
 worker, dedupe cron e i tre difetti CRM riprodotti. YAML dei sei workflow e
-sintassi Bash delle rispettive istruzioni verificati. Migration applicata production; collaudo distribuito in corso.
+sintassi Bash delle rispettive istruzioni verificati. Migration e collaudo runtime verificati production.
 Anche un risultato worker tardivo conserva lo stato archiviato della richiesta.
 
 Controllo runtime privato: guardian-healthcheck.yml verifica OpenAI/Telegram e
 memoria dal worker Netlify, con HMAC; nessun messaggio Telegram o dato CRM AI.
+
+## Esito distribuzione e controllo runtime
+
+Codice funzioni/pagine: commit `f9ec4de`, deploy iniziale Netlify ready alle
+16:09:42 Europe/Rome. Le tre pagine corrette e config pubblica rispondono200;
+worker health senza HMAC risponde401. Le modifiche backup preesistenti nel
+checkout principale sono preservate e non sono incluse nel push Guardian.
+
+La prima healthcheck ha rivelato un secondo invalid_api_key sulla chat Netlify,
+distinto dalla chiave GitHub. Auto-review ha richiesto consenso specifico per
+trasferire la chiave a Netlify; ottenuto, salvataggio riuscito alle16:18:50,
+flag secret e altri contesti conservati. Nessun blocco di autorizzazione residuo.
+Deploy con nuova chiave `6ac3b21dd7eb9e17c0f98cb9` ready alle16:20:49.
+[Healthcheck finale, attempt2](https://github.com/mirkopiasenti/mirox-crm/actions/runs/37322760353):
+alle16:21:36 chat OpenAI gpt-5.6-luna, bot ufficiale, webhook e memoria tutti OK;
+zero update pendenti, nessun errore Telegram corrente. Test sintetico senza dati
+CRM e senza messaggi Telegram. Vocali reali e flussi autenticati delle tre pagine
+CRM non esercitati automaticamente sul database operativo.
+
+[Analisi Codex reale](https://github.com/mirkopiasenti/mirox-crm/actions/runs/37323380962)
+su KG-000018: preflight, Codex e callback riusciti; esecuzione DB
+`6b2ed087-3234-4586-b159-1e84c0952c46` completata alle16:17:28, nessun errore.
+Codex conferma il controllo Apps Script nel vecchio commit e la rimozione con
+regressione nel codice corrente. Questo verifica il percorso worker completo,
+non soltanto la validita' della nuova chiave con una richiesta API diretta.
+
+Inventario Netlify locale privato aggiornato con la chiave recuperabile;
+7 altri Secret restano senza copie. La precedente copia cifrata off-site
+delle configurazioni precede questa rotazione e va riallineata separatamente.

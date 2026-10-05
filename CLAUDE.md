@@ -79,7 +79,6 @@ Sostituire sempre con testo descrittivo (es. `🔄 Aggiorna` → `Aggiorna`, `�
 ### URL deploy
 - **Repo GitHub**: `git@github.com:mirkopiasenti/mirox-crm.git` (dal 2026-07-02, prima era `konahub-vendita-test` — redirect ancora attivo ma va usato il nome nuovo)
 - **Netlify site di questa codebase**: **`mirox-crm`** (nome sito Netlify dal 2026-07-02, prima era il vecchio nome legato al test). Custom domain **`mirox-crm.it`** in production dal 2026-06-29 — tutte le functions (auth + OTP + backend) rispondono qui. Env vars (Supabase, Smshosting, Anthropic, SMTP) configurate su questo site
-- **Guardian staging separato**: `mirox-crm-staging.netlify.app`, site Netlify `mirox-crm-staging`, branch primaria `codex/kona-ai-guardian-staging` e Supabase `blwgxrszvsoqcmcmhhqr`. Primo deploy verificato il 2026-08-10; nessun custom domain e nessun collegamento a production.
 - `test-upload-contratti-konahub.netlify.app` — vecchio URL di test del repo. **Non è più aggiornato** (le functions OTP rispondono 404). Deprecato — l'URL "buono" è `mirox-crm.it`
 - `mirox-crm.netlify.app` — **DIVERSO PROGETTO**: sito Call Center prod (altro repo GitHub, NON in questa codebase). Condivide lo stesso DB Supabase. Da non confondere col Netlify site `mirox-crm` di cui sopra (che è custom-domain su `mirox-crm.it`)
 
@@ -836,6 +835,6 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 ## Guardian: aggiornamento 05/10/2026
 
 Correzioni di chat libera, memoria e affidabilita' preparate nel worktree, non
-in rilascio production autorizzato. Migration della memoria applicata.
+distribuite in produzione. Migration della memoria applicata.
 Seguire AGENTS e `docs/GUARDIAN_DIAGNOSI_2026-10-05.md`; nessun deploy, env Netlify
 o nuovo progetto senza le autorizzazioni previste.

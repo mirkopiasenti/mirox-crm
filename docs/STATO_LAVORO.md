@@ -3,35 +3,37 @@
 Aggiornato: 2026-10-05. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## Guardian: intervento 05/10/2026
+## Guardian: distribuito production il 05/10/2026
 
-- Analizzati 104 messaggi settembre e DB production read-only: 80 analisi fallite
-  (8 casi x 10 retry) + 5 scansioni fallite. Run campione: HTTP401 invalid_api_key;
-  GitHub verde mascherava il guasto. Guardian gia' OpenAI, nessun DeepSeek.
-- Secret GitHub OPENAI_API_KEY_CODEX_WORKER sostituito con autorizzazione esplicita;
-  metadata 13:23:38 Europe/Rome. Chiave verificata con Responses sintetica HTTP200.
-  File privato ignorato 0600; nessuna chiave stampata. Netlify env non modificate.
-- Codice preparato su branch locale codex/guardian-affidabilita-chat nel worktree
-  /Users/mirkopiasenti/.codex/worktrees/guardian-affidabilita-chat/Mirox CRM.
-  Chat proprietario libera senza ticket/anche archiviato, memoria 30 messaggi,
-  contesto tecnico, paragrafi, collegamento KG/risposta a notifica.
-- Stop retry automatici stesso segnale/release, claim cron/outbox condizionali,
-  notifica scansioni anche senza segnale, preflight OpenAI/URL worker per ambiente,
-  modello da DB e workflow negativo visibile. Risultato tardivo non riapre archivio.
-- Fix CRM riprodotti: Ticket nome con apostrofi, Comodato riferimento Apps Script
-  dismesso, Apri/Chiudi SIM No su elemento DOM assente. OTP500/504 e network_error
-  vendita-config restano da diagnosticare con log/riproduzione.
-- 148/148 test Node + build, YAML/Bash workflow validi, diff-check pulito;
-  due prove reali conversazione su contesto sintetico riuscite, nessun dato CRM.
+- 104 messaggi settembre:80 analisi fallite (8casi x10retry)+5scansioni. Chiave
+  GitHub invalid_api_key nel run campione; job verde mascherava il guasto.
+- Chiave GitHub sostituita con consenso specifico13:23:38; health reale ha trovato
+  anche chiave chat Netlify rifiutata. Secondo consenso specifico ottenuto,
+  OPENAI_API_KEY production sostituita16:18:50, secret/contesti preservati.
+- Funzioni/pagine commit f9ec4de su main, deploy ready16:09:42 e ridistribuzione
+  con nuova chiave16:20:49. Health finale16:21:36: chat OpenAI/bot/webhook/memoria
+  OK,0updatependenti. Run37322760353 attempt2. Nessun blocco residuo auto-review.
+- Analisi Codex reale KG18 completata16:17:28, run37323380962; preflight/Codex/
+  callback riusciti e DB completata senza errore. Conferma fix Comodato corrente.
+- Chat libera senza ticket/anche archiviato, memoria30messaggi, contesto tecnico,
+  paragrafi e collegamento KG/risposta a notifica. Nessun dialogo generale crea ticket.
+- Stop retry automatici sullo stesso segnale/release, claim condizionali cron/
+  outbox, notifica scansioni senza segnale, preflight/URL worker/model da DB,
+  workflow fallito visibile; risultato tardivo non riapre un caso archiviato.
+- Il proprietario esclude definitivamente vecchio staging Guardian e autorizza
+  sviluppo/collaudo/deploy su produzione. Vincolo rimosso da AGENTS e guide.
+  Patch da main, branch codex/kg-*, test locali, PR verso main; tipo storico
+  test_staging conservato solo per compatibilita' DB. Nessun CC riutilizzato.
 - Migration database/20261005110504_guardian_owner_conversation.sql applicata
-  e verificata production: JSONB NOT NULL default[], RLS invariata.
-- Il proprietario conferma vecchio staging eliminato e lo esclude il 05/10;
-  autorizza modifiche/collaudo/deploy direttamente in produzione. Guide aggiornate,
-  patch da main, test su branch di lavoro, Environment guardian-production.
-  Nessun ambiente CC riutilizzato, tipo DB test_staging conservato per compatibilita'.
-- README/AGENTS/CLAUDE/database README/setup/report aggiornati nel worktree.
-  Report completo: docs/GUARDIAN_DIAGNOSI_2026-10-05.md nel worktree.
-  Modifiche backup preesistenti nel checkout main conservate.
+  e verificata production: JSONB NOT NULL default[], RLS/grant invariati.
+- Fix CRM: Ticket apostrofi, Comodato APPS_SCRIPT_URL dismesso, Apri/Chiudi SIM No.
+  OTP500/504 e network_error vendita-config restano da diagnosticare con log.
+- 148/148 test+build,6workflow YAML/25blocchi Bash validi, diffcheck pulito;
+  HTTP200 su pagine corrette, health senzaHMAC401. Vocali reali/flussi CRM non
+  esercitati automaticamente sul DB operativo. Netlify/GitHub gia' OpenAI.
+- Guide/report/promemoria aggiornati; worktree guardian-affidabilita-chat attaccato
+  alla chat. Report docs/GUARDIAN_DIAGNOSI_2026-10-05.md presente anche su main.
+  Backup preesistente preservato, non incluso nei push Guardian; stash recuperabile.
 
 ## Backup: stato precedente conservato
 
@@ -42,8 +44,8 @@ AES-GCM, backup orario minuto17 UTC; checkpoint completo 03:17 dopo cleanup CRM.
 - Healthchecks1h/grace1h/email e assenza ping collaudati; chiave AES separata.
   Audit06:47UTC enabled: restore trimestrale100 tabelle/51.313 righe COPY identiche,
   18,5s; skip secondo run. Lifecycle reale ancora da osservare. Docker off.
-- Netlify20/28 valori privati cifrati/readback; 8 Secret write-only mancanti, nessuna
-  riemissione salvo chiave Guardian sopra. Auth13 template/7pagine e DNS19 record
+- Netlify20/28 valori privati cifrati/readback; 7 altri Secret senza copie; chiave OpenAI
+  nuova recuperabile localmente, off-site configurazioni precedente da riallineare. Auth13 template/7pagine e DNS19 record
   salvati; inventari statici. Repo pubblico e working tree cifrati off-site.
 - Runner8worker, verify-full/CA, LoadCredential root0440/read-only, SSH/UFW;
   kernel6.8.0-146, resize legacy disabilitato su root gia' espanso.

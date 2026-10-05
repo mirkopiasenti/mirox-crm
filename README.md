@@ -301,7 +301,7 @@ Il CC prod su `mirox-crm.netlify.app` legge le stesse tabelle. Per non romperlo:
 - **Fase 5 facoltativa** (uniformità UI): le pagine CC conservano parte delle utility `Utils.*` del port storico. La creazione anagrafica è già migrata a `AnagraficaHelper.cercaOcrea` e non restano conferme native nei flussi controllati; l'eventuale sostituzione completa di `Utils.*` è un refactor architetturale, non un'attività correttiva aperta
 - **Estensioni Fase 4**: bottoni "Inizia vendita" anche in `registra-chiamata.html` (dopo passa-in-negozio), `esiti-appuntamenti.html` (prima di esitare), `rilavorazione.html` (tab Passa Negozio/Cerea) — da fare on-demand quando si ha bisogno
 
-## Guardian: correzioni del 05/10/2026 (rilascio production autorizzato)
+## Guardian: correzioni del 05/10/2026 (attive in produzione)
 
 La chat proprietario Telegram puo' discutere liberamente del CRM senza scegliere
 una richiesta e anche su casi archiviati; conserva gli ultimi 30 messaggi nella
@@ -318,10 +318,16 @@ e verificata sul production il 05/10. Il proprietario ha eliminato il precedente
 ambiente Guardian e autorizza il rilascio direttamente sul CRM ufficiale.
 Diagnosi, verifiche e attivazione: [report Guardian](docs/GUARDIAN_DIAGNOSI_2026-10-05.md).
 
-Correzioni locali dei segnali Guardian settembre: Ticket usa listener su dati
+Correzioni distribuite dei segnali Guardian settembre: Ticket usa listener su dati
 per aprire Lavorata anche con nomi contenenti apostrofi; Comodato elimina il
 controllo Apps Script dismesso; Apri/Chiudi azzera l'anteprima SIM tramite il
-renderer corrente quando la scelta torna a No. Non ancora distribuite.
+renderer corrente quando la scelta torna a No.
+
+Verifica runtime Guardian: workflow manuale `guardian-healthcheck.yml` su main,
+Environment production, action `health` del worker protetta da HMAC. Controlla
+Responses con testo sintetico senza dati CRM, identita' bot/webhook via GET e
+accessibilita' memoria DB. Non invia messaggi Telegram, non modifica dati o
+configurazioni e restituisce soltanto esiti/codici chiusi; nessuna chiave o log.
 
 ## KONA AI Guardian Observer (production)
 
@@ -378,9 +384,3 @@ Guardian e' attivo su `mirox-crm.it`, branch `main`, Supabase `lbgwamhjkjjfwgusa
 Ogni modifica al progetto deve essere riflessa in `README.md`, `CLAUDE.md` e `database/README.md` **nella stessa sessione/PR** in cui avviene la modifica. Niente "lo aggiorno dopo" — è così che `README_UNIFICATO.txt` (il file che questo README ha sostituito) era diventato obsoleto.
 
 Vedi la sezione "Manutenzione di questa guida" in [`CLAUDE.md`](CLAUDE.md) per la **tabella completa dei trigger** (cosa aggiornare quando cambia cosa) e il self-check di fine task.
-
-Verifica runtime Guardian: workflow manuale `guardian-healthcheck.yml` su main,
-Environment production, action `health` del worker protetta da HMAC. Controlla
-Responses con testo sintetico senza dati CRM, identita' bot/webhook via GET e
-accessibilita' memoria DB. Non invia messaggi Telegram, non modifica dati o
-configurazioni e restituisce soltanto esiti/codici chiusi; nessuna chiave o log.

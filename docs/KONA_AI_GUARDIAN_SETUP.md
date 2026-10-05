@@ -44,6 +44,12 @@ del control plane sono preservati prima del checkout di un commit storico.
 L'URL worker e' esclusivamente quello production: URL di altri ambienti rifiutate
 prima del claim. Diagnosi: [report 05/10](GUARDIAN_DIAGNOSI_2026-10-05.md).
 
+Verifica runtime Guardian: workflow manuale `guardian-healthcheck.yml` su main,
+Environment production, action `health` del worker protetta da HMAC. Controlla
+Responses con testo sintetico senza dati CRM, identita' bot/webhook via GET e
+accessibilita' memoria DB. Non invia messaggi Telegram, non modifica dati o
+configurazioni e restituisce soltanto esiti/codici chiusi; nessuna chiave o log.
+
 ## Patch e verifiche
 
 Analisi e patch partono da `main`. Una patch approvata viene preparata su branch
@@ -121,9 +127,3 @@ Solo Mirko puo' approvare azioni. Gli operatori possono esclusivamente creare un
 | Deploy produzione | non eseguito dal Guardian | merge esplicito fuori dal bot e controlli CI |
 
 I dettagli tecnici hanno una data obiettivo di scadenza a 90 giorni. Il riepilogo della richiesta e l'audit delle approvazioni restano permanenti. `cron-pulizia-operativa` azzera dopo la scadenza percorso pagina, titolo pagina, user agent e contesto client; non elimina conversazioni, riepiloghi, commit o pull request.
-
-Verifica runtime Guardian: workflow manuale `guardian-healthcheck.yml` su main,
-Environment production, action `health` del worker protetta da HMAC. Controlla
-Responses con testo sintetico senza dati CRM, identita' bot/webhook via GET e
-accessibilita' memoria DB. Non invia messaggi Telegram, non modifica dati o
-configurazioni e restituisce soltanto esiti/codici chiusi; nessuna chiave o log.
