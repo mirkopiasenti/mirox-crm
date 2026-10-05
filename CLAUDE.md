@@ -261,7 +261,7 @@ Dal 2026-06-24 (migration `029`) i bucket dati clienti sono **PRIVATI**. Lettura
 | `comodato-files` | privato | PDF moduli consegna/riconsegna comodato |
 | `rimborsi-files` | privato | PDF moduli gestione rimborsi |
 | `protecta-files` | privato | PDF preventivi simulatore Protecta |
-| `consensi-privacy` | privato | PDF informativa GDPR firmati (OTP o scansione cartaceo). MIME only `application/pdf`, max 20 MB. Naming `Privacy_<RagSocSafe>_<CF>_<DD_MM_YYYY>.pdf` con eventuale suffisso `_<id6>` per collisioni. Path `<YYYY>/<MM>/`. Migration 034 |
+| `consensi-privacy` | privato | PDF informativa GDPR firmati (OTP o scansione cartaceo). MIME only `application/pdf`, max 20 MB. Naming cartaceo `Privacy_<RagSocSafe>_<CF>_<DD_MM_YYYY>.pdf`; i nuovi PDF OTP aggiungono `_<consenso_uuid>` prima di `.pdf`, con ulteriore suffisso casuale per collisioni. Path `<YYYY>/<MM>/`. Migration 034 |
 | `moduli-template` | **pubblico** | Template modulistici (disdetta_fisso_consumer.pdf, ecc.) — generici, leggibili anche da non autenticati |
 
 **Convenzione campi DB**: dopo migration 029 le colonne `cartella_url` / `preventivo_pdf_url` su `vendita_apri_chiudi`, `vendita_switch_sim`, `vendita_simulatore_protecta` contengono il **path** nel bucket (es. `dispositivo_X/file.pdf`), NON più un URL pubblico. I record legacy hanno ancora gli URL completi: il codice di lettura li gestisce entrambi (regex `replace` su prefisso `https://...storage/v1/object/public/<bucket>/`).

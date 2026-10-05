@@ -62,4 +62,20 @@ Riferimento retention Netlify: [Function logs](https://docs.netlify.com/manage/m
 
 ## Verifica produzione
 
-Da registrare dopo commit/deploy e chiusura auditabile dei casi.
+Commit applicativo `fca1c00d4015c138b46670a693c1d3767162a70d`, Netlify deploy
+`6ac3b9f91d650e0007c6553d` ready/pubblicato 05/10/2026 16:54:15 Europe/Rome.
+Ticket, wizard, wrapper API, dashboard, Comodato e Apri/Chiudi HTTP200 con codice
+atteso; verifica OTP e catalogo senza sessione rifiutati con HTTP401.
+[Healthcheck production](https://github.com/mirkopiasenti/mirox-crm/actions/runs/37328685582)
+riuscito alle 16:55:56: OpenAI/bot/webhook/memoria OK, zero update Telegram pendenti.
+
+Aggiornamento DB Guardian dopo deploy: sei casi risolti, otto archiviati,
+otto segnali chiusi e quattordici nuovi messaggi audit. Rilettura indipendente:
+zero casi di settembre ancora aperti. Storico conservato; nessuna notifica
+Telegram agli operatori/proprietario generata da questa chiusura manuale.
+Cinque bug UI sono distinti da tre cause tecniche uniche (Ticket, Comodato, SIM);
+KG10 aggiunge la correzione applicativa dei timeout del provider. Nessuna prova
+live di compilazione pratica o acquisizione consenso cliente viene dichiarata.
+
+Guide aggiornate: README, AGENTS, CLAUDE, database/README e STATO_LAVORO.
+Modifiche backup preesistenti del checkout principale preservate e non distribuite.

@@ -27,23 +27,24 @@ istruzioni dell'utente e guide di progetto restano vincolanti.
 - Migration database/20261005110504_guardian_owner_conversation.sql applicata
   e verificata production: JSONB NOT NULL default[], RLS/grant invariati.
 - Fix CRM: Ticket apostrofi, Comodato APPS_SCRIPT_URL dismesso, Apri/Chiudi SIM No.
-  Backlog settembre riesaminato: Storage544 del consenso correlato al500 nei log;
-  retry GET catalogo, protezioni OTP/Storage e verifica UPDATE Ticket aggiunti.
-- 148/148 test+build,6workflow YAML/25blocchi Bash validi, diffcheck pulito;
-  HTTP200 su pagine corrette, health senzaHMAC401. Vocali reali/flussi CRM non
-  esercitati automaticamente sul DB operativo. Netlify/GitHub gia' OpenAI.
+  Recupero degli altri eventi settembre completato nel rilascio fca1c00 sotto.
+- Prima revisione148/148test+build,6workflow YAML/25blocchi Bash validi;
+  vocali reali/flussi CRM non esercitati sul DB operativo. Netlify/GitHub OpenAI.
 - Guide/report/promemoria aggiornati; worktree guardian-affidabilita-chat attaccato
   alla chat. Report docs/GUARDIAN_DIAGNOSI_2026-10-05.md presente anche su main.
   Backup preesistente preservato, non incluso nei push Guardian; stash recuperabile.
 
-## Intervento massivo settembre: in rilascio
+## Backlog settembre: distribuito e chiuso 05/10
 
-- 14casi KG8–21, nessun messaggio settembre su KG1–7. Cinque bug UI verificati,
-  KG10 timeout Storage544: recupero controllato, single-flight, CAS/rilettura PDF.
-- KG9 504 e KG12/16 rete: causa storica non dimostrata, mitigazioni verificate;
-  archiviazione esplicita senza dichiararli risolti. Cinque scan non concluse.
-- 160/160test+build; schema/RLS invariati, nessun consenso/SMS reale di prova.
-- Report docs/GUARDIAN_BUG_SETTEMBRE_2026.md; deploy/audit stati da completare.
+- Commit fca1c00, deploy ready16:54:15;160/160test+build,6pagine/codice HTTP200,
+  OTP/catalogo senza sessione401. Health37328685582 alle16:55:56 tuttoOK.
+- KG14/15/20 Ticket,18Comodato,19SIM,10Storage544:6risolti. Retry GET catalogo,
+  OTP single-flight/CAS/rilettura PDF; niente SMS/consensi reali di collaudo.
+- KG9 504,12/16rete:3storici mitigati/archiviati, causa non dimostrata;
+ 5scan fallite archiviate senza inventare risultati.14audit,8segnali chiusi,
+  zero casi settembre aperti. Nuovo commit separa eventuali ricorrenze.
+- KG1–7agosto fuori scope, nessun messaggio settembre; storico conservato.
+- Report docs/GUARDIAN_BUG_SETTEMBRE_2026.md; guide aggiornate, backup preservato.
 
 ## Backup: stato precedente conservato
 
