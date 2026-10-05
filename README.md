@@ -303,6 +303,28 @@ Il CC prod su `mirox-crm.netlify.app` legge le stesse tabelle. Per non romperlo:
 - **Fase 5 facoltativa** (uniformità UI): le pagine CC conservano parte delle utility `Utils.*` del port storico. La creazione anagrafica è già migrata a `AnagraficaHelper.cercaOcrea` e non restano conferme native nei flussi controllati; l'eventuale sostituzione completa di `Utils.*` è un refactor architetturale, non un'attività correttiva aperta
 - **Estensioni Fase 4**: bottoni "Inizia vendita" anche in `registra-chiamata.html` (dopo passa-in-negozio), `esiti-appuntamenti.html` (prima di esitare), `rilavorazione.html` (tab Passa Negozio/Cerea) — da fare on-demand quando si ha bisogno
 
+## Guardian: correzioni del 05/10/2026 (preparate, non distribuite)
+
+La chat proprietario Telegram puo' discutere liberamente del CRM senza scegliere
+una richiesta e anche su casi archiviati; conserva gli ultimi 30 messaggi nella
+sessione server-only. Comandi e pulsanti sono scorciatoie per contesto/operazioni,
+non condizioni per dialogare. Il webhook riceve anche gli esiti tecnici worker.
+La raccolta guidata degli operatori resta distinta.
+Il cron non ripete automaticamente analisi fallite sullo stesso segnale/release,
+notifica anche gli esiti delle scansioni preventive e sospende dispatch dopo
+errori di configurazione OpenAI. Workflow con preflight, modello da DB, URL worker
+vincolato all'ambiente e fallimento CI dopo esito negativo.
+
+Prima del rilascio applicare `database/20261005110504_guardian_owner_conversation.sql`.
+Lo staging Guardian documentato sotto non risulta disponibile/accessibile il
+05/10; `guardian-staging` manca da GitHub. Nessun deploy o nuovo progetto eseguito.
+Diagnosi, verifiche e attivazione: [report Guardian](docs/GUARDIAN_DIAGNOSI_2026-10-05.md).
+
+Correzioni locali dei segnali Guardian settembre: Ticket usa listener su dati
+per aprire Lavorata anche con nomi contenenti apostrofi; Comodato elimina il
+controllo Apps Script dismesso; Apri/Chiudi azzera l'anteprima SIM tramite il
+renderer corrente quando la scelta torna a No. Non ancora distribuite.
+
 ## KONA AI Guardian Observer (implementazione staging, 2026-08-11)
 
 Il vecchio reporter globale che inviava automaticamente email per gli errori tecnici e' stato rimosso perche' produceva notifiche poco utili. Restano invariati `mirox-send-email`, `MiroxMailer` e tutte le email operative basate sui template CRM. Restano inoltre i popup locali, compresi i messaggi mirati dell'OCR e l'orario mostrato dal wizard Upload Contratti.
@@ -336,7 +358,7 @@ Guardian e' attivo sul CRM ufficiale `mirox-crm.it`, branch `main` e Supabase pr
 
 - `cron-rientro-sim`: ogni giorno alle **07:00 UTC** (09:00 ora italiana estate / 08:00 inverno). Cerca pratiche `vendita_switch_sim` con `giorno_rientro = oggi` e `mail_rientro_inviata_at IS NULL`, invia notifica via template `rientro_sim`, imposta `mail_rientro_inviata_at = now()`. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o inviare email.
 - `cron-pulizia-operativa`: ogni giorno alle **02:30 UTC**. Scade gli OTP pending oltre termine, elimina i contatori del rate limit pubblico scaduti, recupera fino a 100 pratiche `bozza` più vecchie di 24 ore cancellando prima i PDF Storage e poi la pratica, rimuove dopo 90 giorni il contesto tecnico degli incidenti Guardian ed elimina gli eventi Observer oltre `expires_at`. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o modificare dati.
-- `cron-guardian-observer`: ogni **5 minuti**. Legge eventi Guardian già ripuliti, aggiorna i gruppi, apre incidenti sopra soglia, avvia al massimo il budget giornaliero di analisi Codex read-only e consegna le notifiche Telegram dalla coda persistente. Non modifica codice o produzione; se il workflow non è configurato registra l'incidente e ritenta.
+- `cron-guardian-observer`: ogni **5 minuti**. Legge eventi Guardian già ripuliti, aggiorna i gruppi, apre incidenti sopra soglia, avvia al massimo il budget giornaliero di analisi Codex read-only e consegna le notifiche Telegram dalla coda persistente. Non modifica codice o produzione; se il workflow non è configurato conserva la segnalazione e richiede un controllo manuale; non ripete il medesimo segnale senza limite.
 
 ## Link utili
 

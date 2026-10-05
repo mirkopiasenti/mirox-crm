@@ -53,7 +53,7 @@ function preliminaryText(incident, signal, analysisQueued) {
     '',
     analysisQueued
       ? 'Cosa faccio ora: controllo il codice senza modificarlo e ti invio una spiegazione semplice qui su Telegram.'
-      : 'Cosa faccio ora: conservo la segnalazione e riprovo il controllo automatico appena il servizio è disponibile.'
+      : 'Cosa faccio ora: conservo la segnalazione. Il controllo automatico non e partito; puoi discuterne qui e avviare una nuova analisi manuale dopo la verifica del servizio.'
   ].join('\n').slice(0, 3900);
 }
 
@@ -82,6 +82,7 @@ async function refreshBudget(supabase, current) {
 async function loadCandidateSignals(supabase) {
   const { data, error } = await supabase.from('kona_ai_segnali')
     .select('*')
+    .eq('ambiente', environment())
     .in('stato', ['nuovo', 'osservando'])
     .order('last_seen_at', { ascending: false })
     .limit(50);
@@ -136,6 +137,7 @@ async function createExecution(supabase, incident, signal) {
     repository: repositoryName(),
     workflow_name: 'guardian-observer-analysis.yml',
     base_commit_sha: signal.release_commit_sha || null,
+    timeout_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     input_hash: signal.fingerprint
   }).select('*').single();
   if (error) throw error;
@@ -160,6 +162,11 @@ async function enqueueNotification(supabase, incident, signal, analysisQueued) {
 }
 
 async function processSignal(supabase, signal, budget) {
+  const { data: claimed, error: claimError } = await supabase.from('kona_ai_segnali')
+    .update({ stato: 'in_analisi' }).eq('id', signal.id)
+    .in('stato', ['nuovo', 'osservando']).select('*').maybeSingle();
+  if (claimError) throw claimError;
+  if (!claimed) return { incidentId: signal.incidente_id || null, analysisQueued: false };
   let incident = null;
   let analysisQueued = false;
   if (signal.incidente_id) {
@@ -171,14 +178,29 @@ async function processSignal(supabase, signal, budget) {
     incident = await createIncident(supabase, signal);
     await supabase.from('kona_ai_segnali').update({ incidente_id: incident.id, priorita: signal.priorita, stato: 'in_analisi' }).eq('id', signal.id);
   }
+  if (incident.stato === 'archiviato' || incident.stato === 'risolto') {
+    await supabase.from('kona_ai_segnali').update({ stato: 'risolto' }).eq('id', signal.id);
+    return { incidentId: incident.id, analysisQueued: false };
+  }
+  const { data: previous, error: previousError } = await supabase.from('kona_ai_esecuzioni')
+    .select('id, stato').eq('incidente_id', incident.id).eq('tipo_esecuzione', 'analisi_automatica')
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (previousError) throw previousError;
+  if (previous) {
+    await supabase.from('kona_ai_segnali').update({
+      stato: ['in_coda', 'in_esecuzione'].includes(previous.stato) ? 'in_analisi' : 'notificato'
+    }).eq('id', signal.id);
+    return { incidentId: incident.id, analysisQueued: false };
+  }
   const maxBudget = Number(process.env.GUARDIAN_OBSERVER_DAILY_BUDGET || DEFAULT_DAILY_BUDGET);
   if (budget < maxBudget) {
+    let execution;
     try {
-      const execution = await createExecution(supabase, incident, signal);
+      execution = await createExecution(supabase, incident, signal);
       const dispatched = await dispatchWorkflow({
         executionId: execution.id,
         type: 'analisi_automatica',
-        ref: process.env.GUARDIAN_OBSERVER_REF || stagingBranch(),
+        ref: process.env.GUARDIAN_OBSERVER_REF || (environment() === 'production' ? 'main' : stagingBranch()),
         commitSha: signal.release_commit_sha
       });
       if (dispatched.dispatched) {
@@ -188,6 +210,7 @@ async function processSignal(supabase, signal, budget) {
         await supabase.from('kona_ai_esecuzioni').update({ stato: 'fallita', codice_errore: 'observer_not_configured', messaggio_errore: 'Workflow automatico non configurato', completata_at: nowIso() }).eq('id', execution.id);
       }
     } catch (error) {
+      if (execution) await supabase.from('kona_ai_esecuzioni').update({ stato: 'fallita', codice_errore: 'observer_dispatch_failed', messaggio_errore: text(error?.message || error, 800), completata_at: nowIso() }).eq('id', execution.id).eq('stato', 'in_coda');
       await supabase.from('kona_ai_segnali').update({ stato: 'notificato' }).eq('id', signal.id);
       await supabase.from('kona_ai_messaggi').insert({
         incidente_id: incident.id,
@@ -216,7 +239,9 @@ async function processOutbox(supabase) {
   const chatId = String(process.env.TELEGRAM_GUARDIAN_OWNER_CHAT_ID || '').trim();
   for (const item of data || []) {
     const attempts = Number(item.tentativi || 0) + 1;
-    await supabase.from('kona_ai_notifiche').update({ stato: 'in_invio', tentativi: attempts }).eq('id', item.id).in('stato', ['in_coda', 'fallita']);
+    const { data: claimed, error: claimError } = await supabase.from('kona_ai_notifiche').update({ stato: 'in_invio', tentativi: attempts }).eq('id', item.id).in('stato', ['in_coda', 'fallita']).select('id').maybeSingle();
+    if (claimError) throw claimError;
+    if (!claimed) continue;
     try {
       const result = await sendTelegramMessage(chatId, item.payload?.text || 'Guardian: nuova notifica.', {
         reply_markup: item.payload?.reply_markup
@@ -235,6 +260,7 @@ async function processOutbox(supabase) {
 
 async function maybeScheduleImprovementScan(supabase) {
   if (String(process.env.GUARDIAN_OBSERVER_WEEKLY_SCAN || 'true').trim().toLowerCase() === 'false') return false;
+  if (await automaticWorkerBlocked(supabase)) return false;
   let scanCheckpoint = await checkpoint(supabase, 'scansione_migliorie');
   const last = scanCheckpoint.ultima_esecuzione_at ? new Date(scanCheckpoint.ultima_esecuzione_at).getTime() : 0;
   if (last && Date.now() - last < WEEKLY_SCAN_MS) return false;
@@ -259,7 +285,8 @@ async function maybeScheduleImprovementScan(supabase) {
     modello: process.env.GUARDIAN_OBSERVER_MODEL || 'gpt-5.6-luna',
     sandbox: 'read_only',
     repository: repositoryName(),
-    workflow_name: 'guardian-observer-analysis.yml'
+    workflow_name: 'guardian-observer-analysis.yml',
+    timeout_at: new Date(Date.now() + 30 * 60 * 1000).toISOString()
   }).select('*').single();
   if (executionError) throw executionError;
   let dispatched = false;
@@ -267,7 +294,7 @@ async function maybeScheduleImprovementScan(supabase) {
     const result = await dispatchWorkflow({
       executionId: execution.id,
       type: 'scansione_migliorie',
-      ref: process.env.GUARDIAN_OBSERVER_REF || stagingBranch()
+      ref: process.env.GUARDIAN_OBSERVER_REF || (environment() === 'production' ? 'main' : stagingBranch())
     });
     dispatched = result.dispatched;
     if (!dispatched) {
@@ -287,6 +314,14 @@ async function maybeScheduleImprovementScan(supabase) {
   return true;
 }
 
+async function automaticWorkerBlocked(supabase) {
+  const { data, error } = await supabase.from('kona_ai_esecuzioni')
+    .select('stato, codice_errore').in('tipo_esecuzione', ['analisi_automatica', 'scansione_migliorie', 'analisi_codex'])
+    .in('stato', ['fallita', 'completata']).order('completata_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  return data?.stato === 'fallita' && ['openai_invalid_key', 'openai_key_missing', 'openai_model_unavailable', 'openai_quota_exceeded'].includes(data.codice_errore);
+}
+
 const handler = async () => {
   if (!isEnabled()) return { statusCode: 200, body: JSON.stringify({ ok: true, disabled: true }) };
   const supabase = getAdminClient();
@@ -294,15 +329,18 @@ const handler = async () => {
   try {
     let observerCheckpoint = await checkpoint(supabase, 'observer');
     observerCheckpoint = await refreshBudget(supabase, observerCheckpoint);
+    const workerBlocked = await automaticWorkerBlocked(supabase);
     const candidates = await loadCandidateSignals(supabase);
     let processed = 0;
+    let queued = 0;
     for (const signal of candidates.slice(0, MAX_SIGNALS_PER_RUN)) {
-      await processSignal(supabase, signal, Number(observerCheckpoint.budget_giornaliero || 0) + processed);
+      const result = await processSignal(supabase, signal, workerBlocked ? Number.POSITIVE_INFINITY : Number(observerCheckpoint.budget_giornaliero || 0) + queued);
+      if (result.analysisQueued) queued += 1;
       processed += 1;
     }
     const weeklyScan = await maybeScheduleImprovementScan(supabase);
     const outbox = await processOutbox(supabase);
-    await supabase.from('kona_ai_observer_checkpoint').update({ ultima_esecuzione_at: nowIso(), ultimo_esito: 'ok', dettagli: { segnali_processati: processed, scansione_migliorie: weeklyScan, outbox } }).eq('id', observerCheckpoint.id);
+    await supabase.from('kona_ai_observer_checkpoint').update({ ultima_esecuzione_at: nowIso(), ultimo_esito: 'ok', dettagli: { worker_blocked: workerBlocked, segnali_processati: processed, scansione_migliorie: weeklyScan, outbox } }).eq('id', observerCheckpoint.id);
     return { statusCode: 200, body: JSON.stringify({ ok: true, environment: environment(), signals: processed, weekly_scan: weeklyScan, outbox }) };
   } catch (error) {
     console.error('cron-guardian-observer:', text(error?.message || error, 800));
@@ -310,4 +348,4 @@ const handler = async () => {
   }
 };
 
-module.exports = { handler, schedule, preliminaryText, _test: { evaluateSignal, maybeScheduleImprovementScan, preliminaryText, retryDelay } };
+module.exports = { handler, schedule, preliminaryText, _test: { processSignal, processOutbox, automaticWorkerBlocked, evaluateSignal, maybeScheduleImprovementScan, preliminaryText, retryDelay } };

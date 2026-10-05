@@ -41,6 +41,7 @@ jobs:
     env:
       GUARDIAN_WORKER_URL: ${{ secrets.GUARDIAN_WORKER_URL }}
       GUARDIAN_WORKER_SECRET: ${{ secrets.GUARDIAN_WORKER_SECRET }}
+      TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
       EXECUTION_ID: ${{ inputs.execution_id }}
       COMMIT_SHA: ${{ inputs.commit_sha }}
 
@@ -50,6 +51,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Preserve Guardian control plane
+        shell: bash
+        run: cp -R .github/codex "${{ runner.temp }}/guardian-control"
 
       - name: Checkout exact release commit
         if: env.COMMIT_SHA != ''
@@ -61,6 +66,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node "${{ runner.temp }}/guardian-control/worker-target.js"
           test -n "$GUARDIAN_WORKER_URL"
           test -n "$GUARDIAN_WORKER_SECRET"
           body="$(jq -cn --arg id "$EXECUTION_ID" --arg run "${GITHUB_RUN_ID}" '{action:"claim",execution_id:$id,workflow_run_id:($run|tonumber)}')"
@@ -70,20 +76,32 @@ jobs:
           echo "::add-mask::$lease"
           echo "lease_token=$lease" >> "$GITHUB_OUTPUT"
           jq -e '.context' <<<"$response" > guardian-context.json
+          model="$(jq -er '.execution.model // "gpt-5.6-luna"' guardian-context.json)"
+          [[ "$model" =~ ^[a-zA-Z0-9._-]{1,100}$ ]]
+          echo "model=$model" >> "$GITHUB_OUTPUT"
+
+      - name: Check OpenAI worker credentials
+        id: preflight
+        shell: bash
+        env:
+          OPENAI_API_KEY_CODEX_WORKER: ${{ secrets.OPENAI_API_KEY_CODEX_WORKER }}
+          CODEX_MODEL: ${{ steps.claim.outputs.model }}
+        run: node "${{ runner.temp }}/guardian-control/openai-preflight.js"
 
       - name: Run Codex Luna in read-only sandbox
         id: run_codex
+        if: steps.preflight.outputs.ready == 'true'
         continue-on-error: true
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY_CODEX_WORKER }}
-          model: gpt-5.6-luna
+          model: ${{ steps.claim.outputs.model }}
           effort: medium
           sandbox: read-only
           safety-strategy: drop-sudo
-          prompt-file: .github/codex/prompts/guardian-observer.md
+          prompt-file: ${{ runner.temp }}/guardian-control/prompts/guardian-observer.md
           output-file: codex-output.json
-          codex-args: '["--output-schema", ".github/codex/schemas/guardian-observer.json", "--ephemeral"]'
+          codex-args: '["--output-schema", "${{ runner.temp }}/guardian-control/schemas/guardian-observer.json", "--ephemeral"]'
 
       - name: Return result to Guardian
         if: always() && steps.claim.outputs.lease_token != ''
@@ -91,14 +109,20 @@ jobs:
         env:
           LEASE_TOKEN: ${{ steps.claim.outputs.lease_token }}
           CODEX_OUTCOME: ${{ steps.run_codex.outcome }}
+          PREFLIGHT_ERROR: ${{ steps.preflight.outputs.error_code }}
         run: |
           set -euo pipefail
+          success=false
           if [ "$CODEX_OUTCOME" = "success" ] && [ -s codex-output.json ] && jq -e . codex-output.json >/dev/null 2>&1; then
+            success=true
             result="$(jq -c . codex-output.json)"
             summary="$(jq -r '.summary // .proposed_resolution // "Analisi automatica completata."' codex-output.json)"
             body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --argjson result "$result" '{action:"result",execution_id:$id,lease_token:$lease,success:true,summary:$summary,result:$result}')"
           else
-            body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg error "Codex workflow outcome: $CODEX_OUTCOME" '{action:"result",execution_id:$id,lease_token:$lease,success:false,error_code:"observer_codex_failed",error:$error}')"
+            error_code="${PREFLIGHT_ERROR:-codex_execution_failed}"
+            if [ "$CODEX_OUTCOME" = "success" ]; then error_code='codex_invalid_output'; fi
+            body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg code "$error_code" --arg error "Il controllo del worker non ha prodotto un risultato valido ($error_code)." '{action:"result",execution_id:$id,lease_token:$lease,success:false,error_code:$code,error:$error}')"
           fi
           signature="$(BODY="$body" node -e 'const crypto=require("crypto"); process.stdout.write(crypto.createHmac("sha256", process.env.GUARDIAN_WORKER_SECRET).update(process.env.BODY).digest("hex"))')"
           curl --fail --silent --show-error --max-time 20 "$GUARDIAN_WORKER_URL" -H 'Content-Type: application/json' -H "X-Guardian-Worker-Signature: $signature" --data "$body" >/dev/null
+          if [ "$success" != true ]; then exit 1; fi

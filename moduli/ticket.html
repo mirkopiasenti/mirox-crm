@@ -768,12 +768,18 @@
                         <div class="ticket-actions">
                             ${isLavorata
                                 ? '<span class="badge-lavorata">Lavorata</span>'
-                                : `<button type="button" class="btn-lavorata" onclick="openLavorataModal(${ticket.rowIndex}, '${escapeHtml(ticket.intestatario)}')">Lavorata</button>`
+                                : `<button type="button" class="btn-lavorata" data-ticket-id="${escapeHtml(ticket.rowIndex)}">Lavorata</button>`
                             }
                         </div>
                     </div>
                 `;
             }).join('');
+            list.querySelectorAll('[data-ticket-id]').forEach(button => {
+                button.addEventListener('click', () => {
+                    const ticket = filtered.find(item => String(item.rowIndex) === button.dataset.ticketId);
+                    if (ticket) openLavorataModal(ticket.rowIndex, ticket.intestatario);
+                });
+            });
         }
 
         // ============================================

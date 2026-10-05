@@ -1,5 +1,35 @@
 # KONA AI Guardian — setup e confini operativi
 
+## Revisione 05/10/2026: preparata, non distribuita
+
+La chat proprietario diventa libera senza incidente attivo e su casi archiviati,
+con memoria limitata nella sessione Telegram, paragrafi e contesto degli esiti
+worker. KG e risposta a una notifica selezionano il caso senza comandistica
+obbligatoria; parlare non crea ticket o esegue azioni. La raccolta operatori CRM
+resta guidata. Prima del nuovo webhook applicare `database/20261005110504_guardian_owner_conversation.sql`.
+
+Una analisi automatica per segnale/release, claim condizionali e sospensione dei
+dispatch dopo errori OpenAI di chiave/modello/quota sostituiscono il ciclo ogni
+5 minuti. Una successiva analisi manuale riuscita riabilita i dispatch. Le
+scansioni preventive inviano l'esito anche senza segnale. I workflow verificano
+chiave/accesso modello, usano il modello registrato, vincolano il worker al proprio
+ambiente e falliscono dopo aver consegnato un risultato tecnico negativo.
+Il preflight non verifica credito/inferenza; il log del run resta l'evidenza dei
+guasti che avvengono dentro Codex. Nessun log grezzo o frammento di chiave entra
+nel callback o nel dialogo.
+
+**Disponibilita' da ripristinare**: il 05/10 GitHub elenca solo `guardian-production`;
+`guardian-staging` manca. Supabase non elenca il vecchio staging Guardian e
+redirige il suo project ref all'organizzazione. Gli stati storici di setup sotto
+non confermano che quello staging sia ancora disponibile. Non creare un progetto
+o riutilizzare il Call Director senza decisione del proprietario.
+Report: [diagnosi Guardian](GUARDIAN_DIAGNOSI_2026-10-05.md).
+
+Correzioni locali dei segnali Guardian settembre: Ticket usa listener su dati
+per aprire Lavorata anche con nomi contenenti apostrofi; Comodato elimina il
+controllo Apps Script dismesso; Apri/Chiudi azzera l'anteprima SIM tramite il
+renderer corrente quando la scelta torna a No. Non ancora distribuite.
+
 ## Stato della prima versione
 
 La prima versione realizza un unico agente, senza gerarchie:
@@ -69,7 +99,7 @@ Netlify registra comunque le scheduled functions presenti in `netlify.toml`; ent
 | `GUARDIAN_STAGING_BRANCH` | Branch base per patch e test | Default `codex/kona-ai-guardian-staging` |
 | `GUARDIAN_OBSERVER_ENABLED` | Abilita o sospende il cron Observer senza togliere la raccolta | Default `true` |
 | `GUARDIAN_OBSERVER_DAILY_BUDGET` | Limite giornaliero per analisi automatiche Codex | Default `10` |
-| `GUARDIAN_OBSERVER_MODEL` | Modello del workflow Observer | Default `gpt-5.6-luna` |
+| `GUARDIAN_OBSERVER_MODEL` | Modello richiesto al workflow Observer, ora selezionato dal contratto di esecuzione | Default `gpt-5.6-luna` |
 | `GUARDIAN_OBSERVER_REF` | Ref osservato dal cron | `main` in produzione; branch Guardian nello staging |
 | `GUARDIAN_OBSERVER_WEEKLY_SCAN` | Abilita la scansione preventiva settimanale delle migliorie | Default `true` |
 | `GUARDIAN_TELEMETRY_HASH_SECRET` | HMAC per anonimizzare gli attori negli eventi | Distinto per ambiente; fallback temporaneo al secret worker |
@@ -112,7 +142,7 @@ Comandi disponibili:
 - `/apri KG-000001` imposta la richiesta attiva;
 - `/nuovo descrizione` crea un problema direttamente da Telegram;
 - `/nuovo_miglioria descrizione` crea una proposta di miglioria;
-- messaggi e vocali normali vengono collegati alla richiesta attiva.
+- messaggi e vocali normali proseguono il dialogo generale o la richiesta indicata; nessuna richiesta attiva e' necessaria.
 
 ## Approvazioni e limiti
 

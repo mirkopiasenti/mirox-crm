@@ -7,6 +7,7 @@ const {
   createLeaseToken,
   hashLeaseToken,
   parseWorkerBody,
+  repositoryName,
   patchKeyboard,
   observerKeyboard,
   testKeyboard,
@@ -14,6 +15,8 @@ const {
 } = require('./_lib/guardian-codex');
 const {
   cleanText,
+  guardianAnalysisKeyboard,
+  OPEN_INCIDENT_STATES,
   incidentCode,
   requestTypeLabel
 } = require('./_lib/kona-ai-guardian');
@@ -86,7 +89,7 @@ async function loadContext(supabase, execution) {
     .from('kona_ai_messaggi')
     .select('canale, autore_tipo, testo, metadati, created_at')
     .eq('incidente_id', incident.id)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(60);
   if (messagesError) throw messagesError;
 
@@ -113,7 +116,7 @@ async function loadContext(supabase, execution) {
       page_title: cleanWorkerText(incident.pagina_titolo, 200),
       client_context: sanitizeValue(incident.contesto_client)
     },
-    conversation: (messages || []).map((item) => ({
+    conversation: (messages || []).reverse().map((item) => ({
       channel: item.canale,
       author: item.autore_tipo,
       text: cleanWorkerText(item.testo, 4000),
@@ -203,6 +206,21 @@ function resultMessage(execution, body, success) {
   const blocked = success
     && execution.tipo_esecuzione === 'prepara_patch'
     && body?.result?.blocked === true;
+  if (!success) {
+    const descriptions = {
+      openai_invalid_key: 'OpenAI rifiuta la chiave API del worker GitHub. Va sostituita OPENAI_API_KEY_CODEX_WORKER con una chiave valida.',
+      openai_key_missing: 'Manca la chiave OpenAI del worker GitHub (OPENAI_API_KEY_CODEX_WORKER).',
+      openai_model_unavailable: 'Il modello configurato non e disponibile per la chiave del worker. Va verificato il modello e il suo accesso.',
+      openai_quota_exceeded: 'OpenAI ha rifiutato la richiesta per quota o credito esaurito. Va verificato il progetto API.',
+      openai_unavailable: 'Il servizio OpenAI non e raggiungibile o ha restituito un errore temporaneo.'
+    };
+    const explanation = descriptions[body.error_code] || cleanWorkerText(body.error || body.message, 900)
+      || 'Il workflow non ha restituito una diagnosi utilizzabile. La causa tecnica va verificata nel log GitHub.';
+    const run = Number(execution.workflow_run_id);
+    const link = Number.isSafeInteger(run) && run > 0
+      ? `\nLog: https://github.com/${repositoryName()}/actions/runs/${run}` : '';
+    return `Il controllo non e riuscito. ${explanation}${link}\n\nConservo la segnalazione. Non ripeto automaticamente la stessa analisi; dopo il ripristino puoi avviare un controllo manuale.`;
+  }
   const summary = cleanWorkerText(body.message || body.summary, 5000)
     .replace(/^ESITO_PATCH:\s*(?:MODIFICA_PREPARATA|GIA_PRESENTE|RICHIEDE_INFORMAZIONI|BLOCCATA)\s*/i, '');
   if (noChanges) {
@@ -344,7 +362,10 @@ async function recordResult(supabase, body) {
           ? 'in_test'
           : 'in_lavorazione'
     : 'ricevuto';
-  await supabase.from('kona_ai_incidenti').update({ stato: incidentState }).eq('id', execution.incidente_id);
+  const { error: incidentError } = await supabase.from('kona_ai_incidenti')
+    .update({ stato: incidentState }).eq('id', execution.incidente_id)
+    .in('stato', OPEN_INCIDENT_STATES);
+  if (incidentError) throw incidentError;
   if (execution.approvazione_id) {
     await supabase.from('kona_ai_approvazioni').update({
       stato: success ? 'eseguita' : 'fallita',
@@ -381,22 +402,25 @@ async function recordResult(supabase, body) {
   const observerExecution = execution.tipo_esecuzione === 'analisi_automatica'
     || execution.tipo_esecuzione === 'scansione_migliorie';
   if (observerExecution) {
-    const { data: signal } = await supabase.from('kona_ai_segnali')
+    const { data: signal, error: signalError } = await supabase.from('kona_ai_segnali')
       .select('id').eq('incidente_id', execution.incidente_id).maybeSingle();
+    if (signalError) throw signalError;
     if (signal?.id) {
-      await supabase.from('kona_ai_segnali').update({
-        stato: success ? 'notificato' : 'osservando',
-        last_analyzed_at: now
+      const { error } = await supabase.from('kona_ai_segnali').update({
+        stato: 'notificato', last_analyzed_at: now
       }).eq('id', signal.id);
-      await supabase.from('kona_ai_notifiche').upsert({
-        incidente_id: execution.incidente_id,
-        segnale_id: signal.id,
-        dedupe_key: `observer:${signal.id}:result:${execution.id}`,
-        payload: { text: `${heading}\n\n${text}`, reply_markup: success ? keyboardForExecution(execution, safeResult) : undefined },
-        stato: 'in_coda',
-        prossimo_tentativo_at: now
-      }, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+      if (error) throw error;
     }
+    const { error: notificationError } = await supabase.from('kona_ai_notifiche').upsert({
+      incidente_id: execution.incidente_id,
+      segnale_id: signal?.id || null,
+      dedupe_key: `observer:result:${execution.id}`,
+      payload: { text: `${heading}\n\n${text}`, reply_markup: success
+        ? keyboardForExecution(execution, safeResult)
+        : guardianAnalysisKeyboard(execution.incidente_id) },
+      stato: 'in_coda', prossimo_tentativo_at: now
+    }, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+    if (notificationError) throw notificationError;
   } else if (chatId) {
     try {
       await sendTelegramMessage(chatId, `${heading}\n\n${text}`, {
@@ -409,7 +433,7 @@ async function recordResult(supabase, body) {
   return response(200, { ok: true, execution_id: saved.id, state: saved.stato });
 }
 
-exports._test = { keyboardForExecution, resultMessage };
+exports._test = { keyboardForExecution, resultMessage, recordResult, loadContext };
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return response(405, { ok: false, error: 'Metodo non consentito' });

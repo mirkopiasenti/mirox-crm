@@ -39,6 +39,7 @@ jobs:
     env:
       GUARDIAN_WORKER_URL: ${{ secrets.GUARDIAN_WORKER_URL }}
       GUARDIAN_WORKER_SECRET: ${{ secrets.GUARDIAN_WORKER_SECRET }}
+      TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
       EXECUTION_ID: ${{ inputs.execution_id }}
 
     steps:
@@ -53,6 +54,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node ".github/codex/worker-target.js"
           test -n "$GUARDIAN_WORKER_URL"
           test -n "$GUARDIAN_WORKER_SECRET"
           body="$(jq -cn --arg id "$EXECUTION_ID" --arg run "${GITHUB_RUN_ID}" '{action:"claim",execution_id:$id,workflow_run_id:($run|tonumber)}')"

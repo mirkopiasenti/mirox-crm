@@ -84,6 +84,7 @@ La correzione Guardian del 2026-08-21 non modifica lo schema: i callback Telegra
 
 | File | Cosa introduce |
 |---|---|
+| `20261005110504_guardian_owner_conversation.sql` | Memoria degli ultimi 30 messaggi Telegram del proprietario nella colonna JSONB `conversazione` di `kona_ai_telegram_sessioni`. Additiva/server-only, nessun cambio grant/RLS o tabelle condivise. **Preparata, non applicata**: staging Guardian non disponibile/accessibile il 05/10/2026. Nome timestamp generato da CLI per evitare collisioni Call Director. |
 | `staging/001_guardian_bootstrap.sql` | Bootstrap one-shot del Supabase `Mirox CRM - Staging` (`blwgxrszvsoqcmcmhhqr`): crea la sola tabella `profili` minima per Auth/Guardian, con SELECT autenticata limitata al proprio UUID. Un guard interrompe l'esecuzione se `public` contiene gia' tabelle, quindi non puo' essere applicato accidentalmente al production corrente. Non crea utenti e non copia dati. |
 
 ## Linee guida

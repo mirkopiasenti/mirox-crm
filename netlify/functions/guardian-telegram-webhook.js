@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const { getAdminClient } = require('./_lib/require-auth');
 const {
   cleanText,
+  conversationText,
   generateGuardianAnalysis,
   generateOwnerReply,
   guardianAnalysisKeyboard,
@@ -57,7 +58,7 @@ function getChatId(update) {
 async function claimUpdate(supabase, chatId, updateId) {
   const { data, error } = await supabase
     .from('kona_ai_telegram_sessioni')
-    .select('chat_id, incidente_attivo_id, ultimo_update_id')
+    .select('chat_id, incidente_attivo_id, ultimo_update_id, conversazione')
     .eq('chat_id', chatId)
     .maybeSingle();
   if (error) throw error;
@@ -656,56 +657,116 @@ async function handleCallback(supabase, update, chatId) {
   }
 }
 
-async function handleOwnerConversation(supabase, chatId, session, text, metadata = {}) {
-  const incidentId = session?.incidente_attivo_id;
-  if (!incidentId) {
-    await sendTelegramMessage(chatId, 'Nessuna richiesta attiva. Usa /richieste, /apri KG-000001, /nuovo descrizione oppure /nuovo_miglioria descrizione.');
-    return;
+async function resolveConversationIncident(supabase, chatId, session, text, replyTo) {
+  const codes = [...new Set([...text.matchAll(/\bKG-(\d{1,12})\b/gi)].map((m) => Number(m[1])))];
+  // Several explicit cases belong to the general comparison, not one arbitrary ticket.
+  if (codes.length > 1) return null;
+  if (codes.length === 1) {
+    const { data, error } = await supabase.from('kona_ai_incidenti').select('*').eq('numero', codes[0]).maybeSingle();
+    if (error) throw error;
+    if (data) await setActiveIncident(supabase, chatId, data.id);
+    return data;
   }
-  const incident = await getIncident(supabase, incidentId);
-  if (!incident) {
-    await setActiveIncident(supabase, chatId, null);
-    await sendTelegramMessage(chatId, 'La richiesta attiva non esiste più. Usa /richieste per sceglierne un’altra.');
-    return;
+  if (replyTo?.message_id) {
+    const { data: notification, error } = await supabase.from('kona_ai_notifiche')
+      .select('incidente_id').eq('telegram_message_id', replyTo.message_id).maybeSingle();
+    if (error) throw error;
+    let id = notification?.incidente_id;
+    if (!id) {
+      const { data, error: incidentError } = await supabase.from('kona_ai_incidenti')
+        .select('id').eq('telegram_chat_id', chatId).eq('telegram_message_id', replyTo.message_id).maybeSingle();
+      if (incidentError) throw incidentError;
+      id = data?.id;
+    }
+    if (id) {
+      const incident = await getIncident(supabase, id);
+      if (incident) await setActiveIncident(supabase, chatId, id);
+      return incident;
+    }
   }
-  if (incident.stato === 'archiviato') {
-    await sendTelegramMessage(chatId, 'La richiesta attiva è archiviata. Aprine un’altra con /richieste.');
-    return;
+  return session?.incidente_attivo_id ? getIncident(supabase, session.incidente_attivo_id) : null;
+}
+
+async function ownerContext(supabase, incident, session) {
+  const { data: recent, error } = await supabase.from('kona_ai_incidenti')
+    .select('id, numero, stato, tipo_richiesta, titolo, riepilogo_ai, updated_at')
+    .order('updated_at', { ascending: false }).limit(12);
+  if (error) throw error;
+  let query = supabase.from('kona_ai_esecuzioni')
+    .select('incidente_id, tipo_esecuzione, stato, modello, codice_errore, messaggio_errore, workflow_run_id, created_at, completata_at')
+    .order('created_at', { ascending: false }).limit(12);
+  if (incident) query = query.eq('incidente_id', incident.id);
+  const { data: executions, error: executionError } = await query;
+  if (executionError) throw executionError;
+  return {
+    history: Array.isArray(session?.conversazione) ? session.conversazione : [],
+    incidents: (recent || []).map((i) => ({
+      code: incidentCode(i.numero), status: i.stato, type: i.tipo_richiesta,
+      title: conversationText(i.titolo, 180), summary: conversationText(i.riepilogo_ai, 700), updated_at: i.updated_at
+    })),
+    executions: (executions || []).map((e) => ({
+      code: incident?.id === e.incidente_id ? incidentCode(incident.numero)
+        : incidentCode((recent || []).find((i) => i.id === e.incidente_id)?.numero),
+      type: e.tipo_esecuzione, status: e.stato, model: e.modello,
+      error_code: e.codice_errore, error: conversationText(e.messaggio_errore, 700),
+      created_at: e.created_at, completed_at: e.completata_at,
+      workflow_run_id: e.workflow_run_id
+    }))
+  };
+}
+
+async function saveConversation(supabase, chatId, history) {
+  const { error } = await supabase.from('kona_ai_telegram_sessioni')
+    .update({ conversazione: history.slice(-30) }).eq('chat_id', chatId);
+  if (error) throw error;
+}
+
+async function handleOwnerConversation(supabase, chatId, session, text, metadata = {}, replyTo = null) {
+  const incident = await resolveConversationIncident(supabase, chatId, session, text, replyTo);
+  const previousMessages = incident ? await getMessages(supabase, incident.id, 60) : [];
+  const context = await ownerContext(supabase, incident, session);
+  const history = [...context.history, { author: 'mirko', text: conversationText(text), incident_id: incident?.id || null }];
+  // Preserve the question even if the provider is unavailable.
+  await saveConversation(supabase, chatId, history);
+  if (incident) {
+    const { error } = await supabase.from('kona_ai_messaggi').insert({
+      incidente_id: incident.id, canale: 'telegram', autore_tipo: 'mirko',
+      autore_profile_id: ownerProfileId(), testo: conversationText(text), metadati: metadata
+    });
+    if (error) throw error;
   }
-
-  const previousMessages = await getMessages(supabase, incident.id, 60);
-  const { error: ownerMessageError } = await supabase.from('kona_ai_messaggi').insert({
-    incidente_id: incident.id,
-    canale: 'telegram',
-    autore_tipo: 'mirko',
-    autore_profile_id: ownerProfileId(),
-    testo: cleanText(text, 4000),
-    metadati: metadata
-  });
-  if (ownerMessageError) throw ownerMessageError;
-
-  const guardian = await generateOwnerReply(incident, previousMessages, text);
-  const { error: guardianMessageError } = await supabase.from('kona_ai_messaggi').insert({
-    incidente_id: incident.id,
-    canale: 'guardian',
-    autore_tipo: 'guardian',
-    testo: guardian.reply,
-    metadati: { suggested_action: guardian.suggestedAction }
-  });
-  if (guardianMessageError) throw guardianMessageError;
-
+  let guardian;
+  try {
+    guardian = await generateOwnerReply(incident, previousMessages, text, context);
+  } catch (error) {
+    console.warn('Guardian conversazione:', cleanText(error?.code || 'provider_unavailable', 100));
+    const reason = error?.code === 'openai_invalid_key'
+      ? 'OpenAI rifiuta la chiave della chat Netlify. Va verificata OPENAI_API_KEY, separata dalla chiave del worker GitHub.'
+      : error?.code === 'openai_quota_exceeded' ? 'OpenAI segnala quota o credito esaurito per la chat.'
+      : 'Non riesco a rispondere con OpenAI in questo momento.';
+    guardian = { reply: `${reason} Ho conservato il tuo messaggio e potremo riprendere da qui.`, suggestedAction: 'nessuna' };
+  }
+  history.push({ author: 'guardian', text: guardian.reply, incident_id: incident?.id || null });
+  await saveConversation(supabase, chatId, history);
+  if (incident) {
+    const { error } = await supabase.from('kona_ai_messaggi').insert({
+      incidente_id: incident.id, canale: 'guardian', autore_tipo: 'guardian',
+      testo: guardian.reply, metadati: { suggested_action: guardian.suggestedAction }
+    });
+    if (error) throw error;
+  }
   let replyMarkup;
-  if (guardian.suggestedAction === 'analizza_guardian') {
-    replyMarkup = { inline_keyboard: [[{ text: 'Approva analisi Guardian', callback_data: `analyze:${incident.id}` }]] };
-  } else if (guardian.suggestedAction === 'archivia') {
-    replyMarkup = { inline_keyboard: [[{ text: 'Approva archiviazione', callback_data: `archive:${incident.id}` }]] };
+  if (incident && incident.stato !== 'archiviato' && guardian.suggestedAction === 'analizza_guardian') {
+    replyMarkup = { inline_keyboard: [[{ text: 'Analisi Guardian', callback_data: `analyze:${incident.id}` }]] };
+  } else if (incident && incident.stato !== 'archiviato' && guardian.suggestedAction === 'archivia') {
+    replyMarkup = { inline_keyboard: [[{ text: 'Archivia', callback_data: `archive:${incident.id}` }]] };
   }
   await sendTelegramMessage(chatId, guardian.reply, { reply_markup: replyMarkup });
 }
 
 async function handleMessage(supabase, update, chatId, session) {
   const message = update.message;
-  let text = cleanText(message?.text, 4000);
+  let text = conversationText(message?.text, 4000);
   let metadata = {};
   if (!text && message?.voice?.file_id) {
     await sendTelegramMessage(chatId, 'Trascrizione del vocale in corso.');
@@ -721,7 +782,8 @@ async function handleMessage(supabase, update, chatId, session) {
   const lower = text.toLowerCase();
   if (lower === '/start' || lower === '/help') {
     await sendTelegramMessage(chatId, [
-      'KONA AI Guardian è collegato soltanto a questa chat privata.',
+      'Parlami liberamente del CRM e delle richieste, anche senza aprirne una. Puoi rispondere alle notifiche o citare un codice KG quando serve.',
+      'I comandi sono scorciatoie facoltative; le azioni operative restano confermate dai pulsanti.',
       '',
       '/richieste mostra problemi e migliorie aperti',
       '/salute mostra lo stato tecnico dell\'Observer',
@@ -742,8 +804,10 @@ async function handleMessage(supabase, update, chatId, session) {
   if (lower.startsWith('/nuovo')) {
     return createTelegramIncident(supabase, chatId, text.replace(/^\/nuovo\s*/i, ''), 'problema');
   }
-  return handleOwnerConversation(supabase, chatId, session, text, metadata);
+  return handleOwnerConversation(supabase, chatId, session, text, metadata, message.reply_to_message);
 }
+
+exports._test = { handleOwnerConversation, resolveConversationIncident, ownerContext };
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return response(405, { ok: false });

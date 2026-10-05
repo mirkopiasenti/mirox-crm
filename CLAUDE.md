@@ -832,3 +832,10 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 | Modificare le **regole di accesso pagine Call Center** | NON farlo da qui — è gestito dall'altro progetto. Coordinare con utente. |
 | **Promuovere un utente ad Admin** o gestire i permessi CC | Dashboard → Admin → Gestione Utenti (`admin-utenti.html`). Bottoni "Rendi Admin"/"Rendi Operatore" + modale "Permessi CC". Solo accessibile se sei admin |
 | **Aggiungere una nuova pagina al pannello Admin** | Nuova card in `admin.html` + nuova pagina `admin-<nome>.html` alla root, riusare guard pattern `Auth.richiediAuth()` + check `ruolo === 'admin'` (vedi sezione "Pannello Admin Mirox") |
+
+## Guardian: aggiornamento 05/10/2026
+
+Correzioni di chat libera, memoria e affidabilita' preparate nel worktree, non
+ancora distribuite. Staging Guardian storico non disponibile/accessibile.
+Seguire AGENTS e `docs/GUARDIAN_DIAGNOSI_2026-10-05.md`; nessun deploy, env Netlify
+o nuovo progetto senza le autorizzazioni previste.

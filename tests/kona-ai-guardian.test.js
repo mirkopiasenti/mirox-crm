@@ -127,7 +127,7 @@ test('le API Guardian separano segnalazioni autenticate e webhook Telegram priva
   assert.match(workerHelper, /x-guardian-worker-signature/i);
   assert.match(worker, /lease_token_hash/i);
   assert.match(analysisWorkflow, /sandbox: read-only/i);
-  assert.match(analysisWorkflow, /model: gpt-5\.6-luna/i);
+  assert.match(analysisWorkflow, /model: \$\{\{ steps\.claim\.outputs\.model \}\}/i);
   assert.match(analysisWorkflow, /github\.ref_name == 'main'/i);
   assert.match(analysisWorkflow, /inputs\.target_environment == 'production'/i);
   assert.match(analysisWorkflow, /guardian-production/i);

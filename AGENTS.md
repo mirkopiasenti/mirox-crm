@@ -216,7 +216,7 @@ Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmc
 - `kona_ai_segnali` — migration `068`, aggregati deduplicati per fingerprint/ambiente/release. Contiene soglie, priorità, conteggi, stato, incidente collegato e cooldown delle notifiche.
 - `kona_ai_notifiche` — migration `068`, outbox server-only Telegram con chiave anti-duplicazione, tentativi, backoff e dead-letter dopo otto fallimenti.
 - `kona_ai_observer_checkpoint` — migration `068`, checkpoint e budget giornaliero dell'Observer per ambiente e tipo di scansione.
-- `kona_ai_telegram_sessioni` — associa il solo `chat_id` proprietario all'incidente attivo e conserva l'ultimo `update_id` Telegram per dedupe.
+- `kona_ai_telegram_sessioni` — associa il solo `chat_id` proprietario all'incidente attivo, conserva l'ultimo `update_id` Telegram per dedupe e, dopo la migration timestamp del 05/10/2026 ancora da applicare, gli ultimi 30 messaggi di conversazione.
 
 ### Post-Vendita
 - `post_vendita_dispositivi_comodato` — codice generato da RPC `genera_codice_comodato()`
@@ -620,6 +620,23 @@ Il bottone "Admin" dentro `moduli/upload-contratti-vendita.html` è stato **rimo
 
 Il reporter globale `js/mirox-error-reporter.js` e tutte le email automatiche per errori tecnici sono stati rimossi. Non reintrodurli. Restano operativi `mirox-send-email`, `MiroxMailer`, i template email di processo e i popup locali; il wizard Upload Contratti continua a mostrare l'orario dell'errore e i messaggi OCR strutturati, ma non spedisce email tecniche.
 
+### Conversazione proprietario e affidabilita' (05/10/2026, da validare in staging)
+
+La chat privata Telegram del proprietario e' libera anche senza richiesta attiva
+e per richieste archiviate: nessuno stato impedisce una spiegazione. Il testo
+non esegue operazioni; pulsanti e audit restano necessari per patch, test,
+archiviazione e rilascio. Il contesto include esiti tecnici recenti e riferimenti
+espliciti KG o risposte a notifiche. La sessione server-only conserva gli ultimi
+30 messaggi in `conversazione`; nessuna conversazione generale crea un ticket.
+Una singola analisi automatica per segnale/release evita retry perpetui: dopo
+un errore si conserva la segnalazione, con ripetizione manuale disponibile.
+Un errore di chiave/modello/quota sospende i dispatch automatici fino a una
+successiva analisi manuale riuscita; il cron conserva comunque i nuovi segnali.
+Preflight OpenAI e callback usano codici diagnostici chiusi, senza segreti o log
+grezzi. Le scansioni preventive devono consegnare anche i fallimenti via outbox.
+Il workflow fallisce dopo la consegna di un esito tecnico negativo; codice e
+prompt del control plane si conservano prima del checkout del commit analizzato.
+
 ### Flusso e autorizzazioni
 
 1. Qualunque utente autenticato apre `moduli/segnala-problema.html`, sceglie `Segnala un problema` oppure `Proponi una miglioria` e conversa con Guardian tramite `guardian-incidents`.
@@ -639,15 +656,30 @@ La migration additiva `065_kona_ai_guardian.sql` crea quattro tabelle server-onl
 - `kona_ai_incidenti`: tipo richiesta, stato, priorita', origine, reporter, contesto minimo e riepiloghi;
 - `kona_ai_messaggi`: conversazione CRM/Telegram/Guardian/Codex;
 - `kona_ai_approvazioni`: proposta, decisione ed esito delle azioni sensibili;
-- `kona_ai_telegram_sessioni`: incidente attivo e dedupe degli update Telegram.
+- `kona_ai_telegram_sessioni`: incidente attivo, dedupe degli update e memoria generale degli ultimi 30 messaggi proprietario/Guardian nella colonna `conversazione` (migration timestamp del 05/10/2026, da applicare).
 - `kona_ai_esecuzioni`: contratto operativo e audit del worker Codex, con idempotenza delle esecuzioni attive.
 - `kona_ai_eventi_tecnici`, `kona_ai_segnali`, `kona_ai_notifiche`, `kona_ai_observer_checkpoint`: telemetria ripulita, aggregati, coda Telegram e checkpoint dell'Observer (migration `068`).
 
 `anon` e `authenticated` non hanno grant diretti. Gli eventi tecnici della `068` scadono dopo 30 giorni; i gruppi e le notifiche restano server-only per l'audit operativo. I dettagli tecnici degli incidenti hanno `dettagli_tecnici_scadono_at = now()+90 giorni`; riepilogo e audit restano permanenti. `cron-pulizia-operativa` elimina gli eventi tecnici oltre `expires_at` nella stessa fase di retention. Le migration `067` e `068` sono applicate e verificate sia sullo staging sia sul production dal 2026-08-11.
 
+### Stato staging verificato il 05/10/2026
+
+GitHub API mostra solo `guardian-production`, mentre `guardian-staging` manca.
+Il pannello Supabase autenticato non elenca piu' il vecchio staging Guardian
+`blwgxrszvsoqcmcmhhqr` e redirige quel project ref alla lista dell'organizzazione;
+MCP rifiuta l'accesso. Non considerare i riferimenti storici sotto una conferma
+di disponibilita'. Nessun ambiente creato/rimosso o Call Director riutilizzato:
+il proprietario deve decidere dove collaudare prima del rilascio.
+Dettagli: `docs/GUARDIAN_DIAGNOSI_2026-10-05.md`.
+
+Correzioni locali dei segnali Guardian settembre: Ticket usa listener su dati
+per aprire Lavorata anche con nomi contenenti apostrofi; Comodato elimina il
+controllo Apps Script dismesso; Apri/Chiudi azzera l'anteprima SIM tramite il
+renderer corrente quando la scelta torna a No. Non ancora distribuite.
+
 ### Ambiente e segreti
 
-Guardian e' attivo sul production `mirox-crm.it`, collegato al Supabase `lbgwamhjkjjfwgusafbi`; qui le env OpenAI/Telegram e il `KONA_AI_OWNER_PROFILE_ID` del profilo Mirko production sono configurati. Il bot `@MiroxAiGuardianBot` usa esclusivamente il webhook ufficiale. Il sito `mirox-crm-staging.netlify.app` e il Supabase `blwgxrszvsoqcmcmhhqr` restano l'ambiente isolato per sviluppi e validazioni senza dati reali e usano il bot già dedicato `@KonaAiGuardianBot`.
+Guardian e' attivo sul production `mirox-crm.it`, collegato al Supabase `lbgwamhjkjjfwgusafbi`; qui le env OpenAI/Telegram e il `KONA_AI_OWNER_PROFILE_ID` del profilo Mirko production sono configurati. Il bot `@MiroxAiGuardianBot` usa esclusivamente il webhook ufficiale. Il sito `mirox-crm-staging.netlify.app`, il Supabase `blwgxrszvsoqcmcmhhqr` e il bot dedicato `@KonaAiGuardianBot` descrivono il precedente ambiente isolato: disponibilita' da ripristinare come indicato nella verifica del 05/10/2026 sopra.
 
 Env vars: `OPENAI_API_KEY`, `OPENAI_GUARDIAN_MODEL`, `OPENAI_TRANSCRIBE_MODEL`, `TELEGRAM_GUARDIAN_BOT_TOKEN`, `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`, `TELEGRAM_GUARDIAN_WEBHOOK_SECRET`, `KONA_AI_OWNER_PROFILE_ID`, `GUARDIAN_OBSERVER_ENABLED`, `GUARDIAN_OBSERVER_DAILY_BUDGET`, `GUARDIAN_OBSERVER_MODEL`, `GUARDIAN_OBSERVER_REF`, `GUARDIAN_OBSERVER_WEEKLY_SCAN`, `GUARDIAN_TELEMETRY_HASH_SECRET`. Mai esporle nel frontend o committarle. Setup completo: `docs/KONA_AI_GUARDIAN_SETUP.md`.
 
@@ -721,6 +753,7 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 
 - **Path**: pagine in `/moduli/` → JS/CSS/link con `../` (es. `../js/config.js`, `../dashboard.html`). Pagine in `/moduli/call-center/` → JS/CSS/link Mirox con `../../` (es. `../../index.html`). I JS interni del CC (`/moduli/call-center/js/`) sono path-relativi alla pagina e funzionano out-of-the-box
 - **Auth guard**: ogni pagina chiama `Auth.richiediAuth()` (gestisce redirect a `../index.html` o `index.html` in base al pathname). Le pagine CC continuano a usare il proprio `Auth` (in `moduli/call-center/js/auth.js`) — è un'entità separata da `js/auth.js` di Mirox, ma fa la stessa cosa
+- **Eventi su dati dinamici**: non inserire nomi o dati DB in stringhe `onclick`/handler inline, nemmeno dopo `escapeHtml`; usare attributi `data-*` con escape HTML e listener che passano i valori come dati. Ticket applica questo pattern al bottone `Lavorata`, inclusi nomi con apostrofi.
 - **Modali**: usare `window.MiroxUI.{alert,confirm,prompt,toast,loading,allegati}`. **MAI** `alert()` / `confirm()` nativo del browser
 - **Azioni sensibili per ruolo**: **MAI** password operative hardcoded nel frontend. Rimborso manuale ed esiti manuali protetti restano admin-only tramite Netlify Function con `requireAuth(..., {adminOnly:true})`. Nel riepilogo Apri/Chiudi, invece, ogni account autenticato attivo può portare una pratica da `IN CORSO` a `KO`: il bottone è disponibile sia nella riga sia nel dettaglio e chiama `mark_apri_chiudi_ko`; le scritture dirette browser restano bloccate dalla migration `056`.
 - **Anagrafica**: SEMPRE via `AnagraficaHelper.cerca` / `cercaOcrea` (RPC `cerca_o_crea_anagrafica`) per evitare doppioni

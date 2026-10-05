@@ -39,6 +39,7 @@ jobs:
     env:
       GUARDIAN_WORKER_URL: ${{ secrets.GUARDIAN_WORKER_URL }}
       GUARDIAN_WORKER_SECRET: ${{ secrets.GUARDIAN_WORKER_SECRET }}
+      TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
       EXECUTION_ID: ${{ inputs.execution_id }}
 
     steps:
@@ -53,6 +54,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node ".github/codex/worker-target.js"
           test -n "$GUARDIAN_WORKER_URL"
           test -n "$GUARDIAN_WORKER_SECRET"
           body="$(jq -cn --arg id "$EXECUTION_ID" --arg run "${GITHUB_RUN_ID}" '{action:"claim",execution_id:$id,workflow_run_id:($run|tonumber)}')"
@@ -65,6 +67,9 @@ jobs:
           echo "::add-mask::$lease"
           echo "lease_token=$lease" >> "$GITHUB_OUTPUT"
           jq -e '.context' <<<"$response" > guardian-context.json
+          model="$(jq -er '.execution.model // "gpt-5.6-luna"' guardian-context.json)"
+          [[ "$model" =~ ^[a-zA-Z0-9._-]{1,100}$ ]]
+          echo "model=$model" >> "$GITHUB_OUTPUT"
           echo "base_commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Create patch branch
@@ -86,13 +91,22 @@ jobs:
       - name: Install dependencies before Codex
         run: npm ci
 
+      - name: Check OpenAI worker credentials
+        id: preflight
+        shell: bash
+        env:
+          OPENAI_API_KEY_CODEX_WORKER: ${{ secrets.OPENAI_API_KEY_CODEX_WORKER }}
+          CODEX_MODEL: ${{ steps.claim.outputs.model }}
+        run: node ".github/codex/openai-preflight.js"
+
       - name: Run Codex Luna with workspace write
         id: run_codex
+        if: steps.preflight.outputs.ready == 'true'
         continue-on-error: true
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY_CODEX_WORKER }}
-          model: gpt-5.6-luna
+          model: ${{ steps.claim.outputs.model }}
           effort: medium
           sandbox: workspace-write
           safety-strategy: drop-sudo
@@ -185,6 +199,7 @@ jobs:
         env:
           LEASE_TOKEN: ${{ steps.claim.outputs.lease_token }}
           CODEX_OUTCOME: ${{ steps.run_codex.outcome }}
+          PREFLIGHT_ERROR: ${{ steps.preflight.outputs.error_code }}
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
           TEST_OUTCOME: ${{ steps.tests.outcome }}
           PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
@@ -211,7 +226,7 @@ jobs:
           summary="$(if [ -s /tmp/guardian-codex-output.md ]; then tr '\n' ' ' < /tmp/guardian-codex-output.md | cut -c1-5000; elif [ -s codex-output.md ]; then tr '\n' ' ' < codex-output.md | cut -c1-5000; else echo 'Nessun riepilogo Codex disponibile.'; fi)"
           body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$result_branch" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --arg no_changes "$NO_CHANGES" --arg needs_information "$NEEDS_INFORMATION" --arg blocked "$BLOCKED" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,branch_name:(if ($branch|length) > 0 then $branch else null end),pull_request_url:(if ($pr|length) > 0 then $pr else null end),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish,no_changes:($no_changes == "true"),needs_information:($needs_information == "true"),blocked:($blocked == "true")}}')"
           if [ "$success" != true ]; then
-            body="$(jq -c --arg error_code "patch_workflow_failed" --arg error "$summary" '. + {error_code:$error_code,error:$error}' <<<"$body")"
+            body="$(jq -c --arg error_code "${PREFLIGHT_ERROR:-patch_workflow_failed}" --arg error "$summary" '. + {error_code:$error_code,error:$error}' <<<"$body")"
           fi
           signature="$(BODY="$body" node -e 'const crypto=require("crypto"); process.stdout.write(crypto.createHmac("sha256", process.env.GUARDIAN_WORKER_SECRET).update(process.env.BODY).digest("hex"))')"
           curl --fail --silent --show-error --max-time 20 "$GUARDIAN_WORKER_URL" \
