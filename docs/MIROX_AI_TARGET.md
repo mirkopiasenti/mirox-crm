@@ -201,6 +201,14 @@ Attivazione autorizzata esplicitamente dal proprietario il 05/10:
 - Obiettivi di ottobre non configurati: il mensile dichiara il dato mancante,
   senza copiare quelli di settembre o inventare Andamento/Eccedenza.
 
+Impaginazione pubblicata il 05/10, commit `47a7beb`, Netlify production
+`6ac406309a8a3d0008d7fa39`; commit confermato dai metadati pubblici.
+Collaudo worker reale `layout-check:47a7beb`: tre report (testo, PNG, PNG)
+consegnati alle 20:20:36 UTC al primo tentativo, nessun errore o stato incerto.
+Renderer nativo e font inclusi nel runtime verificati dall'invio reale;
+memoria aggiornata a 10 messaggi solo testuali, lease rilasciato.
+CI GitHub `37368961629` in attesa del runner al controllo iniziale.
+
 Riferimenti verificati: [OpenAI Docs: function calling](https://developers.openai.com/api/docs/guides/function-calling),
 [Supabase: sicurezza Data API](https://supabase.com/docs/guides/api/securing-your-api),
 [Netlify: Scheduled Functions](https://docs.netlify.com/build/functions/scheduled-functions/),
