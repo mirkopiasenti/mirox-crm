@@ -123,3 +123,12 @@ La correzione Guardian del 2026-08-21 non modifica lo schema: i callback Telegra
 - **2026-07-03**: modifica frontend/backend, nessun cambio schema Supabase. Per cluster vendita `Turista`, `upload-contratti-vendita` nasconde/invia `email=null` e le functions `garantisci-anagrafica` / `crea-vendita-pratica-carrello` non richiedono email; per `Consumer`/`Business` resta obbligatoria.
 - **2026-07-09**: nuovo modulo **Gare & Avanzamento** (migrazioni 038 + 039). Dashboard Pezzi passa a 3 tab: Day by Day (invariata), Gare Individuali (una tabella per operatore `in_gara` con ATTUALE / OBIETTIVO / COMPENSO) e Avanzamento Mensile (3 sezioni Standard / P.IVA / Extra con pezzi per operatore, punteggio, andamento %, eccedenza). Nuova pagina admin `admin-gare.html` con editor visuale scaglioni + bonus una tantum e bottone "Duplica dal mese precedente".
 - **2026-07-09**: alias tra profili (migrazione 040). `profili.alias_di` unifica due account della stessa persona ai fini di Dashboard Pezzi, Gare e report. Trigger BEFORE INSERT/UPDATE su 9 tabelle riscrive `operatore_id` sul canonico; RPC `applica_alias_backfill` riassegna anche il pregresso. In `admin-utenti.html` nuova colonna "Alias di" con dropdown + backfill guidato.
+
+### Baseline Guardian settembre (05/10/2026)
+
+Intervento applicativo documentato in `../docs/GUARDIAN_BUG_SETTEMBRE_2026.md`.
+Non modifica schema, RPC, RLS o dati commerciali/consensi reali. Dopo deploy
+verificato aggiorna solo gli stati dei casi Guardian KG8–21 e dei segnali
+collegati, aggiungendo messaggi di audit. Storico messaggi/esecuzioni conservato;
+incidenti tecnici mitigati e scansioni fallite sono archiviati con motivazione,
+non dichiarati bug risolti. Nuovi eventi sono separati dal commit di rilascio.

@@ -809,3 +809,24 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 | Modificare le **regole di accesso pagine Call Center** | NON farlo da qui — è gestito dall'altro progetto. Coordinare con utente. |
 | **Promuovere un utente ad Admin** o gestire i permessi CC | Dashboard → Admin → Gestione Utenti (`admin-utenti.html`). Bottoni "Rendi Admin"/"Rendi Operatore" + modale "Permessi CC". Solo accessibile se sei admin |
 | **Aggiungere una nuova pagina al pannello Admin** | Nuova pagina `admin-<nome>.html` alla root con `css/admin-shell.css` + `js/admin-shell.js`, aggiungere mapping e voce nel reparto corretto di `admin-shell.js`, riusare guard pattern `Auth.richiediAuth()` + check `ruolo === 'admin'` (vedi sezione "Pannello Admin Mirox") |
+
+
+### Recupero dei bug segnalati a settembre (05/10/2026)
+
+Ticket verifica la riga restituita dall'UPDATE prima di mostrare successo ed
+impedisce conferme simultanee. Il nome cliente resta fuori dagli handler inline.
+Il catalogo vendita usa `MiroxApi.fetch(..., {__miroxReadRetry:true})`: un solo
+retry GET dopo 350 ms per rete o HTTP 502/503/504, nessun retry di POST/upload,
+abort o browser offline; ogni errore resta nella telemetria.
+OTP: verifica unica in UI, reinvio bloccato durante la conferma, upload con
+`privacy-pdf-storage` e un retry sullo stesso path `upsert:false`; un conflitto
+dopo timeout e' accettato solo se il PDF riscaricato ha SHA256 identico.
+UPDATE condizionale su pending/hash/tentativi, rilettura dopo risposta persa,
+nessuna cancellazione del PDF referenziato; errore di rilettura conserva il file
+per non eliminare un consenso eventualmente salvato. Errori tecnici a codici
+chiusi con fase/request_id Guardian, senza OTP o dati cliente.
+Il nome dei nuovi PDF OTP include l'UUID del consenso; i PDF storici non cambiano.
+Timeout persistenti del provider e perdita di rete restano possibili: nessuna
+promessa di eliminazione; eventi storici senza causa dimostrata sono archiviati
+con nota di mitigazione, senza dichiararli risolti. Report completo in
+`docs/GUARDIAN_BUG_SETTEMBRE_2026.md`. Schema/RLS CRM e CC invariati.

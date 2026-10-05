@@ -3968,7 +3968,7 @@ Reload Forever
  applyConfig(cached);
  // Background refresh: aggiorna SOLO la cache, non ritocca il DOM per evitare
  // flicker se l'utente e' gia' in interazione col wizard
- fetchJsonOrTechnicalError('/.netlify/functions/vendita-config', {}, 'Errore refresh config')
+ fetchJsonOrTechnicalError('/.netlify/functions/vendita-config', { __miroxReadRetry: true }, 'Errore refresh config')
  .then((fresh) => writeConfigCache(fresh))
  .catch((e) => console.warn('Refresh config background fallito:', e?.message || e));
  // Province in background
@@ -3983,7 +3983,7 @@ Reload Forever
  markTechnicalChecking('Verifica...');
  const data = await fetchJsonOrTechnicalError(
  '/.netlify/functions/vendita-config',
- {},
+ { __miroxReadRetry: true },
  'Errore nel caricamento configurazione'
  );
  applyConfig(data);
@@ -6601,7 +6601,7 @@ Reload Forever
          resendCooldown -= 1;
          if (resendCooldown <= 0) {
            clearInterval(cooldownHandle);
-           resendBtn.disabled = false;
+           resendBtn.disabled = verificationInFlight;
            resendBtn.textContent = 'Reinvia SMS';
          } else {
            resendBtn.textContent = 'Reinvia tra ' + resendCooldown + 's';
@@ -6635,6 +6635,7 @@ Reload Forever
      }
 
      async function sendOtp(isResend) {
+       if (verificationInFlight) return;
        const numNorm = cpNormalizeMobile(cellularInput.value);
        if (!numNorm) {
          setStatus('Numero cellulare non valido. Usa un numero italiano di 9 o 10 cifre (3XX...) oppure il formato E.164 (+39...).', 'err');
@@ -6689,7 +6690,9 @@ Reload Forever
        }
      }
 
+     let verificationInFlight = false;
      async function verifyOtp() {
+       if (verificationInFlight) return;
        const code = otpInputs.map(i => i.value || '').join('');
        if (!/^\d{6}$/.test(code)) {
          setStatus('Inserisci tutte e 6 le cifre dell\'OTP', 'err');
@@ -6700,7 +6703,9 @@ Reload Forever
          setStatus('Sessione OTP non valida. Reinvia un nuovo SMS.', 'err');
          return;
        }
+       verificationInFlight = true;
        verifyBtn.disabled = true;
+       resendBtn.disabled = true;
        verifyBtn.textContent = 'Verifica in corso...';
        try {
          const res = await MiroxApi.fetch('/.netlify/functions/verifica-otp-privacy', {
@@ -6712,7 +6717,9 @@ Reload Forever
          if (!res.ok || !json.success) {
            verifyBtn.disabled = false;
            verifyBtn.textContent = 'Verifica OTP';
-           setStatus(json.error || ('Errore verifica OTP (HTTP ' + res.status + ')'), 'err');
+           setStatus(res.status >= 500
+             ? 'Conferma temporaneamente non disponibile. Riprova Verifica OTP con lo stesso codice; non occorre reinviare l’SMS.'
+             : (json.error || ('Errore verifica OTP (HTTP ' + res.status + ')')), 'err');
            if (json.scaduto) {
              sendBtn.style.display = 'inline-flex';
              sendBtn.disabled = false;
@@ -6731,7 +6738,10 @@ Reload Forever
        } catch (e) {
          verifyBtn.disabled = false;
          verifyBtn.textContent = 'Verifica OTP';
-         setStatus('Errore di rete: ' + (e && e.message ? e.message : String(e)), 'err');
+         setStatus('Connessione interrotta. Riprova Verifica OTP con lo stesso codice per controllare se la conferma è stata salvata.', 'err');
+       } finally {
+         if (!verifyBtn.disabled) verificationInFlight = false;
+         resendBtn.disabled = verificationInFlight || resendCooldown > 0;
        }
      }
 
@@ -6743,7 +6753,7 @@ Reload Forever
        });
        inp.addEventListener('keydown', (e) => {
          if (e.key === 'Backspace' && !e.target.value && i > 0) otpInputs[i - 1].focus();
-         if (e.key === 'Enter') verifyOtp();
+         if (e.key === 'Enter') { e.preventDefault(); verifyOtp(); }
        });
        inp.addEventListener('paste', (e) => {
          const text = (e.clipboardData || window.clipboardData).getData('text') || '';

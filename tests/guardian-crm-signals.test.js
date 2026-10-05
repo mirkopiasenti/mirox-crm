@@ -59,3 +59,22 @@ test('Apri/Chiudi passa da SIM si a no senza cercare info-sim e azzera anteprima
 test('Comodato non esegue il controllo Apps Script dismesso all’avvio', () => {
   assert.doesNotMatch(read('moduli/dispositivi_comodato.html'), /APPS_SCRIPT_URL/);
 });
+
+
+test('Ticket mostra errore se UPDATE non restituisce una riga lavorata', async () => {
+  for (const saved of [null, { id: 55, stato: 'Da gestire' }, { id: 55, stato: 'Lavorata' }]) {
+    const nodes = new Map();
+    const document = { getElementById(id) {
+      if (!nodes.has(id)) nodes.set(id, { value: '', disabled: false, classList: { remove() {}, add() {} } });
+      return nodes.get(id);
+    }, querySelectorAll: () => [] };
+    const query = { update() { return query; }, eq() { return query; }, select() { return query; }, maybeSingle: async () => ({ data: saved, error: null }) };
+    const context = vm.createContext({ document, window: { addEventListener() {} }, db: { from: () => query }, setTimeout() {}, Date, console });
+    const scripts = [...read('moduli/ticket.html').matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+    vm.runInContext(scripts.at(-1)[1], context);
+    vm.runInContext('loadTickets = () => {}; currentLavorataIndex = 55;', context);
+    await vm.runInContext('submitLavorata()', context);
+    assert.equal(nodes.get('toast').className.includes('success'), saved?.stato === 'Lavorata');
+    assert.equal(nodes.get('btnSubmitLavorata').disabled, false);
+  }
+});

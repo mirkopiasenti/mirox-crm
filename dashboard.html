@@ -850,7 +850,8 @@
         if (cacheIsFresh()) return; // gia' caldo, niente da fare
         try {
           const fetcher = (window.MiroxApi && window.MiroxApi.fetch) ? window.MiroxApi.fetch : fetch;
-          const res = await fetcher(ENDPOINT);
+          if (navigator.onLine === false) return;
+          const res = await fetcher(ENDPOINT, { __miroxReadRetry: true });
           if (!res.ok) return;
           const data = await res.json();
           if (data && data.success) {

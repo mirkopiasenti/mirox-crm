@@ -205,7 +205,7 @@
         } catch (_) { /* telemetry must never affect the request */ }
     }
 
-    async function authFetch(url, opts) {
+    async function authFetchOnce(url, opts) {
         const originalOpts = opts || {};
         const merged = { ...originalOpts };
         merged.headers = await headers(originalOpts.headers || {});
@@ -266,6 +266,28 @@
         if (retryResponse.status === 401) redirectToLogin();
 
         return retryResponse;
+    }
+
+    // Recupero esplicito delle sole letture catalogo: mai ripetere POST/upload.
+    async function authFetch(url, opts) {
+        const options = opts || {};
+        const mayRetry = options.__miroxReadRetry === true
+            && String(options.method || 'GET').toUpperCase() === 'GET'
+            && !options.body;
+        let firstError;
+        for (let attempt = 0; attempt < (mayRetry ? 2 : 1); attempt += 1) {
+            try {
+                const response = await authFetchOnce(url, options);
+                if (!mayRetry || attempt || ![502, 503, 504].includes(response.status)
+                    || options.signal?.aborted || root.navigator?.onLine === false) return response;
+            } catch (error) {
+                if (!mayRetry || attempt || error?.name === 'AbortError'
+                    || options.signal?.aborted || root.navigator?.onLine === false) throw error;
+                firstError = error;
+            }
+            await new Promise(resolve => setTimeout(resolve, 350));
+            if (options.signal?.aborted) throw firstError || new DOMException('Richiesta annullata', 'AbortError');
+        }
     }
 
     // Refresh proattivo quando la tab torna visibile / al wake-up del browser.

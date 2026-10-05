@@ -854,21 +854,25 @@
         }
 
         async function submitLavorata() {
+            if (document.getElementById('btnSubmitLavorata').disabled) return;
             const nota = document.getElementById('lavorataNota').value.trim();
             const btn = document.getElementById('btnSubmitLavorata');
             btn.disabled = true;
             btn.textContent = 'Salvataggio...';
 
             try {
-                const { error } = await sb
+                const { data: saved, error } = await sb
                     .from('ticket')
                     .update({
                         stato: 'Lavorata',
                         nota_lavorazione: nota || null,
                         data_lavorazione: new Date().toISOString()
                     })
-                    .eq('id', currentLavorataIndex);
+                    .eq('id', currentLavorataIndex)
+                    .select('id, stato')
+                    .maybeSingle();
                 if (error) throw error;
+                if (!saved || saved.stato !== 'Lavorata') throw new Error('Conferma non salvata. Ricarica i ticket e riprova.');
                 showToast('Ticket segnato come lavorato', 'success');
                 closeModal('lavorataModal');
                 loadTickets();

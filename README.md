@@ -36,7 +36,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `scripts/build-static.js` | Build Netlify: copia in `dist/` soltanto i file pubblici, genera `dist/js/config.js` con ambiente/release e inietta la telemetria nelle pagine autenticate |
 | `dist/` | Output locale della build, ignorato da Git. Non contiene backend, migration, test o documentazione |
 | `netlify/functions/` | Endpoint server-side (vedi sotto) |
-| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`, `pdf-disdetta`, `score-integrity`, `kona-ai-guardian`, `telegram`, `guardian-codex`, `guardian-telemetry`, `guardian-triage`, `with-telemetry`) |
+| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`, `privacy-pdf-storage`, `pdf-disdetta`, `score-integrity`, `kona-ai-guardian`, `telegram`, `guardian-codex`, `guardian-telemetry`, `guardian-triage`, `with-telemetry`) |
 | `netlify/functions/_templates/disdette/` | I quattro moduli PDF WindTre originali usati come sfondo immutabile dal Compilatore disdette |
 | `tests/` | Test automatici Node (`node:test`): regressioni vendita, sicurezza/XSS, PDF privacy, sintassi e link locali |
 | `.github/workflows/ci.yml` | CI GitHub: build e test con Node 22 su pull request e branch `main`/`staging` |
@@ -84,7 +84,7 @@ Tutte le functions, eccetto i due cron Netlify, l'endpoint anon intenzionale `pu
 | `garantisci-anagrafica` | POST | authenticated | Upsert anagrafica (lookup CF/PIVA, update campi vuoti / cambiati o insert). Usato dal wizard prima della raccolta consenso; per `Turista` salva `Consumer` su `anagrafica` e non richiede email |
 | `check-consenso-privacy` | GET | authenticated | Dedupe 24 mesi: cerca per `anagrafica_id` una dichiarazione corrente valida; con `include_history=true` restituisce inoltre l'esito privacy più recente e l'ultimo PDF archiviato per badge e download da Storico Cliente |
 | `richiedi-otp-privacy` | POST | authenticated | Richiede la scelta esplicita ACCONSENTO/NON ACCONSENTO, accetta cellulari italiani correnti o legacy di 9–10 cifre, genera OTP 6 cifre, salva hash+salt e invia SMS via Smshosting. Rate-limit 3 invii/ora per anagrafica + cooldown 60s |
-| `verifica-otp-privacy` | POST | authenticated | Verifica OTP (max 3 tentativi), genera il PDF informativa/dichiarazione con scelta marketing ed evidenze probatorie, lo archivia e imposta `valido_fino_al = now()+24 mesi` |
+| `verifica-otp-privacy` | POST | authenticated | Verifica OTP (max 3 tentativi), impedisce aggiornamenti concorrenti e recupera un timeout Storage con verifica SHA256, genera il PDF informativa/dichiarazione con scelta marketing ed evidenze probatorie, lo archivia e imposta `valido_fino_al = now()+24 mesi` |
 | `genera-pdf-consenso-cartaceo` | GET | authenticated | Stream del modulo cartaceo v6 precompilato: una pagina A4, monocromatico, corpo 10 pt, scelta marketing già marcata e riga firma |
 | `upload-consenso-cartaceo` | POST multipart | authenticated | Upload scansione firmata (max 20 MB, PDF); richiede l'esito ACCONSENTO/NON ACCONSENTO e crea il record `'cartaceo'` confermato |
 
@@ -384,3 +384,11 @@ Guardian e' attivo su `mirox-crm.it`, branch `main`, Supabase `lbgwamhjkjjfwgusa
 Ogni modifica al progetto deve essere riflessa in `README.md`, `CLAUDE.md` e `database/README.md` **nella stessa sessione/PR** in cui avviene la modifica. Niente "lo aggiorno dopo" — è così che `README_UNIFICATO.txt` (il file che questo README ha sostituito) era diventato obsoleto.
 
 Vedi la sezione "Manutenzione di questa guida" in [`CLAUDE.md`](CLAUDE.md) per la **tabella completa dei trigger** (cosa aggiornare quando cambia cosa) e il self-check di fine task.
+
+## Correzioni segnalazioni settembre 2026
+
+Ticket conferma il salvataggio effettivo; Comodato e Apri/Chiudi correggono gli
+errori di avvio/SIM. Catalogo vendita: un retry esplicito solo delle letture GET
+su rete/502/503/504. OTP: verifica unica, recupero Storage, protezione dei PDF gia'
+salvati e diagnostica Guardian per fase. Schema CRM invariato.
+Dettaglio e limiti: [registro intervento](docs/GUARDIAN_BUG_SETTEMBRE_2026.md).
