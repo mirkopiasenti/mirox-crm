@@ -640,6 +640,13 @@ merge. Test branch con integrazione della base main corrente, senza deploy di te
 Implementazione: `_lib/guardian-release.js` e `.github/codex/guardian-publish.js`.
 Guida: `docs/GUARDIAN_PUBBLICAZIONE_TELEGRAM.md`. Nessuna migration necessaria.
 
+Nota Netlify 05/10/2026: `build_settings.skip_prs=true` sul site `mirox-crm`,
+verificato via API. Disabilita le anteprime automatiche delle PR; `main` rimane
+branch production e `stop_builds=false`. L'anteprima PR12 era fallita (deploy
+6ac3c9260afe830008c35dcd) mentre production73a8c0d risultava ready.
+Il check rosso storico dell'anteprima non indica un guasto production e non va
+aggirato esponendo Supabase production alle branch. Nessun secret o codice modificato.
+
 ### Conversazione proprietario e affidabilita' (05/10/2026, produzione autorizzata)
 
 La chat privata Telegram del proprietario e' libera anche senza richiesta attiva

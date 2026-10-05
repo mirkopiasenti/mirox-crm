@@ -352,6 +352,10 @@ Solo allora chiude la richiesta. Esiti Telegram in outbox persistente; se GitHub
 segnalato esplicitamente. Workflow/configurazioni, dipendenze e SQL richiedono
 revisione manuale; nessuna modifica a segreti, schema o protezioni GitHub.
 
+Netlify: anteprime automatiche delle PR disabilitate il 05/10/2026 (`skip_prs=true`).
+Le PR Guardian conservano test GitHub e conferma Telegram; il deploy del CRM parte
+su `main` dopo il merge. I deploy production restano attivi.
+
 ## Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
 - Sicurezza deploy 26/07/2026: Netlify non pubblica più la root del repository. La build a lista consentita include soltanto pagine e asset frontend; migration SQL, Functions, test, script, configurazioni e documentazione sono esclusi e coperti da test automatico.

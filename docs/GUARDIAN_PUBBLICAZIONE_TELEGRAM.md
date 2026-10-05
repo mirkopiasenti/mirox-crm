@@ -50,3 +50,13 @@ registrato qui soltanto dopo la sua esecuzione reale.
 La proposta di collaudo modifica soltanto questa guida. Il pulsante Telegram
 consente di verificare approvazione, merge GitHub e pubblicazione Netlify senza
 modificare pagine, dati CRM, segreti o configurazioni.
+
+Esito reale del 05/10/2026: il proprietario ha premuto il pulsante Telegram.
+[Test branch](https://github.com/mirkopiasenti/mirox-crm/actions/runs/37337090495)
+riusciti; [workflow rilascio](https://github.com/mirkopiasenti/mirox-crm/actions/runs/37339405520)
+riuscito. Merge `ffe515da613cc39c293bffb3a83c1ae287fc5208` alle 18:15:37,
+Netlify production pronto alle 18:16:08 (`6ac3cd2b2d14710008b20284`), commit online
+verificato tramite metadata pubblici e salute Guardian superata alle 18:16:14.
+Notifica finale Telegram consegnata alle 18:20:22 al primo tentativo. La outbox è
+elaborata ogni cinque minuti: l’attesa dopo il deploy è prevista.
+Anteprime PR Netlify disabilitate; production main e build restano attivi.

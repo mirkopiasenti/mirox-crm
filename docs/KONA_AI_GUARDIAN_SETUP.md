@@ -128,3 +128,11 @@ Solo Mirko puo' approvare azioni. Gli operatori possono esclusivamente creare un
 | Deploy produzione | merge della versione approvata e verifica online | conferma finale Telegram e test superati |
 
 I dettagli tecnici hanno una data obiettivo di scadenza a 90 giorni. Il riepilogo della richiesta e l'audit delle approvazioni restano permanenti. `cron-pulizia-operativa` azzera dopo la scadenza percorso pagina, titolo pagina, user agent e contesto client; non elimina conversazioni, riepiloghi, commit o pull request.
+
+## Anteprime PR Netlify disabilitate (05/10/2026)
+
+Il site production ha `build_settings.skip_prs=true`: nessuna anteprima automatica
+delle proposte Guardian. Test branch su GitHub, consenso finale su Telegram e
+deploy di main al merge restano attivi. Confermati repo/branch/impostazioni build
+invariati e `stop_builds=false`. Il fallimento storico dell'anteprima PR12 resta
+nello storico GitHub, senza dimostrare un guasto della produzione.

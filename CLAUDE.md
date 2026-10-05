@@ -874,3 +874,7 @@ segnalato esplicitamente. Workflow/configurazioni, dipendenze e SQL richiedono
 revisione manuale; nessuna modifica a segreti, schema o protezioni GitHub.
 
 Dettagli e vincoli aggiornati in AGENTS e `docs/GUARDIAN_PUBBLICAZIONE_TELEGRAM.md`.
+
+Netlify 05/10/2026: anteprime PR disabilitate (`skip_prs=true`); production main
+e deploy automatici al merge restano attivi (`stop_builds=false`). Il controllo
+GitHub fallito dell'anteprima PR12 è storico e non un guasto del CRM production.
