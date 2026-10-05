@@ -29,8 +29,18 @@ async function request(method,payload,fetcher=fetch) {
   }
   return data.result;
 }
-async function send(text,fetcher=fetch) {
+function messageText(message) {return typeof message==='string'?message:message?.text||'';}
+function prepareMessage(message) {return typeof message==='string'?message:require('./target-report-images').renderImage(message);}
+async function send(message,fetcher=fetch) {
   const chat=process.env.TELEGRAM_TARGET_OWNER_CHAT_ID;
+  if(message?.type==='photo') {
+    const form=new FormData();form.append('chat_id',chat);
+    form.append('caption',message.caption);
+    const document=message.bytes.length>10*1024*1024||message.width+message.height>10000||Math.max(message.width/message.height,message.height/message.width)>20;
+    form.append(document?'document':'photo',new Blob([message.bytes],{type:'image/png'}),message.filename);
+    return request(document?'sendDocument':'sendPhoto',form,fetcher);
+  }
+  const text=messageText(message);
   if(!text) throw new Error('telegram_empty');
   if(text.length<=4000) return request('sendMessage',{chat_id:chat,text,disable_web_page_preview:true},fetcher);
   const form=new FormData();form.append('chat_id',chat);
@@ -38,6 +48,7 @@ async function send(text,fetcher=fetch) {
   form.append('document',new Blob([text],{type:'text/plain;charset=utf-8'}),'mirox-target-report.txt');
   return request('sendDocument',form,fetcher);
 }
+
 async function voice(fileId,fetcher=fetch) {
   const file=await request('getFile',{file_id:fileId},fetcher);
   if(!file.file_path||file.file_size>25*1024*1024||!/^voice\/[\w.-]+$/.test(file.file_path)) throw new Error('voice_invalid');
@@ -51,4 +62,4 @@ async function nudge(fetcher=fetch) {
   const result=await fetcher(`${ORIGIN}/.netlify/functions/target-worker-background`,{method:'POST',headers:{'Content-Type':'application/json','X-Target-Signature':sign(body)},body,signal:AbortSignal.timeout(5000)});
   if(!result.ok) throw new Error('target_dispatch_failed');
 }
-module.exports={configured,equal,sign,verify,send,voice,nudge,request};
+module.exports={configured,equal,sign,verify,send,prepareMessage,messageText,voice,nudge,request};

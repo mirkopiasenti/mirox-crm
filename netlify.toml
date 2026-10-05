@@ -13,7 +13,7 @@
   # External modules che non vanno bundlati.
   # pdfkit: ha font AFM e asset binari interni che esbuild non riesce a
   #   bundlare correttamente (a runtime fallirebbe con ENOENT su Helvetica.afm).
-  external_node_modules = ["@supabase/supabase-js", "nodemailer", "pdfkit"]
+  external_node_modules = ["@supabase/supabase-js", "nodemailer", "pdfkit", "@resvg/resvg-js"]
 
 # Headers di sicurezza statici. La CSP e' generata in dist/_headers dalla build,
 # cosi' consente esclusivamente il progetto Supabase dell'ambiente corrente.
@@ -49,3 +49,7 @@
 # Recupera la coda anche fuori dall'orario serale; abilitazione esplicita production.
 [functions."cron-target-reports"]
   schedule = "*/5 * * * *"
+
+# Font privati del renderer PNG Target; esclusi dalla pubblicazione statica.
+[functions."target-worker-background"]
+  included_files = ["netlify/functions/_assets/target/*"]

@@ -748,6 +748,15 @@ con tre consegne e dialogo reale riusciti. Variabili modello facoltative vuote:
 i nomi dei modelli sono pubblici e non vanno salvati come Secret, altrimenti lo
 scanner Netlify blocca correttamente il deploy. Il piano attuale limita i Secret
 a Builds/Functions/Runtime in Production; altri contesti vuoti.
+Convenzione grafica Target: vendite in testo spaziato; CC e mensile in immagini
+PNG generate da SVG locali tramite `@resvg/resvg-js@2.6.2`, senza servizi immagini AI.
+Font Lato OFL inclusi in `netlify/functions/_assets/target/`, non nella build pubblica.
+Snapshot SVG + testo alternativo nella coda; rasterizzazione prima del checkpoint
+di invio, memoria AI alimentata dal solo testo. I messaggi stringa gia' accodati
+restano compatibili; nessuna nuova migration o variazione ai conteggi.
+Helper `_lib/target-report-images.js`; moduli nativi resvg esterni a esbuild e
+font inclusi nel solo worker, con resolver sorgente/bundle/runtime. Foto fuori
+dai limiti Telegram inviate in un unico documento PNG, senza troncare dati.
 Setup e limiti: `docs/MIROX_AI_TARGET.md`.
 
 ## Sistema consensi privacy GDPR (dal 2026-06-26)

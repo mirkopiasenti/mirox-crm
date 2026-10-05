@@ -1,6 +1,6 @@
 'use strict';
 const crypto=require('node:crypto');
-const {today,validateDate,buildReports,formatReports}=require('./target-reports');
+const {today,validateDate,buildReports,formatReportMessages}=require('./target-reports');
 const dialogue=require('./target-dialogue');
 const telegram=require('./target-telegram');
 const LEASE_MS=20*60*1000;
@@ -30,14 +30,14 @@ function command(text,now=new Date()) {
 const WELCOME='MIROX AI - Target\n\nParliamo liberamente di vendite, chiamate e obiettivi: puoi farmi domande, chiedere confronti e discutere i risultati.\n\nI tre report arrivano alle 19:45, dal lunedi al sabato escluse le festivita nazionali.\n/report aggiorna i tre report\n/report YYYY-MM-DD per un altro giorno\n/vendite, /chiamate, /mese per un solo report\n/salute mostra lo stato delle consegne\n/nuova ricomincia la conversazione.';
 async function prepare(db,job,session,deps) {
   const now=deps.now||new Date(),read=deps.read||((date)=>buildReports(db,date,now));
-  if(job.tipo==='report') return {messages:formatReports(await read(job.payload.data)),user:null};
+  if(job.tipo==='report') return {messages:formatReportMessages(await read(job.payload.data)),user:null};
   let text=job.payload.testo||'';
   if(job.payload.voice_id) text=await (deps.transcribe||dialogue.transcribe)(await (deps.voice||telegram.voice)(job.payload.voice_id));
   if(!text.trim()) return {messages:['Il messaggio non contiene testo leggibile. Puoi scrivermi o inviare un vocale.'],user:null};
   let cmd;
   try {cmd=command(text,now);} catch {return {messages:['Data non valida. Usa /report YYYY-MM-DD, dal 2020 a oggi.'],user:text};}
   if(cmd && ['report','vendite','chiamate','mese'].includes(cmd.action)) {
-    const all=formatReports(await read(cmd.date));
+    const all=formatReportMessages(await read(cmd.date));
     return {messages:cmd.action==='report'?all:[all[{vendite:0,chiamate:1,mese:2}[cmd.action]]],user:text};
   }
   if(cmd?.action==='start'||cmd?.action==='aiuto') return {messages:[WELCOME],user:text};
@@ -81,13 +81,14 @@ async function processQueue(db,deps={}) {
           job.payload.user=prepared.user;
         }
         for(let i=job.inviati;i<job.messaggi.length;i++) {
+          const deliverable=await (deps.prepareMessage||telegram.prepareMessage)(job.messaggi[i]);
           await update({in_flight:true});job.in_flight=true;
-          await (deps.send||telegram.send)(job.messaggi[i]);
+          await (deps.send||telegram.send)(deliverable);
           // Persist progress before another Telegram request: a lost checkpoint is ambiguous.
           await update({inviati:i+1,in_flight:false});job.in_flight=false;
           await (deps.pause || (ms=>new Promise(resolve=>setTimeout(resolve,ms))))(1100);
         }
-        const history=dialogue.trimHistory([...(session.conversazione||[]),...(job.payload.user?[{role:'user',content:job.payload.user}]:[]),...job.messaggi.map(content=>({role:'assistant',content}))]);
+        const history=dialogue.trimHistory([...(session.conversazione||[]),...(job.payload.user?[{role:'user',content:job.payload.user}]:[]),...job.messaggi.map(message=>({role:'assistant',content:telegram.messageText(message)}))]);
         checked(await db.from('mirox_target_sessioni').update({conversazione:history,updated_at:new Date().toISOString()}).eq('chat_id',chat).eq('lock_token',token));
         session.conversazione=history;
         await update({stato:'inviato',errore_codice:null});completed++;

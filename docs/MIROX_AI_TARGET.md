@@ -10,11 +10,12 @@ ancora da collaudare con il proprietario. Obiettivi mensili di ottobre assenti.
 Chat privata del solo Mirko, bot dedicato con nome **MIROX AI - Target**.
 Alle **19:45 Europe/Rome**, dal lunedi al sabato, invia nell'ordine:
 
-1. Pezzi Day by Day per riga/categoria e operatore; righe a zero omesse.
-2. Chiamate Consumer e Business outbound per operatore: fatte, risposte,
+1. **Testo** Pezzi Day by Day: totale giornata in alto, una categoria per blocco,
+   operatori su righe separate e righe a zero omesse.
+2. **Immagine PNG** Chiamate Consumer e Business outbound per operatore: fatte, risposte,
    non risposte, nuovi appuntamenti fissati; spostamenti separati, totali
    per canale e totale generale anche per operatore.
-3. Avanzamento Mensile Standard e sola **Extra Gara P.IVA**, con Andamento,
+3. **Immagine PNG** Avanzamento Mensile Standard e sola **Extra Gara P.IVA**, con Andamento,
    Eccedenza, punteggio e obiettivo. Le categorie mensili a zero restano visibili.
 
 Sono esclusi domeniche, festivita nazionali italiane e Pasquetta. Il cron UTC
@@ -76,7 +77,8 @@ un giorno passato dello stesso mese non ricostruisce il mensile di quel giorno.
 - `cron-target-reports`: coda serale con chiave unica per data, risveglio dei
   job pendenti e pulizia dei soli job Target terminali piu' vecchi di 90 giorni.
   Il deploy Netlify impedisce invocazioni URL delle funzioni scheduled.
-- Helper `target-reports`, `target-dialogue`, `target-queue`, `target-telegram`.
+- Helper `target-reports`, `target-dialogue`, `target-queue`, `target-telegram`,
+  `target-report-images` (SVG locali rasterizzati con `@resvg/resvg-js@2.6.2`).
 - Migration `database/20261005185700_mirox_ai_target.sql`: nuove tabelle
   `mirox_target_sessioni` e `mirox_target_jobs`, RLS abilitata, accesso solo
   service role. Nessuna tabella CC condivisa o RPC esistente modificata.
@@ -91,9 +93,18 @@ messaggio e' arrivato: il job passa a **incerto** e non e' reinviato da solo.
 Telegram non offre una chiave di idempotenza per sendMessage: non si promette
 una consegna esattamente una volta in presenza di esiti ambigui.
 
-Testo lungo oltre 4.000 caratteri: lo stesso report viene consegnato in un
-unico messaggio con allegato `.txt` completo, senza troncamenti o messaggi
-aggiuntivi. Nel campione reale i tre testi misurano 342, 610 e 806 caratteri.
+Immagini composte direttamente dagli aggregati CRM, senza API immagini OpenAI:
+nessun costo AI aggiuntivo per la grafica. Font Lato Regular/Bold sotto licenza
+OFL, inclusi nel solo worker; moduli nativi resvg esterni al bundle esbuild.
+SVG e testo alternativo salvati nella coda per conservare lo snapshot al retry;
+PNG generato prima del checkpoint di invio, non conservato nel DB/Storage.
+Il dialogo riceve il solo testo alternativo. Job vecchi con stringhe compatibili.
+Stati mensili verdi per IN LINEA/RAGGIUNTO, rossi per IN RITARDO; obiettivi
+mancanti neutri con avviso. Eccedenza conserva il segno; raggiunto/assente: —.
+La foto Telegram include caption e data. Report oltre i limiti foto (10 MB,
+somma dimensioni 10.000, rapporto 20) in un solo documento PNG completo;
+allocazione raster limitata a 18.000 pixel di altezza. Non vengono persi dati.
+Testo lungo oltre 4.000 caratteri: un unico allegato `.txt` completo.
 
 Token dedicato, segreti e service role restano backend-only. Nessun campo cliente,
 PDF, allegato, CF, telefono, email o nota chiamata viene letto per il dialogo.
@@ -133,7 +144,7 @@ Log con soli codici tecnici, senza payload provider, token o testi del proprieta
    | `OPENAI_TARGET_TRANSCRIBE_MODEL` | Facoltativa; default `gpt-transcribe` |
 
    Riutilizza solo `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` backend esistenti,
-   senza nuove dipendenze npm. Chiave, modello e trascrizioni OpenAI sono dedicati
+   senza nuove credenziali per le immagini. Chiave, modello e trascrizioni OpenAI sono dedicati
    a Target; la chiave Guardian non viene usata neanche come fallback.
    Il codice rifiuta staging, branch diverse da main e contesti preview.
    I nomi dei modelli non sono segreti: lasciarli vuoti per usare i default o
@@ -157,14 +168,18 @@ altre chiavi write-only: nessuna rotazione o modifica al runner backup eseguita.
 
 ## Verifiche della sessione
 
-Suite repository: **198/198 test e build superati**. Test Target coprono calendario/DST,
+Suite repository dopo impaginazione: **203/203 test e build superati**
+(202 test versionati, piu' il test backup locale preesistente). Test Target coprono calendario/DST,
 filtri, punteggi/stati, pagina/motore condiviso, paginazione, errori lettura,
 webhook/HMAC/allowlist, dedupe, serializzazione, 429, invio incerto e tool AI.
 
 Lettura production 05/10 senza mutazioni: 35 contratti Legnago di ottobre,
 8 categorie del report mensile. Il rendering HTML mensile prima/dopo e'
 identico sul campione reale; 60 mesi di calendario 2024–2028 coincidenti.
-Anteprima locale privata: `.backup-private/target-validation/report-2026-10-05.txt`.
+Anteprime private in `.backup-private/target-validation/`: testo vendite e PNG
+Call Center/mensile su snapshot reale del 05/10; controllate visivamente.
+Verificati raster PNG reali, escape nomi, segni/stati, comandi singoli,
+limiti foto/documento e retry dopo errore renderer prima del checkpoint.
 Il campione usa l'ora di lettura effettiva, non una chiusura ricostruita alle 19:45.
 Attivazione autorizzata esplicitamente dal proprietario il 05/10:
 - Feature `84a8232`, CI GitHub `37360431887` riuscita; Netlify production

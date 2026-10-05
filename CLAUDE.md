@@ -13,6 +13,11 @@ Guardian. Nessuna modifica a tabelle CC condivise. Migration applicata e credenz
 Production configurate il 05/10; bot online, tre report del giorno e dialogo reale
 verificati, trascrizione sintetica riuscita. Regole complete in [AGENTS.md](AGENTS.md) e
 [setup Target](docs/MIROX_AI_TARGET.md).
+Vendite in testo spaziato; CC e mensile in PNG tramite `@resvg/resvg-js@2.6.2`.
+Font Lato OFL in `netlify/functions/_assets/target/`, esclusi dalla build pubblica.
+Snapshot SVG + testo nella coda; rasterizzazione prima del checkpoint Telegram,
+memoria AI con solo testo, nessuna migration o API immagini.
+Foto oltre i limiti Telegram in un singolo documento PNG completo.
 
 ## Cos'è questo progetto
 

@@ -136,7 +136,7 @@ test('coda: tre messaggi ordinati, checkpoint, memoria e niente duplicati',env(a
   const db=fakeDb();await queue.enqueue(db,{key:'day',chat:'123',tipo:'report',payload:{data:'2026-10-05'}});
   const sent=[],p=await reports.buildReports(fakeDb(fixture()),'2026-10-05',NOW);
   await queue.processQueue(db,{pause:fastPause,read:async()=>p,send:async text=>sent.push(text)});
-  assert.equal(sent.length,3);assert.match(sent[0],/Vendite/);assert.match(sent[1],/Call Center/);assert.match(sent[2],/Avanzamento/);
+  assert.equal(sent.length,3);assert.match(sent[0],/Vendite/);assert.match(sent[1].text,/Call Center/);assert.match(sent[2].text,/Avanzamento/);assert.equal(sent[1].type,'photo');assert.equal(sent[2].type,'photo');
   assert.equal(db.tables.mirox_target_jobs[0].inviati,3);assert.equal(db.tables.mirox_target_jobs[0].stato,'inviato');
   await queue.processQueue(db,{pause:fastPause,send:async()=>assert.fail('doppio invio')});
   assert.equal(db.tables.mirox_target_sessioni[0].conversazione.length,3);
@@ -148,7 +148,7 @@ test('coda: 429 riprende dal messaggio mancante, errore ambiguo sospende',env(as
   assert.equal(db.tables.mirox_target_jobs[0].inviati,1);
   db.tables.mirox_target_jobs[0].next_attempt_at='2020-01-01T00:00:00Z';
   const remaining=[];await queue.processQueue(db,{pause:fastPause,send:async text=>remaining.push(text)});
-  assert.equal(remaining.length,2);assert.match(remaining[0],/Call Center/);
+  assert.equal(remaining.length,2);assert.match(remaining[0].text,/Call Center/);
   await queue.enqueue(db,{key:'uncertain',chat:'123',tipo:'dialogo',payload:{testo:'/start'}});
   await queue.processQueue(db,{pause:fastPause,send:async()=>{const e=new Error('telegram_ambiguous');e.ambiguous=true;throw e;}});
   assert.equal(db.tables.mirox_target_jobs[1].stato,'incerto');
@@ -241,4 +241,58 @@ test('retry in attesa conserva ordine del dialogo, senza far passare i messaggi 
   db.tables.mirox_target_jobs[0].next_attempt_at='2099-01-01T00:00:00Z';
   const result=await queue.processQueue(db,{send:async()=>assert.fail('ordine saltato'),reply:async()=>assert.fail('conversazione fuori ordine')});
   assert.equal(result.completed,0);
+}));
+
+test('impaginazione: vendite spaziate, categorie senza pezzi escluse e tre formati compatibili',async()=> {
+  const p=await reports.buildReports(fakeDb(fixture()),'2026-10-05',NOW);
+  p.vendite.categorie.push({nome:'Seconda categoria',totale:2,operatori:{Anna:1,Luca:1}},{nome:'Categoria a zero',totale:0,operatori:{Anna:0}});p.vendite.totale=3;
+  const messages=reports.formatReportMessages(p);
+  assert.match(messages[0],/TOTALE GIORNATA: 3 pezzi/);
+  assert.match(messages[0],/MIRKO: 1\n\nSeconda categoria\nTotale: 2 pezzi\n  Anna: 1\n  Luca: 1/);
+  assert.doesNotMatch(messages[0],/Categoria a zero/);
+  assert.deepEqual(messages.map(m=>typeof m==='string'?'text':m.type),['text','image','image']);
+  assert.equal(telegram.prepareMessage('vecchio job testuale'),'vecchio job testuale');
+});
+test('immagini: PNG reali, nomi escapati, spostamenti e valori mensili senza inventare obiettivi',async()=> {
+  const p=await reports.buildReports(fakeDb(fixture()),'2026-10-05',NOW);
+  p.chiamate.operatori[0].nome='<image href="https://example.test"/> & operatore con nome molto lungo';
+  p.mensile=[{nome:'Ritardo',punteggio:2.5,obiettivo:10,andamento:'IN RITARDO',eccedenza:-2},{nome:'Positivo',punteggio:6,obiettivo:10,andamento:'IN LINEA',eccedenza:3},{nome:'Raggiunto',punteggio:10,obiettivo:10,andamento:'RAGGIUNTO',eccedenza:null},{nome:'Assente',punteggio:0,obiettivo:0,andamento:'OBIETTIVO NON CONFIGURATO',eccedenza:null}];
+  const messages=reports.formatReportMessages(p);
+  assert.match(messages[1].svg,/&lt;image/);assert.match(messages[1].svg,/href=&quot;/);assert.doesNotMatch(messages[1].svg,/<image\b/);
+  assert.match(messages[1].svg,/Spostamenti complessivi: 1/);
+  assert.match(messages[2].svg,/>-2<\/text>/);assert.match(messages[2].svg,/>\+3<\/text>/);
+  assert.match(messages[2].svg,/1 categoria senza obiettivo/);assert.match(messages[2].svg,/RAGGIUNTO/);
+  assert.match(messages[2].svg,/#ae3439/);assert.match(messages[2].svg,/#137547/);
+  for(const message of messages.slice(1)) {
+    const photo=telegram.prepareMessage(message);
+    assert.equal(photo.bytes.subarray(0,8).toString('hex'),'89504e470d0a1a0a');
+    assert.equal(photo.bytes.readUInt32BE(16),message.width);assert.equal(photo.bytes.readUInt32BE(20),message.height);
+  }
+  assert.throws(()=>telegram.prepareMessage({...messages[1],svg:'<svg><image href="https://example.test"/></svg>'}),/target_image_invalid/);
+  assert.throws(()=>telegram.prepareMessage({...messages[1],height:50001}),/target_image_invalid/);
+});
+test('Telegram: foto PNG e report fuori limiti in un singolo documento PNG',env(async()=> {
+  const image={type:'photo',bytes:Buffer.from('synthetic PNG'),width:960,height:2600,filename:'report.png',caption:'Andamento mensile',text:'Alternativa testuale'};
+  const capture=async(url,opts)=>{assert.equal(opts.body.get('caption'),image.caption);assert.equal(opts.body.get('chat_id'),'123');const name=url.endsWith('sendPhoto')?'photo':'document';assert.equal(opts.body.get(name).type,'image/png');assert.equal(opts.body.get(name).name,'report.png');assert.equal(await opts.body.get(name).text(),'synthetic PNG');return {ok:true,json:async()=>({ok:true,result:{message_id:1}})};};
+  const methods=[];const fetcher=async(url,opts)=>{methods.push(url.split('/').pop());return capture(url,opts);};
+  await telegram.send(image,fetcher);await telegram.send({...image,height:10000},fetcher);
+  assert.deepEqual(methods,['sendPhoto','sendDocument']);
+}));
+test('rasterizzazione fallita prima del checkpoint: retry sicuro senza duplicare le vendite',env(async()=> {
+  const db=fakeDb();await queue.enqueue(db,{key:'render-fails',chat:'123',tipo:'report',payload:{data:'2026-10-05'}});
+  const p=await reports.buildReports(fakeDb(fixture()),'2026-10-05',NOW),sent=[];
+  await queue.processQueue(db,{read:async()=>p,pause:fastPause,prepareMessage:m=>{if(typeof m!=='string')throw new Error('target_image_fonts_missing');return m;},send:async m=>sent.push(m)});
+  const job=db.tables.mirox_target_jobs[0];assert.equal(job.inviati,1);assert.equal(job.in_flight,false);assert.equal(job.stato,'in_coda');assert.equal(sent.length,1);
+  job.next_attempt_at='2020-01-01T00:00:00Z';
+  await queue.processQueue(db,{pause:fastPause,read:async()=>assert.fail('snapshot riletto'),send:async m=>sent.push(m)});
+  assert.equal(sent.length,3);assert.equal(job.stato,'inviato');
+  const history=db.tables.mirox_target_sessioni[0].conversazione;
+  assert.ok(history.every(m=>typeof m.content==='string'));assert.doesNotMatch(JSON.stringify(history),/<svg|89504e47|font-family/);
+}));
+test('comandi singoli mantengono il formato testo/foto nelle richieste manuali',env(async()=> {
+  const p=await reports.buildReports(fakeDb(fixture()),'2026-10-05',NOW),db=fakeDb();
+  for(const [action,type] of [['vendite','string'],['chiamate','object'],['mese','object']]) {
+    const prepared=await queue.prepare(db,{tipo:'dialogo',payload:{testo:`/${action}`}},{conversazione:[],updated_at:NOW.toISOString()},{now:NOW,read:async()=>p});
+    assert.equal(prepared.messages.length,1);assert.equal(typeof prepared.messages[0],type);
+  }
 }));

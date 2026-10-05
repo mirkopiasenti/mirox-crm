@@ -5,12 +5,12 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 ## Stack
 
 - **Frontend**: HTML statico + JavaScript vanilla (no bundler), Inter via Google Fonts, client Supabase `@supabase/supabase-js@2.110.8` da CDN con Subresource Integrity
-- **Backend serverless**: Netlify Functions (Node >=22 + esbuild), librerie versionate esattamente (`@supabase/supabase-js@2.110.8`, `nodemailer@9.0.3`, `busboy`, `pdfkit`, `pdf-lib@1.17.1`, `fflate@0.8.2` per gli export `.xlsx`)
+- **Backend serverless**: Netlify Functions (Node >=22 + esbuild), librerie versionate esattamente (`@supabase/supabase-js@2.110.8`, `nodemailer@9.0.3`, `busboy`, `pdfkit`, `pdf-lib@1.17.1`, `fflate@0.8.2` per gli export `.xlsx`, `@resvg/resvg-js@2.6.2` per i report PNG Target)
 - **Database**: Supabase Postgres (Auth + Storage + RLS + RPC + Trigger), 10 bucket Storage (`moduli-template` pubblico + 9 privati con signed URL on-demand)
 - **Email**: Gmail SMTP via nodemailer + template DB (`email_template` + `email_log`)
 - **SMS transactional**: Smshosting REST API (consensi privacy via OTP — vedi `docs/SMSHOSTING_SETUP.md`)
 - **KONA AI Guardian**: OpenAI Responses API per raccolta/analisi strutturata + Audio Transcriptions per i vocali Telegram conclusi
-- **MIROX AI - Target**: bot dedicato con report serali alle 19:45 Europe/Rome e dialogo su riepiloghi CRM; attivo in produzione, consegna e dialogo verificati ([setup](docs/MIROX_AI_TARGET.md))
+- **MIROX AI - Target**: bot dedicato con report serali alle 19:45 Europe/Rome: vendite in testo spaziato, Call Center e mensile in immagini PNG senza API immagini; dialogo su riepiloghi CRM; attivo in produzione, consegna e dialogo verificati ([setup](docs/MIROX_AI_TARGET.md))
 - **Canale proprietario**: bot Telegram privato limitato al solo `chat_id` di Mirko
 - **Hosting**: Netlify (build statica a lista consentita in `dist/` + functions + cron schedules)
 
@@ -38,7 +38,8 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `.backup-private/` | Credenziali e pacchetti privati, ignorati da Git; mai pubblici |
 | `dist/` | Output locale della build, ignorato da Git. Non contiene backend, migration, test o documentazione |
 | `netlify/functions/` | Endpoint server-side (vedi sotto) |
-| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`, `privacy-pdf-storage`, `pdf-disdetta`, `score-integrity`, `kona-ai-guardian`, `telegram`, `guardian-codex`, `guardian-telemetry`, `guardian-triage`, `with-telemetry`, `target-reports`, `target-dialogue`, `target-queue`, `target-telegram`) |
+| `netlify/functions/_assets/target/` | Font Lato (OFL) privati del renderer immagini Target, inclusi nel solo worker e fuori da `dist/` |
+| `netlify/functions/_lib/` | Helper condivisi (`mailer`, `require-auth`, `smshosting`, `privacy-config`, `pdf-consenso`, `privacy-pdf-storage`, `pdf-disdetta`, `score-integrity`, `kona-ai-guardian`, `telegram`, `guardian-codex`, `guardian-telemetry`, `guardian-triage`, `with-telemetry`, `target-reports`, `target-dialogue`, `target-queue`, `target-telegram`, `target-report-images`) |
 | `netlify/functions/_templates/disdette/` | I quattro moduli PDF WindTre originali usati come sfondo immutabile dal Compilatore disdette |
 | `tests/` | Test automatici Node (`node:test`): regressioni vendita, sicurezza/XSS, PDF privacy, sintassi e link locali |
 | `.github/workflows/ci.yml` | CI GitHub: build e test con Node 22 su pull request e branch `main`/`staging` |

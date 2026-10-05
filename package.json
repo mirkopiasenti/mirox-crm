@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.32.0",
+    "@resvg/resvg-js": "2.6.2",
     "@supabase/supabase-js": "2.110.8",
     "busboy": "1.6.0",
     "fflate": "0.8.2",

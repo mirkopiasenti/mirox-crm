@@ -82,6 +82,11 @@ La correzione Guardian del 2026-08-21 non modifica lo schema: i callback Telegra
 
 | `20261005185700_mirox_ai_target.sql` | Nuove `mirox_target_sessioni` e `mirox_target_jobs` server-only: memoria, lease, coda con dedupe/checkpoint e stato incerto. RLS e grant espliciti alla sola service role; nessun cambio a tabelle CC/RPC esistenti. Migration applicata il 05/10/2026 a production `lbgwamhjkjjfwgusafbi`; versione locale allineata al registro Supabase. RLS e privilegi anon/authenticated/service_role verificati. |
 
+Dal 05/10 i nuovi report Target salvano in `messaggi` una stringa vendite e due
+oggetti immagine (SVG, dimensioni, caption e testo alternativo). Il JSONB array
+esistente li supporta: nessuna nuova migration. PNG non salvati nel DB/Storage,
+memoria conversazione solo testo e compatibilita con i job precedenti stringa.
+
 ## Bootstrap esclusivi staging
 
 | File | Cosa introduce |
