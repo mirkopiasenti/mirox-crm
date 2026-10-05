@@ -10,7 +10,8 @@ Motore condiviso `js/dashboard-report-core.js`, webhook Target dedicato, worker
 background HMAC e cron ogni 5 minuti; coda/memoria in due nuove tabelle server-only.
 Chiave OpenAI dedicata `OPENAI_TARGET_API_KEY` per testo e vocali, senza fallback
 Guardian. Nessuna modifica a tabelle CC condivise. Migration applicata e credenziali
-Production configurate il 05/10; pubblicazione autorizzata in corso. Regole complete in [AGENTS.md](AGENTS.md) e
+Production configurate il 05/10; bot online, tre report del giorno e dialogo reale
+verificati, trascrizione sintetica riuscita. Regole complete in [AGENTS.md](AGENTS.md) e
 [setup Target](docs/MIROX_AI_TARGET.md).
 
 ## Cos'è questo progetto

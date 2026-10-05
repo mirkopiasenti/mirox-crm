@@ -1,7 +1,9 @@
 # MIROX AI - Target
 
-Stato 05/10/2026: implementazione locale verificata; bot Telegram, migration,
-segreti Netlify e pubblicazione ancora da attivare. Nessun messaggio reale inviato.
+Stato 05/10/2026: attivo in produzione su `mirox-crm.it`, bot `@MiroxAiTargetBot`.
+Migration, configurazione dedicata, webhook, cron, tre report reali e dialogo
+verificati. Trascrizione di un audio sintetico riuscita; vocale entrante Telegram
+ancora da collaudare con il proprietario. Obiettivi mensili di ottobre assenti.
 
 ## Comportamento concordato
 
@@ -134,6 +136,10 @@ Log con soli codici tecnici, senza payload provider, token o testi del proprieta
    senza nuove dipendenze npm. Chiave, modello e trascrizioni OpenAI sono dedicati
    a Target; la chiave Guardian non viene usata neanche come fallback.
    Il codice rifiuta staging, branch diverse da main e contesti preview.
+   I nomi dei modelli non sono segreti: lasciarli vuoti per usare i default o
+   crearli come normali variabili. Nel setup attivo le due variabili facoltative
+   sono vuote (0 valori), evitando falsi positivi dello scanner Netlify.
+   Non disattivare lo scanner e non escludere le vere credenziali dalla scansione.
 5. Pubblicare solo dopo richiesta esplicita di push/deploy: le regole del
    repository vietano un push autonomo, dato il deploy automatico production.
 6. Collegare `setWebhook` a
@@ -144,8 +150,10 @@ Log con soli codici tecnici, senza payload provider, token o testi del proprieta
    un vocale, `/salute` e un reale invio scheduled; verificare i job e la memoria.
    Configurare gli obiettivi di ottobre con valori decisi dal proprietario.
 
-La nuova configurazione esterna va inclusa nell'inventario privato e nel
-backup Aruba quando viene effettivamente attivata, mantenendo la chiave separata.
+Inventario privato `netlify-inventory.json` aggiornato con le 8 chiavi Target;
+6 valorizzate in Production e 2 modelli facoltativi vuoti. Le copie off-site delle
+configurazioni statiche precedenti restano da riallineare, come il recupero delle
+altre chiavi write-only: nessuna rotazione o modifica al runner backup eseguita.
 
 ## Verifiche della sessione
 
@@ -158,11 +166,25 @@ Lettura production 05/10 senza mutazioni: 35 contratti Legnago di ottobre,
 identico sul campione reale; 60 mesi di calendario 2024–2028 coincidenti.
 Anteprima locale privata: `.backup-private/target-validation/report-2026-10-05.txt`.
 Il campione usa l'ora di lettura effettiva, non una chiusura ricostruita alle 19:45.
-Credenziali dedicate inserite nel file privato e verificate via API il 05/10:
-chiave OpenAI valida, risposta sintetica reale riuscita senza dati CRM, modello
-trascrizione accessibile e token del bot `@MiroxAiTargetBot` valido; webhook ancora
-assente. L'attivazione richiede avvio della chat privata, configurazione Netlify,
-migration SQL e pubblicazione autorizzate. Collaudo vocali e consegne ancora aperto.
+Attivazione autorizzata esplicitamente dal proprietario il 05/10:
+- Feature `84a8232`, CI GitHub `37360431887` riuscita; Netlify production
+  `6ac3f57cdd0964d161242d1d` confermato dai metadati pubblici HTTP 200.
+- Primo deploy fermato dallo scanner per i due nomi modello marcati erroneamente
+  Secret; variabili facoltative svuotate, default nel codice, retry riuscito.
+  Nessuna credenziale trovata nel commit o negli asset pubblici verificati.
+- Migration `20261005185700`: RLS abilitata; CRUD negato ad anon/authenticated,
+  consentito alla sola service_role. Tabelle CC e Guardian invariate.
+- Webhook dedicato collegato, richieste senza secret HTTP 403, pending 0 e nessun
+  errore Telegram. Avvio e messaggio libero reali elaborati dal worker HMAC;
+  due job inviati al primo tentativo, memoria 7 messaggi, lease rilasciato.
+- Cron reale: `evening:2026-10-05` creato alle 19:10 UTC; tre messaggi consegnati
+  alle 19:15 UTC, un tentativo, nessun errore/incerto. Recupero serale previsto
+  per l'attivazione avvenuta dopo le 19:45 italiane; nessun invio retrodatato.
+- OpenAI testo reale e trascrizione sintetica WAV verificati. Il primo file di
+  prova locale era vuoto per il sandbox; rigenerato valido senza cambiare il bot.
+  Vocale entrante Telegram ancora da provare con un messaggio del proprietario.
+- Obiettivi di ottobre non configurati: il mensile dichiara il dato mancante,
+  senza copiare quelli di settembre o inventare Andamento/Eccedenza.
 
 Riferimenti verificati: [OpenAI Docs: function calling](https://developers.openai.com/api/docs/guides/function-calling),
 [Supabase: sicurezza Data API](https://supabase.com/docs/guides/api/securing-your-api),

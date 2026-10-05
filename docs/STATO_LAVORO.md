@@ -3,16 +3,16 @@
 Aggiornato: 2026-10-05. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## MIROX AI - Target: configurazione production 05/10
+## MIROX AI - Target: attivo production 05/10
 
-- Bot dedicato solo Mirko; tre report alle 19:45 Europe/Rome, lun-sab escluse festivita' nazionali/Pasquetta; aggiornamento manuale e dialogo libero testo/vocali, memoria 30 messaggi, strumenti read-only aggregati.
-- Vendite Day by Day: data contratto UTC come pagina, solo Legnago, esclusi reinserimenti, righe non-zero per operatore. CC: Consumer + outbound, tentativi/risposte/non risposte/nuovi fissati, spostamenti separati e totali. Mensile: Standard + sola Extra Gara P.IVA, Andamento/Eccedenza.
-- Motore puro `js/dashboard-report-core.js` condiviso dalla pagina; webhook dedicato, worker background HMAC, cron5min, coda con lease/checkpoint/429 e sospensione esiti ambigui.
-- `npm test`:198/198; build verificata. Rendering mensile prima/dopo identico sui dati reali,60 mesi calendario2024-28 coincidenti. Sola lettura prod:35contratti Legnago ottobre,8categorie. Migration applicata con RLS/grant verificati; nessun messaggio Telegram inviato al momento della preparazione deploy.
-- Anteprima privata `.backup-private/target-validation/report-2026-10-05.txt`; ottobre senza obiettivi (settembre30): configurazione Admin necessaria, non inventare Andamento.
-- Nuove tabelle server-only in migration locale `database/20261005185700_mirox_ai_target.sql`, generata CLI. Nessuna tabella CC alterata. Bot/token/chat/segreti e 8 variabili Netlify configurati solo Production, Secret Builds/Functions/Runtime (scope isolato non disponibile nel piano). Webhook e pubblicazione in corso, autorizzati esplicitamente dal proprietario.
-- Credenziali dedicate ricevute in `.backup-private/mirox-target-secrets.json` ignorato/0600: token `@MiroxAiTargetBot` e OpenAI validi; risposta sintetica reale riuscita senza dati CRM, modello vocali accessibile. Testo/vocali usano solo `OPENAI_TARGET_API_KEY`; segreti webhook/HMAC preparati privatamente. Chat privata riconfermata dal primo Avvia; webhook ancora da collegare.
-- Guide README/AGENTS/CLAUDE/database README + `docs/MIROX_AI_TARGET.md` aggiornate. Prossimo passo: push/deploy autorizzato, collegamento webhook, collaudo consegne e dialogo; vocali da verificare con un messaggio reale. Backup preesistente preservato.
+- Bot `@MiroxAiTargetBot` solo Mirko; tre report alle 19:45 Europe/Rome, lun-sab escluse festivita' nazionali/Pasquetta; aggiornamento manuale e dialogo testo/vocali, memoria30, strumenti read-only aggregati.
+- Vendite: data contratto UTC come Day, solo Legnago, esclusi reinserimenti, categorie non-zero per operatore. CC: Consumer+outbound, tentativi/risposte/non risposte/nuovi fissati, spostamenti separati e totali. Mensile: Standard+sola Extra Gara P.IVA, Andamento/Eccedenza.
+- Feature84a8232 pubblicata su richiesta, CI37360431887 OK; Netlify6ac3f57c online e metadati/HTML/motore HTTP200.198/198test+build locali, rendering mensile identico su dati reali e60mesi calendario. Backup preesistente fuori dal commit e preservato.
+- Migration20261005185700 applicata: sessioni/jobs server-only, RLS+CRUD anon/authenticated negati e service_role concessi. Nessuna tabella CC/Guardian alterata.
+- 6valori dedicati Production Secret Builds/Functions/Runtime (scope isolato non disponibile); 2modelli facoltativi vuoti, default nel codice. Primo deploy bloccato per nomi modello marcati Secret, retry riuscito senza disabilitare scanner. Chiave OpenAI dedicata solo Target.
+- Webhook/HMAC reali verificati, pending0/errori0; cron evening:2026-10-05 creato19:10UTC e3/3report consegnati19:15UTC al primo tentativo. Recupero serale dopo attivazione fuori orario;2messaggi utente (Avvia/dialogo libero) elaborati, memoria7 e lease rilasciato.
+- Testo OpenAI reale e trascrizione WAV sintetica riusciti; vocale entrante Telegram da provare col proprietario. Ottobre senza obiettivi: Andamento esplicitamente non configurato, non copiare settembre.
+- Guide README/AGENTS/CLAUDE/database README e docs/MIROX_AI_TARGET.md aggiornate; inventario privato Netlify riallineato localmente. Config recovery off-site precedente da aggiornare. Prossimo passo funzionale: obiettivi ottobre decisi dal proprietario e prova vocale reale.
 
 ## Guardian: distribuito production il 05/10/2026
 

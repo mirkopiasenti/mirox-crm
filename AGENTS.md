@@ -718,7 +718,7 @@ Guardian e' attivo su `mirox-crm.it`, Supabase `lbgwamhjkjjfwgusafbi`, bot `@Mir
 Env vars: `OPENAI_API_KEY`, `OPENAI_GUARDIAN_MODEL`, `OPENAI_TRANSCRIBE_MODEL`, `TELEGRAM_GUARDIAN_BOT_TOKEN`, `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`, `TELEGRAM_GUARDIAN_WEBHOOK_SECRET`, `KONA_AI_OWNER_PROFILE_ID`, `GUARDIAN_OBSERVER_ENABLED`, `GUARDIAN_OBSERVER_DAILY_BUDGET`, `GUARDIAN_OBSERVER_MODEL`, `GUARDIAN_OBSERVER_REF`, `GUARDIAN_OBSERVER_WEEKLY_SCAN`, `GUARDIAN_TELEMETRY_HASH_SECRET`. Mai esporle nel frontend o committarle. Setup completo: `docs/KONA_AI_GUARDIAN_SETUP.md`.
 
 ---
-## MIROX AI - Target (sviluppo 05/10/2026)
+## MIROX AI - Target (attivo production 05/10/2026)
 
 Bot Telegram dedicato al solo proprietario, separato da Guardian. Tre report alle
 19:45 Europe/Rome, lun-sab escluse festivita' nazionali e Pasquetta, con recupero
@@ -743,7 +743,11 @@ interno HMAC; cron ogni 5 minuti. Coda e memoria in nuove tabelle server-only,
 nessuna modifica alle tabelle CC condivise. Claim condizionale, consegna ordinata
 con checkpoint per messaggio; esito Telegram ambiguo sospeso per evitare duplicati.
 Abilitazione esplicita `TARGET_ENABLED=true` solo in production; token/chat/secret
-Target dedicati. Codice e migration locale non equivalgono ad attivazione.
+Target dedicati. Attivato il 05/10/2026: webhook e HMAC verificati, cron serale
+con tre consegne e dialogo reale riusciti. Variabili modello facoltative vuote:
+i nomi dei modelli sono pubblici e non vanno salvati come Secret, altrimenti lo
+scanner Netlify blocca correttamente il deploy. Il piano attuale limita i Secret
+a Builds/Functions/Runtime in Production; altri contesti vuoti.
 Setup e limiti: `docs/MIROX_AI_TARGET.md`.
 
 ## Sistema consensi privacy GDPR (dal 2026-06-26)
