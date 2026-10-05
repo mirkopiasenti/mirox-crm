@@ -5,34 +5,20 @@ istruzioni dell'utente e guide di progetto restano vincolanti.
 
 ## Guardian: distribuito production il 05/10/2026
 
-- 104 messaggi settembre:80 analisi fallite (8casi x10retry)+5scansioni. Chiave
-  GitHub invalid_api_key nel run campione; job verde mascherava il guasto.
-- Chiave GitHub sostituita con consenso specifico13:23:38; health reale ha trovato
-  anche chiave chat Netlify rifiutata. Secondo consenso specifico ottenuto,
-  OPENAI_API_KEY production sostituita16:18:50, secret/contesti preservati.
-- Funzioni/pagine commit f9ec4de su main, deploy ready16:09:42 e ridistribuzione
-  con nuova chiave16:20:49. Health finale16:21:36: chat OpenAI/bot/webhook/memoria
-  OK,0updatependenti. Run37322760353 attempt2. Nessun blocco residuo auto-review.
-- Analisi Codex reale KG18 completata16:17:28, run37323380962; preflight/Codex/
-  callback riusciti e DB completata senza errore. Conferma fix Comodato corrente.
-- Chat libera senza ticket/anche archiviato, memoria30messaggi, contesto tecnico,
-  paragrafi e collegamento KG/risposta a notifica. Nessun dialogo generale crea ticket.
-- Stop retry automatici sullo stesso segnale/release, claim condizionali cron/
-  outbox, notifica scansioni senza segnale, preflight/URL worker/model da DB,
-  workflow fallito visibile; risultato tardivo non riapre un caso archiviato.
-- Il proprietario esclude definitivamente vecchio staging Guardian e autorizza
-  sviluppo/collaudo/deploy su produzione. Vincolo rimosso da AGENTS e guide.
-  Patch da main, branch codex/kg-*, test locali, PR verso main; tipo storico
-  test_staging conservato solo per compatibilita' DB. Nessun CC riutilizzato.
-- Migration database/20261005110504_guardian_owner_conversation.sql applicata
-  e verificata production: JSONB NOT NULL default[], RLS/grant invariati.
-- Fix CRM: Ticket apostrofi, Comodato APPS_SCRIPT_URL dismesso, Apri/Chiudi SIM No.
-  Recupero degli altri eventi settembre completato nel rilascio fca1c00 sotto.
-- Prima revisione148/148test+build,6workflow YAML/25blocchi Bash validi;
-  vocali reali/flussi CRM non esercitati sul DB operativo. Netlify/GitHub OpenAI.
-- Guide/report/promemoria aggiornati; worktree guardian-affidabilita-chat attaccato
-  alla chat. Report docs/GUARDIAN_DIAGNOSI_2026-10-05.md presente anche su main.
-  Backup preesistente preservato, non incluso nei push Guardian; stash recuperabile.
+- 104messaggi settembre:80analisi fallite+5scan. Run campione invalid_api_key,
+  workflow verde mascherava guasto; gia' OpenAI, nessun DeepSeek nel codice.
+- Con consensi specifici chiave GitHub aggiornata13:23:38 e Netlify16:18:50;
+  health16:21:36 OK, analisi Codex KG18 run37323380962 riuscita16:17:28.
+  Secret/contesti preservati, chiave privata0600; nessun blocco auto-review residuo.
+- Chat libera senza ticket/anche archiviato, memoria30messaggi, paragrafi e contesto
+  tecnico. Dialogo generale non crea ticket; operazioni auditabili con pulsanti.
+- Una analisi automatica per segnale/release, claim condizionali cron/outbox,
+  notifica scan senza segnale, preflight/URL/modello da DB, workflow rosso su errore;
+  callback tardivi non riaprono archiviati. Migration conversazione JSONB applicata.
+- Proprietario esclude vecchio staging e autorizza sviluppo/collaudo/deploy prod;
+  vincolo rimosso da guide. Worker patch da main/PR draft, no merge automatico.
+- Report docs/GUARDIAN_DIAGNOSI_2026-10-05.md; checkout guardian-affidabilita-chat
+  attaccato. Lavoro backup preesistente preservato, stash recuperabile.
 
 ## Backlog settembre: distribuito e chiuso 05/10
 
