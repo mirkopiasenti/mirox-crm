@@ -757,6 +757,10 @@ restano compatibili; nessuna nuova migration o variazione ai conteggi.
 Helper `_lib/target-report-images.js`; moduli nativi resvg esterni a esbuild e
 font inclusi nel solo worker, con resolver sorgente/bundle/runtime. Foto fuori
 dai limiti Telegram inviate in un unico documento PNG, senza troncare dati.
+Richieste report in linguaggio libero: alias diretti per le formulazioni comuni,
+strumento AI `invia_report` per altre frasi, validato su data e tipo. Il tool
+restituisce un intento; la coda usa lo stesso formatter testo/PNG del cron,
+non una sintesi AI. Analisi/confronti restano con `leggi_report` e risposta libera.
 Setup e limiti: `docs/MIROX_AI_TARGET.md`.
 
 ## Sistema consensi privacy GDPR (dal 2026-06-26)

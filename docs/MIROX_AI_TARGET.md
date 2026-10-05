@@ -61,6 +61,14 @@ I report automatici non dipendono dall'AI. Solo il dialogo e i vocali usano Open
 - `/nuova`: ricomincia la memoria del dialogo.
 - `/start` e `/aiuto`: presentazione e comandi.
 
+Richieste come **«Rimandami il report completo di oggi (tutti e 3)»** richiamano
+lo stesso invio testo/PNG del cron. Le formulazioni comuni sono riconosciute
+direttamente; le altre passano allo strumento `invia_report` del dialogo AI.
+Il tool restituisce solo un intento (data e tipo validati); la coda legge i dati
+e prepara i report originali, senza sintesi AI o conferma testuale aggiuntiva.
+Spiegazioni e confronti usano `leggi_report` e restano risposte di dialogo.
+Snapshot salvato prima degli invii, stesso checkpoint e comportamento al retry.
+
 Le richieste manuali funzionano anche domenica e festivi. Le riletture storiche
 usano i record e gli stati oggi presenti nel CRM: non ricostruiscono una
 fotografia originaria. Il mensile e' quello della pagina oggi: mese corrente
@@ -168,8 +176,8 @@ altre chiavi write-only: nessuna rotazione o modifica al runner backup eseguita.
 
 ## Verifiche della sessione
 
-Suite repository dopo impaginazione: **203/203 test e build superati**
-(202 test versionati, piu' il test backup locale preesistente). Test Target coprono calendario/DST,
+Suite repository dopo correzione richieste libere: **207/207 test e build superati**
+(206 test versionati, piu' il test backup locale preesistente). Test Target coprono calendario/DST,
 filtri, punteggi/stati, pagina/motore condiviso, paginazione, errori lettura,
 webhook/HMAC/allowlist, dedupe, serializzazione, 429, invio incerto e tool AI.
 
@@ -208,6 +216,13 @@ consegnati alle 20:20:36 UTC al primo tentativo, nessun errore o stato incerto.
 Renderer nativo e font inclusi nel runtime verificati dall'invio reale;
 memoria aggiornata a 10 messaggi solo testuali, lease rilasciato.
 CI GitHub `37368961629` in attesa del runner al controllo iniziale.
+
+Correzione richieste libere: la frase «Rimandami il report completo di oggi
+(tutti e 3)» prima passava al modello e produceva un unico testo. Ora alias
+diretti e `invia_report` conducono al formatter originale della coda.
+Regressione esatta, varianti, date/tipi non validi, retry e memoria verificati.
+Prova reale OpenAI con dati sintetici: invio completo e sole chiamate riconosciuti;
+richiesta di sola spiegazione rimane testuale. Pubblicazione correzione in corso.
 
 Riferimenti verificati: [OpenAI Docs: function calling](https://developers.openai.com/api/docs/guides/function-calling),
 [Supabase: sicurezza Data API](https://supabase.com/docs/guides/api/securing-your-api),

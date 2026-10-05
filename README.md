@@ -10,7 +10,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 - **Email**: Gmail SMTP via nodemailer + template DB (`email_template` + `email_log`)
 - **SMS transactional**: Smshosting REST API (consensi privacy via OTP — vedi `docs/SMSHOSTING_SETUP.md`)
 - **KONA AI Guardian**: OpenAI Responses API per raccolta/analisi strutturata + Audio Transcriptions per i vocali Telegram conclusi
-- **MIROX AI - Target**: bot dedicato con report serali alle 19:45 Europe/Rome: vendite in testo spaziato, Call Center e mensile in immagini PNG senza API immagini; dialogo su riepiloghi CRM; attivo in produzione, consegna e dialogo verificati ([setup](docs/MIROX_AI_TARGET.md))
+- **MIROX AI - Target**: bot dedicato con report serali alle 19:45 Europe/Rome: vendite in testo spaziato, Call Center e mensile in immagini PNG senza API immagini; dialogo su riepiloghi CRM e invio dei report originali anche con richieste in linguaggio libero; attivo in produzione, consegna e dialogo verificati ([setup](docs/MIROX_AI_TARGET.md))
 - **Canale proprietario**: bot Telegram privato limitato al solo `chat_id` di Mirko
 - **Hosting**: Netlify (build statica a lista consentita in `dist/` + functions + cron schedules)
 

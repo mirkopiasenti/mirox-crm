@@ -180,7 +180,7 @@ test('dialogo Responses: memoria, dati freschi, tool read-only e confronto su du
   };
   const answer=await dialogue.reply(null,'Confronta oggi e ieri',[{role:'user',content:'Parliamo di chiamate'}],{now:NOW,fetcher,read:async date=>{reads.push(date);return {totale:3};}});
   assert.match(answer,/maggiore/);assert.deepEqual(reads,['2026-10-05','2026-10-04']);
-  assert.equal(requests[0].store,false);assert.equal(requests[0].tools.length,1);
+  assert.equal(requests[0].store,false);assert.deepEqual(requests[0].tools.map(t=>t.name),['leggi_report','invia_report']);
   assert.equal(requests[2].input.filter(i=>i.type==='function_call_output').length,2);
   assert.equal(requests[0].input[0].content,'Parliamo di chiamate');
 }));
@@ -295,4 +295,51 @@ test('comandi singoli mantengono il formato testo/foto nelle richieste manuali',
     const prepared=await queue.prepare(db,{tipo:'dialogo',payload:{testo:`/${action}`}},{conversazione:[],updated_at:NOW.toISOString()},{now:NOW,read:async()=>p});
     assert.equal(prepared.messages.length,1);assert.equal(typeof prepared.messages[0],type);
   }
+}));
+
+test('richiesta segnalata e varianti naturali: tre report originali senza sintesi AI',env(async()=> {
+  const p=await reports.buildReports(fakeDb(fixture()),'2026-10-05',NOW);
+  for(const text of ['Rimandami il report completo di oggi (tutti e 3)','Inviami tutti i report aggiornati di oggi!','Reinviami il report completo di ieri (tutti e tre).','Report di oggi']) {
+    const expected=/ieri/.test(text)?'2026-10-04':'2026-10-05';
+    assert.deepEqual(queue.command(text,NOW),{action:'report',date:expected});
+    const prepared=await queue.prepare(fakeDb(),{tipo:'dialogo',payload:{testo:text}},{conversazione:[],updated_at:NOW.toISOString()},{now:NOW,read:async date=>{assert.equal(date,expected);return p;},reply:async()=>assert.fail('richiesta trasformata in sintesi AI')});
+    assert.deepEqual(prepared.messages.map(m=>typeof m==='string'?'text':m.type),['text','image','image']);
+  }
+  assert.equal(queue.command('Non rimandami il report, spiegami il ritardo',NOW),null);
+  assert.equal(queue.command('Spiegami il report completo di oggi',NOW),null);
+  assert.throws(()=>queue.command('Rimandami il report completo del 2026-02-30 (tutti e 3)',NOW));
+}));
+test('dialogo: invia_report restituisce intento validato e la coda genera i formati originali',env(async()=> {
+  const p=await reports.buildReports(fakeDb(fixture()),'2026-10-05',NOW);
+  for(const [tipo,expected] of [['report',['text','image','image']],['vendite',['text']],['chiamate',['image']],['mese',['image']]]) {
+    let calls=0,reads=0;
+    const reply=(db,text,history)=>dialogue.reply(db,text,history,{now:NOW,read:async()=>assert.fail('dati mandati al modello per generare report'),fetcher:async(url,opts)=> {
+      calls++;const body=JSON.parse(opts.body);assert.equal(body.tools[1].strict,true);assert.equal(body.parallel_tool_calls,false);
+      return {ok:true,json:async()=>({status:'completed',output:[{type:'function_call',name:'invia_report',call_id:'send1',arguments:JSON.stringify({data:'2026-10-05',tipo})}]})};
+    }});
+    const prepared=await queue.prepare(fakeDb(),{tipo:'dialogo',payload:{testo:'Per favore puoi farmi arrivare il riepilogo che ti ho chiesto?'}},{conversazione:[],updated_at:NOW.toISOString()},{now:NOW,read:async()=>{reads++;return p;},reply});
+    assert.deepEqual(prepared.messages.map(m=>typeof m==='string'?'text':m.type),expected);assert.equal(calls,1);assert.equal(reads,1);
+  }
+}));
+test('dialogo: invio con data/tipo/tool non validi non crea un report',env(async()=> {
+  for(const [name,args] of [['invia_report',{data:'2026-10-06',tipo:'report'}],['invia_report',{data:'2026-10-05',tipo:'clienti'}],['invia_report',{data:'2026-10-05',tipo:'report',chat_id:'456'}],['invia_a_tutti',{data:'2026-10-05',tipo:'report'}]]) {
+    let calls=0;
+    const result=await dialogue.reply(null,'Vorrei i report',[],{now:NOW,read:async()=>assert.fail('lettura per tool invalido'),fetcher:async(url,opts)=> {
+      const body=JSON.parse(opts.body);calls++;
+      if(calls===2) {assert.match(body.input.at(-1).output,/Dati non disponibili/);return {ok:true,json:async()=>({status:'completed',output:[{type:'message',content:[{type:'output_text',text:'Serve una data e un tipo di report validi.'}]}]})};}
+      return {ok:true,json:async()=>({status:'completed',output:[{type:'function_call',name,call_id:'bad',arguments:JSON.stringify(args)}]})};
+    }});
+    assert.equal(typeof result,'string');assert.equal(calls,2);
+  }
+  await assert.rejects(queue.prepare(fakeDb(),{tipo:'dialogo',payload:{testo:'Vorrei i riepiloghi'}},{conversazione:[],updated_at:NOW.toISOString()},{now:NOW,reply:async()=>({report:{data:'2026-10-05',tipo:'altro'}}),read:async()=>assert.fail('tipo invalido')}),/target_report_intent_invalid/);
+}));
+test('richiesta naturale: coda invia tre messaggi e al retry conserva snapshot e memoria testuale',env(async()=> {
+  const db=fakeDb(),text='Rimandami il report completo di oggi (tutti e 3)';
+  await queue.enqueue(db,{key:'natural',chat:'123',tipo:'dialogo',payload:{testo:text}});
+  const p=await reports.buildReports(fakeDb(fixture()),'2026-10-05',NOW);let calls=0;
+  await queue.processQueue(db,{now:NOW,pause:fastPause,read:async()=>p,reply:async()=>assert.fail('AI sul percorso diretto'),send:async()=>{calls++;if(calls===3){const e=new Error('telegram_429');e.retryable=true;throw e;}}});
+  const job=db.tables.mirox_target_jobs[0];assert.equal(job.inviati,2);assert.equal(job.stato,'in_coda');job.next_attempt_at='2020-01-01T00:00:00Z';
+  await queue.processQueue(db,{now:NOW,pause:fastPause,read:async()=>assert.fail('rilettura snapshot'),reply:async()=>assert.fail('seconda interpretazione'),send:async m=>{calls++;assert.equal(m.type,'photo');assert.match(m.text,/Avanzamento/);}});
+  assert.equal(calls,4);assert.equal(job.stato,'inviato');
+  const history=db.tables.mirox_target_sessioni[0].conversazione;assert.equal(history[0].content,text);assert.equal(history.length,4);assert.ok(history.every(m=>typeof m.content==='string'));
 }));

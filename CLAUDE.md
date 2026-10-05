@@ -18,6 +18,9 @@ Font Lato OFL in `netlify/functions/_assets/target/`, esclusi dalla build pubbli
 Snapshot SVG + testo nella coda; rasterizzazione prima del checkpoint Telegram,
 memoria AI con solo testo, nessuna migration o API immagini.
 Foto oltre i limiti Telegram in un singolo documento PNG completo.
+Richieste libere di invio: alias diretti e tool `invia_report` restituiscono
+intento data/tipo validato alla coda, che usa i formati originali testo/PNG.
+Analisi e confronti restano nel dialogo con `leggi_report`.
 
 ## Cos'è questo progetto
 

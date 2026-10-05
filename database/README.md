@@ -86,6 +86,8 @@ Dal 05/10 i nuovi report Target salvano in `messaggi` una stringa vendite e due
 oggetti immagine (SVG, dimensioni, caption e testo alternativo). Il JSONB array
 esistente li supporta: nessuna nuova migration. PNG non salvati nel DB/Storage,
 memoria conversazione solo testo e compatibilita con i job precedenti stringa.
+Gli intenti AI di invio sono risolti prima di salvare i messaggi: richieste
+libere e cron conservano gli stessi snapshot/formati e checkpoint esistenti.
 
 ## Bootstrap esclusivi staging
 

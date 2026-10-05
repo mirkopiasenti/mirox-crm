@@ -18,7 +18,7 @@ function command(text,now=new Date()) {
   const trimmed=text.trim();
   const match=/^\/(report|vendite|chiamate|mese)(?:@\w+)?(?:\s+(\d{4}-\d{2}-\d{2}))?$/i.exec(trimmed);
   if(match) return {action:match[1].toLowerCase(),date:validateDate(match[2]||today(now),now)};
-  if(/^(?:(?:mandami|inviami|mostrami|aggiorna|aggiornami)\s+(?:i |il |un )?)?report(?:\s+(?:aggiornato|di oggi|di ieri|del \d{4}-\d{2}-\d{2}))?[.!?]?$/i.test(trimmed)) {
+  if(/^(?:(?:mandami|rimandami|inviami|reinviami|mostrami|aggiorna|aggiornami)\s+(?:(?:tutti (?:e )?(?:3|tre) i|tutti i|i|il|un)\s+)?)?report(?:\s+(?:completo|completi|aggiornato|aggiornati))?(?:\s+(?:di oggi|di ieri|oggi|ieri|del \d{4}-\d{2}-\d{2}))?(?:\s*\(?tutti (?:e )?(?:3|tre)\)?)?[.!?]?$/i.test(trimmed)) {
     let date=today(now);
     if(/ieri/i.test(trimmed)) {const d=new Date(date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-1);date=d.toISOString().slice(0,10);}
     const explicit=trimmed.match(/\d{4}-\d{2}-\d{2}/); if(explicit) date=explicit[0];
@@ -53,7 +53,12 @@ async function prepare(db,job,session,deps) {
   }
   if(text.startsWith('/')) return {messages:[WELCOME],user:text};
   const history=Date.parse(session.updated_at)<now.getTime()-90*86400000?[]:session.conversazione;
-  return {messages:[await (deps.reply||dialogue.reply)(db,text,history)],user:text};
+  const answer=await (deps.reply||dialogue.reply)(db,text,history);
+  if(typeof answer==='string') return {messages:[answer],user:text};
+  const request=answer?.report;
+  if(!request||!['report','vendite','chiamate','mese'].includes(request.tipo)) throw new Error('target_report_intent_invalid');
+  const all=formatReportMessages(await read(validateDate(request.data,now)));
+  return {messages:request.tipo==='report'?all:[all[{vendite:0,chiamate:1,mese:2}[request.tipo]]],user:text};
 }
 async function processQueue(db,deps={}) {
   const now=deps.now||new Date(),chat=process.env.TELEGRAM_TARGET_OWNER_CHAT_ID;
