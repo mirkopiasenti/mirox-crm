@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const { environment } = require('./guardian-telemetry');
 
 const DEFAULT_REPOSITORY = 'mirkopiasenti/mirox-crm';
-const DEFAULT_STAGING_BRANCH = 'codex/kona-ai-guardian-staging';
+const DEFAULT_BASE_BRANCH = 'main';
 const WORKFLOW_BY_TYPE = {
   analisi_codex: 'guardian-codex-analysis.yml',
   analisi_automatica: 'guardian-observer-analysis.yml',
@@ -69,15 +69,15 @@ function repositoryName() {
   return cleanWorkerText(process.env.GUARDIAN_GITHUB_REPOSITORY || DEFAULT_REPOSITORY, 200);
 }
 
-function stagingBranch() {
-  return cleanWorkerText(process.env.GUARDIAN_STAGING_BRANCH || DEFAULT_STAGING_BRANCH, 255);
+function baseBranch() {
+  return DEFAULT_BASE_BRANCH;
 }
 
 function workflowForType(type) {
   return WORKFLOW_BY_TYPE[type] || null;
 }
 
-async function dispatchWorkflow({ executionId, type, ref = stagingBranch(), commitSha = null, targetEnvironment = environment() }) {
+async function dispatchWorkflow({ executionId, type, ref = baseBranch(), commitSha = null, targetEnvironment = environment() }) {
   const token = String(process.env.GUARDIAN_GITHUB_TOKEN || '').trim();
   const repository = repositoryName();
   const workflow = cleanWorkerText(
@@ -92,7 +92,7 @@ async function dispatchWorkflow({ executionId, type, ref = stagingBranch(), comm
   const inputs = {
     execution_id: String(executionId),
     requested_type: String(type),
-    target_environment: targetEnvironment === 'staging' ? 'staging' : 'production'
+    target_environment: 'production'
   };
   if (commitSha) inputs.commit_sha = String(commitSha);
   const response = await fetch(url, {
@@ -117,7 +117,7 @@ async function dispatchWorkflow({ executionId, type, ref = stagingBranch(), comm
 function analysisKeyboard(incidentId) {
   return {
     inline_keyboard: [
-      [{ text: 'Prepara modifica staging', callback_data: `approve_work:${incidentId}` }],
+      [{ text: 'Prepara modifica', callback_data: `approve_work:${incidentId}` }],
       [{ text: 'Apri conversazione', callback_data: `open:${incidentId}` }],
       [{ text: 'Archivia', callback_data: `archive:${incidentId}` }]
     ]
@@ -127,7 +127,7 @@ function analysisKeyboard(incidentId) {
 function observerKeyboard(incidentId, options = {}) {
   const rows = [];
   if (options.allowPatch === true) {
-    rows.push([{ text: 'Prepara modifica staging', callback_data: `approve_work:${incidentId}` }]);
+    rows.push([{ text: 'Prepara modifica', callback_data: `approve_work:${incidentId}` }]);
   }
   rows.push([{
     text: options.needsInformation ? 'Aggiungi informazioni' : 'Apri conversazione',
@@ -140,7 +140,7 @@ function observerKeyboard(incidentId, options = {}) {
 function patchKeyboard(incidentId) {
   return {
     inline_keyboard: [
-      [{ text: 'Avvia test staging', callback_data: `test_staging:${incidentId}` }],
+      [{ text: 'Verifica modifica', callback_data: `test_staging:${incidentId}` }],
       [{ text: 'Apri conversazione', callback_data: `open:${incidentId}` }],
       [{ text: 'Archivia', callback_data: `archive:${incidentId}` }]
     ]
@@ -168,7 +168,7 @@ module.exports = {
   parseWorkerBody,
   patchKeyboard,
   repositoryName,
-  stagingBranch,
+  baseBranch,
   testKeyboard,
   verifyWorkerRequest,
   workflowForType

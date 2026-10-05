@@ -20,7 +20,6 @@ on:
         required: true
         type: choice
         options:
-          - staging
           - production
 
 permissions:
@@ -32,8 +31,8 @@ concurrency:
 
 jobs:
   analyse:
-    if: (github.ref_name == 'main' || github.ref_name == 'codex/kona-ai-guardian-staging') && (inputs.requested_type == 'analisi_automatica' || inputs.requested_type == 'scansione_migliorie') && (inputs.target_environment == 'staging' || inputs.target_environment == 'production')
-    environment: ${{ inputs.target_environment == 'production' && 'guardian-production' || 'guardian-staging' }}
+    if: github.ref_name == 'main' && (inputs.requested_type == 'analisi_automatica' || inputs.requested_type == 'scansione_migliorie') && inputs.target_environment == 'production'
+    environment: guardian-production
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

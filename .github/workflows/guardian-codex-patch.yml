@@ -1,4 +1,4 @@
-name: Guardian Codex patch staging
+name: Guardian Codex patch
 
 on:
   workflow_dispatch:
@@ -16,7 +16,6 @@ on:
         required: true
         type: choice
         options:
-          - staging
           - production
 
 permissions:
@@ -29,8 +28,8 @@ concurrency:
 
 jobs:
   patch:
-    if: github.ref == 'refs/heads/codex/kona-ai-guardian-staging' && inputs.requested_type == 'prepara_patch' && (inputs.target_environment == 'staging' || inputs.target_environment == 'production')
-    environment: ${{ inputs.target_environment == 'production' && 'guardian-production' || 'guardian-staging' }}
+    if: github.ref == 'refs/heads/main' && inputs.requested_type == 'prepara_patch' && inputs.target_environment == 'production'
+    environment: guardian-production
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -43,7 +42,7 @@ jobs:
       EXECUTION_ID: ${{ inputs.execution_id }}
 
     steps:
-      - name: Checkout staging
+      - name: Checkout main
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
@@ -185,11 +184,11 @@ jobs:
           git config user.email 'guardian@kona-tech.invalid'
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git add -A
-          git commit -m "feat(guardian): prepara modifica staging ${EXECUTION_ID}" -m "Modifica preparata dopo approvazione Telegram; rilascio production escluso." \
+          git commit -m "feat(guardian): prepara modifica ${EXECUTION_ID}" -m "Modifica preparata dopo approvazione Telegram; rilascio production escluso." \
             -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
           git push --set-upstream origin "$PATCH_BRANCH"
           pr_url="$(gh pr create --draft --base "${GITHUB_REF_NAME}" --head "$PATCH_BRANCH" \
-            --title "Guardian ${EXECUTION_ID}: modifica staging" \
+            --title "Guardian ${EXECUTION_ID}: modifica" \
             --body-file /tmp/guardian-codex-output.md)"
           echo "pull_request_url=$pr_url" >> "$GITHUB_OUTPUT"
 

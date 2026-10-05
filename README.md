@@ -40,10 +40,10 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `netlify/functions/_templates/disdette/` | I quattro moduli PDF WindTre originali usati come sfondo immutabile dal Compilatore disdette |
 | `tests/` | Test automatici Node (`node:test`): regressioni vendita, sicurezza/XSS, PDF privacy, sintassi e link locali |
 | `.github/workflows/ci.yml` | CI GitHub: build e test con Node 22 su pull request e branch `main`/`staging` |
-| `.github/workflows/guardian-codex-*.yml` | Workflow separati per analisi read-only, patch verso staging, test staging e preparazione di una pull request production senza merge automatico |
+| `.github/workflows/guardian-codex-*.yml` | Workflow separati per analisi read-only, patch da main, test sulla branch della modifica e preparazione di una pull request production senza merge automatico |
 | `.github/workflows/guardian-observer-analysis.yml` | Analisi automatica e scansioni preventive in sandbox read-only sul commit che ha generato il segnale; nessun push o modifica repository |
 | `.github/codex/` | Prompt e schemi strutturati usati dai workflow Codex; i dati della segnalazione arrivano soltanto tramite il worker HMAC |
-| `docs/KONA_AI_GUARDIAN_SETUP.md` | Setup staging, Telegram/OpenAI, approvazioni e confini del primo agente |
+| `docs/KONA_AI_GUARDIAN_SETUP.md` | Setup production, Telegram/OpenAI, approvazioni e confini del primo agente |
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |
 | `database/staging/` | Bootstrap one-shot esclusivi del Supabase staging; non applicabili a production |
 | `netlify.toml` | Config Netlify, header di sicurezza (CSP/HSTS/Permissions-Policy) e cron |
@@ -75,8 +75,8 @@ Tutte le functions, eccetto i due cron Netlify, l'endpoint anon intenzionale `pu
 | `mirox-send-email` | POST | authenticated | Invio email con template DB |
 | `guardian-incidents` | GET / POST | authenticated | Crea e prosegue richieste KONA AI di tipo `problema` o `miglioria`, con raccolta AI dedicata. Gli operatori vedono solo le proprie; gli admin possono elencarle tutte. Nessun accesso browser diretto alle tabelle Guardian |
 | `guardian-telemetry-ingest` | POST | authenticated | Riceve batch tecnici ripuliti dal frontend, calcola fingerprint e aggiorna i segnali aggregati; non accetta body applicativi, allegati o segreti |
-| `guardian-telegram-webhook` | POST | webhook Telegram privato | Accetta solo il secret token configurato e il `chat_id` di Mirko; gestisce testo, vocali trascritti, problemi/migliorie, analisi Guardian, analisi Codex read-only, patch/test staging, proposta di rilascio e archiviazione. Ogni pulsante operativo rende automaticamente attiva la relativa richiesta per i messaggi successivi; l'archiviazione libera invece la sessione. Le azioni sensibili restano auditabili e separate |
-| `guardian-codex-worker` | POST | HMAC worker-only | Endpoint interno per claim, heartbeat e risultato dei workflow Codex. Distingue una patch creata da una richiesta già soddisfatta nello staging: nel secondo caso chiude positivamente l'esecuzione senza branch, pull request o tasto di test. Non accetta JWT utente, non espone dati al browser e non contiene segreti nel payload |
+| `guardian-telegram-webhook` | POST | webhook Telegram privato | Accetta solo il secret token configurato e il `chat_id` di Mirko; gestisce testo, vocali trascritti, problemi/migliorie, analisi Guardian, analisi Codex read-only, patch/test della branch, proposta di rilascio e archiviazione. Ogni pulsante operativo rende automaticamente attiva la relativa richiesta per i messaggi successivi; l'archiviazione libera invece la sessione. Le azioni sensibili restano auditabili e separate |
+| `guardian-codex-worker` | POST | HMAC worker-only | Endpoint interno per claim, heartbeat e risultato dei workflow Codex. Distingue una patch creata da una richiesta già soddisfatta nel codice corrente: nel secondo caso chiude positivamente l'esecuzione senza branch, pull request o tasto di test. Non accetta JWT utente, non espone dati al browser e non contiene segreti nel payload |
 | `cron-guardian-observer` | scheduled (`*/5 * * * *`) | nessuna (cron Netlify) | Aggrega i segnali Guardian, apre incidenti automatici, avvia Codex read-only entro il budget e processa l'outbox Telegram con retry |
 | `cron-rientro-sim` | scheduled | nessuna (cron Netlify) | Notifica giornaliera rientro SIM; termina senza operazioni quando `MIROX_DEPLOY_ENV=staging` |
 | `cron-pulizia-operativa` | scheduled | nessuna (cron Netlify) | Scade OTP pending, elimina contatori rate-limit scaduti, rimuove bozze vendita oltre 24 ore con relativi PDF e pulisce il contesto tecnico Guardian oltre 90 giorni; termina senza operazioni quando `MIROX_DEPLOY_ENV=staging` |
@@ -140,7 +140,6 @@ La build staging fallisce se riceve il project ref di produzione o una service r
 
 - **Netlify site**: `mirox-crm` (rinominato il 2026-07-02 in coerenza col repo GitHub `mirkopiasenti/mirox-crm`)
 - **Production URL**: [`mirox-crm.it`](https://mirox-crm.it) (custom domain, dal 2026-06-29). Qui sono configurate tutte le env vars, comprese OpenAI e Telegram per KONA AI Guardian
-- **Guardian staging**: [`mirox-crm-staging.netlify.app`](https://mirox-crm-staging.netlify.app), sito separato collegato esclusivamente a `codex/kona-ai-guardian-staging` e al Supabase `blwgxrszvsoqcmcmhhqr`; resta l'ambiente obbligatorio per gli sviluppi successivi. Usa il bot staging dedicato [`@KonaAiGuardianBot`](https://t.me/KonaAiGuardianBot), distinto dal bot production `@MiroxAiGuardianBot`, perché un bot Telegram accetta un solo webhook
 - Vecchio URL di test `test-upload-contratti-konahub.netlify.app` non è più aggiornato — deprecato
 - **NON confondere** con `mirox-crm.netlify.app`: è un altro Netlify site, di un altro repo GitHub, che ospita il Call Center prod. Condivide solo il DB Supabase
 
@@ -150,9 +149,9 @@ Setup:
 3. Imposta le env vars nel pannello Netlify (sezione Site settings → Environment variables)
 4. Deploy automatico al `git push origin main`
 
-Lo staging Guardian usa il sito Netlify separato `mirox-crm-staging`, collegato a `codex/kona-ai-guardian-staging`. Il sito imposta `MIROX_DEPLOY_ENV=staging` e le credenziali del Supabase separato; la build pubblicata conferma l'ambiente `staging` e il project ref `blwgxrszvsoqcmcmhhqr`. Un push su questa branch non autorizza modifiche a `main` o al database di produzione.
+Guardian opera solo sul sito ufficiale; il proprietario ha autorizzato sviluppo e collaudo direttamente in produzione il 05/10/2026. Nessun ambiente Guardian separato da ricreare.
 
-I workflow `.github/workflows/guardian-codex-*.yml`, `guardian-observer-analysis.yml` e `.github/codex/` sono registrati su `main`, requisito tecnico di GitHub per ricevere `workflow_dispatch`. Non entrano nella build `dist/`; l'analisi production legge soltanto `main`, mentre patch e test restano vincolati allo staging o a branch `codex/kg-*`. Il worker Netlify e le migration Guardian sono attivi anche in produzione, ma nessun workflow può effettuare merge o deploy automatici.
+I workflow Guardian e `.github/codex/` sono su `main`. Analisi read-only e patch partono da `main`; le patch usano branch `codex/kg-*`, test locali e PR draft verso `main`. Tutte le esecuzioni richiamano l'Environment `guardian-production`; merge e deploy richiedono autorizzazione del proprietario.
 
 ## Workflow di aggiornamento
 
@@ -207,11 +206,10 @@ Dettagli e regole complete in [`AGENTS.md`](AGENTS.md); [`CLAUDE.md`](CLAUDE.md)
 | `GUARDIAN_WORKER_SECRET` | sì per worker Codex | Segreto HMAC condiviso esclusivamente tra Netlify e GitHub Actions; mai nel frontend o nel repository |
 | `GUARDIAN_GITHUB_TOKEN` | sì per dispatcher Codex | Fine-grained token GitHub limitato al repository e all'avvio dei workflow; solo Netlify server-side |
 | `GUARDIAN_GITHUB_REPOSITORY` | no | Default `mirkopiasenti/mirox-crm`; repository esplicito del dispatcher |
-| `GUARDIAN_STAGING_BRANCH` | no | Default `codex/kona-ai-guardian-staging`; branch base delle esecuzioni Guardian |
 | `GUARDIAN_OBSERVER_ENABLED` | no | Default `true`; consente di mettere in pausa il cron Observer senza rimuovere la raccolta eventi |
 | `GUARDIAN_OBSERVER_DAILY_BUDGET` | no | Default `10`; massimo di analisi automatiche Codex al giorno per ambiente |
 | `GUARDIAN_OBSERVER_MODEL` | no | Default `gpt-5.6-luna`; modello usato dal workflow Observer |
-| `GUARDIAN_OBSERVER_REF` | no | Ref GitHub osservato dal cron; default `GUARDIAN_STAGING_BRANCH` |
+| `GUARDIAN_OBSERVER_REF` | no | Ref GitHub osservato dal cron; default `main` |
 | `GUARDIAN_OBSERVER_WEEKLY_SCAN` | no | Default `true`; abilita la scansione preventiva settimanale delle migliorie |
 | `GUARDIAN_TELEMETRY_HASH_SECRET` | consigliata | Segreto HMAC server-side per anonimizzare gli attori negli eventi tecnici; fallback temporaneo a `GUARDIAN_WORKER_SECRET` |
 
@@ -303,7 +301,7 @@ Il CC prod su `mirox-crm.netlify.app` legge le stesse tabelle. Per non romperlo:
 - **Fase 5 facoltativa** (uniformità UI): le pagine CC conservano parte delle utility `Utils.*` del port storico. La creazione anagrafica è già migrata a `AnagraficaHelper.cercaOcrea` e non restano conferme native nei flussi controllati; l'eventuale sostituzione completa di `Utils.*` è un refactor architetturale, non un'attività correttiva aperta
 - **Estensioni Fase 4**: bottoni "Inizia vendita" anche in `registra-chiamata.html` (dopo passa-in-negozio), `esiti-appuntamenti.html` (prima di esitare), `rilavorazione.html` (tab Passa Negozio/Cerea) — da fare on-demand quando si ha bisogno
 
-## Guardian: correzioni del 05/10/2026 (preparate, non distribuite)
+## Guardian: correzioni del 05/10/2026 (rilascio production autorizzato)
 
 La chat proprietario Telegram puo' discutere liberamente del CRM senza scegliere
 una richiesta e anche su casi archiviati; conserva gli ultimi 30 messaggi nella
@@ -315,9 +313,9 @@ notifica anche gli esiti delle scansioni preventive e sospende dispatch dopo
 errori di configurazione OpenAI. Workflow con preflight, modello da DB, URL worker
 vincolato all'ambiente e fallimento CI dopo esito negativo.
 
-Prima del rilascio applicare `database/20261005110504_guardian_owner_conversation.sql`.
-Lo staging Guardian documentato sotto non risulta disponibile/accessibile il
-05/10; `guardian-staging` manca da GitHub. Nessun deploy o nuovo progetto eseguito.
+Migration `database/20261005110504_guardian_owner_conversation.sql` applicata
+e verificata sul production il 05/10. Il proprietario ha eliminato il precedente
+ambiente Guardian e autorizza il rilascio direttamente sul CRM ufficiale.
 Diagnosi, verifiche e attivazione: [report Guardian](docs/GUARDIAN_DIAGNOSI_2026-10-05.md).
 
 Correzioni locali dei segnali Guardian settembre: Ticket usa listener su dati
@@ -325,7 +323,7 @@ per aprire Lavorata anche con nomi contenenti apostrofi; Comodato elimina il
 controllo Apps Script dismesso; Apri/Chiudi azzera l'anteprima SIM tramite il
 renderer corrente quando la scelta torna a No. Non ancora distribuite.
 
-## KONA AI Guardian Observer (implementazione staging, 2026-08-11)
+## KONA AI Guardian Observer (production)
 
 Il vecchio reporter globale che inviava automaticamente email per gli errori tecnici e' stato rimosso perche' produceva notifiche poco utili. Restano invariati `mirox-send-email`, `MiroxMailer` e tutte le email operative basate sui template CRM. Restano inoltre i popup locali, compresi i messaggi mirati dell'OCR e l'orario mostrato dal wizard Upload Contratti.
 
@@ -335,7 +333,7 @@ Le richieste vivono nelle tabelle server-only delle migration `065` e `066`; `06
 
 Se l'analisi automatica non dispone dei dati minimi per proporre una correzione, non espone il pulsante di preparazione patch: propone `Aggiungi informazioni`, apre la conversazione della richiesta e formula una sola domanda concreta. Il workflow patch installa le dipendenze prima di avviare Codex e distingue gli esiti `MODIFICA_PREPARATA`, `GIA_PRESENTE`, `RICHIEDE_INFORMAZIONI` e `BLOCCATA`. Gli ultimi tre sono esiti operativi gestiti e non generano una falsa mail GitHub di errore; il job termina in rosso soltanto per guasti tecnici, test falliti o mancata consegna dell'esito al worker.
 
-Guardian e' attivo sul CRM ufficiale `mirox-crm.it`, branch `main` e Supabase production `lbgwamhjkjjfwgusafbi`; ogni sviluppo viene validato prima sullo staging `mirox-crm-staging.netlify.app` e sul Supabase separato `blwgxrszvsoqcmcmhhqr`. Le migration `067` e `068` e le variabili Observer sono configurate in entrambi gli ambienti. Il bot production `@MiroxAiGuardianBot` e il bot staging `@KonaAiGuardianBot` restano separati. Setup completo, env vars, limiti e confini sono in [`docs/KONA_AI_GUARDIAN_SETUP.md`](docs/KONA_AI_GUARDIAN_SETUP.md).
+Guardian e' attivo su `mirox-crm.it`, branch `main`, Supabase `lbgwamhjkjjfwgusafbi` e bot `@MiroxAiGuardianBot`. Il proprietario autorizza sviluppo e collaudo direttamente in produzione. Setup: [`docs/KONA_AI_GUARDIAN_SETUP.md`](docs/KONA_AI_GUARDIAN_SETUP.md).
 
 ## Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
@@ -380,3 +378,9 @@ Guardian e' attivo sul CRM ufficiale `mirox-crm.it`, branch `main` e Supabase pr
 Ogni modifica al progetto deve essere riflessa in `README.md`, `CLAUDE.md` e `database/README.md` **nella stessa sessione/PR** in cui avviene la modifica. Niente "lo aggiorno dopo" — è così che `README_UNIFICATO.txt` (il file che questo README ha sostituito) era diventato obsoleto.
 
 Vedi la sezione "Manutenzione di questa guida" in [`CLAUDE.md`](CLAUDE.md) per la **tabella completa dei trigger** (cosa aggiornare quando cambia cosa) e il self-check di fine task.
+
+Verifica runtime Guardian: workflow manuale `guardian-healthcheck.yml` su main,
+Environment production, action `health` del worker protetta da HMAC. Controlla
+Responses con testo sintetico senza dati CRM, identita' bot/webhook via GET e
+accessibilita' memoria DB. Non invia messaggi Telegram, non modifica dati o
+configurazioni e restituisce soltanto esiti/codici chiusi; nessuna chiave o log.

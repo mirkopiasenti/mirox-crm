@@ -62,30 +62,25 @@ Il primo invio era stato rifiutato da automatic approval review per mancanza di
 autorizzazione specifica; nessun blocco residuo sul salvataggio della chiave.
 La chiave Netlify della chat e' write-only e non e' stata letta o modificata.
 
-GitHub API mostra solo l'Environment `guardian-production`; `guardian-staging`
-risponde 404. Il pannello Supabase autenticato redirige il vecchio project ref
-`blwgxrszvsoqcmcmhhqr` all'organizzazione KONA TECH, il cui elenco non contiene
-lo staging Guardian. MCP SQL su quel ref rifiuta l'accesso. Lo staging descritto
-dalle guide quindi non e' disponibile/accessibile in questa sessione; non e'
-provato quando/perche' sia stato rimosso. Nessun nuovo progetto creato e nessun
-ambiente Call Director riutilizzato senza decisione del proprietario.
+Il proprietario conferma il 05/10 che il precedente ambiente Guardian e' stato
+eliminato e non va ricreato. Autorizza esplicitamente modifiche, collaudo e deploy
+direttamente in produzione. Le guide sono aggiornate e il vincolo precedente e'
+rimosso; nessun ambiente Call Director riutilizzato.
 
-Migration additiva `20261005110504_guardian_owner_conversation.sql` preparata, non applicata:
-aggiunge soltanto `conversazione` a `kona_ai_telegram_sessioni`, senza alterare
-grant/RLS, tabelle CRM o Call Center. Necessaria prima di distribuire il webhook.
-Il filename timestamp generato dalla CLI evita collisioni con le migration del
-branch Call Director. Validazione remota end-to-end ancora da eseguire.
+Migration `20261005110504_guardian_owner_conversation.sql` applicata tramite MCP
+e verificata sul Supabase production: colonna JSONB NOT NULL, default array vuoto,
+RLS invariata. Nessun grant o tabella CRM/Call Center modificato. Nome timestamp
+generato dalla CLI per evitare collisioni con il branch Call Director.
 
-## Attivazione
+## Rilascio autorizzato
 
-1. Secret GitHub del worker aggiornato e nuova chiave verificata con Responses.
-   Resta il collaudo di un workflow reale dopo ripristino dell'ambiente isolato.
-2. Decidere quale ambiente isolato usare per Guardian. Non creare progetti a
-   pagamento o riutilizzare il Call Director in autonomia.
-3. Applicare la migration e collaudare testo/vocale, dialogo senza ticket,
-   caso archiviato, fallimento/ripristino chiave, scansione preventiva e workflow.
-4. Dopo collaudo, push/rilascio solo su richiesta esplicita del proprietario.
-   Il codice nel worktree non e' ancora attivo sul bot ufficiale.
+Patch e analisi partono da main, test locali sulla branch della modifica,
+verifica HTTP del CRM ufficiale. Il tipo storico test_staging resta solo per
+compatibilita' DB; nessun workflow dipende da un sito separato. PR draft verso
+main e merge autorizzato restano distinti; nessun merge automatico del worker.
+La proposta di rilascio riusa la PR gia' aperta dalla preparazione patch.
+Questa revisione viene distribuita direttamente in produzione su richiesta
+esplicita del proprietario. Esito deploy e collaudo aggiunti dopo verifica.
 
 Un modello conversazionale non possiede l'accesso interattivo a repository/DB
 della chat Codex: legge il contesto fornito; l'analisi del codice resta un workflow
@@ -118,8 +113,10 @@ una riproduzione: non classificati come risolti dalla correzione Guardian.
 
 ## Verifiche locali
 
-145 test Node e build statica riusciti; include regressioni di conversazione,
-worker, dedupe cron e i tre difetti CRM riprodotti. YAML dei cinque workflow e
-sintassi Bash delle rispettive istruzioni verificati. Nessun test end-to-end
-sullo staging indisponibile, nessuna migration applicata e nessun push/deploy.
+148 test Node e build statica riusciti; include regressioni di conversazione,
+worker, dedupe cron e i tre difetti CRM riprodotti. YAML dei sei workflow e
+sintassi Bash delle rispettive istruzioni verificati. Migration applicata production; collaudo distribuito in corso.
 Anche un risultato worker tardivo conserva lo stato archiviato della richiesta.
+
+Controllo runtime privato: guardian-healthcheck.yml verifica OpenAI/Telegram e
+memoria dal worker Netlify, con HMAC; nessun messaggio Telegram o dato CRM AI.

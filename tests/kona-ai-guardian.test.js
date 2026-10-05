@@ -134,7 +134,7 @@ test('le API Guardian separano segnalazioni autenticate e webhook Telegram priva
   assert.match(analysisWorkflow, /inputs\.requested_type == 'analisi_codex'/i);
   assert.match(patchWorkflow, /sandbox: workspace-write/i);
   assert.match(patchWorkflow, /--base "\$\{GITHUB_REF_NAME\}"/i);
-  assert.match(patchWorkflow, /github\.ref == 'refs\/heads\/codex\/kona-ai-guardian-staging'/i);
+  assert.match(patchWorkflow, /github\.ref == 'refs\/heads\/main'/i);
   assert.match(patchWorkflow, /inputs\.requested_type == 'prepara_patch'/i);
   assert.match(patchWorkflow, /inputs\.target_environment == 'production'/i);
   assert.match(patchWorkflow, /guardian-production/i);
@@ -162,12 +162,12 @@ test('le API Guardian separano segnalazioni autenticate e webhook Telegram priva
   assert.match(releaseWorkflow, /inputs\.target_environment == 'production'/i);
   assert.match(releaseWorkflow, /pull_request_url:\(if \(\$pr\|length\) > 0 then \$pr else null end\)/i);
   assert.match(releaseWorkflow, /if \[ "\$success" != true \]; then exit 1; fi/i);
-  assert.match(worker, /il comportamento risulta già presente nello staging/i);
+  assert.match(worker, /il comportamento risulta già presente nel codice corrente/i);
   assert.match(worker, /result\?\.no_changes === true/i);
   assert.match(worker, /needsInformation/i);
   assert.match(worker, /noChanges \|\| needsInformation \|\| blocked \? 'ricevuto' : 'in_lavorazione'/i);
   assert.match(worker, /keyboardForExecution\(execution, safeResult\)/i);
-  assert.match(workerHelper, /target_environment: targetEnvironment === 'staging' \? 'staging' : 'production'/i);
+  assert.match(workerHelper, /target_environment: 'production'/i);
   assert.match(guardian, /Approva lavorazione/);
   assert.match(webhook, /\/nuovo_miglioria/);
   assert.match(webhook, /if \(action !== 'archive'\) \{\s*await setActiveIncident\(supabase, chatId, incidentId\);/);

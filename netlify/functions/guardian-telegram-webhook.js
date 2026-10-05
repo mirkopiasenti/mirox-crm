@@ -17,7 +17,7 @@ const {
 const {
   dispatchWorkflow,
   repositoryName,
-  stagingBranch
+  baseBranch
 } = require('./_lib/guardian-codex');
 const {
   answerCallbackQuery,
@@ -384,7 +384,7 @@ async function createExecution(supabase, incident, approval, type, options = {})
       modello: options.model || 'gpt-5.6-luna',
       sandbox: options.sandbox || 'read_only',
       repository: repositoryName(),
-      branch_name: options.branch || stagingBranch(),
+      branch_name: options.branch || baseBranch(),
       base_commit_sha: options.baseCommit || null,
       workflow_name: options.workflow || null,
       risultato: { requested_from: 'telegram' },
@@ -420,13 +420,13 @@ async function dispatchExecution(supabase, chatId, incident, execution) {
     const dispatch = await dispatchWorkflow({
       executionId: execution.id,
       type: execution.tipo_esecuzione,
-      ref: execution.branch_name || stagingBranch()
+      ref: execution.branch_name || baseBranch()
     });
     if (!dispatch.dispatched) {
       await failExecution(supabase, execution, 'Worker Codex non configurato nell’ambiente corrente.', 'worker_not_configured');
       await sendTelegramMessage(chatId, [
         `${incidentCode(incident.numero)}: approvazione registrata.`,
-        'Il worker Codex non è ancora configurato nello staging; nessun file è stato modificato.'
+        'Il worker Codex non è ancora configurato in produzione; nessun file è stato modificato.'
       ].join('\n'));
       return false;
     }
@@ -481,7 +481,7 @@ async function startCodexAnalysis(supabase, chatId, incidentId) {
   if (approvalError) throw approvalError;
   const { execution } = await createExecution(supabase, incident, approval, 'analisi_codex', {
     sandbox: 'read_only',
-    branch: String(process.env.MIROX_DEPLOY_ENV || '').trim().toLowerCase() === 'staging' ? stagingBranch() : 'main'
+    branch: String(process.env.MIROX_DEPLOY_ENV || '').trim().toLowerCase() === 'staging' ? baseBranch() : 'main'
   });
   await supabase.from('kona_ai_incidenti').update({ stato: 'in_analisi' }).eq('id', incident.id);
   await dispatchExecution(supabase, chatId, incident, execution);
@@ -514,13 +514,13 @@ async function approveWork(supabase, chatId, incidentId) {
     richiesta_da: 'telegram',
     decisa_da_profile_id: ownerProfileId(),
     decisa_da_telegram_chat_id: chatId,
-    motivazione: 'Preparazione modifica staging approvata esplicitamente tramite Telegram',
+    motivazione: 'Preparazione modifica approvata esplicitamente tramite Telegram',
     decisa_at: now
   }).select('id').single();
   if (approvalError) throw approvalError;
   const { execution } = await createExecution(supabase, incident, approval, 'prepara_patch', {
     sandbox: 'workspace_write',
-    branch: stagingBranch()
+    branch: baseBranch()
   });
   await supabase.from('kona_ai_incidenti').update({ stato: 'fix_approvato' }).eq('id', incident.id);
   await dispatchExecution(supabase, chatId, incident, execution);
@@ -538,7 +538,7 @@ async function startStagingTests(supabase, chatId, incidentId) {
     .in('stato', ['in_coda', 'in_esecuzione']).maybeSingle();
   if (activeError) throw activeError;
   if (active) {
-    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} ha già test staging in corso.`);
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} ha già test della branch in corso.`);
     return;
   }
   const { data: patchExecution, error: patchError } = await supabase.from('kona_ai_esecuzioni')
@@ -551,7 +551,7 @@ async function startStagingTests(supabase, chatId, incidentId) {
     .maybeSingle();
   if (patchError) throw patchError;
   if (!patchExecution?.branch_name) {
-    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} non ha ancora una modifica staging completata.`);
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} non ha ancora una modifica completata.`);
     return;
   }
   const now = new Date().toISOString();
@@ -562,7 +562,7 @@ async function startStagingTests(supabase, chatId, incidentId) {
     richiesta_da: 'telegram',
     decisa_da_profile_id: ownerProfileId(),
     decisa_da_telegram_chat_id: chatId,
-    motivazione: 'Test staging approvati esplicitamente tramite Telegram',
+    motivazione: 'Test della branch approvati esplicitamente tramite Telegram',
     decisa_at: now
   }).select('id').single();
   if (approvalError) throw approvalError;
@@ -592,7 +592,7 @@ async function prepareProductionRelease(supabase, chatId, incidentId) {
     .maybeSingle();
   if (testError) throw testError;
   if (!testExecution?.branch_name) {
-    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} non ha ancora un test staging completato.`);
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} non ha ancora un test della branch completato.`);
     return;
   }
   const now = new Date().toISOString();

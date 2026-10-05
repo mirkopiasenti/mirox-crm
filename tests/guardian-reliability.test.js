@@ -194,7 +194,7 @@ test('il worker rifiuta destinazioni dell’altro ambiente e URL ambigui', () =>
   const prod = 'https://mirox-crm.it/.netlify/functions/guardian-codex-worker';
   const staging = 'https://mirox-crm-staging.netlify.app/.netlify/functions/guardian-codex-worker';
   assert.equal(validWorkerTarget(prod, 'production'), true);
-  assert.equal(validWorkerTarget(staging, 'staging'), true);
+  assert.equal(validWorkerTarget(staging, 'staging'), false);
   assert.equal(validWorkerTarget(prod, 'staging'), false);
   assert.equal(validWorkerTarget(staging, 'production'), false);
   assert.equal(validWorkerTarget(prod+'?redirect=other', 'production'), false);
@@ -217,4 +217,50 @@ test('il risultato tardivo di un worker non riapre una richiesta archiviata', as
   assert.equal(db.tables.kona_ai_incidenti[0].stato, 'archiviato');
   assert.equal(db.tables.kona_ai_esecuzioni[0].stato, 'fallita');
   assert.doesNotMatch(db.tables.kona_ai_notifiche[0].payload.text, /resta aperta/);
+});
+
+test('patch e dispatch usano main production anche con la vecchia env di branch', async t => {
+  const { baseBranch, dispatchWorkflow } = require('../netlify/functions/_lib/guardian-codex');
+  const previous = process.env.GUARDIAN_STAGING_BRANCH;
+  const token = process.env.GUARDIAN_GITHUB_TOKEN;
+  process.env.GUARDIAN_STAGING_BRANCH = 'codex/kona-ai-guardian-staging';
+  process.env.GUARDIAN_GITHUB_TOKEN = 'synthetic-token';
+  t.after(() => {
+    if (previous === undefined) delete process.env.GUARDIAN_STAGING_BRANCH; else process.env.GUARDIAN_STAGING_BRANCH = previous;
+    if (token === undefined) delete process.env.GUARDIAN_GITHUB_TOKEN; else process.env.GUARDIAN_GITHUB_TOKEN = token;
+  });
+  let sent;
+  t.mock.method(global, 'fetch', async (_url, options) => { sent = JSON.parse(options.body); return { ok: true }; });
+  assert.equal(baseBranch(), 'main');
+  await dispatchWorkflow({ executionId, type: 'prepara_patch' });
+  assert.equal(sent.ref, 'main');
+  assert.equal(sent.inputs.target_environment, 'production');
+});
+
+test('healthcheck privato verifica chat, webhook e memoria senza inviare messaggi', async t => {
+  const { guardianHealth } = require('../netlify/functions/_lib/guardian-health');
+  network(t);
+  const before = process.env.TELEGRAM_GUARDIAN_WEBHOOK_SECRET;
+  process.env.TELEGRAM_GUARDIAN_WEBHOOK_SECRET = 'synthetic-webhook';
+  t.after(() => { if (before === undefined) delete process.env.TELEGRAM_GUARDIAN_WEBHOOK_SECRET; else process.env.TELEGRAM_GUARDIAN_WEBHOOK_SECRET = before; });
+  const requests = [];
+  t.mock.method(global, 'fetch', async (url, options) => {
+    requests.push(url);
+    if (url.includes('/responses')) return { ok: true, json: async () => ({ output_text: JSON.stringify({ reply: 'OK', suggested_action: 'nessuna' }) }) };
+    if (url.endsWith('/getMe')) return { ok: true, json: async () => ({ ok: true, result: { username: 'MiroxAiGuardianBot' } }) };
+    if (url.endsWith('/getWebhookInfo')) return { ok: true, json: async () => ({ ok: true, result: { url: 'https://mirox-crm.it/.netlify/functions/guardian-telegram-webhook' } }) };
+    throw new Error('Unexpected request');
+  });
+  const result = await guardianHealth(database());
+  assert.equal(result.ok, true);
+  assert(requests.every(url => !url.includes('/sendMessage')));
+});
+
+test('healthcheck chiude errori provider senza esporre descrizioni o segreti', async t => {
+  const { guardianHealth } = require('../netlify/functions/_lib/guardian-health');
+  network(t, { openaiStatus: 401 });
+  const result = await guardianHealth(database());
+  assert.equal(result.chat_openai.ok, false);
+  assert.equal(result.chat_openai.code, 'openai_invalid_key');
+  assert.doesNotMatch(JSON.stringify(result), /sk-secret/);
 });

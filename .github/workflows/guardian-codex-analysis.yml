@@ -16,7 +16,6 @@ on:
         required: true
         type: choice
         options:
-          - staging
           - production
 
 permissions:
@@ -28,8 +27,8 @@ concurrency:
 
 jobs:
   analyse:
-    if: (github.ref_name == 'main' || github.ref_name == 'codex/kona-ai-guardian-staging') && inputs.requested_type == 'analisi_codex' && (inputs.target_environment == 'staging' || inputs.target_environment == 'production')
-    environment: ${{ inputs.target_environment == 'production' && 'guardian-production' || 'guardian-staging' }}
+    if: github.ref_name == 'main' && inputs.requested_type == 'analisi_codex' && inputs.target_environment == 'production'
+    environment: guardian-production
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -41,7 +40,7 @@ jobs:
       EXECUTION_ID: ${{ inputs.execution_id }}
 
     steps:
-      - name: Checkout exact staging ref
+      - name: Checkout production ref
         uses: actions/checkout@v5
         with:
           fetch-depth: 0

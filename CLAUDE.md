@@ -161,7 +161,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 
 ~80 tabelle. Project ref produzione: `lbgwamhjkjjfwgusafbi`. La configurazione pubblica di produzione e' in `scripts/build-static.js`; quella staging arriva soltanto dalle env Netlify e viene materializzata in `dist/js/config.js`.
 
-Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmcmhhqr`, regione `eu-west-3`, e non contiene dati CRM di produzione. Gli script one-shot dedicati vivono in `database/staging/`: `001_guardian_bootstrap.sql` crea soltanto il profilo minimo necessario ad Auth/Guardian e si blocca se lo schema `public` non e' vuoto. Il bootstrap e le migration Guardian `065`/`066` sono applicati allo staging; le sole migration additive `065`/`066` sono applicate anche al production `lbgwamhjkjjfwgusafbi` dal 2026-08-10.
+Guardian usa esclusivamente Supabase production `lbgwamhjkjjfwgusafbi`; migration additive `065`–`068` e memoria Telegram del 05/10/2026 applicate.
 
 ---
 
@@ -697,7 +697,7 @@ Il reporter globale `js/mirox-error-reporter.js` e tutte le email automatiche pe
 
 Le migration `065_kona_ai_guardian.sql` e `066_kona_ai_tipologia_richiesta.sql` creano ed estendono il dominio Guardian server-only. I dettagli tecnici hanno una scadenza obiettivo a 90 giorni; il cleanup automatico non e' ancora attivo. Riepilogo e audit restano permanenti.
 
-Guardian e' attivo sul production `mirox-crm.it` con Supabase `lbgwamhjkjjfwgusafbi`; OpenAI, Telegram e il profilo proprietario production sono configurati sul Netlify ufficiale. Staging resta obbligatorio per ogni sviluppo successivo e richiede un secondo bot per i test Telegram. Env e webhook sono descritti in `docs/KONA_AI_GUARDIAN_SETUP.md`.
+Guardian opera su `mirox-crm.it`, `main` e Supabase `lbgwamhjkjjfwgusafbi`. Sviluppo e collaudo direttamente in produzione autorizzati dal proprietario il 05/10/2026. Vedi AGENTS e la guida Guardian.
 
 ### Aggiornamenti UI e comunicazioni storici
 
@@ -802,7 +802,7 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 ## Note operative consapevoli (non "correggere" senza chiedere)
 
 - **Edge Functions Supabase**: non in uso, non aggiungerne senza discutere prima
-- **Guardian prima versione**: analizza soltanto i dati della richiesta; non ha accesso al repository, non esegue Codex, non prepara patch e non effettua deploy. Ogni sviluppo successivo passa prima da Netlify + Supabase staging separati. Sentry e worker Codex vengono dopo la prova reale del flusso.
+- **Guardian production**: conversazione libera, analisi repository read-only, patch su branch da main, test locali e PR draft. Il deploy segue l'autorizzazione del proprietario; nessun secondo ambiente richiesto.
 - **Cluster `Turista`**: è un cluster di vendita, non un cluster anagrafico condiviso. `garantisci-anagrafica.js` e `crea-vendita-pratica-carrello.js` lo accettano dal wizard, mantengono `Turista` su pratica/contratti, salvano `anagrafica.cluster='Consumer'` e non richiedono email.
 - **File SQL in `/database/`**: parziali, NON riflettono lo stato attuale del DB (vedi `database/README.md`)
 - **Modulo `simulatore_protecta.html`**: ~960 KB, molto pesante perché contiene asset embedded. Modificare con cautela.
@@ -836,6 +836,6 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 ## Guardian: aggiornamento 05/10/2026
 
 Correzioni di chat libera, memoria e affidabilita' preparate nel worktree, non
-ancora distribuite. Staging Guardian storico non disponibile/accessibile.
+in rilascio production autorizzato. Migration della memoria applicata.
 Seguire AGENTS e `docs/GUARDIAN_DIAGNOSI_2026-10-05.md`; nessun deploy, env Netlify
 o nuovo progetto senza le autorizzazioni previste.

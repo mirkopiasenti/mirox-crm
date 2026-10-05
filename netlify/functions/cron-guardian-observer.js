@@ -1,7 +1,7 @@
 'use strict';
 
 const { getAdminClient } = require('./_lib/require-auth');
-const { dispatchWorkflow, observerKeyboard, repositoryName, stagingBranch } = require('./_lib/guardian-codex');
+const { dispatchWorkflow, observerKeyboard, repositoryName, baseBranch } = require('./_lib/guardian-codex');
 const { incidentCode, requestTypeLabel } = require('./_lib/kona-ai-guardian');
 const { environment, retryDelay, text } = require('./_lib/guardian-telemetry');
 const { evaluateSignal } = require('./_lib/guardian-triage');
@@ -200,7 +200,7 @@ async function processSignal(supabase, signal, budget) {
       const dispatched = await dispatchWorkflow({
         executionId: execution.id,
         type: 'analisi_automatica',
-        ref: process.env.GUARDIAN_OBSERVER_REF || (environment() === 'production' ? 'main' : stagingBranch()),
+        ref: process.env.GUARDIAN_OBSERVER_REF || (environment() === 'production' ? 'main' : baseBranch()),
         commitSha: signal.release_commit_sha
       });
       if (dispatched.dispatched) {
@@ -294,7 +294,7 @@ async function maybeScheduleImprovementScan(supabase) {
     const result = await dispatchWorkflow({
       executionId: execution.id,
       type: 'scansione_migliorie',
-      ref: process.env.GUARDIAN_OBSERVER_REF || (environment() === 'production' ? 'main' : stagingBranch())
+      ref: process.env.GUARDIAN_OBSERVER_REF || (environment() === 'production' ? 'main' : baseBranch())
     });
     dispatched = result.dispatched;
     if (!dispatched) {

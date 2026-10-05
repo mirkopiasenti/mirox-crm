@@ -79,7 +79,7 @@ Sostituire sempre con testo descrittivo (es. `🔄 Aggiorna` → `Aggiorna`, `�
 ### URL deploy
 - **Repo GitHub**: `git@github.com:mirkopiasenti/mirox-crm.git` (dal 2026-07-02, prima era `konahub-vendita-test` — redirect ancora attivo ma va usato il nome nuovo)
 - **Netlify site di questa codebase**: **`mirox-crm`** (nome sito Netlify dal 2026-07-02, prima era il vecchio nome legato al test). Custom domain **`mirox-crm.it`** in production dal 2026-06-29 — tutte le functions, compreso Guardian, rispondono qui. Env vars Supabase, OpenAI, Telegram e degli altri servizi sono configurate su questo site
-- **Guardian staging separato**: `mirox-crm-staging.netlify.app`, site Netlify `mirox-crm-staging`, branch primaria `codex/kona-ai-guardian-staging` e Supabase `blwgxrszvsoqcmcmhhqr`. Resta isolato dai dati production ed e' l'ambiente obbligatorio per gli sviluppi successivi; usa il bot Telegram dedicato `@KonaAiGuardianBot`, mentre il bot ufficiale `@MiroxAiGuardianBot` resta production.
+- **Guardian production**: sito `mirox-crm.it`, branch `main`, Supabase `lbgwamhjkjjfwgusafbi`, bot `@MiroxAiGuardianBot`. Dal 05/10/2026 il proprietario autorizza sviluppo e collaudo direttamente in produzione; nessun ambiente Guardian separato da ricreare.
 - `test-upload-contratti-konahub.netlify.app` — vecchio URL di test del repo. **Non è più aggiornato** (le functions OTP rispondono 404). Deprecato — l'URL "buono" è `mirox-crm.it`
 - `mirox-crm.netlify.app` — **DIVERSO PROGETTO**: sito Call Center prod (altro repo GitHub, NON in questa codebase). Condivide lo stesso DB Supabase. Da non confondere col Netlify site `mirox-crm` di cui sopra (che è custom-domain su `mirox-crm.it`)
 
@@ -148,7 +148,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `guardian-incidents.js` (GET/POST action-based) — endpoint autenticato della pagina `Segnala Problema`. Ogni richiesta nasce come `problema` o `miglioria`; la raccolta Structured Outputs usa domande e criteri diversi per i due tipi. Gli operatori creano/proseguono solo le proprie richieste; gli admin possono elencarle tutte. Identita', contesto sicuro e ownership sono derivati lato server; tabelle Guardian mai accessibili direttamente dal browser. Il fallback deterministico non blocca l'operatore.
 - `guardian-telemetry-ingest.js` (POST) — endpoint autenticato per batch di massimo 20 eventi e 64 KB. Ripulisce nuovamente il payload, forza l'ambiente server, calcola fingerprint, deduplica gli `event_id` e aggiorna `kona_ai_eventi_tecnici`/`kona_ai_segnali`.
 - `guardian-telegram-webhook.js` (POST) — webhook pubblico solo per necessita' Telegram, protetto da `X-Telegram-Bot-Api-Secret-Token`, confronto constant-time e allowlist rigida `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`. Accetta testo o vocali conclusi, trascritti via Audio Transcriptions; gestisce `/richieste` (con alias `/incidenti`), `/salute`, `/apri`, `/nuovo`, `/nuovo_miglioria`, analisi Guardian, archiviazione e `Approva lavorazione`. Qualunque pulsante operativo collega automaticamente la sessione Telegram alla richiesta scelta, così i messaggi liberi successivi restano nella conversazione corretta; `Archivia` azzera invece la richiesta attiva. `/salute` espone soltanto contatori e checkpoint tecnici dell'Observer, senza dati CRM. L'approvazione crea un audit `prepara_fix` e porta la richiesta a `fix_approvato`, ma non esegue codice finche' Codex non e' collegato.
-- `guardian-codex-worker.js` (POST) — endpoint interno protetto da firma HMAC. Gestisce claim con lease, heartbeat e risultato delle esecuzioni `analisi_codex`, `analisi_automatica`, `scansione_migliorie`, `prepara_patch`, `test_staging` e `rilascio_produzione`; recupera al workflow soltanto contesto Guardian ridotto e invia l'esito a Telegram. Gli esiti automatici sono tradotti in sezioni comprensibili (`Che cosa significa`, conclusione, singola informazione necessaria e prossimo passo). Se `safe_to_prepare_patch` e' falso o mancano dati, il bottone patch viene sostituito da `Aggiungi informazioni`. Per `prepara_patch`, `RICHIEDE_INFORMAZIONI` e `BLOCCATA` chiudono regolarmente il lease senza fingere una modifica e senza abilitare i test staging. Non accetta JWT, non espone segreti e non concede accesso browser alle tabelle.
+- `guardian-codex-worker.js` (POST) — endpoint interno protetto da firma HMAC. Gestisce claim con lease, heartbeat e risultato delle esecuzioni `analisi_codex`, `analisi_automatica`, `scansione_migliorie`, `prepara_patch`, `test_staging` e `rilascio_produzione`; recupera al workflow soltanto contesto Guardian ridotto e invia l'esito a Telegram. Gli esiti automatici sono tradotti in sezioni comprensibili (`Che cosa significa`, conclusione, singola informazione necessaria e prossimo passo). Se `safe_to_prepare_patch` e' falso o mancano dati, il bottone patch viene sostituito da `Aggiungi informazioni`. Per `prepara_patch`, `RICHIEDE_INFORMAZIONI` e `BLOCCATA` chiudono regolarmente il lease senza fingere una modifica e senza abilitare i test della branch. Non accetta JWT, non espone segreti e non concede accesso browser alle tabelle.
 - `guardian-telemetry-ingest.js` deve esportare esplicitamente `handler`: viene importato da `_lib/with-telemetry.js` anche durante il caricamento del worker; un export incoerente rompe il bundle Netlify prima della verifica HMAC.
 - `cron-rientro-sim.js` (scheduled `0 7 * * *`) — notifica giornaliera switch SIM. **Non auth-gated** (chiamata dal cron Netlify, non da utente). Con `MIROX_DEPLOY_ENV=staging` termina subito con `skipped`, senza DB o email.
 - `cron-pulizia-operativa.js` (scheduled `30 2 * * *`) — scade OTP pending, elimina contatori rate-limit scaduti, recupera fino a 100 pratiche `bozza` oltre 24 ore eliminando prima i PDF noti e poi il record DB, rimuove il contesto tecnico Guardian oltre 90 giorni ed elimina gli eventi Observer oltre `expires_at`. **Non auth-gated** (cron Netlify). Con `MIROX_DEPLOY_ENV=staging` termina subito con `skipped`, senza DB o Storage.
@@ -175,7 +175,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 
 ~80 tabelle. Project ref produzione: `lbgwamhjkjjfwgusafbi`. La configurazione pubblica di produzione e' in `scripts/build-static.js`; quella staging arriva soltanto dalle env Netlify e viene materializzata in `dist/js/config.js`.
 
-Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmcmhhqr`, regione `eu-west-3`, e non contiene dati CRM di produzione. Gli script one-shot dedicati vivono in `database/staging/`: `001_guardian_bootstrap.sql` crea soltanto il profilo minimo necessario ad Auth/Guardian e si blocca se lo schema `public` non e' vuoto, impedendone l'esecuzione accidentale sul database production. Il bootstrap e le migration Guardian `065`/`066`/`067`/`068` sono applicati allo staging; le migration additive `065`/`066` sono applicate anche al production dal 2026-08-10 e `067`/`068` dal 2026-08-11, dopo validazione staging e verifica SQL esplicita sul project `lbgwamhjkjjfwgusafbi`.
+Le migration Guardian additive `065`–`068` sono applicate sul production `lbgwamhjkjjfwgusafbi`; la migration `20261005110504_guardian_owner_conversation.sql` aggiunge la memoria Telegram ed e' applicata e verificata il 05/10/2026. Nessuna tabella Call Center modificata.
 
 ---
 
@@ -210,13 +210,13 @@ Il progetto separato **Mirox CRM - Staging** usa il project ref `blwgxrszvsoqcmc
 ### KONA AI Guardian
 - `kona_ai_incidenti` — registro server-only migration `065`, esteso dalla `066` con `tipo_richiesta IN ('problema','miglioria')`: codice progressivo `KG-*`, stato/priorita', reporter, contesto minimo, riepilogo AI/risoluzione e scadenza dettagli tecnici a 90 giorni.
 - `kona_ai_messaggi` — cronologia per incidente dei canali `crm`, `telegram`, `guardian`, `codex`, `sistema`; nessun accesso browser diretto.
-- `kona_ai_approvazioni` — audit delle azioni proposte a Mirko. Azioni gia' eseguibili: `analizza_guardian`, `archivia` e approvazione `prepara_fix`; quest'ultima registra la decisione e imposta `fix_approvato`, ma resta senza esecutore. Le voci Codex/staging/produzione sono predisposte per fasi successive.
+- `kona_ai_approvazioni` — audit di analisi, patch, test, rilascio e archiviazione autorizzati dal proprietario.
 - `kona_ai_esecuzioni` — migration `067` con estensione additiva `068`, registro server-only delle esecuzioni Guardian/Codex: tipo di fase (`analisi_codex`, `analisi_automatica`, `scansione_migliorie`, `prepara_patch`, `test_staging`, `rilascio_produzione`), stato, workflow, commit, branch, pull request, heartbeat, timeout ed esito. Un indice parziale impedisce due esecuzioni attive dello stesso tipo sulla stessa richiesta; nessun grant diretto a `anon`/`authenticated`.
 - `kona_ai_eventi_tecnici` — migration `068`, eventi tecnici già sanitizzati con retention 30 giorni. Il collector non accetta form, body, allegati, token o dati anagrafici; nessun grant diretto a `anon`/`authenticated`.
 - `kona_ai_segnali` — migration `068`, aggregati deduplicati per fingerprint/ambiente/release. Contiene soglie, priorità, conteggi, stato, incidente collegato e cooldown delle notifiche.
 - `kona_ai_notifiche` — migration `068`, outbox server-only Telegram con chiave anti-duplicazione, tentativi, backoff e dead-letter dopo otto fallimenti.
 - `kona_ai_observer_checkpoint` — migration `068`, checkpoint e budget giornaliero dell'Observer per ambiente e tipo di scansione.
-- `kona_ai_telegram_sessioni` — associa il solo `chat_id` proprietario all'incidente attivo, conserva l'ultimo `update_id` Telegram per dedupe e, dopo la migration timestamp del 05/10/2026 ancora da applicare, gli ultimi 30 messaggi di conversazione.
+- `kona_ai_telegram_sessioni` — associa il solo `chat_id` proprietario all'incidente attivo, conserva l'ultimo `update_id` Telegram per dedupe e, dopo la migration timestamp applicata il 05/10/2026, gli ultimi 30 messaggi di conversazione.
 
 ### Post-Vendita
 - `post_vendita_dispositivi_comodato` — codice generato da RPC `genera_codice_comodato()`
@@ -620,7 +620,7 @@ Il bottone "Admin" dentro `moduli/upload-contratti-vendita.html` è stato **rimo
 
 Il reporter globale `js/mirox-error-reporter.js` e tutte le email automatiche per errori tecnici sono stati rimossi. Non reintrodurli. Restano operativi `mirox-send-email`, `MiroxMailer`, i template email di processo e i popup locali; il wizard Upload Contratti continua a mostrare l'orario dell'errore e i messaggi OCR strutturati, ma non spedisce email tecniche.
 
-### Conversazione proprietario e affidabilita' (05/10/2026, da validare in staging)
+### Conversazione proprietario e affidabilita' (05/10/2026, produzione autorizzata)
 
 La chat privata Telegram del proprietario e' libera anche senza richiesta attiva
 e per richieste archiviate: nessuno stato impedisce una spiegazione. Il testo
@@ -645,9 +645,9 @@ prompt del control plane si conservano prima del checkout del commit analizzato.
 4. `guardian-telegram-webhook` accetta esclusivamente il secret token configurato e `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`. Mirko puo' usare testo o vocali gia' conclusi; niente conversazione audio live.
 5. Il cron Observer raccoglie eccezioni frontend, errori HTTP 5xx, errori Functions/provider, fallimenti cron/CI e segnali di performance soltanto dopo sanitizzazione server-side. Deduplica per fingerprint e apre un incidente automatico `monitoraggio` solo al superamento delle soglie; un singolo evento non genera rumore Telegram. In particolare un `network_error` senza stato HTTP, anche durante login/upload/finalizzazione, resta `bassa` con una sola occorrenza: viene aperto dopo almeno tre occorrenze oppure due operatori coinvolti. I nomi interni (`network_error`, `Failed to fetch`, stack) non sono usati come spiegazione principale nel messaggio al proprietario.
 6. Per gli incidenti automatici il workflow `guardian-observer-analysis.yml` analizza in sola lettura il commit correlato, produce JSON validato e restituisce fatti, causa probabile, proposta, verifiche e criteri di accettazione. L'output è trattato come diagnosi, non come autorizzazione a modificare il codice.
-7. Analisi Guardian, analisi Codex read-only, preparazione patch, test staging, proposta di rilascio e archiviazione richiedono pulsanti Telegram separati. Ogni decisione viene registrata in `kona_ai_approvazioni`; l'esecuzione tecnica e' registrata in `kona_ai_esecuzioni`.
-8. Il worker Codex usa workflow GitHub separati: analisi read-only su `main` per il Guardian production o sul commit staging correlato, patch su branch dedicata, test staging e pull request draft verso production. Ogni dispatch porta anche `target_environment`: GitHub usa l'Environment `guardian-production` o `guardian-staging` per richiamare esclusivamente il worker che possiede l'esecuzione, anche se patch e test girano sul codice staging. Il merge su `main` e il deploy production restano manuali e fuori dall'esecuzione Codex. Il validatore patch esclude dal diff i file tecnici del runner (`guardian-context.json`, `guardian-changed-files.txt`, `codex-output.md`), blocca soltanto i file SQL sotto `database/` e consente `database/README.md`. Il prompt restituisce un esito macchina esplicito: `MODIFICA_PREPARATA` prosegue verso test e pull request; `GIA_PRESENTE`, `RICHIEDE_INFORMAZIONI` e `BLOCCATA` terminano regolarmente senza fingere una modifica. Ogni esito senza pull request invia a Guardian un JSON valido con `pull_request_url: null`.
-9. GitHub riceve `workflow_dispatch` soltanto per workflow presenti sulla branch predefinita: per questo `.github/workflows/guardian-codex-*.yml`, `guardian-observer-analysis.yml` e `.github/codex/` sono registrati su `main`. I job patch restano fail-closed sul ref, eseguono `npm ci` prima di Codex e distinguono quattro esiti: `MODIFICA_PREPARATA`, `GIA_PRESENTE`, `RICHIEDE_INFORMAZIONI`, `BLOCCATA`. Gli ultimi tre sono conclusioni operative valide e il workflow resta verde dopo averle consegnate al worker; soltanto un guasto tecnico, una validazione non riconosciuta, test falliti o il mancato callback producono failure GitHub. L'Observer è sempre `contents: read`, sandbox `read-only`, `drop-sudo`, `--ephemeral` e non può fare push. I secrets URL/HMAC del worker vivono negli GitHub Environments `guardian-staging` e `guardian-production`, non come valori condivisi: impedisce che una scansione `main` scriva nello staging. Worker Netlify e migration `067`/`068` sono attivi sul production dopo validazione staging e applicazione SQL esplicita.
+7. Analisi Guardian, analisi Codex read-only, patch, test della branch, proposta di rilascio e archiviazione hanno pulsanti separati e audit. Il tipo DB storico `test_staging` identifica ora i test del repository sulla branch della modifica; non richiede un secondo ambiente.
+8. Il worker usa analisi read-only di `main` o del commit correlato; prepara patch su branch `codex/kg-*` a partire da `main`, esegue test locali e propone una PR draft verso `main`. Tutti i dispatch usano `target_environment=production`, Environment `guardian-production` e URL/HMAC production. Le patch non fanno merge automatico. Il proprietario puo' autorizzare direttamente rilascio e collaudo in produzione; per questa revisione lo ha fatto il 05/10/2026.
+9. Workflow e `.github/codex/` risiedono su `main` per ricevere `workflow_dispatch`. I job patch installano npm prima di Codex e distinguono `MODIFICA_PREPARATA`, `GIA_PRESENTE`, `RICHIEDE_INFORMAZIONI`, `BLOCCATA`. Il validatore esclude i file del runner e blocca SQL, permessi e deploy; consente `database/README.md`. Observer read-only non fa push. Test della branch e disponibilita' del sito ufficiale sono verifiche distinte: il sito raggiungibile non dimostra che la patch sia distribuita.
 
 ### Database e retention
 
@@ -656,21 +656,17 @@ La migration additiva `065_kona_ai_guardian.sql` crea quattro tabelle server-onl
 - `kona_ai_incidenti`: tipo richiesta, stato, priorita', origine, reporter, contesto minimo e riepiloghi;
 - `kona_ai_messaggi`: conversazione CRM/Telegram/Guardian/Codex;
 - `kona_ai_approvazioni`: proposta, decisione ed esito delle azioni sensibili;
-- `kona_ai_telegram_sessioni`: incidente attivo, dedupe degli update e memoria generale degli ultimi 30 messaggi proprietario/Guardian nella colonna `conversazione` (migration timestamp del 05/10/2026, da applicare).
+- `kona_ai_telegram_sessioni`: incidente attivo, dedupe degli update e memoria generale degli ultimi 30 messaggi proprietario/Guardian nella colonna `conversazione` (migration timestamp applicata il 05/10/2026).
 - `kona_ai_esecuzioni`: contratto operativo e audit del worker Codex, con idempotenza delle esecuzioni attive.
 - `kona_ai_eventi_tecnici`, `kona_ai_segnali`, `kona_ai_notifiche`, `kona_ai_observer_checkpoint`: telemetria ripulita, aggregati, coda Telegram e checkpoint dell'Observer (migration `068`).
 
-`anon` e `authenticated` non hanno grant diretti. Gli eventi tecnici della `068` scadono dopo 30 giorni; i gruppi e le notifiche restano server-only per l'audit operativo. I dettagli tecnici degli incidenti hanno `dettagli_tecnici_scadono_at = now()+90 giorni`; riepilogo e audit restano permanenti. `cron-pulizia-operativa` elimina gli eventi tecnici oltre `expires_at` nella stessa fase di retention. Le migration `067` e `068` sono applicate e verificate sia sullo staging sia sul production dal 2026-08-11.
+`anon` e `authenticated` non hanno grant diretti. Gli eventi tecnici della `068` scadono dopo 30 giorni; i gruppi e le notifiche restano server-only per l'audit operativo. I dettagli tecnici degli incidenti hanno `dettagli_tecnici_scadono_at = now()+90 giorni`; riepilogo e audit restano permanenti. `cron-pulizia-operativa` elimina gli eventi tecnici oltre `expires_at` nella stessa fase di retention. Le migration `067` e `068` sono applicate e verificate sul production dal 2026-08-11.
 
-### Stato staging verificato il 05/10/2026
+### Ambiente operativo autorizzato il 05/10/2026
 
-GitHub API mostra solo `guardian-production`, mentre `guardian-staging` manca.
-Il pannello Supabase autenticato non elenca piu' il vecchio staging Guardian
-`blwgxrszvsoqcmcmhhqr` e redirige quel project ref alla lista dell'organizzazione;
-MCP rifiuta l'accesso. Non considerare i riferimenti storici sotto una conferma
-di disponibilita'. Nessun ambiente creato/rimosso o Call Director riutilizzato:
-il proprietario deve decidere dove collaudare prima del rilascio.
-Dettagli: `docs/GUARDIAN_DIAGNOSI_2026-10-05.md`.
+Il proprietario conferma eliminato l'ambiente Guardian precedente e richiede
+modifiche e collaudo direttamente sul CRM ufficiale. Questa istruzione sostituisce
+il precedente requisito di un ambiente separato. Dettagli nel report Guardian.
 
 Correzioni locali dei segnali Guardian settembre: Ticket usa listener su dati
 per aprire Lavorata anche con nomi contenenti apostrofi; Comodato elimina il
@@ -679,7 +675,7 @@ renderer corrente quando la scelta torna a No. Non ancora distribuite.
 
 ### Ambiente e segreti
 
-Guardian e' attivo sul production `mirox-crm.it`, collegato al Supabase `lbgwamhjkjjfwgusafbi`; qui le env OpenAI/Telegram e il `KONA_AI_OWNER_PROFILE_ID` del profilo Mirko production sono configurati. Il bot `@MiroxAiGuardianBot` usa esclusivamente il webhook ufficiale. Il sito `mirox-crm-staging.netlify.app`, il Supabase `blwgxrszvsoqcmcmhhqr` e il bot dedicato `@KonaAiGuardianBot` descrivono il precedente ambiente isolato: disponibilita' da ripristinare come indicato nella verifica del 05/10/2026 sopra.
+Guardian e' attivo su `mirox-crm.it`, Supabase `lbgwamhjkjjfwgusafbi`, bot `@MiroxAiGuardianBot`. OpenAI/Telegram e profilo Mirko production sono configurati sul sito ufficiale.
 
 Env vars: `OPENAI_API_KEY`, `OPENAI_GUARDIAN_MODEL`, `OPENAI_TRANSCRIBE_MODEL`, `TELEGRAM_GUARDIAN_BOT_TOKEN`, `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`, `TELEGRAM_GUARDIAN_WEBHOOK_SECRET`, `KONA_AI_OWNER_PROFILE_ID`, `GUARDIAN_OBSERVER_ENABLED`, `GUARDIAN_OBSERVER_DAILY_BUDGET`, `GUARDIAN_OBSERVER_MODEL`, `GUARDIAN_OBSERVER_REF`, `GUARDIAN_OBSERVER_WEEKLY_SCAN`, `GUARDIAN_TELEMETRY_HASH_SECRET`. Mai esporle nel frontend o committarle. Setup completo: `docs/KONA_AI_GUARDIAN_SETUP.md`.
 
@@ -780,7 +776,7 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 ## Note operative consapevoli (non "correggere" senza chiedere)
 
 - **Edge Functions Supabase**: non in uso, non aggiungerne senza discutere prima
-- **Guardian production vs staging**: production riceve richieste, telemetria e analisi Codex read-only su `main`; staging resta obbligatorio per patch e test. I worker sono separati per ambiente tramite GitHub Environments e HMAC. Ogni patch richiede approvazione, pull request draft, test staging e un merge manuale; nessun workflow effettua merge o deploy production automatico.
+- **Guardian production**: unico ambiente operativo autorizzato dal proprietario il 05/10/2026. Patch su branch di lavoro, test repository e PR verso `main`; il deploy production segue l'autorizzazione del proprietario. Nessun ripristino di ambienti separati.
 - **Cluster `Turista`**: accettato solo da `crea-vendita-pratica-carrello.js`. È voluto.
 - **File SQL in `/database/`**: parziali, NON riflettono lo stato attuale del DB (vedi `database/README.md`)
 - **Modulo `simulatore_protecta.html`**: ~960 KB, molto pesante perché contiene asset embedded. Modificare con cautela.
@@ -807,3 +803,9 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 | Modificare le **regole di accesso pagine Call Center** | NON farlo da qui — è gestito dall'altro progetto. Coordinare con utente. |
 | **Promuovere un utente ad Admin** o gestire i permessi CC | Dashboard → Admin → Gestione Utenti (`admin-utenti.html`). Bottoni "Rendi Admin"/"Rendi Operatore" + modale "Permessi CC". Solo accessibile se sei admin |
 | **Aggiungere una nuova pagina al pannello Admin** | Nuova pagina `admin-<nome>.html` alla root con `css/admin-shell.css` + `js/admin-shell.js`, aggiungere mapping e voce nel reparto corretto di `admin-shell.js`, riusare guard pattern `Auth.richiediAuth()` + check `ruolo === 'admin'` (vedi sezione "Pannello Admin Mirox") |
+
+Verifica runtime Guardian: workflow manuale `guardian-healthcheck.yml` su main,
+Environment production, action `health` del worker protetta da HMAC. Controlla
+Responses con testo sintetico senza dati CRM, identita' bot/webhook via GET e
+accessibilita' memoria DB. Non invia messaggi Telegram, non modifica dati o
+configurazioni e restituisce soltanto esiti/codici chiusi; nessuna chiave o log.

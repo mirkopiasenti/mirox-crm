@@ -21,13 +21,14 @@ istruzioni dell'utente e guide di progetto restano vincolanti.
 - Fix CRM riprodotti: Ticket nome con apostrofi, Comodato riferimento Apps Script
   dismesso, Apri/Chiudi SIM No su elemento DOM assente. OTP500/504 e network_error
   vendita-config restano da diagnosticare con log/riproduzione.
-- 145/145 test Node + build, YAML/Bash workflow validi, diff-check pulito;
+- 148/148 test Node + build, YAML/Bash workflow validi, diff-check pulito;
   due prove reali conversazione su contesto sintetico riuscite, nessun dato CRM.
-- Migration additiva database/20261005110504_guardian_owner_conversation.sql pronta
-  NON applicata. Nessun push/deploy; codice non attivo sul bot ufficiale.
-- Staging documentato blwgxrszvsoqcmcmhhqr indisponibile/accesso negato; pannello
-  non lo elenca e GitHub guardian-staging manca. Owner deve decidere ambiente
-  isolato prima del collaudo; non creare/riutilizzare Call Director in autonomia.
+- Migration database/20261005110504_guardian_owner_conversation.sql applicata
+  e verificata production: JSONB NOT NULL default[], RLS invariata.
+- Il proprietario conferma vecchio staging eliminato e lo esclude il 05/10;
+  autorizza modifiche/collaudo/deploy direttamente in produzione. Guide aggiornate,
+  patch da main, test su branch di lavoro, Environment guardian-production.
+  Nessun ambiente CC riutilizzato, tipo DB test_staging conservato per compatibilita'.
 - README/AGENTS/CLAUDE/database README/setup/report aggiornati nel worktree.
   Report completo: docs/GUARDIAN_DIAGNOSI_2026-10-05.md nel worktree.
   Modifiche backup preesistenti nel checkout main conservate.
@@ -78,7 +79,10 @@ AES-GCM, backup orario minuto17 UTC; checkpoint completo 03:17 dopo cleanup CRM.
 
 - Guide: AGENTS, README, database/README (non rappresenta da solo il DB vivo).
 - Produzione CRM: `mirox-crm.it`, alias `mirox-crm.netlify.app`; repo CC storico ignoto.
-- Call Director test separato; staging Guardian da ripristinare, non presumere attivo.
+- Guardian unico ambiente production; Call Director test separato.
 - Push solo su richiesta esplicita; ogni push su `main` avvia il deploy production.
 - Modifiche alle tabelle CC condivise richiedono conferma preventiva e devono
   rispettare i confini documentati in `AGENTS.md`.
+
+Controllo runtime privato: guardian-healthcheck.yml verifica OpenAI/Telegram e
+memoria dal worker Netlify, con HMAC; nessun messaggio Telegram o dato CRM AI.

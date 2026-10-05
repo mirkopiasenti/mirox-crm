@@ -3,8 +3,7 @@
 function validWorkerTarget(value, environment) {
   try {
     const url = new URL(value);
-    const host = environment === 'production' ? 'mirox-crm.it'
-      : environment === 'staging' ? 'mirox-crm-staging.netlify.app' : null;
+    const host = environment === 'production' ? 'mirox-crm.it' : null;
     return Boolean(host && url.protocol === 'https:' && url.hostname === host
       && !url.port && !url.username && !url.password && !url.search && !url.hash
       && url.pathname === '/.netlify/functions/guardian-codex-worker');

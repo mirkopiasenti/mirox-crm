@@ -1,0 +1,41 @@
+name: Guardian production healthcheck
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    if: github.ref_name == 'main'
+    environment: guardian-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      GUARDIAN_WORKER_URL: ${{ secrets.GUARDIAN_WORKER_URL }}
+      GUARDIAN_WORKER_SECRET: ${{ secrets.GUARDIAN_WORKER_SECRET }}
+      TARGET_ENVIRONMENT: production
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Check deployed Guardian integrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          node .github/codex/worker-target.js
+          test -n "$GUARDIAN_WORKER_SECRET"
+          node --input-type=module <<'JS'
+          import crypto from 'node:crypto';
+          const body = JSON.stringify({ action: 'health' });
+          const signature = crypto.createHmac('sha256', process.env.GUARDIAN_WORKER_SECRET).update(body).digest('hex');
+          const response = await fetch(process.env.GUARDIAN_WORKER_URL, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Guardian-Worker-Signature': signature },
+            body, signal: AbortSignal.timeout(55000)
+          });
+          if (!response.ok) throw new Error(`Guardian health HTTP ${response.status}`);
+          const result = await response.json();
+          console.log(JSON.stringify({ ok: result.ok, chat_openai: result.chat_openai, telegram: result.telegram, memory: result.memory }));
+          if (!result.ok) process.exitCode = 1;
+          JS

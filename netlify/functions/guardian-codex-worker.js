@@ -1,6 +1,7 @@
 'use strict';
 
 const { getAdminClient } = require('./_lib/require-auth');
+const { guardianHealth } = require('./_lib/guardian-health');
 const {
   analysisKeyboard,
   cleanWorkerText,
@@ -224,7 +225,7 @@ function resultMessage(execution, body, success) {
   const summary = cleanWorkerText(body.message || body.summary, 5000)
     .replace(/^ESITO_PATCH:\s*(?:MODIFICA_PREPARATA|GIA_PRESENTE|RICHIEDE_INFORMAZIONI|BLOCCATA)\s*/i, '');
   if (noChanges) {
-    return `Codex ha verificato la richiesta: il comportamento risulta già presente nello staging. Nessun file è stato modificato e non serve una pull request.${summary ? `\n\n${summary}` : ''}`.slice(0, 7800);
+    return `Codex ha verificato la richiesta: il comportamento risulta già presente nel codice corrente. Nessun file è stato modificato e non serve una pull request.${summary ? `\n\n${summary}` : ''}`.slice(0, 7800);
   }
   if (needsInformation) {
     return [
@@ -253,11 +254,11 @@ function resultMessage(execution, body, success) {
       cleanWorkerText(result.summary || summary || 'Il controllo non ha prodotto una conclusione descrittiva.', 2200),
       '',
       safeToPatch
-        ? 'Conclusione: ci sono elementi sufficienti per valutare una modifica nello staging.'
+        ? 'Conclusione: ci sono elementi sufficienti per valutare una modifica.'
         : 'Conclusione: non ci sono ancora elementi sufficienti per preparare una modifica sicura.',
       missing.length ? `\nInformazione necessaria\n${missing[0]}` : '',
       safeToPatch
-        ? '\nProssimo passo\nPuoi chiedermi di preparare la modifica nello staging.'
+        ? '\nProssimo passo\nPuoi chiedermi di preparare la modifica.'
         : '\nProssimo passo\nPremi “Aggiungi informazioni” e rispondi alla domanda indicata.'
     ].filter(Boolean).join('\n').slice(0, 7800);
   }
@@ -269,9 +270,9 @@ function resultMessage(execution, body, success) {
       : execution.tipo_esecuzione === 'scansione_migliorie'
         ? 'la scansione preventiva delle migliorie'
     : execution.tipo_esecuzione === 'prepara_patch'
-      ? 'la preparazione della modifica staging'
+      ? 'la preparazione della modifica'
       : execution.tipo_esecuzione === 'test_staging'
-        ? 'i test dello staging'
+        ? 'i test della branch'
         : 'la preparazione del rilascio';
   return `${prefix} ${phase}.${summary ? `\n\n${summary}` : ''}`.slice(0, 7800);
 }
@@ -443,6 +444,7 @@ exports.handler = async (event) => {
   const supabase = getAdminClient();
   if (!supabase) return response(500, { ok: false, error: 'Database non configurato' });
   try {
+    if (body.action === 'health') return response(200, await guardianHealth(supabase));
     if (body.action === 'claim') return await claimExecution(supabase, body);
     if (body.action === 'heartbeat') return await heartbeatExecution(supabase, body);
     if (body.action === 'result') return await recordResult(supabase, body);
