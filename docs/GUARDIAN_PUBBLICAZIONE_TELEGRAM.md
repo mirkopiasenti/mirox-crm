@@ -44,3 +44,9 @@ base/head cambiati, test assenti/falliti, percorsi protetti/rinominati, reply al
 messaggio preciso, merge rifiutato, deploy assente, salute fallita, audit/outbox.
 Il collaudo live con il pulsante di Mirko è separato dalle prove simulate e viene
 registrato qui soltanto dopo la sua esecuzione reale.
+
+### Collaudo reale KG-000022
+
+La proposta di collaudo modifica soltanto questa guida. Il pulsante Telegram
+consente di verificare approvazione, merge GitHub e pubblicazione Netlify senza
+modificare pagine, dati CRM, segreti o configurazioni.
