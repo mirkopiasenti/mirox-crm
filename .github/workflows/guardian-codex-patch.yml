@@ -148,7 +148,7 @@ jobs:
             echo 'Codex ha modificato file senza dichiarare ESITO_PATCH: MODIFICA_PREPARATA.' >&2
             exit 1
           fi
-          if printf '%s\n' "$changed" | grep -E '(^|/)(\.env|\.env\.|netlify\.toml$|\.github/workflows/|package-lock\.json$)' >/dev/null; then
+          if printf '%s\n' "$changed" | grep -E '(^|/)(\.env|\.env\.|netlify\.toml$|\.github/|package(-lock)?\.json$)' >/dev/null; then
             echo 'Modifica bloccata: file di segreti, deploy, workflow o dipendenze.' >&2
             exit 1
           fi
@@ -222,8 +222,9 @@ jobs:
             success=true
             result_branch="$PATCH_BRANCH"
           fi
+          result_commit="$(if [ -n "$result_branch" ]; then git rev-parse HEAD; fi)"
           summary="$(if [ -s /tmp/guardian-codex-output.md ]; then tr '\n' ' ' < /tmp/guardian-codex-output.md | cut -c1-5000; elif [ -s codex-output.md ]; then tr '\n' ' ' < codex-output.md | cut -c1-5000; else echo 'Nessun riepilogo Codex disponibile.'; fi)"
-          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$result_branch" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --arg no_changes "$NO_CHANGES" --arg needs_information "$NEEDS_INFORMATION" --arg blocked "$BLOCKED" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,branch_name:(if ($branch|length) > 0 then $branch else null end),pull_request_url:(if ($pr|length) > 0 then $pr else null end),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish,no_changes:($no_changes == "true"),needs_information:($needs_information == "true"),blocked:($blocked == "true")}}')"
+          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$result_branch" --arg commit "$result_commit" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --arg no_changes "$NO_CHANGES" --arg needs_information "$NEEDS_INFORMATION" --arg blocked "$BLOCKED" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,result_commit_sha:(if ($commit|length) > 0 then $commit else null end),branch_name:(if ($branch|length) > 0 then $branch else null end),pull_request_url:(if ($pr|length) > 0 then $pr else null end),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish,no_changes:($no_changes == "true"),needs_information:($needs_information == "true"),blocked:($blocked == "true")}}')"
           if [ "$success" != true ]; then
             body="$(jq -c --arg error_code "${PREFLIGHT_ERROR:-patch_workflow_failed}" --arg error "$summary" '. + {error_code:$error_code,error:$error}' <<<"$body")"
           fi

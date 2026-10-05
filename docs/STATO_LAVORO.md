@@ -16,7 +16,7 @@ istruzioni dell'utente e guide di progetto restano vincolanti.
   notifica scan senza segnale, preflight/URL/modello da DB, workflow rosso su errore;
   callback tardivi non riaprono archiviati. Migration conversazione JSONB applicata.
 - Proprietario esclude vecchio staging e autorizza sviluppo/collaudo/deploy prod;
-  vincolo rimosso da guide. Worker patch da main/PR draft, no merge automatico.
+  vincolo rimosso da guide. Worker patch da main/PR draft, pubblicazione con seconda conferma Telegram.
 - Report docs/GUARDIAN_DIAGNOSI_2026-10-05.md; checkout guardian-affidabilita-chat
   attaccato. Lavoro backup preesistente preservato, stash recuperabile.
 
@@ -31,6 +31,17 @@ istruzioni dell'utente e guide di progetto restano vincolanti.
   zero casi settembre aperti. Nuovo commit separa eventuali ricorrenze.
 - KG1–7agosto fuori scope, nessun messaggio settembre; storico conservato.
 - Report docs/GUARDIAN_BUG_SETTEMBRE_2026.md; guide aggiornate, backup preservato.
+
+## Pubblicazione finale Telegram: intervento attuale
+
+- Richiesta esplicita proprietario: approvare il deploy da Telegram.
+- Pulsante finale/OK pubblica in reply alla proposta: contratto SHA head/base/PR,
+  test e owner, conferma1h, CAS/doppio clic; dispatch rilascio da main attendibile.
+- Merge SHA verificato, attesa metadata online esatti e salute Guardian; esito
+  persistente outbox. Guasti dopo merge lasciano caso aperto, nessun rollback.
+- Nessuna migration/secret nuovo; guide e report pubblicazione aggiornati.
+- Verifiche locali 178/178 test+build,6workflow YAML/24blocchi shell validi.
+- Deploy/collaudo Telegram live ancora da completare in questa sessione.
 
 ## Backup: stato precedente conservato
 

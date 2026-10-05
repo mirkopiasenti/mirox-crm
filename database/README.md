@@ -132,3 +132,12 @@ verificato aggiorna solo gli stati dei casi Guardian KG8–21 e dei segnali
 collegati, aggiungendo messaggi di audit. Storico messaggi/esecuzioni conservato;
 incidenti tecnici mitigati e scansioni fallite sono archiviati con motivazione,
 non dichiarati bug risolti. Nuovi eventi sono separati dal commit di rilascio.
+
+### Guardian: conferma finale Telegram, 05/10/2026
+
+Nessuna nuova migration: `kona_ai_approvazioni.risultato.release_contract` lega
+l’approvazione al commit patch, base main, PR e test; la transizione condizionale
+`in_attesa` → `approvata` è consumabile una volta sola. L’esecuzione di rilascio
+usa lo stesso UUID, conserva il contratto nell’audit e chiude l’incidente soltanto
+dopo verifica del commit distribuito e salute Guardian. Notifica persistente in
+`kona_ai_notifiche`. Tabelle CRM/Call Center, schema, grant e RLS invariati.

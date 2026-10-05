@@ -58,8 +58,9 @@ Il pulsante `Verifica modifica` esegue test del repository sulla branch della
 patch e verifica in sola lettura la disponibilita' del sito ufficiale.
 Il tipo DB/callback storico `test_staging` e' conservato per compatibilita':
 ora identifica questa verifica, non un ambiente separato. Il sito raggiungibile
-non dimostra che la patch sia gia' distribuita. La proposta di rilascio riusa
-la PR esistente; i workflow non fanno merge automatico.
+non dimostra che la patch sia gia' distribuita. La pubblicazione riusa la PR esistente: dopo la conferma finale Telegram, il
+workflow su main esegue il merge e controlla il commit realmente distribuito.
+Vedi `GUARDIAN_PUBBLICAZIONE_TELEGRAM.md`.
 
 Per distribuire: autorizzazione del proprietario, test/build/diff, eventuale
 migration additiva, push su main, verifica del commit pubblicato da Netlify e
@@ -123,7 +124,7 @@ Solo Mirko puo' approvare azioni. Gli operatori possono esclusivamente creare un
 | Archiviazione richiesta | attiva | pulsante Telegram di Mirko |
 | Analisi Codex del repository | collegata come workflow read-only | obbligatoria |
 | Preparazione patch e test della branch | collegati come workflow separati | obbligatoria e separata |
-| Proposta di rilascio production | pull request draft, senza merge | conferma manuale di Mirko |
-| Deploy produzione | non eseguito dal Guardian | merge esplicito fuori dal bot e controlli CI |
+| Conferma finale production | PR, riepilogo e versione verificata | pulsante Telegram di Mirko, valido un’ora |
+| Deploy produzione | merge della versione approvata e verifica online | conferma finale Telegram e test superati |
 
 I dettagli tecnici hanno una data obiettivo di scadenza a 90 giorni. Il riepilogo della richiesta e l'audit delle approvazioni restano permanenti. `cron-pulizia-operativa` azzera dopo la scadenza percorso pagina, titolo pagina, user agent e contesto client; non elimina conversazioni, riepiloghi, commit o pull request.

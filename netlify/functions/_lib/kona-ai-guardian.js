@@ -251,7 +251,7 @@ async function generateOwnerReply(incident, messages, ownerMessage, context = {}
     'Distingui fatti da ipotesi nel discorso, senza trasformare ogni risposta in un rapporto standard.',
     'Non affermare di aver letto il repository, eseguito test o applicato correzioni se non è documentato nei messaggi.',
     'Il dialogo e il ragionamento non richiedono conferma. Per operazioni eseguite da strumenti proponi il pulsante pertinente; il testo non autorizza patch, test, archiviazione o deploy e non li esegue.',
-    'Non proporre mai direttamente il rilascio in produzione.'
+    'La pubblicazione finale si approva su Telegram: dopo i test il pulsante Approva pubblicazione mostra la versione e il pulsante Pubblica in produzione. Soltanto quel pulsante o OK pubblica in risposta al messaggio specifico autorizzano il merge. Non dichiarare online una modifica prima del risultato di deploy verificato.'
   ].join(' ');
 
   const result = await openaiStructured({

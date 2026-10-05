@@ -859,3 +859,18 @@ Timeout persistenti del provider e perdita di rete restano possibili: nessuna
 promessa di eliminazione; eventi storici senza causa dimostrata sono archiviati
 con nota di mitigazione, senza dichiararli risolti. Report completo in
 `docs/GUARDIAN_BUG_SETTEMBRE_2026.md`. Schema/RLS CRM e CC invariati.
+
+## Guardian: pubblicazione finale Telegram (05/10/2026)
+
+La pubblicazione finale si approva da Telegram: dopo i test, `Approva pubblicazione`
+mostra PR, riepilogo e commit verificato; `Pubblica in produzione` oppure `OK pubblica`
+in risposta a quel messaggio autorizzano il merge. La conferma dura un'ora e vale
+per una sola versione. Il workflow attendibile su `main` verifica nuovamente test,
+proprietario, commit della patch e base production; esegue il merge e attende che
+`mirox-crm.it` esponga il relativo commit, quindi verifica la salute Guardian.
+Solo allora chiude la richiesta. Esiti Telegram in outbox persistente; se GitHub
+è aggiornato ma il deploy non è confermato, la richiesta resta aperta e viene
+segnalato esplicitamente. Workflow/configurazioni, dipendenze e SQL richiedono
+revisione manuale; nessuna modifica a segreti, schema o protezioni GitHub.
+
+Dettagli e vincoli aggiornati in AGENTS e `docs/GUARDIAN_PUBBLICAZIONE_TELEGRAM.md`.

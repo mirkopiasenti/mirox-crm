@@ -61,6 +61,21 @@ jobs:
           lease="$(jq -er '.lease_token' <<<"$response")"
           echo "::add-mask::$lease"
           echo "lease_token=$lease" >> "$GITHUB_OUTPUT"
+          expected="$(jq -er '.context.execution.base_commit_sha' <<<"$response")"
+          test "$(git rev-parse HEAD)" = "$expected"
+          echo "head_sha=$expected" >> "$GITHUB_OUTPUT"
+
+      - name: Test patch together with current production
+        id: base
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          echo "base_sha=$(git rev-parse origin/main)" >> "$GITHUB_OUTPUT"
+          git config user.name 'KONA AI Guardian'
+          git config user.email 'guardian@kona-tech.invalid'
+          git merge --no-commit --no-ff origin/main
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -75,7 +90,7 @@ jobs:
 
       - name: Run repository tests
         id: tests
-        if: steps.install.outcome == 'success'
+        if: steps.install.outcome == 'success' && steps.base.outcome == 'success'
         continue-on-error: true
         run: npm test
 
@@ -92,13 +107,17 @@ jobs:
           LEASE_TOKEN: ${{ steps.claim.outputs.lease_token }}
           INSTALL_OUTCOME: ${{ steps.install.outcome }}
           TEST_OUTCOME: ${{ steps.tests.outcome }}
+          TESTED_HEAD: ${{ steps.claim.outputs.head_sha }}
+          TESTED_BASE: ${{ steps.base.outputs.base_sha }}
+          PATCH_BRANCH: ${{ github.ref_name }}
+          BASE_OUTCOME: ${{ steps.base.outcome }}
           SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
         run: |
           set -euo pipefail
           success=false
-          if [ "$INSTALL_OUTCOME" = "success" ] && [ "$TEST_OUTCOME" = "success" ] && [ "$SMOKE_OUTCOME" = "success" ]; then success=true; fi
+          if [ "$INSTALL_OUTCOME" = "success" ] && [ "$TEST_OUTCOME" = "success" ] && [ "$SMOKE_OUTCOME" = "success" ] && [ "$BASE_OUTCOME" = "success" ]; then success=true; fi
           summary="Test repository: $TEST_OUTCOME. Disponibilita CRM ufficiale: $SMOKE_OUTCOME. La patch non e ancora distribuita."
-          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg install "$INSTALL_OUTCOME" --arg tests "$TEST_OUTCOME" --arg smoke "$SMOKE_OUTCOME" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,result:{install:$install,tests:$tests,smoke:$smoke}}')"
+          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg head "$TESTED_HEAD" --arg base "$TESTED_BASE" --arg branch "$PATCH_BRANCH" --arg install "$INSTALL_OUTCOME" --arg tests "$TEST_OUTCOME" --arg smoke "$SMOKE_OUTCOME" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,result_commit_sha:$head,branch_name:$branch,result:{tested_base_sha:$base,install:$install,tests:$tests,smoke:$smoke}}')"
           if [ "$success" != true ]; then body="$(jq -c --arg error_code "branch_tests_failed" --arg error "$summary" '. + {error_code:$error_code,error:$error}' <<<"$body")"; fi
           signature="$(BODY="$body" node -e 'const crypto=require("crypto"); process.stdout.write(crypto.createHmac("sha256", process.env.GUARDIAN_WORKER_SECRET).update(process.env.BODY).digest("hex"))')"
           curl --fail --silent --show-error --max-time 20 "$GUARDIAN_WORKER_URL" -H 'Content-Type: application/json' -H "X-Guardian-Worker-Signature: $signature" --data "$body" >/dev/null

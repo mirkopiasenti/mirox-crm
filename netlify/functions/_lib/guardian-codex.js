@@ -150,15 +150,23 @@ function patchKeyboard(incidentId) {
 function testKeyboard(incidentId) {
   return {
     inline_keyboard: [
-      [{ text: 'Prepara rilascio produzione', callback_data: `release_production:${incidentId}` }],
+      [{ text: 'Approva pubblicazione', callback_data: `release_production:${incidentId}` }],
       [{ text: 'Apri conversazione', callback_data: `open:${incidentId}` }],
       [{ text: 'Archivia', callback_data: `archive:${incidentId}` }]
     ]
   };
 }
 
+function publicationKeyboard(approvalId, incidentId) {
+  return { inline_keyboard: [
+    [{ text: 'Pubblica in produzione', callback_data: `publish_production:${approvalId}` }],
+    [{ text: 'Apri conversazione', callback_data: `open:${incidentId}` }]
+  ] };
+}
+
 module.exports = {
   analysisKeyboard,
+  publicationKeyboard,
   observerKeyboard,
   cleanWorkerText,
   createLeaseToken,

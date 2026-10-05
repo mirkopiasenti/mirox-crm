@@ -157,11 +157,11 @@ test('le API Guardian separano segnalazioni autenticate e webhook Telegram priva
   assert.match(testWorkflow, /startsWith\(github\.ref, 'refs\/heads\/codex\/kg-'\)/i);
   assert.match(testWorkflow, /inputs\.requested_type == 'test_staging'/i);
   assert.match(testWorkflow, /inputs\.target_environment == 'production'/i);
-  assert.match(releaseWorkflow, /startsWith\(github\.ref, 'refs\/heads\/codex\/kg-'\)/i);
+  assert.match(releaseWorkflow, /github\.ref == 'refs\/heads\/main'/i);
   assert.match(releaseWorkflow, /inputs\.requested_type == 'rilascio_produzione'/i);
   assert.match(releaseWorkflow, /inputs\.target_environment == 'production'/i);
-  assert.match(releaseWorkflow, /pull_request_url:\(if \(\$pr\|length\) > 0 then \$pr else null end\)/i);
-  assert.match(releaseWorkflow, /if \[ "\$success" != true \]; then exit 1; fi/i);
+  assert.match(releaseWorkflow, /guardian-publish\.js/i);
+  assert.doesNotMatch(releaseWorkflow, /manual_only|--draft/);
   assert.match(worker, /il comportamento risulta già presente nel codice corrente/i);
   assert.match(worker, /result\?\.no_changes === true/i);
   assert.match(worker, /needsInformation/i);

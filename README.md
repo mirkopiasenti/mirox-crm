@@ -341,6 +341,17 @@ Se l'analisi automatica non dispone dei dati minimi per proporre una correzione,
 
 Guardian e' attivo su `mirox-crm.it`, branch `main`, Supabase `lbgwamhjkjjfwgusafbi` e bot `@MiroxAiGuardianBot`. Il proprietario autorizza sviluppo e collaudo direttamente in produzione. Setup: [`docs/KONA_AI_GUARDIAN_SETUP.md`](docs/KONA_AI_GUARDIAN_SETUP.md).
 
+La pubblicazione finale si approva da Telegram: dopo i test, `Approva pubblicazione`
+mostra PR, riepilogo e commit verificato; `Pubblica in produzione` oppure `OK pubblica`
+in risposta a quel messaggio autorizzano il merge. La conferma dura un'ora e vale
+per una sola versione. Il workflow attendibile su `main` verifica nuovamente test,
+proprietario, commit della patch e base production; esegue il merge e attende che
+`mirox-crm.it` esponga il relativo commit, quindi verifica la salute Guardian.
+Solo allora chiude la richiesta. Esiti Telegram in outbox persistente; se GitHub
+è aggiornato ma il deploy non è confermato, la richiesta resta aperta e viene
+segnalato esplicitamente. Workflow/configurazioni, dipendenze e SQL richiedono
+revisione manuale; nessuna modifica a segreti, schema o protezioni GitHub.
+
 ## Aggiornamenti UI e comunicazioni (dal 2026-07-02)
 
 - Sicurezza deploy 26/07/2026: Netlify non pubblica più la root del repository. La build a lista consentita include soltanto pagine e asset frontend; migration SQL, Functions, test, script, configurazioni e documentazione sono esclusi e coperti da test automatico.

@@ -1,6 +1,7 @@
 'use strict';
 
 const { getAdminClient } = require('./_lib/require-auth');
+const { validateContract, SHA } = require('./_lib/guardian-release');
 const { guardianHealth } = require('./_lib/guardian-health');
 const {
   analysisKeyboard,
@@ -77,6 +78,34 @@ async function loadExecution(supabase, executionId) {
   return data;
 }
 
+async function releaseAuthorization(supabase, execution) {
+  if (execution.tipo_esecuzione !== 'rilascio_produzione') throw new Error('Esecuzione non di pubblicazione');
+  const { data: approval, error } = await supabase.from('kona_ai_approvazioni').select('*')
+    .eq('id', execution.approvazione_id).maybeSingle();
+  if (error) throw error;
+  const owner = String(process.env.TELEGRAM_GUARDIAN_OWNER_CHAT_ID || '');
+  if (!owner || !approval || approval.stato !== 'approvata' || approval.azione !== 'rilascia_produzione'
+    || String(approval.decisa_da_telegram_chat_id) !== owner || !approval.decisa_at
+    || !(Date.parse(approval.scade_at) > Date.now())) throw new Error('Approvazione finale assente o scaduta');
+  const contract = validateContract(approval.risultato?.release_contract);
+  if (approval.incidente_id !== execution.incidente_id || contract.incident_id !== execution.incidente_id
+    || contract.head_sha !== execution.base_commit_sha || contract.branch !== execution.branch_name
+    || contract.pull_request_url !== execution.pull_request_url) throw new Error('Versione non approvata');
+  const { data: tested, error: testError } = await supabase.from('kona_ai_esecuzioni').select('*')
+    .eq('id', contract.test_execution_id).maybeSingle();
+  if (testError) throw testError;
+  if (!tested || tested.incidente_id !== execution.incidente_id || tested.tipo_esecuzione !== 'test_staging'
+    || tested.stato !== 'completata' || tested.branch_name !== contract.branch
+    || tested.pull_request_url !== contract.pull_request_url || tested.result_commit_sha !== contract.head_sha
+    || tested.risultato?.tested_base_sha !== contract.base_sha || tested.risultato?.tests !== 'success'
+    || tested.risultato?.install !== 'success' || tested.risultato?.smoke !== 'success') throw new Error('Test della versione approvata assenti');
+  const { data: incident, error: incidentError } = await supabase.from('kona_ai_incidenti').select('stato')
+    .eq('id', execution.incidente_id).maybeSingle();
+  if (incidentError) throw incidentError;
+  if (!incident || !OPEN_INCIDENT_STATES.includes(incident.stato)) throw new Error('Richiesta chiusa');
+  return contract;
+}
+
 async function loadContext(supabase, execution) {
   const { data: incident, error: incidentError } = await supabase
     .from('kona_ai_incidenti')
@@ -95,6 +124,7 @@ async function loadContext(supabase, execution) {
   if (messagesError) throw messagesError;
 
   return {
+    ...(execution.tipo_esecuzione === 'rilascio_produzione' ? { release_contract: await releaseAuthorization(supabase, execution) } : {}),
     execution: {
       id: execution.id,
       type: execution.tipo_esecuzione,
@@ -138,6 +168,7 @@ async function claimExecution(supabase, body) {
   if (execution.stato === 'in_esecuzione' && execution.lease_expires_at && new Date(execution.lease_expires_at).getTime() > Date.now()) {
     return response(409, { ok: false, error: 'Esecuzione già presa in carico' });
   }
+  if (execution.tipo_esecuzione === 'rilascio_produzione') await releaseAuthorization(supabase, execution);
   const leaseToken = createLeaseToken();
   const now = nowIso();
   const values = {
@@ -198,6 +229,13 @@ async function heartbeatExecution(supabase, body) {
 }
 
 function resultMessage(execution, body, success) {
+  if (execution.tipo_esecuzione === 'rilascio_produzione') {
+    const result = body.result || {};
+    if (success) return `Modifica pubblicata in produzione. GitHub aggiornato e versione online verificata (${String(result.merge_commit_sha).slice(0, 12)}). Controlli Guardian superati.\n${execution.pull_request_url || ''}`;
+    return result.merged === true
+      ? `GitHub è stato aggiornato, ma il rilascio del CRM non è confermato. ${cleanWorkerText(body.error, 700)}\nServe una verifica del deploy. La segnalazione resta aperta.`
+      : `Pubblicazione interrotta prima del merge. ${cleanWorkerText(body.error, 700)}\nLa segnalazione resta aperta: ripeti la verifica prima di approvare nuovamente.`;
+  }
   const noChanges = success
     && execution.tipo_esecuzione === 'prepara_patch'
     && body?.result?.no_changes === true;
@@ -316,7 +354,11 @@ async function recordResult(supabase, body) {
   const lease = await requireLease(supabase, body);
   if (lease.error) return lease.error;
   const execution = lease.execution;
-  const success = body.success === true;
+  const publication = execution.tipo_esecuzione === 'rilascio_produzione';
+  const releaseResult = body.result || {};
+  const success = body.success === true && (!publication || (releaseResult.merged === true
+    && releaseResult.deploy_status === 'ready' && releaseResult.health_ok === true
+    && SHA.test(releaseResult.merge_commit_sha || '') && body.result_commit_sha === releaseResult.merge_commit_sha));
   const now = nowIso();
   const safeResult = sanitizeValue(body.result || {}) || {};
   const noChanges = success
@@ -334,8 +376,8 @@ async function recordResult(supabase, body) {
     codice_errore: success ? null : cleanWorkerText(body.error_code, 120) || 'worker_failed',
     messaggio_errore: success ? null : cleanWorkerText(body.error || body.message, 2000),
     result_commit_sha: cleanWorkerText(body.result_commit_sha, 128) || null,
-    branch_name: cleanWorkerText(body.branch_name, 255) || null,
-    pull_request_url: cleanWorkerText(body.pull_request_url, 500) || null,
+    branch_name: cleanWorkerText(body.branch_name, 255) || execution.branch_name || null,
+    pull_request_url: cleanWorkerText(body.pull_request_url, 500) || execution.pull_request_url || null,
     completata_at: now,
     heartbeat_at: now,
     lease_token_hash: null,
@@ -361,18 +403,21 @@ async function recordResult(supabase, body) {
         ? noChanges || needsInformation || blocked ? 'ricevuto' : 'in_lavorazione'
         : execution.tipo_esecuzione === 'test_staging'
           ? 'in_test'
-          : 'in_lavorazione'
-    : 'ricevuto';
+          : 'risolto'
+    : publication && safeResult.merged === true ? 'in_lavorazione' : 'ricevuto';
   const { error: incidentError } = await supabase.from('kona_ai_incidenti')
-    .update({ stato: incidentState }).eq('id', execution.incidente_id)
+    .update({ stato: incidentState, ...(publication && success ? { riepilogo_risoluzione: 'Pubblicazione approvata su Telegram, merge e deploy verificati: ' + safeResult.merge_commit_sha } : {}) }).eq('id', execution.incidente_id)
     .in('stato', OPEN_INCIDENT_STATES);
   if (incidentError) throw incidentError;
   if (execution.approvazione_id) {
-    await supabase.from('kona_ai_approvazioni').update({
+    const { data: approval, error: approvalError } = await supabase.from('kona_ai_approvazioni').select('risultato').eq('id', execution.approvazione_id).maybeSingle();
+    if (approvalError) throw approvalError;
+    const { error: savedApprovalError } = await supabase.from('kona_ai_approvazioni').update({
       stato: success ? 'eseguita' : 'fallita',
-      risultato: { execution_id: execution.id, result: safeResult },
+      risultato: { ...(approval?.risultato || {}), execution_id: execution.id, result: safeResult },
       eseguita_at: now
     }).eq('id', execution.approvazione_id);
+    if (savedApprovalError) throw savedApprovalError;
   }
   const text = resultMessage(execution, body, success);
   const { error: messageError } = await supabase.from('kona_ai_messaggi').insert({
@@ -402,7 +447,7 @@ async function recordResult(supabase, body) {
     : 'Guardian';
   const observerExecution = execution.tipo_esecuzione === 'analisi_automatica'
     || execution.tipo_esecuzione === 'scansione_migliorie';
-  if (observerExecution) {
+  if (observerExecution || publication) {
     const { data: signal, error: signalError } = await supabase.from('kona_ai_segnali')
       .select('id').eq('incidente_id', execution.incidente_id).maybeSingle();
     if (signalError) throw signalError;
@@ -415,7 +460,7 @@ async function recordResult(supabase, body) {
     const { error: notificationError } = await supabase.from('kona_ai_notifiche').upsert({
       incidente_id: execution.incidente_id,
       segnale_id: signal?.id || null,
-      dedupe_key: `observer:result:${execution.id}`,
+      dedupe_key: `${publication ? 'release' : 'observer'}:result:${execution.id}`,
       payload: { text: `${heading}\n\n${text}`, reply_markup: success
         ? keyboardForExecution(execution, safeResult)
         : guardianAnalysisKeyboard(execution.incidente_id) },
@@ -431,10 +476,26 @@ async function recordResult(supabase, body) {
       console.warn('Notifica Telegram esito Codex non inviata:', telegramError?.message || String(telegramError));
     }
   }
+  if (success && execution.tipo_esecuzione === 'test_staging') {
+    try {
+      const { prepareProductionRelease } = require('./guardian-telegram-webhook')._test;
+      await prepareProductionRelease(supabase, chatId, execution.incidente_id);
+    } catch (proposalError) {
+      // Passing tests remain passing even when the final proposal needs another attempt.
+      console.warn('Proposta finale Guardian non preparata:', proposalError.code || 'proposal_unavailable');
+      const { error: proposalNotificationError } = await supabase.from('kona_ai_notifiche').upsert({
+        incidente_id: execution.incidente_id, dedupe_key: `release:proposal:${execution.id}`,
+        payload: { text: `${heading}\nTest superati, ma la conferma finale di pubblicazione non è disponibile: ${cleanWorkerText(proposalError.message, 500)}.`,
+          reply_markup: testKeyboard(execution.incidente_id) },
+        stato: 'in_coda', prossimo_tentativo_at: now
+      }, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+      if (proposalNotificationError) throw proposalNotificationError;
+    }
+  }
   return response(200, { ok: true, execution_id: saved.id, state: saved.stato });
 }
 
-exports._test = { keyboardForExecution, resultMessage, recordResult, loadContext };
+exports._test = { keyboardForExecution, resultMessage, recordResult, loadContext, releaseAuthorization };
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return response(405, { ok: false, error: 'Metodo non consentito' });
@@ -446,6 +507,11 @@ exports.handler = async (event) => {
   try {
     if (body.action === 'health') return response(200, await guardianHealth(supabase));
     if (body.action === 'claim') return await claimExecution(supabase, body);
+    if (body.action === 'release_authorization') {
+      const lease = await requireLease(supabase, body);
+      if (lease.error) return lease.error;
+      return response(200, { ok: true, release_contract: await releaseAuthorization(supabase, lease.execution) });
+    }
     if (body.action === 'heartbeat') return await heartbeatExecution(supabase, body);
     if (body.action === 'result') return await recordResult(supabase, body);
     return response(400, { ok: false, error: 'Azione worker non valida' });

@@ -620,6 +620,26 @@ Il bottone "Admin" dentro `moduli/upload-contratti-vendita.html` è stato **rimo
 
 Il reporter globale `js/mirox-error-reporter.js` e tutte le email automatiche per errori tecnici sono stati rimossi. Non reintrodurli. Restano operativi `mirox-send-email`, `MiroxMailer`, i template email di processo e i popup locali; il wizard Upload Contratti continua a mostrare l'orario dell'errore e i messaggi OCR strutturati, ma non spedisce email tecniche.
 
+### Pubblicazione finale da Telegram (05/10/2026)
+
+La pubblicazione finale si approva da Telegram: dopo i test, `Approva pubblicazione`
+mostra PR, riepilogo e commit verificato; `Pubblica in produzione` oppure `OK pubblica`
+in risposta a quel messaggio autorizzano il merge. La conferma dura un'ora e vale
+per una sola versione. Il workflow attendibile su `main` verifica nuovamente test,
+proprietario, commit della patch e base production; esegue il merge e attende che
+`mirox-crm.it` esponga il relativo commit, quindi verifica la salute Guardian.
+Solo allora chiude la richiesta. Esiti Telegram in outbox persistente; se GitHub
+è aggiornato ma il deploy non è confermato, la richiesta resta aperta e viene
+segnalato esplicitamente. Workflow/configurazioni, dipendenze e SQL richiedono
+revisione manuale; nessuna modifica a segreti, schema o protezioni GitHub.
+
+Il contratto immutabile vive in `kona_ai_approvazioni.risultato.release_contract`;
+la conferma condizionale impedisce doppi clic, e l'ID esecuzione coincide con l'ID
+approvazione. Il worker HMAC ricontrolla l'autorizzazione immediatamente prima del
+merge. Test branch con integrazione della base main corrente, senza deploy di test.
+Implementazione: `_lib/guardian-release.js` e `.github/codex/guardian-publish.js`.
+Guida: `docs/GUARDIAN_PUBBLICAZIONE_TELEGRAM.md`. Nessuna migration necessaria.
+
 ### Conversazione proprietario e affidabilita' (05/10/2026, produzione autorizzata)
 
 La chat privata Telegram del proprietario e' libera anche senza richiesta attiva
@@ -652,7 +672,7 @@ configurazioni e restituisce soltanto esiti/codici chiusi; nessuna chiave o log.
 5. Il cron Observer raccoglie eccezioni frontend, errori HTTP 5xx, errori Functions/provider, fallimenti cron/CI e segnali di performance soltanto dopo sanitizzazione server-side. Deduplica per fingerprint e apre un incidente automatico `monitoraggio` solo al superamento delle soglie; un singolo evento non genera rumore Telegram. In particolare un `network_error` senza stato HTTP, anche durante login/upload/finalizzazione, resta `bassa` con una sola occorrenza: viene aperto dopo almeno tre occorrenze oppure due operatori coinvolti. I nomi interni (`network_error`, `Failed to fetch`, stack) non sono usati come spiegazione principale nel messaggio al proprietario.
 6. Per gli incidenti automatici il workflow `guardian-observer-analysis.yml` analizza in sola lettura il commit correlato, produce JSON validato e restituisce fatti, causa probabile, proposta, verifiche e criteri di accettazione. L'output è trattato come diagnosi, non come autorizzazione a modificare il codice.
 7. Analisi Guardian, analisi Codex read-only, patch, test della branch, proposta di rilascio e archiviazione hanno pulsanti separati e audit. Il tipo DB storico `test_staging` identifica ora i test del repository sulla branch della modifica; non richiede un secondo ambiente.
-8. Il worker usa analisi read-only di `main` o del commit correlato; prepara patch su branch `codex/kg-*` a partire da `main`, esegue test locali e propone una PR draft verso `main`. Tutti i dispatch usano `target_environment=production`, Environment `guardian-production` e URL/HMAC production. Le patch non fanno merge automatico. Il proprietario puo' autorizzare direttamente rilascio e collaudo in produzione; per questa revisione lo ha fatto il 05/10/2026.
+8. Il worker usa analisi read-only di `main` o del commit correlato; prepara patch su branch `codex/kg-*` a partire da `main`, esegue test locali e propone una PR draft verso `main`. Tutti i dispatch usano `target_environment=production`, Environment `guardian-production` e URL/HMAC production. Le patch richiedono una seconda approvazione finale Telegram legata al commit verificato; solo il workflow di rilascio su main può effettuare il merge dopo tale conferma. Il proprietario puo' autorizzare direttamente rilascio e collaudo in produzione; per questa revisione lo ha fatto il 05/10/2026.
 9. Workflow e `.github/codex/` risiedono su `main` per ricevere `workflow_dispatch`. I job patch installano npm prima di Codex e distinguono `MODIFICA_PREPARATA`, `GIA_PRESENTE`, `RICHIEDE_INFORMAZIONI`, `BLOCCATA`. Il validatore esclude i file del runner e blocca SQL, permessi e deploy; consente `database/README.md`. Observer read-only non fa push. Test della branch e disponibilita' del sito ufficiale sono verifiche distinte: il sito raggiungibile non dimostra che la patch sia distribuita.
 
 ### Database e retention
