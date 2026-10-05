@@ -285,6 +285,47 @@ function readableErrorMessage(error, fallback = 'Errore durante il caricamento d
   return rawMessage;
 }
 
+// Ogni contratto ha un file indipendente: eliminare un allegato non deve
+// invalidare il documento degli altri contratti della stessa pratica.
+async function storeIdentityForContracts({ supabase, contracts, payload, buffer }) {
+  if (!contracts.length || !contracts.some(c => c.id === payload.contratto_id)) {
+    throw new Error('Nessun contratto valido per il documento identita');
+  }
+  const storage = supabase.storage.from(STORAGE_BUCKET);
+  const createdPaths = [];
+  const rows = contracts.map(c => {
+    if (c.pratica_id !== payload.pratica_id || c.anagrafica_id !== payload.anagrafica_id) {
+      throw new Error('Contratto non coerente con pratica e anagrafica');
+    }
+    if (c.id === payload.contratto_id) return { ...payload };
+    const fileName = payload.file_name.replace(/\.pdf$/i, '') + `_contratto_${c.id}.pdf`;
+    return { ...payload, contratto_id: c.id, file_name: fileName,
+      storage_path: payload.storage_path.slice(0, payload.storage_path.lastIndexOf('/') + 1) + fileName };
+  });
+  try {
+    const { error } = await storage.upload(payload.storage_path, buffer, {
+      contentType: 'application/pdf', upsert: false
+    });
+    if (error) throw error;
+    createdPaths.push(payload.storage_path);
+    for (const row of rows) {
+      if (row.contratto_id === payload.contratto_id) continue;
+      const { error: copyError } = await storage.copy(payload.storage_path, row.storage_path);
+      if (copyError) throw copyError;
+      createdPaths.push(row.storage_path);
+    }
+    const { data, error: insertError } = await supabase.from('vendita_documenti').insert(rows).select('*');
+    if (insertError) throw insertError;
+    return data;
+  } catch (error) {
+    if (createdPaths.length) {
+      const { error: cleanupError } = await storage.remove(createdPaths);
+      if (cleanupError) throw new Error(`Upload identita fallito; pulizia file non riuscita: ${cleanupError.message}`);
+    }
+    throw error;
+  }
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers: CORS_HEADERS, body: '' };
@@ -451,6 +492,21 @@ exports.handler = async (event) => {
 
     const storagePath = `${basePath}${finalFileName}`;
 
+    if (tipoDocumento === 'documento_identita' && praticaRow.stato_pratica === 'bozza') {
+      const { data: contracts, error: contractsError } = await supabase.from('vendita_contratti')
+        .select('id, pratica_id, anagrafica_id').eq('pratica_id', praticaId)
+        .eq('anagrafica_id', anagraficaId).order('created_at').order('id');
+      if (contractsError) throw contractsError;
+      const identityContractId = contrattoId || contracts?.[0]?.id;
+      const documenti = await storeIdentityForContracts({ supabase, contracts: contracts || [], buffer: file.buffer,
+        payload: { pratica_id: praticaId, contratto_id: identityContractId, anagrafica_id: anagraficaId,
+          tipo_documento: tipoDocumento, storage_bucket: STORAGE_BUCKET, storage_path: storagePath,
+          file_name: finalFileName, mime_type: file.mimeType, file_size: file.size, uploaded_by: uploadedBy }
+      });
+      return response(200, { success: true,
+        documento: documenti.find(d => d.contratto_id === identityContractId), documenti });
+    }
+
     const { error: uploadError } = await supabase
       .storage
       .from(STORAGE_BUCKET)
@@ -508,6 +564,7 @@ exports.handler = async (event) => {
 };
 
 exports._test = {
+  storeIdentityForContracts,
   authenticatedUploaderId,
   canManagePractice,
   canUploadIntoPractice,

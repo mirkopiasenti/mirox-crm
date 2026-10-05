@@ -2,6 +2,10 @@
 
 Questo file viene letto automaticamente all'avvio di ogni sessione Claude. Contiene il contesto necessario per essere subito produttivi senza ri-esplorare il repo.
 
+## Identita per contratto (05/10/2026)
+
+Nuova regola documentata in AGENTS, sezione Documenti; il carrello carica una volta e il backend associa un PDF indipendente a ogni riga prima di `finalize`. Bonifica dello storico dal 1 luglio autorizzata, inclusi 3 casi con documento piu recente dello stesso cliente in altra pratica. Nessuna modifica schema/CC; risultati in `docs/IDENTITA_CONTRATTI_2026-10-05.md` e report operativi privati. Il proprietario ha autorizzato il push; verificare il deploy del commit esatto.
+
 ## MIROX AI - Target (05/10/2026)
 
 Secondo bot privato di Mirko: tre report alle 19:45

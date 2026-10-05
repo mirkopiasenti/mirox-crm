@@ -1346,7 +1346,7 @@ Reload Forever
 </div>
 </section> <section id="stepDocumentiSection" class="card panel hidden">
 <h2>Upload Documenti Cliente</h2>
-<p class="hint" style="margin:0 0 10px;">Carica i documenti del cliente. Il contratto originale (PDA) e' gia' stato caricato nello step 1.</p>
+<p class="hint" style="margin:0 0 10px;">Carica il documento d'identita una sola volta: sara associato a ogni contratto del carrello. Il contratto originale (PDA) e' gia' stato caricato nello step 1.</p>
 <div class="grid">
 <div id="fieldDocumentoIdentita" class="field half">
 <label for="file_documento_identita">Documento identita *</label>
@@ -2576,9 +2576,8 @@ Reload Forever
  function updateUploadVisibility() {
  const requirements = getCurrentDocumentRequirements();
  const hasIdentity = Array.isArray(praticaFiles.documento_identita) && praticaFiles.documento_identita.length> 0;
- const hasContracts = state.cart.contratti.length> 0;
  const needsIdentityReselection = runtimeState.restoreNeedsFileReselection && !hasIdentity && requirements.documento_identita;
- const mustHideIdentity = !requirements.documento_identita || (hasIdentity || hasContracts);
+ const mustHideIdentity = hasIdentity;
 
  refs.fieldDocumentoIdentita.classList.toggle('hidden', !needsIdentityReselection && mustHideIdentity);
  // Il contratto PDA originale e' gestito in staging dallo step 1.
@@ -3114,7 +3113,7 @@ Reload Forever
  const opzioneId = refs.opzione.value;
 
  return {
- documento_identita: hasOffertaDocumentRule(offertaId, DOC_TYPES.DOCUMENTO_IDENTITA),
+ documento_identita: true,
  contratto: hasOffertaDocumentRule(offertaId, DOC_TYPES.CONTRATTO),
  copia_bolletta: hasOffertaDocumentRule(offertaId, DOC_TYPES.COPIA_BOLLETTA),
  copia_sim_mnp: hasOpzioneDocumentRule(opzioneId, DOC_TYPES.COPIA_SIM_MNP)
@@ -4545,10 +4544,9 @@ Reload Forever
  throw new Error('Aggiungi almeno un contratto al carrello prima di inviare');
  }
 
- const identityRequiredByCart = state.cart.contratti.some((item) => item.flags?.documento_identita_required);
  const identityFiles = Array.isArray(praticaFiles.documento_identita) ? praticaFiles.documento_identita : [];
- if (identityRequiredByCart && identityFiles.length === 0) {
- throw new Error('Documento identita mancante: richiesto una sola volta per pratica');
+ if (identityFiles.length === 0) {
+ throw new Error('Documento identita mancante: caricalo una volta per associarlo a tutti i contratti');
  }
 
  state.cart.contratti.forEach((item, idx) => {

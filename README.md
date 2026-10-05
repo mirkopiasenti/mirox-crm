@@ -35,6 +35,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `css/` | `style.css`, `mirox-modules.css`, `admin-shell.css`, `admin-kpi.css` |
 | `assets/` | Logo, favicon e mascotte trasparente `kona-guardian-robot.png` |
 | `scripts/build-static.js` | Build Netlify: copia in `dist/` soltanto i file pubblici, genera `dist/js/config.js` con ambiente/release e inietta la telemetria nelle pagine autenticate |
+| `scripts/backfill-identita-contratti.js` | Bonifica documenti identita dal 01/07/2026 Europe/Rome: dry-run predefinito, `--apply` per copie indipendenti con SHA256/readback; `--same-client` solo con autorizzazione del proprietario per il documento piu recente dello stesso cliente. Piano/report privati in `.backup-private/identity-backfill/` |
 | `.backup-private/` | Credenziali e pacchetti privati, ignorati da Git; mai pubblici |
 | `dist/` | Output locale della build, ignorato da Git. Non contiene backend, migration, test o documentazione |
 | `netlify/functions/` | Endpoint server-side (vedi sotto) |
@@ -94,6 +95,10 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `verifica-otp-privacy` | POST | authenticated | Verifica OTP (max 3 tentativi), impedisce aggiornamenti concorrenti e recupera un timeout Storage con verifica SHA256, genera il PDF informativa/dichiarazione con scelta marketing ed evidenze probatorie, lo archivia e imposta `valido_fino_al = now()+24 mesi` |
 | `genera-pdf-consenso-cartaceo` | GET | authenticated | Stream del modulo cartaceo v6 precompilato: una pagina A4, monocromatico, corpo 10 pt, scelta marketing già marcata e riga firma |
 | `upload-consenso-cartaceo` | POST multipart | authenticated | Upload scansione firmata (max 20 MB, PDF); richiede l'esito ACCONSENTO/NON ACCONSENTO e crea il record `'cartaceo'` confermato |
+
+### Documento identita per contratto
+
+Il documento d'identita e obbligatorio per ogni nuovo contratto. Nel carrello viene selezionato una sola volta; sulle bozze `upload-vendita-documento` crea un allegato e un PDF indipendente per ciascuna riga, con INSERT batch e pulizia delle nuove copie su errore. `finalize` impedisce l'invio se manca l'identita anche su una sola riga. Gli upload successivi da Verifica Contratti restano specifici della riga selezionata. Lo storico dal 1 luglio 2026 viene sistemato dallo script dedicato senza sovrascrivere documenti esistenti; i casi senza sorgente richiedono un'integrazione manuale.
 
 ### Compilatore disdette
 

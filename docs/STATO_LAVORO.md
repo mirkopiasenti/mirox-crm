@@ -3,6 +3,12 @@
 Aggiornato: 2026-10-05. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
+## Identita per contratto: bonifica applicata, nuova regola locale 05/10
+
+- Dal01/07/2026 Europe/Rome:837contratti,132senzaidentita;125recuperati stessa pratica+3con riuso piu recente stesso cliente esplicitamente autorizzato.128contratti/129PDF indipendenti verificati SHA256/readback, zero errori, copie prima luglio0/file mancanti0;833coperti,4residui Energia/2pratiche senza PDF per il cliente. Elenco privato `.backup-private/identity-backfill/DA_INTEGRARE.md`; ultima rilettura0recuperabili/idempotente.
+- Codice locale: identita sempre obbligatoria, una selezione/fanout server su tutti i contratti bozza, batch atomico/rollback, finalize blocca righe senzaidentita. Upload successivi specifici; nessuna modifica schema/RLS/CC.222/222test+build (221versionati+1backup),15test dedicati. Guide aggiornate, rapporto `docs/IDENTITA_CONTRATTI_2026-10-05.md`; backup preesistente preservato.
+- Auto-review secondo apply inizialmente bloccato per piano concorrente17righe; nuova query/dry-run3esatti, retry approvato/riuscito. Nessun blocco residuo. Proprietario autorizza «vai con push»: preparazione commit/deploy; prossimo PDF dei4residui e verifica rilascio esatto.
+
 ## MIROX AI - Target: attivo production 05/10
 
 - Bot `@MiroxAiTargetBot` solo Mirko; tre report alle 19:45 Europe/Rome, lun-sab escluse festivita' nazionali/Pasquetta; aggiornamento manuale e dialogo testo/vocali, memoria30, strumenti read-only aggregati.

@@ -683,6 +683,20 @@ exports.handler = async (event) => {
       });
     }
 
+    const [contractsResult, identityResult] = await Promise.all([
+      supabase.from('vendita_contratti').select('id').eq('pratica_id', praticaRow.id),
+      supabase.from('vendita_documenti').select('contratto_id').eq('pratica_id', praticaRow.id)
+        .eq('anagrafica_id', praticaRow.anagrafica_id).eq('tipo_documento', 'documento_identita')
+        .eq('storage_bucket', 'contratti-vendita')
+    ]);
+    if (contractsResult.error || identityResult.error) {
+      return response(500, { success: false, error: 'Impossibile verificare i documenti identita prima dell\'invio' });
+    }
+    const identityContractIds = new Set((identityResult.data || []).map(d => d.contratto_id));
+    if (!contractsResult.data?.length || contractsResult.data.some(c => !identityContractIds.has(c.id))) {
+      return response(409, { success: false, error: 'Ogni contratto deve avere il documento identita prima dell\'invio' });
+    }
+
     const { data: finalizedPractice, error: finalizeError } = await supabase
       .from('vendita_pratiche')
       .update({ stato_pratica: 'inviata' })
