@@ -53,3 +53,13 @@ Il collaudo completo del vocale recuperato ha rilevato un errore del collegament
 audit: ID UUID fornito a un bigint identity. Corretto con colonna separata
 voice_job_id e indice univoco per autore; fixture test ora impone il tipo e
 il divieto di assegnare id. Nessun dato audio perso; retry riusa la trascrizione.
+
+## Recupero completo verificato
+
+Correzione `0d76d28` online alle 19:34:30, Netlify `6ac53101841eac0007863ebe`,
+CI `37504526771` riuscita e 248 test/build passati con fixture BIGINT identity.
+Il job originale recuperato ha riusato la trascrizione, completato il dialogo e
+consegnato la risposta alle 19:35:36 (Telegram172). Due messaggi con ID numerico
+collegati dal voice_job_id, senza duplicati. Guardian riconosce le due righe
+Day by Day e le due opzioni Customer Base e propone Analisi Guardian.
+La nuova funzionalità CRM resta da analizzare/approvare e implementare.

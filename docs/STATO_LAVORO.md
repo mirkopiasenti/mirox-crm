@@ -5,11 +5,13 @@ istruzioni dell'utente e guide di progetto restano vincolanti.
 
 ## Guardian: vocali corretti06/10, requisito KG23 recuperato
 
+- Recupero completo: errore UUID su bigint identity rilevato nel dialogo reale, corretto con voice_job_id/unicita autore; migration applicata senza cambi CRM/CC.0d76d28 online19:34:30/CI37504526771/248test OK. Due messaggi numerici collegati, requisito corretto e risposta Telegram consegnata, nessun reinvio del file audio.
+
 - KG23: vocale33,6s/133028byte va in timeout prima del salvataggio. Proprietario chiarisce nuova funzionalita: caso riclassificato miglioria con audit, senza inventare requisito.
 - Coda privata e worker background/HMAC, snapshot caso, checkpoint trascrizione/risposta, lease/retry5, cron5min e ripresa esplicita consegne ambigue. Migration/RLS/service-only/indice verificati.
 -248/248test+build/15dedicati;0d0caba online19:09:30, CI37501275540/health37501521350 OK. Collaudo senza audio utente: cron/consegna19:15:30 primo tentativo/TG170.
 -357f9a2 online19:17:07/Netlify6ac52cee/CI37502271739 OK: aggiorna riepilogo anche su miglioria gia classificata. README/AGENTS/CLAUDE/databaseREADME e rapporto vocali aggiornati; backup preservato.
-- Consenso esplicito proprietario ricevuto: audio OpenAI HTTP200/2,531s, testo recuperato in KG23/job baa8d026. Requisito: due righe Day by Day e due opzioni Customer Base, CP+telefono finanziato/VAR; nessuna implementazione CRM. Risposta Guardian in coda, da verificare; blocco auto-review rispettato prima del consenso.
+- Consenso esplicito proprietario ricevuto: audio OpenAI HTTP200/2,531s, testo recuperato in KG23/job baa8d026. Requisito: due righe Day by Day e due opzioni Customer Base, CP+telefono finanziato/VAR; nessuna implementazione CRM. Risposta Guardian consegnata19:35:36/TG172, pulsante Analisi Guardian; blocco auto-review rispettato prima del consenso.
 
 ## Avanzamento: CAMBI PIANO aggiunta online 06/10
 
