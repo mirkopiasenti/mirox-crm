@@ -38,6 +38,22 @@ Copia precedente privata in `.backup-private/gare-2026-10/prima.json`.
 Su dati reali ottobre: 2 Assicurazioni = 1 punto complessivo squadra, bonus 0
 per ciascuno fino al raggiungimento di 10 punti.
 
+## Riga Avanzamento CAMBI PIANO (06/10/2026)
+
+`configura_avanzamento_cambi_piano.sql` inserisce solo una metrica Standard,
+`CAMBI PIANO`, ordine35 tra TELEFONI CB30/FISSI40. Default preflight, applicazione
+esplicita `applica=true`; lock breve di catalogo e verifica idempotente, nessun
+DDL/RLS/RPC/trigger nuovo o modifica delle metriche/obiettivi esistenti.
+Match: Customer Base TIED Consumer o MOBILE Business (equivalenza autorizzata).
+`punteggio_campo=NULL` usa il conteggio pezzi:1punto anche per i Business con
+snapshot0. Motore Avanzamento esclude Cerea/reinserimenti e risolve gli alias.
+Obiettivo non inserito: si configura mensilmente dall'Admin senza usare la soglia
+individuale15 come obiettivo collettivo. La nuova riga vale nel catalogo per tutti
+i mesi ed e' letta automaticamente da Dashboard/PNG/Target senza deploy frontend.
+Applicata e riletta production:id23, ordine35. Hash delle altre metriche e di
+tutti gli obiettivi identici prima-dopo, preflight successivo riuscito.
+Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
+
 ## Elenco file
 
 | File | Cosa introduce |

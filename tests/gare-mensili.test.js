@@ -26,6 +26,30 @@ const evaluate = contracts => core.valutaGara(metrica, row(cb), contracts, 'matt
 const assicurazione = patch => contract({ categoria_snapshot: 'Assicurazioni', punteggio_gara_totale: 1, ...patch });
 const insuranceMetric = { tipo_conteggio: 'individuale', regola: { categoria: 'Assicurazioni' } };
 
+test('Avanzamento separa CAMBI PIANO tra telefoni e fissi, con pezzi Legnago e senza cambiare le altre righe', () => {
+  const definition = fs.readFileSync(path.join(root, 'database/configura_avanzamento_cambi_piano.sql'), 'utf8');
+  const cambi = { id: 100, ordine: 35, ...JSON.parse(definition.split('$metrica$')[1]) };
+  assert.deepEqual(cambi.regola, cb.condizioni[1].regola);
+  const telefoni = { ...metrica, tabella: 'avanzamento_standard', ordine: 30 };
+  const fissi = { id: 12, nome: 'FISSI', tabella: 'avanzamento_standard', ordine: 40, regola: { categoria: 'Fisso' } };
+  const state = { anno: 2026, mese: 10, metricheGara: [telefoni, fissi], obiettivi: [],
+    operatoriAttiviMese: [{ id: 'matteo' }, { id: 'francesca' }], resolveOperatore: id => id === 'alias' ? 'francesca' : id,
+    statoPostVendita: { fisso: new Map(), energia: new Map(), allarmi: new Map() }, tecnologiaFisso: new Map(),
+    contrattiMese: [phone(), change(), change({ cluster_cliente: 'Business', nome_offerta_snapshot: 'Cambio Piano - MOBILE', punteggio_gara_totale: 0 }),
+      change({ operatore_id: 'alias' }), change({ nome_offerta_snapshot: 'Cambio Piano - UNTIED' }),
+      change({ codice_rivenditore: '9000822241' }), change({ stato_inserimento: 'reinserimento' })] };
+  const before = core.monthlyRows(state, '2026-10-06');
+  state.metricheGara = [telefoni, cambi, fissi];
+  const after = core.monthlyRows(state, '2026-10-06');
+  assert.deepEqual(after.map(r => r.nome), ['TELEFONI CB', 'CAMBI PIANO', 'FISSI']);
+  assert.deepEqual(after.filter(r => r.id !== cambi.id), before);
+  const row = after[1];
+  assert.deepEqual(row.conteggi, [2, 1]);
+  assert.equal(row.attuale, 3);
+  assert.equal(row.punteggio, 3);
+  assert.equal(row.obiettivo, 0);
+});
+
 test('CB richiede entrambe le soglie, senza compensazioni tra telefoni e cambi piano', () => {
   for (const [phones, changes, euro] of [[35, 15, 100], [34, 100, 0], [100, 14, 0], [0, 50, 0], [70, 30, 100]]) {
     const result = evaluate(production(phones, changes));

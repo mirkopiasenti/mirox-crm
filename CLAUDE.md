@@ -1,5 +1,15 @@
 # CLAUDE.md — Guida per AI assistants
 
+## Avanzamento: riga CAMBI PIANO (06/10/2026)
+
+Metrica `avanzamento_standard` attiva, ordine35 tra TELEFONI CB/FISSI: TIED
+Consumer e MOBILE Business solo Legnago, senza reinserimenti,1punto per cambio.
+Obiettivo configurabile da Admin, nessuna soglia collettiva dedotta dalla gara
+individuale. Riga dinamica condivisa con PNG/Target, anche nei mesi storici.
+Script dati additivo/idempotente `database/configura_avanzamento_cambi_piano.sql`
+applicato production (id23); altre metriche/obiettivi invariati. Nessun frontend,
+schema/RLS o contratto modificato; test comportamento integrato copre i criteri.
+
 ## Gare mensili ottobre 2026
 
 Variazioni solo in `gara_obiettivi_mensili.compenso_regola`: override `gara`

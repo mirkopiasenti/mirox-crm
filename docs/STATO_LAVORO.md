@@ -3,6 +3,12 @@
 Aggiornato: 2026-10-06. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
+## Avanzamento: CAMBI PIANO aggiunta online 06/10
+
+- Riga Standard id23/ordine35 tra TELEFONI CB e FISSI; TIED Consumer/MOBILE Business solo Legnago, senza reinserimenti, 1 punto per cambio. Per operatore e totale; anche mesi storici, PNG e Target tramite catalogo dinamico.
+- `database/configura_avanzamento_cambi_piano.sql` applicato/riletto, hash altre metriche e tutti gli obiettivi invariati, preflight successivo OK. Nessun frontend/schema/RLS/CC modificato. Obiettivo mensile configurabile da Admin, senza inventare target collettivo15.
+- Ottobre reale: Matteo2/Francesca0/Mirko0, totale2. 234/234test+build locali (233versionati+1backup), nuova regressione Avanzamento/alias/scopo/punti Business. Guide README/AGENTS/CLAUDE/database README aggiornate; backup preesistente preservato. Riga gia' disponibile, ricaricare la pagina per rileggerla.
+
 ## Gare ottobre 2026: online e configurazione applicata 06/10
 
 - Confermato: TIED individuali 35/100 EUR; CB 35 telefoni Consumer VAR/Finanziamento + 15 cambi piano Consumer TIED/Business MOBILE (equivalenza autorizzata)/100 EUR; Assicurazioni squadra Francesca/Matteo/Mirko solo Legnago, 10 punti reali/50 EUR a ciascuno.

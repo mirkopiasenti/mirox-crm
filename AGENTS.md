@@ -35,6 +35,8 @@ Le variazioni di gara per un solo mese vanno salvate in `gara_obiettivi_mensili.
 
 Ottobre 2026: TIED individuali 35/100 EUR; CB individuale 35 telefoni Consumer VAR/Finanziamento + 15 cambi piano (Consumer `Cambio Piano - TIED`, Business `Cambio Piano - MOBILE`, equivalenza confermata dal proprietario), bonus unico 100 EUR. Assicurazioni: somma `punteggio_gara_totale` solo Legnago di Francesca/Matteo/Mirko (alias risolti), soglia 10, bonus 50 EUR a ciascuno. Esclusi reinserimenti; gli altri criteri e l'Avanzamento Mensile restano quelli esistenti. Configurazione applicata e riletta su production il 06/10/2026 dopo il deploy `ab44097`: 9 obiettivi corretti, tutte le altre righe e le metriche globali identiche alla copia precedente.
 
+La sezione Avanzamento Standard contiene anche `CAMBI PIANO`, ordinata tra `TELEFONI CB` e `FISSI`. Conta separatamente i cambi piano TIED Consumer e MOBILE Business a Legnago, senza reinserimenti; il punteggio della riga coincide con i pezzi (1 per cambio), come per i telefoni CB, anche se il catalogo Business ha punteggio zero. La metrica di catalogo e' consultabile per tutti i mesi, con obiettivo mensile configurabile da Admin, senza dedurre il target collettivo dai 15 cambi della gara individuale. Dashboard, PNG e Target leggono la stessa metrica dinamica. `database/configura_avanzamento_cambi_piano.sql` e' uno script dati additivo/idempotente, senza modifiche schema/RLS o agli obiettivi delle gare.
+
 ### Self-check di fine task
 
 Prima di dichiarare un task concluso:
