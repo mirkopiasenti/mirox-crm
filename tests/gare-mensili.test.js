@@ -7,6 +7,7 @@ const vm = require('node:vm');
 const core = require('../js/dashboard-report-core');
 const root = path.resolve(__dirname, '..');
 const sql = fs.readFileSync(path.join(root, 'database/configura_gare_2026_10.sql'), 'utf8');
+const telefonoConfig = fs.readFileSync(path.join(root, 'database/configura_cambi_piano_telefono.sql'), 'utf8');
 const config = tag => JSON.parse(sql.split('$' + tag + '$')[1]);
 const cb = config('cb'), tied = config('tied'), insurance = config('assicurazioni');
 insurance.gara.operatori = ['francesca', 'matteo', 'mirko'];
@@ -25,6 +26,7 @@ const production = (phones, changes) => [
 const evaluate = contracts => core.valutaGara(metrica, row(cb), contracts, 'matteo');
 const assicurazione = patch => contract({ categoria_snapshot: 'Assicurazioni', punteggio_gara_totale: 1, ...patch });
 const insuranceMetric = { tipo_conteggio: 'individuale', regola: { categoria: 'Assicurazioni' } };
+const cambiPianoConTelefono = JSON.parse(telefonoConfig.split('$regola$')[1]);
 
 test('Avanzamento separa CAMBI PIANO tra telefoni e fissi, con pezzi Legnago e senza cambiare le altre righe', () => {
   const definition = fs.readFileSync(path.join(root, 'database/configura_avanzamento_cambi_piano.sql'), 'utf8');
@@ -65,6 +67,18 @@ test('CB include solo telefoni Consumer con dispositivo VAR/Finanziamento e camb
     change({ cluster_cliente: 'Turista' })];
   assert.deepEqual(evaluate(invalidi).componenti.map(c => c.attuale), [0, 0]);
   assert.equal(evaluate(production(35, 15)).euro, 100);
+});
+test('i cambi piano con telefono entrano in Avanzamento e nel bonus CB, ma solo con tipo e dispositivo coerenti', () => {
+  assert.match(telefonoConfig, /nome='CAMBI PIANO'/);
+  const validi = [
+    change({ nome_offerta_snapshot: 'Cambio Piano + Telefono Finanziato', tipo_acquisto: 'Finanziamento', dispositivo_associato: true }),
+    change({ nome_offerta_snapshot: 'Cambio Piano + Telefono VAR', tipo_acquisto: 'VAR', dispositivo_associato: true })
+  ];
+  const bonusAggiornato = { ...cb, condizioni: [cb.condizioni[0], { ...cb.condizioni[1], regola: cambiPianoConTelefono }] };
+  assert.equal(core.calcolaCompenso(0, bonusAggiornato, validi).componenti[1].attuale, 2);
+  assert.equal(validi.filter(c => core.matchRegola(c, cambiPianoConTelefono)).length, 2);
+  assert.equal(core.matchRegola(validi[0], { ...cambiPianoConTelefono.or[1], tipo_acquisto: 'VAR' }), false);
+  assert.equal(core.matchRegola({ ...validi[1], dispositivo_associato: false }, cambiPianoConTelefono), false);
 });
 test('CB è individuale ed esclude reinserimenti; le gare personali continuano a includere entrambi i negozi', () => {
   const result = evaluate([...production(35, 15).map(c => ({ ...c, codice_rivenditore: '9000822241' })),
