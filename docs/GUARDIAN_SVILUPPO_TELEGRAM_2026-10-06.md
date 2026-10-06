@@ -36,6 +36,21 @@ Il validator conserva soltanto le proposte SQL per revisione, senza eseguirle
 o consentire merge automatico; altri path protetti rimangono rifiutati. Esiti
 di sviluppo nella outbox persistente. Snapshot catalogo reale fornito al worker,
 regole di business sconosciute richiedono domanda, non valori inventati.
-Il rilascio automatico del bot resta limitato a cambi repository consentiti: un
-cambio dati/schema richiede ancora intervento Codex separato e non va dichiarato
-pubblicato dal solo deploy Netlify.
+Gli script SQL non sono eseguiti dal bot. La revisione Codex puo produrre un
+piano catalogo a schema chiuso, approvato insieme alla versione su Telegram e
+applicato atomicamente dopo il deploy. Cambi schema/RLS/RPC e altri dati restano
+fuori da questa possibilita. Non dichiarare pubblicato dal solo deploy.
+
+## Piano catalogo dopo la conferma finale
+
+Migration20261006182105 applicata: due RPC con privilegi minimi, core privato e
+wrapper service-only. Piano digest/SHA/test/lease/owner/conferma1h, solo2tabelle
+config e precondizioni sulle regole vecchie. Merge e SHA pubblico verificati
+prima dell'applicazione; checkpoint atomico, dati falliti non chiudono il caso.
+Prove PostgreSQL reali in rollback: inserimenti/rilettura1punto+device, precondizione
+fallita dopo un inserimento annulla tutto, lease inesistente rifiutato. Zero
+record di prova residui; nessuna approvazione finale reale simulata.7regressioni
+Node nuove su piano, consenso, drift, ordine deploy-dati-salute e fallimenti.
+PR13 conservata realmente dal worker: revisionare sovrapposizione Day by Day e
+vincoli acquisto/device, convertire SQL proposto in piano revisionato e portare
+la proposta concreta alla conferma finale Telegram.

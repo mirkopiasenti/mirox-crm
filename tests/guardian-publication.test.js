@@ -75,6 +75,8 @@ function network(t, overrides = {}) {
     else if (url.endsWith('/git/ref/heads/main')) body = { object: { sha: overrides.base || base } };
     else if (url.endsWith('/pulls/22')) body = overrides.pr || pr;
     else if (url.includes('/pulls/22/files')) body = [{ filename: overrides.file || 'js/example.js' }];
+    else if(url.includes('/commits/'))body={parents:[{sha:base},{sha:head}]};
+    else if(url.includes('/js/config.js'))return {ok:true,text:async()=> 'window.MiroxEnvironmentInfo = '+JSON.stringify({environment:'production',commit_sha:overrides.liveSha || merged})+';'};
     else if (url.includes('/dispatches')) body = {};
     else throw new Error('unexpected request: '+url);
     return {ok:true, status:200, json: async () => body};
@@ -194,4 +196,60 @@ test('risultato chiude il caso solo con deploy verificato e conserva contratto e
     assert.equal(db.tables.kona_ai_notifiche[0].dedupe_key,'release:result:'+approvalId);
     assert.match(db.tables.kona_ai_notifiche[0].payload.text,ready ? /pubblicata in produzione/ : /rilascio del CRM non è confermato/);
   }
+});
+
+const {validateReview}=require('../netlify/functions/_lib/guardian-catalog-plan');
+const sourcePatchId='55555555-5555-4555-8555-555555555555',sourceApprovalId='44444444-4444-4444-8444-444444444444';
+const catalogPlan={version:1,offers:[{id:'66666666-6666-4666-8666-666666666666',categoria_id:'77777777-7777-4777-8777-777777777777',cluster_cliente:'Consumer',nome_offerta:'Cambio Piano + Telefono VAR',punteggio_gara:1,punteggio_extra_gara:0,abilita_dispositivo:true,abilita_switch_sim:false}],daily_rows:[],daily_updates:[]};
+const planJson=JSON.stringify(catalogPlan),planHash=require('node:crypto').createHash('sha256').update(planJson).digest('hex');
+const review={head_sha:head,hash:planHash,plan_json:planJson,reviewed_by:'codex_local',summary:'Due combinazioni a1punto complessivo'};
+const reference={patch_execution_id:sourcePatchId,patch_approval_id:sourceApprovalId,head_sha:head,hash:planHash,summary:review.summary};
+function catalogSeed(){const data=seed();
+ data.kona_ai_esecuzioni[0].risultato.development={patch_execution_id:sourcePatchId,auto_test:true,owner_chat_id:'123',requirement_hash:require('../netlify/functions/_lib/guardian-development').requirementHash(data.kona_ai_incidenti[0])};
+ data.kona_ai_esecuzioni.push({id:sourcePatchId,incidente_id:incidentId,approvazione_id:sourceApprovalId,risultato:{catalog_required:true}});
+ data.kona_ai_approvazioni.push({id:sourceApprovalId,incidente_id:incidentId,risultato:{catalog_review:structuredClone(review)}});
+ data.kona_ai_approvazioni[0].risultato.release_contract={...contract,catalog_plan:structuredClone(reference)};return data;}
+test('piano catalogo richiede digest, revisore, SHA e schema chiuso',()=>{
+ assert.equal(validateReview(review,head).offers[0].punteggio_gara,1);
+ for(const changed of [{...review,head_sha:merged},{...review,reviewed_by:'worker'},{...review,plan_json:planJson.replace('VAR','FINANZIATO')}])assert.throws(()=>validateReview(changed,head));
+ const invalid=JSON.stringify({...catalogPlan,sql:'delete from profili'});
+ assert.throws(()=>validateReview({...review,plan_json:invalid,hash:require('node:crypto').createHash('sha256').update(invalid).digest('hex')},head));
+});
+test('proposta Telegram comprende piano dati revisionato, senza applicarlo',async t=>{
+ const calls=network(t),db=database(catalogSeed());await webhook.prepareProductionRelease(db,'123',incidentId);
+ assert(calls.some(c=>c.body.text?.includes('Piano dati revisionato: Due combinazioni')));
+ assert(!calls.some(c=>c.url.includes('/dispatches')));
+});
+test('cambio del piano dopo la conferma rifiuta il dispatch',async t=>{
+ const calls=network(t),data=catalogSeed();data.kona_ai_approvazioni[1].risultato.catalog_review.summary='Altro piano';
+ await assert.rejects(webhook.publishProduction(database(data),'123',approvalId),/revisione catalogo/);
+ assert(!calls.some(c=>c.url.includes('/dispatches')));
+});
+for(const liveSha of [merged,base])test('applicazione catalogo verifica versione online '+liveSha[0],async t=>{
+ network(t,{pr:{...pr,merged:true,merge_commit_sha:merged},liveSha});const data=catalogSeed();
+ const execution={id:'88888888-8888-4888-8888-888888888888',incidente_id:incidentId,approvazione_id:approvalId,tipo_esecuzione:'rilascio_produzione',stato:'in_esecuzione',base_commit_sha:head,branch_name:contract.branch,pull_request_url:contract.pull_request_url,lease_token_hash:hashLeaseToken('l'.repeat(64)),lease_expires_at:new Date(Date.now()+60000).toISOString()};
+ data.kona_ai_esecuzioni.push(execution);Object.assign(data.kona_ai_approvazioni[0],{stato:'approvata',decisa_at:new Date().toISOString(),decisa_da_telegram_chat_id:'123'});
+ const db=database(data);let applied=0;db.rpc=async(name,args)=>{assert.equal(name,'guardian_apply_reviewed_catalog');assert.equal(args.p_head_sha,head);applied++;return {data:{ok:true,hash:planHash},error:null};};
+ const body={execution_id:execution.id,lease_token:'l'.repeat(64),merge_commit_sha:merged,sql:'IGNORATO'};
+ if(liveSha===merged){const response=await worker.applyCatalog(db,body);assert.equal(response.statusCode,200);assert.equal(applied,1);}
+ else{await assert.rejects(worker.applyCatalog(db,body),/non online/);assert.equal(applied,0);}
+});
+for(const fail of [false,true])test('runner applica piano dopo deploy e prima della salute; errore='+fail,async()=>{
+ const r=runner(),original=r.options.worker,c={...contract,catalog_plan:reference};
+ r.options.worker=async(action,payload)=>{
+  if(action==='claim'){const data=await original(action,payload);data.context.release_contract=c;return data;}
+  if(action==='release_authorization')return {release_contract:c};
+  if(action==='apply_catalog'){r.calls.push({action});if(fail)throw Error('piano cambiato');return {ok:true,catalog:{ok:true,hash:planHash}};}
+  return original(action,payload);
+ };
+ if(fail){await assert.rejects(publish(r.options),/piano cambiato/);assert.equal(r.terminal[0].success,false);assert(!r.calls.some(c=>c.action==='health'));}
+ else{await publish(r.options);assert(r.calls.findIndex(c=>c.action==='apply_catalog')<r.calls.findIndex(c=>c.action==='health'));assert.equal(r.terminal[0].result.catalog_applied.hash,planHash);}
+});
+for(const applied of [false,true])test('risultato catalogo chiude il caso solo con checkpoint server='+applied,async t=>{
+ network(t);const data=catalogSeed();data.kona_ai_approvazioni[0].stato='approvata';
+ if(applied)data.kona_ai_approvazioni[0].risultato.catalog_applied={ok:true,hash:planHash};
+ data.kona_ai_esecuzioni.push({id:approvalId,incidente_id:incidentId,approvazione_id:approvalId,tipo_esecuzione:'rilascio_produzione',stato:'in_esecuzione',lease_token_hash:hashLeaseToken('l'.repeat(64)),lease_expires_at:new Date(Date.now()+60000).toISOString()});
+ const db=database(data);
+ await worker.recordResult(db,{execution_id:approvalId,lease_token:'l'.repeat(64),success:true,result_commit_sha:merged,result:{merged:true,merge_commit_sha:merged,deploy_status:'ready',health_ok:true,catalog_applied:{ok:true,hash:planHash}}});
+ assert.equal(db.tables.kona_ai_incidenti[0].stato,applied?'risolto':'in_lavorazione');
 });

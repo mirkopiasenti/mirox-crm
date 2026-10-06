@@ -478,6 +478,26 @@ vanno inventati: conservare gli esistenti o chiedere una sola scelta concreta.
 Le proposte SQL di configurazione dati possono essere conservate in PR draft
 con `manual_review/blocked`, test locali e notifica persistente. Il workflow
 non esegue SQL e la conferma finale continua a rifiutare database/*.sql.
-Questi casi richiedono revisione/applicazione separata da Codex; il bot non
-deve annunciare una pubblicazione completa della funzionalita. Secret,
+La revisione resta separata da Codex. Un piano catalogo validato e vincolato
+alla versione puo essere applicato dal rilascio dopo la conferma finale Telegram. Secret,
 workflow, dipendenze e deploy rimangono bloccati prima del push della patch.
+
+### Guardian: piano catalogo revisionato e conferma Telegram
+
+La migration `20261006182105_guardian_reviewed_catalog.sql` aggiunge due RPC,
+senza alterare schema/RLS CRM o tabelle CC. `guardian_catalog_apply_v1` e' il
+core privato, senza EXECUTE per service_role/anon/authenticated;
+`guardian_apply_reviewed_catalog` e' service-only e richiede lease, SHA, test,
+revisione Codex locale e consenso finale Telegram non scaduto. Accetta solo
+inserimenti `vendita_offerte`/`dashboard_righe_giornaliera` e aggiornamenti
+`regola` delle righe giornaliere con precondizioni su nome/regola; massimo10
+operazioni per gruppo, nessun DELETE, SQL libero, DDL, RLS, RPC o dati clienti.
+Il piano serializzato/hash e la revisione vivono nel JSON dell'approvazione patch
+server-only, vincolati alla head SHA. Il workflow non puo' attribuirsi la revisione.
+La conferma finale mostra anche il piano dati; cambi a head/piano/requisiti
+invalideranno l'approvazione. Il rilascio controlla merge e SHA online prima
+di applicare il piano in una transazione; verifica salute prima di chiudere.
+Checkpoint nell'approvazione finale impedisce duplicati. Un fallimento dati
+lascia la richiesta aperta e non viene dichiarato un rilascio riuscito.
+Migration applicata/riletta06/10: privilegi verificati, core e rollback dopo
+precondizione fallita collaudati in transazioni annullate,0record sintetici residui.

@@ -2,6 +2,8 @@
 
 const { getAdminClient } = require('./_lib/require-auth');
 const { validateContract, SHA } = require('./_lib/guardian-release');
+const {validateReference}=require('./_lib/guardian-catalog-plan');
+const {githubRequest,REPOSITORY,PRODUCTION_URL,parsePublishedInfo}=require('./_lib/guardian-release');
 const {validDevelopment}=require('./_lib/guardian-development');
 const { guardianHealth } = require('./_lib/guardian-health');
 const {
@@ -103,11 +105,34 @@ async function releaseAuthorization(supabase, execution) {
     || tested.pull_request_url !== contract.pull_request_url || tested.result_commit_sha !== contract.head_sha
     || tested.risultato?.tested_base_sha !== contract.base_sha || tested.risultato?.tests !== 'success'
     || tested.risultato?.install !== 'success' || tested.risultato?.smoke !== 'success') throw new Error('Test della versione approvata assenti');
+  await validateReference(supabase,contract.catalog_plan,tested);
   const { data: incident, error: incidentError } = await supabase.from('kona_ai_incidenti').select('stato')
     .eq('id', execution.incidente_id).maybeSingle();
   if (incidentError) throw incidentError;
   if (!incident || !OPEN_INCIDENT_STATES.includes(incident.stato)) throw new Error('Richiesta chiusa');
   return contract;
+}
+
+async function applyCatalog(supabase,body) {
+  const lease=await requireLease(supabase,body);
+  if(lease.error)return lease.error;
+  const contract=await releaseAuthorization(supabase,lease.execution);
+  if(!contract.catalog_plan || !SHA.test(body.merge_commit_sha || ''))throw new Error('Piano catalogo assente');
+  const [pr,commit,live]=await Promise.all([
+    githubRequest(`/repos/${REPOSITORY}/pulls/${contract.pull_number}`),
+    githubRequest(`/repos/${REPOSITORY}/commits/${body.merge_commit_sha}`),
+    fetch(PRODUCTION_URL+'/js/config.js?catalog_release='+body.merge_commit_sha,{cache:'no-store',signal:AbortSignal.timeout(15000)})
+  ]);
+  const info=live.ok ? parsePublishedInfo(await live.text()):null;
+  if(pr.merged!==true || pr.head?.sha!==contract.head_sha || pr.merge_commit_sha!==body.merge_commit_sha
+    || commit.parents?.length!==2 || commit.parents[0].sha!==contract.base_sha || commit.parents[1].sha!==contract.head_sha
+    || info?.environment!=='production' || info.commit_sha!==body.merge_commit_sha)throw new Error('Versione approvata non online');
+  const {data,error}=await supabase.rpc('guardian_apply_reviewed_catalog',{
+    p_execution_id:lease.execution.id,p_lease_token:lease.leaseToken,p_head_sha:contract.head_sha
+  });
+  if(error)throw new Error('Piano catalogo non applicato: '+cleanWorkerText(error.message,250));
+  if(data?.ok!==true || data.hash!==contract.catalog_plan.hash)throw new Error('Esito catalogo non verificato');
+  return response(200,{ok:true,catalog:data});
 }
 
 async function catalogContext(supabase, incident) {
@@ -377,7 +402,13 @@ async function recordResult(supabase, body) {
   const execution = lease.execution;
   const publication = execution.tipo_esecuzione === 'rilascio_produzione';
   const releaseResult = body.result || {};
-  const success = body.success === true && (!publication || (releaseResult.merged === true
+  const {data: publicationApproval,error:publicationApprovalError}=publication
+    ? await supabase.from('kona_ai_approvazioni').select('risultato').eq('id',execution.approvazione_id).maybeSingle() : {data:null,error:null};
+  if(publicationApprovalError)throw publicationApprovalError;
+  const catalogPlan=publicationApproval?.risultato?.release_contract?.catalog_plan;
+  const catalogVerified=!catalogPlan || (publicationApproval.risultato.catalog_applied?.ok===true
+    && publicationApproval.risultato.catalog_applied.hash===catalogPlan.hash);
+  const success = catalogVerified && body.success === true && (!publication || (releaseResult.merged === true
     && releaseResult.deploy_status === 'ready' && releaseResult.health_ok === true
     && SHA.test(releaseResult.merge_commit_sha || '') && body.result_commit_sha === releaseResult.merge_commit_sha));
   const now = nowIso();
@@ -531,7 +562,7 @@ async function recordResult(supabase, body) {
   return response(200, { ok: true, execution_id: saved.id, state: saved.stato });
 }
 
-exports._test = { catalogContext, keyboardForExecution, resultMessage, recordResult, loadContext, releaseAuthorization };
+exports._test = { applyCatalog,catalogContext, keyboardForExecution, resultMessage, recordResult, loadContext, releaseAuthorization };
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return response(405, { ok: false, error: 'Metodo non consentito' });
@@ -548,6 +579,7 @@ exports.handler = async (event) => {
       if (lease.error) return lease.error;
       return response(200, { ok: true, release_contract: await releaseAuthorization(supabase, lease.execution) });
     }
+    if(body.action==='apply_catalog')return await applyCatalog(supabase,body);
     if (body.action === 'heartbeat') return await heartbeatExecution(supabase, body);
     if (body.action === 'result') return await recordResult(supabase, body);
     return response(400, { ok: false, error: 'Azione worker non valida' });
