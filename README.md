@@ -470,3 +470,14 @@ concreta o blocco fermano la catena; i test falliti non ripartono in un ciclo.
 Dopo i test viene proposta la pubblicazione: resta obbligatorio l'OK finale
 Telegram sulla versione verificata. Secret, workflow, SQL e aree protette
 continuano a richiedere revisione tecnica separata. Nessuna nuova env o tabella.
+
+Guardian06/10: le richieste di catalogo/Day by Day/gare ricevono uno snapshot
+read-only (offerte, metriche e righe giornaliere, massimo250 per tabella,
+troncamento esplicito), senza dati clienti o segreti. Punteggi/regole nuovi non
+vanno inventati: conservare gli esistenti o chiedere una sola scelta concreta.
+Le proposte SQL di configurazione dati possono essere conservate in PR draft
+con `manual_review/blocked`, test locali e notifica persistente. Il workflow
+non esegue SQL e la conferma finale continua a rifiutare database/*.sql.
+Questi casi richiedono revisione/applicazione separata da Codex; il bot non
+deve annunciare una pubblicazione completa della funzionalita. Secret,
+workflow, dipendenze e deploy rimangono bloccati prima del push della patch.

@@ -110,6 +110,18 @@ async function releaseAuthorization(supabase, execution) {
   return contract;
 }
 
+async function catalogContext(supabase, incident) {
+  if(!/customer base|day by day|catalogo|offert|puntegg|gare/i.test([incident.titolo,incident.riepilogo_ai].join(' ')))return null;
+  const [offers,metrics,dailyRows]=await Promise.all([
+    supabase.from('vendita_offerte').select('id,categoria_id,cluster_cliente,nome_offerta,punteggio_gara,punteggio_extra_gara,abilita_dispositivo,abilita_switch_sim,attiva').limit(250),
+    supabase.from('gara_metriche').select('id,nome,tabella,gruppo,ordine,punti_per_pezzo,punteggio_campo,regola,attiva').limit(250),
+    supabase.from('dashboard_righe_giornaliera').select('id,nome,gruppo,colore_hex,ordine,regola').limit(250)
+  ]);
+  if(offers.error || metrics.error || dailyRows.error)throw new Error('Snapshot catalogo non disponibile');
+  return {read_only:true,captured_at:nowIso(),offers:offers.data || [],metrics:metrics.data || [],daily_rows:dailyRows.data || [],
+    truncated:[offers,metrics,dailyRows].some(result=>result.data?.length===250)};
+}
+
 async function loadContext(supabase, execution) {
   const { data: incident, error: incidentError } = await supabase
     .from('kona_ai_incidenti')
@@ -128,6 +140,8 @@ async function loadContext(supabase, execution) {
   if (messagesError) throw messagesError;
 
   return {
+    configuration: execution.tipo_esecuzione === 'prepara_patch' || execution.tipo_esecuzione === 'analisi_codex'
+      ? await catalogContext(supabase,incident):null,
     ...(execution.tipo_esecuzione === 'rilascio_produzione' ? { release_contract: await releaseAuthorization(supabase, execution) } : {}),
     execution: {
       id: execution.id,
@@ -275,6 +289,9 @@ function resultMessage(execution, body, success) {
       summary ? `\nCosa manca\n${summary}` : '',
       '\nProssimo passo\nPremi “Aggiungi informazioni” e rispondi alla domanda indicata. Dopo la risposta potremo ripetere la preparazione della modifica.'
     ].join('').slice(0, 7800);
+  }
+  if(blocked && body.pull_request_url) {
+    return `Ho conservato la proposta nella branch di revisione: ${cleanWorkerText(body.pull_request_url,500)}.\n\nServe una revisione dei cambi al database prima della pubblicazione. Non ho eseguito SQL, merge o deploy e non serve ripetere l’analisi.\n\n${summary}`.slice(0,7800);
   }
   if (blocked) {
     return [
@@ -453,7 +470,7 @@ async function recordResult(supabase, body) {
     : 'Guardian';
   const observerExecution = execution.tipo_esecuzione === 'analisi_automatica'
     || execution.tipo_esecuzione === 'scansione_migliorie';
-  if (observerExecution || publication) {
+  if (observerExecution || publication || safeResult.development?.auto_test === true) {
     const { data: signal, error: signalError } = await supabase.from('kona_ai_segnali')
       .select('id').eq('incidente_id', execution.incidente_id).maybeSingle();
     if (signalError) throw signalError;
@@ -514,7 +531,7 @@ async function recordResult(supabase, body) {
   return response(200, { ok: true, execution_id: saved.id, state: saved.stato });
 }
 
-exports._test = { keyboardForExecution, resultMessage, recordResult, loadContext, releaseAuthorization };
+exports._test = { catalogContext, keyboardForExecution, resultMessage, recordResult, loadContext, releaseAuthorization };
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return response(405, { ok: false, error: 'Metodo non consentito' });

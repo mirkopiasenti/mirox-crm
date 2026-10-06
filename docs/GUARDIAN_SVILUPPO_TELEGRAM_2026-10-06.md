@@ -25,3 +25,17 @@ Il rilascio continua a verificare merge, commit online e salute prima di chiuder
 vecchio callback di analisi, patch→test→proposta senza deploy, negazioni/citazioni,
 blocchi, chiarimenti, requisito superato, cron e retry vocali. Suite completa e
 prova reale KG23 da registrare dopo il rilascio. Nessun nuovo schema o secret.
+
+## Colloquio reale e secondo blocco
+
+00176fa online19:57:11, CI37507449399/health37507655840 riusciti.
+EsecuzioneKG23/run37507651277: codice preparato, gate SQL bloccava tutto senza
+conservare una proposta. Inoltre il modello aveva assegnato zero punti senza
+regola: proprietario conferma1 punto complessivo per ciascuna combinazione.
+Il validator conserva soltanto le proposte SQL per revisione, senza eseguirle
+o consentire merge automatico; altri path protetti rimangono rifiutati. Esiti
+di sviluppo nella outbox persistente. Snapshot catalogo reale fornito al worker,
+regole di business sconosciute richiedono domanda, non valori inventati.
+Il rilascio automatico del bot resta limitato a cambi repository consentiti: un
+cambio dati/schema richiede ancora intervento Codex separato e non va dichiarato
+pubblicato dal solo deploy Netlify.

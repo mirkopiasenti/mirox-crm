@@ -136,3 +136,27 @@ test('una patch pronta viene riutilizzata e non genera una seconda implementazio
  await webhook.approveWork(db,'123',incidentId);
  assert.equal(dispatches(calls).length,2);assert.equal(db.tables.kona_ai_esecuzioni.filter(r=>r.tipo_esecuzione==='prepara_patch').length,1);
 });
+
+const {classifyPatch}=require('../.github/codex/validate-patch');
+test('SQL viene conservato solo per revisione e resta bloccato al rilascio',()=>{
+ const proposal=classifyPatch(['database/configura.sql','tests/fixture.test.js'],'ESITO_PATCH: MODIFICA_PREPARATA');
+ assert(proposal.has_changes && proposal.manual_review && proposal.blocked);
+ assert.throws(()=>require('../netlify/functions/_lib/guardian-release').verifyFiles([{filename:'database/configura.sql'}],1));
+ for(const path of ['.env','.github/workflows/x.yml','netlify.toml','package.json'])assert.throws(()=>classifyPatch([path],'ESITO_PATCH: MODIFICA_PREPARATA'));
+ assert.throws(()=>classifyPatch(['js/x.js'],'ESITO_PATCH: GIA_PRESENTE'));
+ assert(classifyPatch([],'ESITO_PATCH: RICHIEDE_INFORMAZIONI').needs_information);
+});
+test('catalogo al worker e read-only e conserva punteggi reali',async()=>{
+ const db=database({vendita_offerte:[{id:'offer',nome_offerta:'Cambio Piano',punteggio_gara:1}],gara_metriche:[]});
+ const loaded=await worker.catalogContext(db,{titolo:'Customer Base',riepilogo_ai:'Due offerte'});
+ assert(loaded.read_only);assert.equal(loaded.offers[0].punteggio_gara,1);assert.equal(db.tables.vendita_offerte[0].punteggio_gara,1);
+ assert.equal(await worker.catalogContext(db,{titolo:'Altro problema'}),null);
+});
+test('proposta SQL genera notifica persistente con PR e nessun test o rilascio automatico',async t=>{
+ const calls=network(t),db=database(seed());await webhook.approveWork(db,'123',incidentId);const e=running(db,db.tables.kona_ai_esecuzioni[0]);
+ const url='https://github.com/mirkopiasenti/mirox-crm/pull/33';
+ await worker.recordResult(db,{execution_id:e.id,lease_token:lease,success:true,result_commit_sha:head,branch_name:'codex/kg-fixture',pull_request_url:url,result:{blocked:true,manual_review:true}});
+ assert.equal(dispatches(calls).length,1);
+ const note=db.tables.kona_ai_notifiche.find(n=>n.dedupe_key==='observer:result:'+e.id);
+ assert(note && note.payload.text.includes(url));assert(!note.payload.text.includes('Nessun file'));
+});

@@ -6,7 +6,7 @@ istruzioni dell'utente e guide di progetto restano vincolanti.
 ## Guardian: sviluppo Telegram06/10 in collaudo
 
 - Loop KG23: Analisi Guardian solo discorsiva; implementa non dispatchava Codex. Comando diretto owner ora avvia patch e include test/recupero cron, poi proposta finale Telegram. AI propone pulsanti senza autorizzare lavoro; vecchi callback analisi leggono repository.
-- Consenso/hash requisito/sorgente persistiti, deduplica vocali e richieste attive; niente test su requisiti superati o ripetizioni infinite. Needs-info/blocked/no-change fermano la catena; nessun merge senza conferma finale.261/261test+build (13nuovi), deploy/prova reale pendenti. Nessuna nuova migration/env.
+- Consenso/hash requisito/sorgente persistiti, deduplica vocali e richieste attive; niente test su requisiti superati o ripetizioni infinite. Needs-info/blocked/no-change fermano la catena; nessun merge senza conferma finale.264/264test+build (16nuovi), 00176fa online19:57:11/CI37507449399/health37507655840 OK. Prova reale: worker sviluppa ma SQL scartato; follow-up conserva PR SQL in revisione, catalogo read-only e1punto complessivo confermato. Nessuna nuova migration/env.
 - Vocali0d76d28 online19:34:30/248test: FK voice_job_id conserva BIGINT identity. Audio autorizzato HTTP200/2,531s, job baa8d026 completato/TG17219:35:36; KG23 richiede due righe Day by Day e due opzioni CB, CP+telefono finanziato/VAR. Non ancora implementata nel CRM.
 - Guide README/AGENTS/CLAUDE/databaseREADME e docs/GUARDIAN_SVILUPPO_TELEGRAM_2026-10-06 aggiornati. Backup e lavori estranei preservati.
 

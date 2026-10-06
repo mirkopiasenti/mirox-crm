@@ -119,49 +119,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo 'has_changes=false' >> "$GITHUB_OUTPUT"
-          echo 'no_changes=false' >> "$GITHUB_OUTPUT"
-          echo 'needs_information=false' >> "$GITHUB_OUTPUT"
-          echo 'blocked=false' >> "$GITHUB_OUTPUT"
           git add -N $(git ls-files --others --exclude-standard) 2>/dev/null || true
-          changed="$(git diff --name-only -- . \
-            ':(exclude)guardian-context.json' \
-            ':(exclude)guardian-changed-files.txt' \
-            ':(exclude)codex-output.md')"
-          if [ -z "$changed" ]; then
-            if grep -Eq '^ESITO_PATCH: GIA_PRESENTE[[:space:]]*$' codex-output.md; then
-              echo 'no_changes=true' >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            if grep -Eq '^ESITO_PATCH: RICHIEDE_INFORMAZIONI[[:space:]]*$' codex-output.md; then
-              echo 'needs_information=true' >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            if grep -Eq '^ESITO_PATCH: BLOCCATA[[:space:]]*$' codex-output.md; then
-              echo 'blocked=true' >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            echo 'Codex non ha prodotto modifiche e non ha dichiarato che la richiesta è già soddisfatta.' >&2
-            exit 1
-          fi
-          if ! grep -Eq '^ESITO_PATCH: MODIFICA_PREPARATA[[:space:]]*$' codex-output.md; then
-            echo 'Codex ha modificato file senza dichiarare ESITO_PATCH: MODIFICA_PREPARATA.' >&2
-            exit 1
-          fi
-          if printf '%s\n' "$changed" | grep -E '(^|/)(\.env|\.env\.|netlify\.toml$|\.github/|package(-lock)?\.json$)' >/dev/null; then
-            echo 'Modifica bloccata: file di segreti, deploy, workflow o dipendenze.' >&2
-            exit 1
-          fi
-          if printf '%s\n' "$changed" | grep -E '(^|/)database/.*\.sql$' >/dev/null; then
-            echo 'Modifica bloccata: le migration richiedono una revisione manuale separata.' >&2
-            exit 1
-          fi
+          node .github/codex/validate-patch.js
           git diff --check -- . \
             ':(exclude)guardian-context.json' \
             ':(exclude)guardian-changed-files.txt' \
             ':(exclude)codex-output.md'
-          printf '%s\n' "$changed" > /tmp/guardian-changed-files.txt
-          echo 'has_changes=true' >> "$GITHUB_OUTPUT"
 
       - name: Run repository tests
         id: tests
@@ -184,7 +147,7 @@ jobs:
           git config user.email 'guardian@kona-tech.invalid'
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git add -A
-          git commit -m "feat(guardian): prepara modifica ${EXECUTION_ID}" -m "Modifica preparata dopo approvazione Telegram; rilascio production escluso." \
+          git commit -m "feat(guardian): prepara modifica ${EXECUTION_ID}" -m "Modifica preparata dopo consenso del proprietario; SQL conservato per revisione e mai eseguito dal workflow." \
             -m "Co-Authored-By: OpenAI Codex <noreply@openai.com>"
           git push --set-upstream origin "$PATCH_BRANCH"
           pr_url="$(gh pr create --draft --base "${GITHUB_REF_NAME}" --head "$PATCH_BRANCH" \
@@ -206,6 +169,7 @@ jobs:
           NO_CHANGES: ${{ steps.validate.outputs.no_changes }}
           NEEDS_INFORMATION: ${{ steps.validate.outputs.needs_information }}
           BLOCKED: ${{ steps.validate.outputs.blocked }}
+          MANUAL_REVIEW: ${{ steps.validate.outputs.manual_review }}
           PR_URL: ${{ steps.publish.outputs.pull_request_url }}
           PATCH_BRANCH: ${{ steps.branch.outputs.name }}
         run: |
@@ -216,7 +180,7 @@ jobs:
             success=true
           elif [ "$CODEX_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$NEEDS_INFORMATION" = "true" ]; then
             success=true
-          elif [ "$CODEX_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$BLOCKED" = "true" ]; then
+          elif [ "$CODEX_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$BLOCKED" = "true" ] && [ "$MANUAL_REVIEW" != "true" ]; then
             success=true
           elif [ "$CODEX_OUTCOME" = "success" ] && [ "$VALIDATE_OUTCOME" = "success" ] && [ "$HAS_CHANGES" = "true" ] && [ "$TEST_OUTCOME" = "success" ] && [ "$PUBLISH_OUTCOME" = "success" ]; then
             success=true
@@ -224,7 +188,7 @@ jobs:
           fi
           result_commit="$(if [ -n "$result_branch" ]; then git rev-parse HEAD; fi)"
           summary="$(if [ -s /tmp/guardian-codex-output.md ]; then tr '\n' ' ' < /tmp/guardian-codex-output.md | cut -c1-5000; elif [ -s codex-output.md ]; then tr '\n' ' ' < codex-output.md | cut -c1-5000; else echo 'Nessun riepilogo Codex disponibile.'; fi)"
-          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$result_branch" --arg commit "$result_commit" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --arg no_changes "$NO_CHANGES" --arg needs_information "$NEEDS_INFORMATION" --arg blocked "$BLOCKED" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,result_commit_sha:(if ($commit|length) > 0 then $commit else null end),branch_name:(if ($branch|length) > 0 then $branch else null end),pull_request_url:(if ($pr|length) > 0 then $pr else null end),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish,no_changes:($no_changes == "true"),needs_information:($needs_information == "true"),blocked:($blocked == "true")}}')"
+          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$result_branch" --arg commit "$result_commit" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --arg no_changes "$NO_CHANGES" --arg needs_information "$NEEDS_INFORMATION" --arg blocked "$BLOCKED" --arg manual_review "$MANUAL_REVIEW" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,result_commit_sha:(if ($commit|length) > 0 then $commit else null end),branch_name:(if ($branch|length) > 0 then $branch else null end),pull_request_url:(if ($pr|length) > 0 then $pr else null end),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish,no_changes:($no_changes == "true"),needs_information:($needs_information == "true"),blocked:($blocked == "true"),manual_review:($manual_review == "true")}}')"
           if [ "$success" != true ]; then
             body="$(jq -c --arg error_code "${PREFLIGHT_ERROR:-patch_workflow_failed}" --arg error "$summary" '. + {error_code:$error_code,error:$error}' <<<"$body")"
           fi

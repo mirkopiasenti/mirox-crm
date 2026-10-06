@@ -138,12 +138,13 @@ test('le API Guardian separano segnalazioni autenticate e webhook Telegram priva
   assert.match(patchWorkflow, /inputs\.requested_type == 'prepara_patch'/i);
   assert.match(patchWorkflow, /inputs\.target_environment == 'production'/i);
   assert.match(patchWorkflow, /guardian-production/i);
-  assert.match(patchWorkflow, /database\/\.\*\\\.sql\$/i);
+  assert.match(read('.github/codex/validate-patch.js'), /result\.blocked=result\.manual_review/);
+  assert.match(patchWorkflow, /validate-patch\.js/);
   assert.doesNotMatch(patchWorkflow, /grep -E '\(\^\|\/\)database\/'/i);
   assert.match(patchWorkflow, /:\(exclude\)guardian-context\.json/i);
-  assert.match(patchWorkflow, /\/tmp\/guardian-changed-files\.txt/i);
-  assert.match(patchWorkflow, /ESITO_PATCH: GIA_PRESENTE/i);
-  assert.match(patchWorkflow, /ESITO_PATCH: RICHIEDE_INFORMAZIONI/i);
+  assert.match(read('.github/codex/validate-patch.js'), /\/tmp\/guardian-changed-files\.txt/i);
+  assert.match(read('.github/codex/validate-patch.js'), /GIA_PRESENTE/i);
+  assert.match(read('.github/codex/validate-patch.js'), /RICHIEDE_INFORMAZIONI/i);
   assert.match(patchWorkflow, /steps\.validate\.outputs\.has_changes == 'true'/i);
   assert.match(patchWorkflow, /no_changes:\(\$no_changes == "true"\)/i);
   assert.match(patchWorkflow, /needs_information:\(\$needs_information == "true"\)/i);

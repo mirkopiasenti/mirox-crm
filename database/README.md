@@ -215,3 +215,14 @@ nel JSON `risultato.development` di `kona_ai_approvazioni`/`kona_ai_esecuzioni`:
 requisito, owner, sorgente e ID messaggio/job. Il worker non puo' attribuirsi questa
 autorita' con il risultato. Nessuna migration o modifica alle tabelle CRM/CC;
 restano RLS server-only e vincoli delle esecuzioni attive esistenti.
+
+Guardian06/10: le richieste di catalogo/Day by Day/gare ricevono uno snapshot
+read-only (offerte, metriche e righe giornaliere, massimo250 per tabella,
+troncamento esplicito), senza dati clienti o segreti. Punteggi/regole nuovi non
+vanno inventati: conservare gli esistenti o chiedere una sola scelta concreta.
+Le proposte SQL di configurazione dati possono essere conservate in PR draft
+con `manual_review/blocked`, test locali e notifica persistente. Il workflow
+non esegue SQL e la conferma finale continua a rifiutare database/*.sql.
+Questi casi richiedono revisione/applicazione separata da Codex; il bot non
+deve annunciare una pubblicazione completa della funzionalita. Secret,
+workflow, dipendenze e deploy rimangono bloccati prima del push della patch.
