@@ -481,3 +481,14 @@ non esegue SQL e la conferma finale continua a rifiutare database/*.sql.
 Questi casi richiedono revisione/applicazione separata da Codex; il bot non
 deve annunciare una pubblicazione completa della funzionalita. Secret,
 workflow, dipendenze e deploy rimangono bloccati prima del push della patch.
+
+## Proposta Customer Base — cambio piano con telefono (06/10/2026)
+
+La richiesta KG-000023 è stata preparata come configurazione dati, senza
+modifiche a schema o codice di produzione. `database/configura_customer_base_cambio_piano_telefono.sql`
+aggiunge in modo idempotente due offerte Consumer Customer Base — `Cambio Piano +
+Telefono Finanziato` e `Cambio Piano + Telefono VAR` — entrambe con 1 punto e
+`abilita_dispositivo=true`, così il wizard conserva il telefono associato. Lo
+stesso script propone due righe Day by Day dedicate, con regole separate per
+Finanziamento e VAR e ordine 215/216. È una proposta da revisionare e applicare
+manualmente; non è stata eseguita su alcun database.

@@ -226,3 +226,13 @@ non esegue SQL e la conferma finale continua a rifiutare database/*.sql.
 Questi casi richiedono revisione/applicazione separata da Codex; il bot non
 deve annunciare una pubblicazione completa della funzionalita. Secret,
 workflow, dipendenze e deploy rimangono bloccati prima del push della patch.
+
+## Proposta Customer Base con telefono (06/10/2026)
+
+`configura_customer_base_cambio_piano_telefono.sql` è una configurazione dati
+transazionale, non una migration schema: propone due offerte Consumer Customer
+Base (`Cambio Piano + Telefono Finanziato` e `Cambio Piano + Telefono VAR`) a 1
+punto complessivo ciascuna, con dispositivo abilitato, e due righe Day by Day
+separate per `Finanziamento` e `VAR`. È idempotente e contiene verifiche delle
+righe attese. Non è stata eseguita; la revisione e l'applicazione restano
+manuali e separate dal deploy.

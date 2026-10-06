@@ -971,3 +971,14 @@ non esegue SQL e la conferma finale continua a rifiutare database/*.sql.
 Questi casi richiedono revisione/applicazione separata da Codex; il bot non
 deve annunciare una pubblicazione completa della funzionalita. Secret,
 workflow, dipendenze e deploy rimangono bloccati prima del push della patch.
+
+### Proposta KG-000023 — Customer Base con telefono (06/10/2026)
+
+La modifica preparata è una configurazione dati additiva e non eseguita:
+`database/configura_customer_base_cambio_piano_telefono.sql` inserisce in modo
+idempotente le offerte Consumer `Cambio Piano + Telefono Finanziato` e `Cambio
+Piano + Telefono VAR`, entrambe a 1 punto complessivo con
+`abilita_dispositivo=true`, e le due righe Day by Day corrispondenti. Il flag
+del catalogo permette al carrello di mantenere i dati del telefono; le regole
+Day by Day distinguono il tipo di acquisto. Non sono stati modificati schema,
+RLS, RPC, tabelle condivise con il Call Center o produzione.
