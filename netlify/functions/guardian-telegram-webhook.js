@@ -226,7 +226,7 @@ async function openByCode(supabase, chatId, command) {
   await openIncident(supabase, chatId, data);
 }
 
-async function createTelegramIncident(supabase, chatId, text, requestedType = 'problema') {
+async function createTelegramIncident(supabase, chatId, text, requestedType = 'problema', options = {}) {
   const description = cleanText(text, 4000);
   const type = requestType(requestedType);
   if (description.length < 3) {
@@ -235,7 +235,7 @@ async function createTelegramIncident(supabase, chatId, text, requestedType = 'p
       : 'Scrivi /nuovo seguito dalla descrizione del problema.');
     return;
   }
-  const title = description.length > 90 ? `${description.slice(0, 87)}...` : description;
+  const title = options.awaitingDetails ? 'Nuova richiesta: dettagli da raccogliere' : description.length > 90 ? `${description.slice(0, 87)}...` : description;
   const { data: incident, error } = await supabase
     .from('kona_ai_incidenti')
     .insert({
@@ -265,7 +265,9 @@ async function createTelegramIncident(supabase, chatId, text, requestedType = 'p
   });
   if (messageError) throw messageError;
   await setActiveIncident(supabase, chatId, incident.id);
-  await sendTelegramMessage(chatId, `Creata richiesta ${incidentCode(incident.numero)} (${requestTypeLabel(type)}). La conversazione è ora attiva.`, {
+  await sendTelegramMessage(chatId, options.awaitingDetails
+    ? `Ho aperto ${incidentCode(incident.numero)}. Spiegami cosa vuoi segnalare o aggiungere, anche con un vocale: da ora sarà collegato a questa nuova richiesta.`
+    : `Creata richiesta ${incidentCode(incident.numero)} (${requestTypeLabel(type)}). La conversazione è ora attiva.`, {
     reply_markup: incidentNotificationKeyboard(incident.id)
   });
 }
@@ -794,6 +796,14 @@ async function saveConversation(supabase, chatId, history) {
 
 async function handleOwnerConversation(supabase, chatId, session, text, metadata = {}, replyTo = null, options = {}) {
   const incident = await resolveConversationIncident(supabase, chatId, session, text, replyTo);
+  if (incident?.descrizione_iniziale==='In attesa della descrizione del proprietario.' && OPEN_INCIDENT_STATES.includes(incident.stato)) {
+    const description=conversationText(text,4000);
+    const {error}=await supabase.from('kona_ai_incidenti').update({descrizione_iniziale:description,
+      titolo:description.slice(0,90),riepilogo_ai:description}).eq('id',incident.id)
+      .eq('descrizione_iniziale',incident.descrizione_iniziale);
+    if(error)throw error;
+    Object.assign(incident,{descrizione_iniziale:description,titolo:description.slice(0,90),riepilogo_ai:description});
+  }
   const previousMessages = incident ? await getMessages(supabase, incident.id, 60) : [];
   const context = await ownerContext(supabase, incident, session);
   const cached = options.jobId && context.history.find(item => item.job_id === options.jobId && item.author === 'guardian');
@@ -893,6 +903,10 @@ async function handleMessage(supabase, update, chatId, session) {
     return prepareProductionRelease(supabase, chatId, incident.id);
   }
   const lower = text.toLowerCase();
+  if (/^(?:aprimi|apri|crea(?:mi)?|avvia)(?:\s+per me)?\s+(?:una\s+)?nuova\s+(?:richiesta|segnalazione|miglioria)[.!]?$/i.test(text.trim())) {
+    return createTelegramIncident(supabase,chatId,'In attesa della descrizione del proprietario.',
+      /miglioria/i.test(text) ? 'miglioria':'problema',{awaitingDetails:true});
+  }
   if (lower === '/start' || lower === '/help') {
     await sendTelegramMessage(chatId, [
       'Parlami liberamente del CRM e delle richieste, anche senza aprirne una. Puoi rispondere alle notifiche o citare un codice KG quando serve.',

@@ -61,7 +61,8 @@ async function downloadTelegramFile(fileId) {
 
   return {
     bytes,
-    filename: String(file.file_path).split('/').pop() || 'vocale.ogg',
+    // Telegram usa anche .oga per lo stesso contenitore Ogg: OpenAI richiede un'estensione riconosciuta.
+    filename: 'vocale.ogg',
     mimeType: 'audio/ogg'
   };
 }
@@ -74,7 +75,7 @@ async function transcribeVoice(file, { timeoutMs = 60000, request = fetch } = {}
   form.append('model', String(process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-transcribe'));
   form.append('file', new Blob([file.bytes], { type: file.mimeType }), file.filename);
   form.append('prompt', 'Messaggio tecnico in italiano per KONA AI Guardian sul CRM Mirox.');
-  form.append('languages[]', 'it');
+  form.append(String(process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-transcribe') === 'gpt-transcribe' ? 'languages[]' : 'language', 'it');
 
   const response = await request('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
@@ -84,7 +85,13 @@ async function transcribeVoice(file, { timeoutMs = 60000, request = fetch } = {}
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload?.error?.message || `Trascrizione OpenAI non riuscita (${response.status})`);
+    const message=String(payload?.error?.message || '');
+    const providerCode=String(payload?.error?.code || '');
+    const code=response.status===401 ? 'openai_invalid_key'
+      : providerCode==='insufficient_quota' ? 'openai_quota_exceeded'
+      : /file format|audio format|unsupported.*format/i.test(message) ? 'openai_audio_format'
+      : `openai_transcription_http_${response.status}`;
+    throw Object.assign(new Error('Trascrizione OpenAI non riuscita'),{code,status:response.status});
   }
   const text = String(payload.text || '').trim();
   if (!text) throw new Error('Il vocale non contiene una trascrizione utilizzabile');

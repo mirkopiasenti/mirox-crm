@@ -2,7 +2,7 @@
 const test=require('node:test'), assert=require('node:assert/strict');
 const voice=require('../netlify/functions/_lib/guardian-voice');
 const {handler}=require('../netlify/functions/guardian-voice-background');
-const {transcribeVoice}=require('../netlify/functions/_lib/telegram');
+const {transcribeVoice,downloadTelegramFile}=require('../netlify/functions/_lib/telegram');
 const { _test: webhook }=require('../netlify/functions/guardian-telegram-webhook');
 const incident='11111111-1111-4111-8111-111111111111';
 const jobId='22222222-2222-4222-8222-222222222222';
@@ -170,4 +170,47 @@ test('un caso già riclassificato come miglioria acquisisce i nuovi dettagli rec
  await webhook.handleOwnerConversation(db,'123',{incidente_attivo_id:incident},'Voglio aggiungere questa funzione.',{},null,{jobId,deferDelivery:true});
  assert.equal(db.tables.kona_ai_incidenti[0].riepilogo_ai,'Requisito dettagliato chiarito dal proprietario.');
  assert.equal(db.tables.kona_ai_incidenti[0].tipo_richiesta,'miglioria');
+});
+
+
+test('Telegram .oga viene inviato come .ogg riconoscibile senza modificare i byte',async t=>{
+ env(t);const bytes=Buffer.from('OggS audio Telegram');
+ t.mock.method(global,'fetch',async url=> url.includes('/getFile')
+  ? {ok:true,json:async()=>({ok:true,result:{file_path:'voice/file_7.oga',file_size:bytes.length}})}
+  : {ok:true,arrayBuffer:async()=>bytes});
+ const file=await downloadTelegramFile('saved-file');
+ const result=await transcribeVoice(file,{request:async(url,opts)=>{
+  const audio=opts.body.get('file');assert.equal(audio.name,'vocale.ogg');assert.equal(audio.type,'audio/ogg');
+  assert.deepEqual(Buffer.from(await audio.arrayBuffer()),bytes);
+  return {ok:true,json:async()=>({text:'Vocale realmente riconosciuto'})};}});
+ assert.equal(result,'Vocale realmente riconosciuto');
+});
+
+test('modello di trascrizione legacy usa language, errore API salva solo un codice tecnico',async t=>{
+ env(t);const old=process.env.OPENAI_TRANSCRIBE_MODEL;process.env.OPENAI_TRANSCRIBE_MODEL='gpt-4o-transcribe';
+ t.after(()=>old===undefined?delete process.env.OPENAI_TRANSCRIBE_MODEL:process.env.OPENAI_TRANSCRIBE_MODEL=old);
+ await assert.rejects(transcribeVoice({bytes:new Uint8Array([1]),mimeType:'audio/ogg',filename:'vocale.ogg'},{request:async(url,opts)=>{
+  assert.equal(opts.body.get('language'),'it');assert.equal(opts.body.has('languages[]'),false);
+  return {ok:false,status:400,json:async()=>({error:{message:'Unrecognized file format. PRIVATE AUDIO SECRET'}})};
+ }}),e=>e.code==='openai_audio_format' && e.status===400 && !e.message.includes('PRIVATE'));
+});
+
+test('errore permanente di trascrizione sospende il solo vocale e lascia procedere il successivo',async t=>{
+ env(t);const db=seeded();db.tables.kona_ai_vocali_jobs.push({...db.tables.kona_ai_vocali_jobs[0],id:'33333333-3333-4333-8333-333333333333',update_id:10,created_at:'2026-10-07'});
+ let calls=0;await voice.processQueue(db,deps({transcribe:async()=>{
+  if(++calls===1)throw Object.assign(new Error('not supported'),{status:400,code:'openai_audio_format'});return 'Vocale successivo';
+ }}));
+ assert.equal(db.tables.kona_ai_vocali_jobs[0].stato,'fallito');assert.equal(db.tables.kona_ai_vocali_jobs[0].errore_codice,'transcription:openai_audio_format');
+ assert.equal(db.tables.kona_ai_vocali_jobs[1].stato,'inviato');assert.equal(calls,2);
+});
+
+test('Aprimi una nuova richiesta apre un caso reale e il vocale acquisisce quel nuovo ID',async t=>{
+ env(t);const closed={id:incident,numero:23,stato:'risolto'};
+ const db=database({kona_ai_incidenti:[closed],kona_ai_telegram_sessioni:[{chat_id:'123',incidente_attivo_id:incident,conversazione:[]}]});
+ t.mock.method(global,'fetch',async()=>({ok:true,json:async()=>({ok:true,result:{message_id:777}})}));
+ await webhook.handleMessage(db,{message:{text:'Aprimi una nuova richiesta',message_id:20}},'123',db.tables.kona_ai_telegram_sessioni[0]);
+ const next=db.tables.kona_ai_incidenti[1];assert.equal(next.stato,'ricevuto');assert.notEqual(next.id,incident);
+ assert.equal(db.tables.kona_ai_telegram_sessioni[0].incidente_attivo_id,next.id);
+ await voice.enqueue(db,{update_id:123,message:{voice:{file_id:'next-file'}}},'123');
+ assert.equal(db.tables.kona_ai_vocali_jobs[0].incidente_id,next.id);assert.equal(closed.stato,'risolto');
 });

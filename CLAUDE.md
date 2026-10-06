@@ -1003,3 +1003,15 @@ SQL iniziale non eseguito e sostituito da piano revisionato, non da SQL spostato
 Applicazione subordinata alla conferma finale Telegram e alla head SHA verificata.
 
 Convenzione piani catalogo Guardian: solo `netlify/functions/_lib/guardian-catalog-<codice>.json`; il validator li classifica catalog_required/manual_review/blocked, come le proposte SQL. Senza revisione server legata alla head non si puo proporre il rilascio del piano.
+
+
+Guardian vocali06/10 sera: il download Telegram mantiene i byte Ogg originali
+ma usa filename `vocale.ogg` e MIME `audio/ogg`, anche quando getFile restituisce
+`.oga`; la API richiede metadati formato riconoscibili. Parametro `languages[]`
+solo per `gpt-transcribe`, `language` per i modelli precedenti configurati.
+Errori OpenAI persistiti come codici ripuliti (HTTP/formato/chiave/quota), senza
+messaggi grezzi; un errore4xx permanente sospende il singolo vocale e permette
+al successivo di procedere. Timeout/429 restano ritentabili e in ordine.
+“Aprimi una nuova richiesta” crea subito il caso e collega la sessione prima del
+vocale successivo; il primo dettaglio sostituisce il testo provvisorio. Nessuna
+modifica di schema, segreti, modello predefinito o conferme di pubblicazione.

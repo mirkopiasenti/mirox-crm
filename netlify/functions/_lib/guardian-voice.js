@@ -76,7 +76,8 @@ async function processQueue(db,deps={}) {
       completed++;
     } catch(error) {
       const uncertain=job.in_flight && !error.telegramRejected;
-      const exhausted=claimed.tentativi>=5 || (error.telegramRejected && error.status!==429 && error.status<500);
+      const permanent=stage==='transcription' && error.status>=400 && error.status<500 && ![408,429].includes(error.status);
+      const exhausted=permanent || claimed.tentativi>=5 || (error.telegramRejected && error.status!==429 && error.status<500);
       const detail=/^[A-Za-z0-9_]{1,50}$/.test(String(error.code || '')) ? error.code : error.name==='TimeoutError'?'timeout':'processing_failed';
       const code=uncertain?'telegram_delivery_uncertain':stage+':'+detail;
       console.warn('Guardian vocale:',code);
@@ -86,7 +87,7 @@ async function processQueue(db,deps={}) {
         ? 'Ho conservato il vocale e la risposta, ma la consegna Telegram non è confermata. Serve una verifica prima di ripetere l’invio.'
         : exhausted ? 'Non sono riuscito a completare il vocale dopo più tentativi. Il file e l’eventuale trascrizione sono conservati; non occorre registrarlo nuovamente.'
         : 'Il vocale è salvato. L’elaborazione ha incontrato un errore temporaneo e verrà riprovata automaticamente; non occorre registrarlo nuovamente.');
-      break;
+      if(!exhausted && !uncertain) break;
     }
   }
   return {completed};

@@ -3,19 +3,24 @@
 Aggiornato: 2026-10-06. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## Guardian: sviluppo Telegram e piano catalogo06/10
+## Guardian: KG23 online, correzione vocali06/10 sera
 
--00176fa online19:57:11/CI37507449399/health37507655840: comando owner→patch→test→proposta finale; niente altra analisi discorsiva.4772ce7 online20:10:54/CI37509230594/health37509433150: snapshot catalogo read-only, SQL in PR revisionabile, outbox sviluppo.264test+build.
-- KG23: prima patch bloccata dal gate SQL, punteggio0inventato respinto. Proprietario conferma1punto complessivo per entrambe Consumer. Worker reale3aa38b55/run37509428723 riuscito, PR13/head605db4f conservata. PR revisionata: piano JSON1punto, esclusione mirata dei nuovi nomi dalle righe telefono storiche14/15, vincoli device/acquisto condivisi frontend/server;6regressioni reali OK.
-- RPC20261006182105 aggiunte: core privato/wrapper service-only,2tabelle config, schema chiuso/precondizioni/lease/SHA/test/conferma finale, transazione e checkpoint. Privilegi/rollback reali/lease assente/0residui OK; nessuna approvazione finale simulata o feature applicata.273test+build; fondazione9825e73 online20:27:20/Netlify6ac53d5d/CI37511346262OK. Feature da testare in workflow e approvare su Telegram.
-- Vocali0d76d28: FK voice_job_id conserva BIGINT identity. Audio autorizzato HTTP200/2,531s, job baa8d026/TG17219:35:36. Guide README/AGENTS/CLAUDE/databaseREADME e rapporto sviluppo aggiornati; backup/altre attivita preservati.
-- Prossimo: suite completa PR13, binding piano alla head verificata e proposta finale Telegram.
+- KG23/PR13 pubblicata da conferma reale Telegram: merge81412e40fbe5 online23:08:32/Netlify6ac5632e. Test280, piano catalogo revisionato2offerte/2righe Consumer a1punto e regole14-15 per escludere i nuovi nomi, storico preservato. RPC transazionale/checkpoint owner/lease/SHA/test; nessun consenso simulato.
+- Vocali23:15 e23:19 salvati, primo errore trascrizione generico blocca secondo. Correzione in corso: filename Telegram.oga normalizzato a.ogg con byte/MIME invariati, lingua per modello, codici API ripuliti, errore permanente libera il successivo. Nuove richieste testuali aprono caso reale, senza restare sulla KG23 chiusa. Nessuna migration/env nuova.
+- Build/suite284/284test riusciti;4regressioni dedicate su filename/byte, campo lingua/errori, coda permanente e apertura+snapshot vocale. Pubblicazione e recupero vocali ancora da verificare. Guide README/AGENTS/CLAUDE/databaseREADME aggiornate; backup/altre attivita preservati.
+
+## Correzione anagrafica Business: duplicato individuato, scelta pendente
+
+- Richiesta di sostituire un CF con P.IVA e sistemare la pratica del 05/10. Rilettura production: stessa persona gia' presente come Business con la P.IVA e pratica del 01/07; univocita' cf_piva impedisce sostituzione diretta.
+- Sorgente CF:1pratica/1contratto Mobile Business05/10,2documenti,3consensi legacy; destinazione P.IVA:1pratica/1contratto Mobile Business01/07,3documenti,1consenso. Zero collegamenti CC/post-vendita/ordini/apri-chiudi/switch/v2 per entrambe. Pratiche/contratti visualizzano il codice tramite FK anagrafica; non riscrivere PDF firmati.
+- Chiesto: mantenere CF come Consumer e riassociare la pratica alla Business esistente, oppure unificare sulla P.IVA conservando lo storico. Nessuna scrittura eseguita, nessuna modifica codice/schema o push; operazione dipende dalla scelta del proprietario. Identificativi solo nel contesto privato, non nei file pubblici.
 
 ## Avanzamento: CAMBI PIANO aggiunta online 06/10
 
+- Admin verificato direttamente nel Chrome del proprietario: `CAMBI PIANO` presente anche in «Avanzamento Mensile - Obiettivi di categoria»/Standard tra TELEFONI CB e FISSI, campo obiettivo modificabile (ottobre 2026:0). Pagina portata alla sezione; nessun obiettivo modificato, nessun fix codice necessario. Salvataggio su change del campo gia' previsto dall’Admin.
 - Riga Standard id23/ordine35 tra TELEFONI CB e FISSI; TIED Consumer/MOBILE Business solo Legnago, senza reinserimenti, 1 punto per cambio. Per operatore e totale; anche mesi storici, PNG e Target tramite catalogo dinamico.
 - `database/configura_avanzamento_cambi_piano.sql` applicato/riletto, hash altre metriche e tutti gli obiettivi invariati, preflight successivo OK. Nessun frontend/schema/RLS/CC modificato. Obiettivo mensile configurabile da Admin, senza inventare target collettivo15.
-- Ottobre reale: Matteo2/Francesca0/Mirko0, totale2. 234/234test+build locali (233versionati+1backup), nuova regressione Avanzamento/alias/scopo/punti Business. Guide README/AGENTS/CLAUDE/database README aggiornate; backup preesistente preservato. Riga gia' disponibile, ricaricare la pagina per rileggerla.
+- Ottobre reale: Matteo2/Francesca0/Mirko0, totale2. 234/234test+build locali (233versionati+1backup), nuova regressione Avanzamento/alias/scopo/punti Business. Guide README/AGENTS/CLAUDE/database README aggiornate; commit `6048391` pubblicato, CI `37464842798` riuscita. Backup preesistente preservato. Riga gia' disponibile senza cambio frontend, ricaricare la pagina per rileggerla.
 
 ## Gare ottobre 2026: online e configurazione applicata 06/10
 
@@ -23,93 +28,64 @@ istruzioni dell'utente e guide di progetto restano vincolanti.
 - DSL `obiettivi_combinati` e override mensile `compenso_regola.gara`; motore condiviso, doppio progresso CB/descrizione mensile Dashboard, editor Admin conserva condizioni/scope e modifica soglie/bonus. Storico e Avanzamento invariati.
 - Push esplicito autorizzato: `ab44097` online, Netlify `6ac4e89af38fe1000833072a`, CI `37463079339` riuscita. SHA/metadati/core e HTML pubblicati verificati (sole riscritture Pretty URLs Netlify); function senza JWT 401. Snapshot del commit: 232/232 test+build; locale con backup preesistente: 233/233, 11 test dedicati.
 - SQL `database/configura_gare_2026_10.sql` applicato e 9 righe confrontate con il piano. Hash altri obiettivi/metriche globali identici prima-dopo, preflight successivo riuscito; nessuna modifica profili/schema/RLS/CC. Default file `applica=false` conservato. Copia prima privata `.backup-private/gare-2026-10/prima.json`.
-- Dati reali: 2 Assicurazioni Matteo = 1 punto squadra per tutte e tre le schede, bonus 0 sotto soglia. Guide README/AGENTS/CLAUDE/database README aggiornate; pubblicazione richiesta comprende la chiusura documentale. Backup preesistente escluso dal commit e preservato. Nessun punto aperto sulle tre gare; obiettivi Avanzamento ottobre restano separati e non configurati.
+- Dati reali: 2 Assicurazioni Matteo = 1 punto squadra per tutte e tre le schede, bonus 0 sotto soglia. Guide README/AGENTS/CLAUDE/database README aggiornate; chiusura documentale `f388f7e` pubblicata, CI `37463566168` riuscita e deploy finale `6ac4e993a68f9f000800a879` verificato per SHA/file/autenticazione. Backup preesistente escluso dal commit e preservato. Nessun punto aperto sulle tre gare; obiettivi Avanzamento ottobre restano separati e non configurati.
 
-## Identita per contratto: online e bonifica applicata 05/10
+## WhatsApp: requisiti raccolti, nessuna implementazione avviata
 
-- Dal01/07/2026 Europe/Rome:837contratti,132senzaidentita;125recuperati stessa pratica+3con riuso piu recente stesso cliente esplicitamente autorizzato.128contratti/129PDF indipendenti verificati SHA256/readback, zero errori, copie prima luglio0/file mancanti0;833coperti,4residui Energia/2pratiche senza PDF per il cliente. Elenco privato `.backup-private/identity-backfill/DA_INTEGRARE.md`; ultima rilettura0recuperabili/idempotente.
-- Regola online: identita sempre obbligatoria, una selezione/fanout server su tutti i contratti bozza, batch atomico/rollback, finalize blocca righe senzaidentita. Upload successivi specifici; nessuna modifica schema/RLS/CC.222/222test+build locali (221versionati+1backup),15test dedicati; snapshot commit pulito221/221. Guide/rapporto `docs/IDENTITA_CONTRATTI_2026-10-05.md` aggiornati, backup preesistente escluso dal push.
-- Push autorizzato: commit7c5afef online, Netlify6ac411ed17611f0008c6aa5e, metadati e carrello HTTP200/SHA esatto;2function senzaJWT401. CI37374083065 riuscita. Auto-review secondo apply prima bloccato per piano concorrente17righe, poi nuova query/dry-run3esatti e retry approvato/riuscito; nessun blocco residuo. Prossimo: PDF dei4residui Energia/2pratiche.
+- Assistenza privata umana, senza bot/menu;3-4numeri dipendenti ricevono avvisi, risposte da ignorare. Nuovo numero dedicato non accede alle chat di altri account; accesso assistenza da definire.
+- Meta ufficiale esclusa dall'utente per template; nessun plugin WhatsApp trovato. WAHA candidato non ufficiale self-hosted, rischi blocchi/disconnessioni; nessuna affidabilita superiore dimostrata rispetto a Evolution/whatsapp-web.js/Baileys. Software gratuito, numero/hosting separati.
+- Requisiti: numero WhatsApp attivo su smartphone, QR come dispositivo collegato, host continuo Docker/sessione persistente, backend CRM autenticato/HTTPS. Utente ritiene alti i servizi gestiti29-40USD/mese; VPS dedicato Aruba O2A4 candidato6,29EUR+IVA/mese/2vCPU4GB. Nessun acquisto/provisioning/installazione/deploy.
+- Supervisore richiesto: salute continua/release giornaliera, versioni fissate, compatibilita/backup/check prima-dopo/rollback, recuperi limitati/backoff, niente logout distruttivo; restrizioni account distinte da disconnessioni. QR/passkey richiedono proprietario.
+- Email riconnessione QR richieste a `mirko.piasenti@gmail.com` e `info@konatech.it` per ogni incidente: ingresso stato/dedupe/promemoria distanziati, link a pagina autenticata col QR aggiornato, niente segreti/QR in email. Nessun invio di prova.
+- Coda persistente obbligatoria: salva prima del tentativo, conserva pending durante QR/guasti/update/riavvii, riprende automaticamente graduale/in ordine destinatario; tentativi/errori tracciati, niente scarti silenziosi. Invii ambigui da riconciliare prima del retry, irrisolvibili sospesi contro duplicati; accettato/consegnato distinti.
+- Da raccogliere: flusso/moduli/trigger/autonomia messaggi/stati, associazione risposte-pratiche, destinatari/regole avvisi, allegati/storico/conservazione, UI/ruoli/QR, orari/volumi/invii superati, disponibilita numero/VPS e destinatario collaudo. Gmail SMTP/nodemailer CRM gia' documentato, valutare riuso senza nuovi segreti in chat.
 
-## MIROX AI - Target: attivo production 05/10
+## Identita per contratto: online/bonifica applicata05/10
 
-- Bot `@MiroxAiTargetBot` solo Mirko; tre report alle 19:45 Europe/Rome, lun-sab escluse festivita' nazionali/Pasquetta; aggiornamento manuale e dialogo testo/vocali, memoria30, strumenti read-only aggregati.
-- Presentazione aggiornata: vendite testuali spaziate con totale in alto; CC e mensile in PNG locali (resvg2.6.2 + font Lato OFL), nessuna API immagini. Snapshot SVG+testo nella coda, raster prima del checkpoint, memoria solo testo; limiti foto -> documento PNG.203/203 test+build locali (202versionati+1backup preesistente), anteprime reali private controllate. Layout47a7beb pubblicato: Netlify6ac406309a8a3d0008d7fa39 online; job layout-check3/3 inviati20:20:36UTC al primo tentativo, nessun errore. CI37368961629 in attesa; memoria10 solo testo e lease rilasciato.
-- Richieste libere corrette: la frase «Rimandami il report completo di oggi (tutti e 3)» prima passava al dialogo e generava1testo. Alias diretti + toolAI invia_report restituiscono intento validato alla stessa coda testo/PNG.207/207 test+build locali (206versionati+1backup), regressione/retry/invalidi e OpenAI reale su dati sintetici OK; analisi/spiegazioni restano testuali. Fix98dfc79 online (Netlify6ac4092ffb22420009086e70); ripetuta la frase esatta, job repair3/3 testo+PNG+PNG inviati20:32:52UTC al primo tentativo/zero errori. CI37370299191 in coda.
-- Vendite: data contratto UTC come Day, solo Legnago, esclusi reinserimenti, categorie non-zero per operatore. CC: Consumer+outbound, tentativi/risposte/non risposte/nuovi fissati, spostamenti separati e totali. Mensile: Standard+sola Extra Gara P.IVA, Andamento/Eccedenza.
-- Feature84a8232 pubblicata su richiesta, CI37360431887 OK; Netlify6ac3f57c online e metadati/HTML/motore HTTP200.198/198test+build locali, rendering mensile identico su dati reali e60mesi calendario. Backup preesistente fuori dal commit e preservato.
-- Migration20261005185700 applicata: sessioni/jobs server-only, RLS+CRUD anon/authenticated negati e service_role concessi. Nessuna tabella CC/Guardian alterata.
-- 6valori dedicati Production Secret Builds/Functions/Runtime (scope isolato non disponibile); 2modelli facoltativi vuoti, default nel codice. Primo deploy bloccato per nomi modello marcati Secret, retry riuscito senza disabilitare scanner. Chiave OpenAI dedicata solo Target.
-- Webhook/HMAC reali verificati, pending0/errori0; cron evening:2026-10-05 creato19:10UTC e3/3report consegnati19:15UTC al primo tentativo. Recupero serale dopo attivazione fuori orario;2messaggi utente (Avvia/dialogo libero) elaborati, memoria7 e lease rilasciato.
-- Testo OpenAI reale e trascrizione WAV sintetica riusciti; vocale entrante Telegram da provare col proprietario. Ottobre senza obiettivi: Andamento esplicitamente non configurato, non copiare settembre.
-- Guide README/AGENTS/CLAUDE/database README e docs/MIROX_AI_TARGET.md aggiornate; inventario privato Netlify riallineato localmente. Config recovery off-site precedente da aggiornare. Prossimo passo funzionale: obiettivi ottobre decisi dal proprietario e prova vocale reale.
+- Dal01/07:837contratti,132senzaidentita;125recuperati stessa pratica+3riuso piu recente cliente autorizzato.128contratti/129PDF SHA256/readback OK;833coperti,4Energia/2pratiche senza PDF. Residui privati `.backup-private/identity-backfill/DA_INTEGRARE.md`; ultima rilettura0recuperabili.
+- Identita obbligatoria per ogni contratto, selezione/fanout server sui contratti bozza, rollback atomico/finalize bloccante; upload successivi specifici. Nessun cambio schema/CC.222/222test+build (221versionati+1backup),15dedicati.
+-7c5afef online su richiesta, Netlify6ac411ed17611f0008c6aa5e/metadati/carrello SHA esatto/HTTP200, function senzaJWT401, CI37374083065 OK. Auto-review retry3righe approvato, nessun blocco residuo. Guide e `docs/IDENTITA_CONTRATTI_2026-10-05.md` aggiornati. Prossimo: PDF4residui.
 
-## Guardian: distribuito production il 05/10/2026
+## Target: attivo production05/10
 
-- 104messaggi settembre:80analisi fallite+5scan. Run campione invalid_api_key, workflow verde mascherava guasto; gia' OpenAI, nessun DeepSeek nel codice.
-- Con consensi specifici chiave GitHub aggiornata13:23:38 e Netlify16:18:50; health16:21:36 OK, analisi Codex KG18 run37323380962 riuscita16:17:28.
-  Secret/contesti preservati, chiave privata0600; nessun blocco auto-review residuo.
-- Chat libera senza ticket/anche archiviato, memoria30messaggi, paragrafi e contesto tecnico. Dialogo generale non crea ticket; operazioni auditabili con pulsanti.
-- Una analisi automatica per segnale/release, claim condizionali cron/outbox, notifica scan senza segnale, preflight/URL/modello da DB, workflow rosso su errore;
-  callback tardivi non riaprono archiviati. Migration conversazione JSONB applicata.
-- Proprietario esclude vecchio staging e autorizza sviluppo/collaudo/deploy prod; vincolo rimosso da guide. Worker patch da main/PR draft, pubblicazione con seconda conferma Telegram.
-- Report docs/GUARDIAN_DIAGNOSI_2026-10-05.md; checkout guardian-affidabilita-chat attaccato. Lavoro backup preesistente preservato, stash recuperabile.
+- Bot `@MiroxAiTargetBot` solo Mirko;3report19:45Europe/Rome lun-sab escluse festivita/Pasquetta, manuale/dialogo/vocali, memoria30, strumenti read-only. Migration20261005185700 sessioni/jobs server-only applicata; nessun cambio CC/Guardian.
+-6Secret dedicati Production e chiave OpenAI soloTarget;2modelli opzionali default codice. Webhook/HMAC/testo OpenAI/trascrizione sintetica OK, pending/errori0. Cron05/10:3report consegnati19:15UTC al primo tentativo; vocale utente ancora da provare.
+- Vendite testuali spaziate/totale in alto, CC/mensile PNG resvg2.6.2+Lato OFL; snapshot SVG/testo prima checkpoint, memoria solo testo, foto grandi->documento. Layout47a7beb online, job3/3 inviati20:20:36UTC; CI cancellata senza runner/step, nessun test fallito.
+- Richieste libere corrette98dfc79: frase «Rimandami il report completo di oggi (tutti e 3)», alias/toolAI invia_report alla stessa coda;207/207test+build (206versionati+1backup), provaOpenAI sintetica/3job reali testo+PNG+PNG20:32:52UTC OK.2438d88 production6ac4099f62e0af000821caf6.
+- Vendite dataUTC/soloLegnago/no reinserimenti/non-zero per operatore; CC Consumer+outbound/tentativi/risposte/nonrisposte/nuovifissati/spostamenti separati; mensile Standard+ExtraP.IVA/Andamento/Eccedenza. Ottobre Avanzamento senza obiettivi: non copiare settembre.
+- Feature84a8232/CI37360431887 OK;198/198test+build, motore reale60mesi verificato. Guide e `docs/MIROX_AI_TARGET.md` aggiornate; inventory Netlify locale riallineato, recovery off-site precedente da aggiornare. Prossimo: obiettivi Avanzamento ottobre/prova vocale reale.
 
-## Backlog settembre: distribuito e chiuso 05/10
+## Guardian e backlog: production05/10
 
-- Commit fca1c00, deploy ready16:54:15;160/160test+build,6pagine/codice HTTP200, OTP/catalogo senza sessione401. Health37328685582 alle16:55:56 tuttoOK.
-- KG14/15/20 Ticket,18Comodato,19SIM,10Storage544:6risolti. Retry GET catalogo, OTP single-flight/CAS/rilettura PDF; niente SMS/consensi reali di collaudo.
-- KG9 504,12/16rete:3storici mitigati/archiviati, causa non dimostrata;
- 5scan fallite archiviate senza inventare risultati.14audit,8segnali chiusi, zero casi settembre aperti. Nuovo commit separa eventuali ricorrenze.
-- KG1–7agosto fuori scope, nessun messaggio settembre; storico conservato.
-- Report docs/GUARDIAN_BUG_SETTEMBRE_2026.md; guide aggiornate, backup preservato.
+- Lettura06/10: KG23 inizialmente segnalato18:40/notificato Telegram18:41; nuova funzionalita chiarita e riclassificata miglioria con audit, dettagli audio da recuperare. Testi proprietario registrati datati05/10; memoria30 senza timestamp. Solo lettura, nessun intervento DB/codice.
 
-## Pubblicazione finale Telegram: collaudo completato
+- Guardian unico ambiente production; utente autorizza sviluppo/collaudo diretto. KeyOpenAI GitHub13:23:38/Netlify16:18:50 aggiornate su consenso; health16:21:36/KG18 Codex37323380962 OK. Nessun DeepSeek, errore precedente invalid_api_key mascherato da workflow verde corretto.
+- Chat libera anche senza ticket/archiviato, memoria30; azioni auditabili/pulsanti, analisi una per segnale/release, claim cron/outbox, scan senza segnale notificata, preflight daDB/workflow rosso/errori/callback tardivi protetti. Migration conversazione applicata; checkout guardian-affidabilita-chat attaccato/stash recuperabile.
+- Backlog settembre fca1c00 online16:54:15/160test+build/healthOK:KG14/15/20Ticket,18Comodato,19SIM,10Storage risolti;KG9/12/16storici mitigati, causa ignota;5scan fallite archiviate senza inventare risultati.14audit/8segnali chiusi, zero settembre aperti;KG1-7agosto fuori scope. Rapporti `docs/GUARDIAN_DIAGNOSI_2026-10-05.md` e `docs/GUARDIAN_BUG_SETTEMBRE_2026.md`.
+- Pubblicazione Telegram73a8c0d online17:56:04/178test+build/healthOK: conferma1h legata SHA/head/base/PR/test/owner,CAS,doppio clic,workflow main. KG22/PR12 approvata dal proprietario, run37339405520 mergeffe515d18:15:37/Netlify6ac3cd2b18:16:08/healthOK. Outbox18:20:22 primo tentativo; cron5min. Nessun consenso simulato; anteprime Netlify disabilitate skip_prs=true. Chiusura documentale locale, nessun nuovo deploy.
 
-- Feature73a8c0d online17:56:04;178/178 test+build,6workflow/24shell validi; health37336874018 OK.
-- Conferma finale1h legata a SHA head/base/PR/test/owner, CAS/doppio clic, workflow da main.
-- KG22/PR12 sola documentazione: test37337090495 OK; proprietario ha premuto il pulsante Telegram.
-- Run37339405520 riuscito: mergeffe515d alle18:15:37, Netlify6ac3cd2b ready18:16:08, healthOK18:16:14.
-- Metadati pubblici HTTP200 confermano il commit esatto; incidente risolto, approvazione eseguita.
-- Notifica finale outbox consegnata18:20:22 al primo tentativo. Ritardo previsto: cron ogni5min.
-- Nessun consenso simulato, migration o secret nuovo. Flusso merge/deploy reale ora verificato.
-- Preview PR12 fallita: anteprime Netlify disabilitate (`skip_prs=true`), main/build e altre impostazioni invariati.
-- Guide e rapporto collaudo aggiornati; chiusura documentale committata localmente, non nuova pubblicazione.
+## CI05/10 sera: incidente runner GitHub
+
+- Mail22:34/22:38 CI37368961629/37369428478 fallite per runner hosted non assegnato:runner_id0,steps vuoti, nessun test eseguito/fallito;3avvisiUbuntu26 non errori. Incident https://www.githubstatus.com/incidents/3q1yb5m7ltvb aperto19:11UTC;98dfc79/2438d88 ancora queued al controllo. Nessun rerun/push/deploy; verificare stato piu recente prima di agire.
 
 ## Backup: stato precedente conservato
 
-Aruba attivo: VPS IT1 O2A4 (6,29 EUR/mese + IVA), Storage R1-IT, versioni/Compliance/
-AES-GCM, backup orario minuto17 UTC; checkpoint completo 03:17 dopo cleanup CRM.
-- Restore off-site 100 tabelle/51.252 righe COPY identiche, 6.584 file verificati. PDF sorgente404 recuperato da duplicato checksum/size, originale invariato.
-- Healthchecks1h/grace1h/email e assenza ping collaudati; chiave AES separata. Audit06:47UTC enabled: restore trimestrale100 tabelle/51.313 righe COPY identiche,
-  18,5s; skip secondo run. Lifecycle reale ancora da osservare. Docker off.
-- Netlify20/28 valori privati cifrati/readback; 7 altri Secret senza copie; chiave OpenAI
-  nuova recuperabile localmente, off-site configurazioni precedente da riallineare. Auth13 template/7pagine e DNS19 record salvati; inventari statici. Repo pubblico e working tree cifrati off-site.
-- Runner8worker, verify-full/CA, LoadCredential root0440/read-only, SSH/UFW; kernel6.8.0-146, resize legacy disabilitato su root gia' espanso.
-- TAR indipendente11:46:6.585 file/1.156.382.720byte, SHA256/AES verificati offline; .backup-private/offline/, custodia fisica su supporto scollegato da confermare.
-- Utente ha rinviato nuovo Supabase/collaudo completo fino a rimozione CC test: non creare/rimuovere senza nuova decisione. Budget10-15EUR+IVA.
-- Backup locale non committato, precedenti68 test Python; ed.hup/output/tmp preesistenti invariati. Dettagli: docs/BACKUP_RIPRISTINO.md.
-- Call Director kona-call-director/5ce82af non integrato; precedente313/313.
+- Aruba VPSIT1O2A4(6,29EUR+IVA)/StorageR1-IT,Compliance/versioni/AES-GCM, backup orario:17UTC/checkpoint03:17dopo cleanup. Restore6.584file/100tabelle51.252righe COPY identiche; PDF404 recuperato da duplicato checksum/size, sorgente invariata.
+- Healthchecks1h/grace1h/email e mancata esecuzione collaudati, chiave AES separata; audit06:47UTC enabled/monitor24hgrace12h, restore trimestrale100tabelle51.313righe identiche18,5s/skip verificato. Docker off, lifecycle reale in osservazione.
+- Netlify20/28valori privati cifrati/readback;7altriSecret senza copie, nuovaOpenAI recuperabile localmente/recoveryoff-site da aggiornare. Auth13template/7pagine/DNS19record salvati, inventory statico. Repo pubblico/workingtree cifrati off-site.
+- Runner8worker/verify-fullCA/LoadCredentialroot0440/read-only/SSH-UFW, kernel6.8.0-146, resize legacy disabilitato dopo verifica root espanso. TAR indipendente11:46:6.585file/1.156.382.720byte SHA256/AES offline OK, `.backup-private/offline/`; custodia fisica scollegata da confermare.
+- Nuovo Supabase/collaudoCRM rinviati esplicitamente fino rimozione CCtest: non creare/rimuovere senza decisione;budget10-15EUR+IVA. Backup locale non committato/68testPython;ed.hup/output/tmp preesistenti invariati. Dettagli `docs/BACKUP_RIPRISTINO.md`.
 
-## Punti aperti dalla ricognizione precedente
+## Punti aperti precedenti
 
-- KPI read-only04/10, PNG finale aggiornato05/10, dati fino04/10: Mobile Tied giugno-settembre15/9,24/6,32/7,20/3 (91/25); CB Cambio Piano TIED74, Telefono
-  Incluso616 (1Business), device true VAR/Finanziamento, escluse3 senza device.
-- Fissi Attivo per attivazione giugno-settembre37,35,32,36 (140). CF normalizzato: SIM interna dallo stesso giorno in poi2,6,9,8 (25); altre SIM20,14,9,8 (51),
-  finestra inserimento fisso-5mesi → fine mese successivo, esclusa interna, EXISTS/COUNT DISTINCT,2sovrapposti. Settembre25finestre ancora aperte.
-- Residuo66 (16,15,14,21):5Mobile fuori criterio,61nessun recordMobile. Titolo scelto utente «Gia' Clienti W3 Mobile» per tutto il residuo, non derivato dal DB.
-  SIM usano data_contratto; storicoMobile da gennaio2026. Luglio1IMEI/VAR flag devicefalse escluso da chiarire; nessuna modifica DB/app/deploy per questi KPI.
-- Call Director079gia' applicata staging: chiusura vendita→CC richiede verifica autorizzazioni/relazioni/stato/nonpresentati; mancano tabelle vendita staging.
-  Comuni prima vuota, geografica da verificare; main da allineare,072 collide. Flusso completo/doc da verificare; non integrare senza nuova autorizzazione.
-- Permessi granulari Vendita/Post-Vendita/UI revoca privacy: limitazioni note, nessuna nuova richiesta. Dettagli: docs/KONA_CALL_DIRECTOR.md del relativo branch.
+- KPI read-only04/10/PNG05/10:MobileTied giugno-settembre15/9,24/6,32/7,20/3(91/25);CBCambioPianoTIED74,TelefonoIncluso616(1Business),deviceVAR/Finanziamento,3senzaDevice esclusi. Luglio1IMEI/VARdevicefalse da chiarire; nessun cambioDB/app/deploy.
+- FissiAttivo per attivazione giugno-settembre37/35/32/36(140). CFnormalizzato:SIMinterna stesso giorno in poi2/6/9/8(25),altreSIM20/14/9/8(51),finestra inserimento-5mesi->fine mese successivo/esclusa interna/EXISTS/DISTINCT/2sovrapposti;settembre25finestre aperte. Residuo66(16/15/14/21):5Mobilefuori criterio/61nessunrecord; titolo utente «Gia' Clienti W3 Mobile», non derivatoDB. SIM data_contratto/storicoMobile gennaio2026.
+- CallDirector kona-call-director/5ce82af non integrato/precedente313test;079applicata staging, verifica chiusura vendita->CC/autorizzazioni/relazioni/stato/presentati, mancano tabelle vendita staging, geografia da verificare/main da allineare/072collide. Non integrare senza autorizzazione; `docs/KONA_CALL_DIRECTOR.md` sul branch.
+- Permessi granulari Vendita/Post-Vendita/UI revoca privacy: limitazioni note, nessuna nuova richiesta.
 
 ## Riferimenti e vincoli
 
-- Guide: AGENTS, README, database/README (non rappresenta da solo il DB vivo).
-- Produzione CRM: `mirox-crm.it`, alias `mirox-crm.netlify.app`; repo CC storico ignoto.
-- Guardian unico ambiente production; Call Director test separato.
-- Push solo su richiesta esplicita; ogni push su `main` avvia il deploy production.
-- Modifiche alle tabelle CC condivise richiedono conferma preventiva e devono rispettare i confini documentati in `AGENTS.md`.
-
-Controllo runtime privato: guardian-healthcheck.yml verifica OpenAI/Telegram e
-memoria dal worker Netlify, con HMAC; nessun messaggio Telegram o dato CRM AI.
+- Guide AGENTS/README/CLAUDE/database README: file SQL storici non descrivono da soli DB vivo.
+- CRM `mirox-crm.it`, alias `mirox-crm.netlify.app`; repository/deploy CCstorico ancora ignoto.
+- Push solo su richiesta esplicita, ogni push main deployproduction. Cambi tabelle CCcondivise richiedono consenso preventivo e confini AGENTS.
+- Guardianhealthcheck privato verificaOpenAI/Telegram/memoria Netlify conHMAC, nessun messaggio Telegram/datiCRMAI. Backup preesistente da non includere nel commit delle gare.
