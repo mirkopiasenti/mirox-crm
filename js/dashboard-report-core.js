@@ -52,6 +52,81 @@ function pesoContratto(contratto, regola) {
   });
   return peso;
 }
+function calcolaCompenso(attuale, regola, contratti) {
+  if (!regola || typeof regola !== 'object') return { euro: 0, label: '' };
+  const n = Math.max(0, Number(attuale) || 0);
+  const label = regola.label || '';
+  const sogliaDec = Number(regola.decurtazione_soglia) || 0;
+  if (sogliaDec > 0 && n < sogliaDec) return { euro: 0, label: 'DECURTAZIONE' };
+  if (regola.tipo === 'obiettivi_combinati') {
+    const condizioni = Array.isArray(regola.condizioni) ? regola.condizioni : [];
+    const valide = condizioni.length >= 2 && condizioni.every(c =>
+      c && typeof c.nome === 'string' && c.nome.trim()
+      && typeof c.soglia === 'number' && Number.isFinite(c.soglia) && c.soglia > 0
+      && c.regola && typeof c.regola === 'object' && !Array.isArray(c.regola)
+      && Object.keys(c.regola).length > 0);
+    const componenti = valide ? condizioni.map(c => ({
+      nome: c.nome, obiettivo: c.soglia,
+      attuale: (contratti || []).reduce((sum, contratto) => sum + pesoContratto(contratto, c.regola), 0)
+    })) : [];
+    const importoValido = typeof regola.importo === 'number' && Number.isFinite(regola.importo) && regola.importo >= 0;
+    return {
+      euro: valide && importoValido && componenti.every(c => c.attuale >= c.obiettivo) ? regola.importo : 0,
+      label, componenti
+    };
+  }
+  if (regola.tipo === 'nessuno') return { euro: 0, label };
+  if (regola.tipo === 'per_pezzo') return { euro: n * (Number(regola.per_pezzo) || 0), label };
+  if (regola.tipo === 'per_pezzo_variabile') {
+    if (!Array.isArray(contratti) || !regola.campo) return { euro: 0, label: '' };
+    const casi = Array.isArray(regola.casi) ? regola.casi : [];
+    const euro = contratti.reduce((totale, c) => {
+      const caso = casi.find(k => String(k.valore || '').trim().toLowerCase() === String(c[regola.campo] || '').trim().toLowerCase());
+      return totale + Number(caso?.importo || 0);
+    }, 0);
+    return { euro, label };
+  }
+  if (regola.tipo !== 'scaglioni') return { euro: 0, label };
+  let totale = 0, flatMaxImporto = 0, flatMaxDa = -1;
+  (Array.isArray(regola.scaglioni) ? regola.scaglioni : []).forEach(s => {
+    const modo = s.tipo_calcolo || 'per_pezzo';
+    const importo = Number(s.importo ?? s.per_pezzo ?? 0);
+    const da = Number(s.da || 0);
+    if (modo === 'flat') {
+      if (n >= da) totale += importo;
+    } else if (modo === 'flat_max') {
+      if (n >= da && da > flatMaxDa) { flatMaxDa = da; flatMaxImporto = importo; }
+    } else {
+      const a = (s.a === null || s.a === undefined || s.a === '') ? Infinity : Number(s.a);
+      if (n > da) totale += Math.max(0, Math.min(n, a) - da) * importo;
+    }
+  });
+  totale += flatMaxImporto;
+  (Array.isArray(regola.bonus_soglie) ? regola.bonus_soglie : []).forEach(b => {
+    if (n >= Number(b.soglia || 0)) totale += Number(b.bonus || 0);
+  });
+  return { euro: totale, label };
+}
+function valutaGara(metrica, obiettivo, contratti, operatoreId, resolveOperatore = id => id) {
+  const regolaCompenso = obiettivo?.compenso_regola;
+  const gara = regolaCompenso?.gara || {};
+  const conteggioSquadra = (gara.tipo_conteggio || metrica.tipo_conteggio) === 'squadra';
+  const produzione = (contratti || []).filter(c =>
+    c.stato_inserimento !== 'reinserimento'
+    && (!gara.codice_rivenditore || c.codice_rivenditore === gara.codice_rivenditore)
+    && (!Array.isArray(gara.operatori) || gara.operatori.includes(resolveOperatore(c.operatore_id)))
+    && (conteggioSquadra || resolveOperatore(c.operatore_id) === operatoreId));
+  const matched = produzione.filter(c => matchRegola(c, metrica.regola));
+  // Il campo punti si applica solo agli override mensili, preservando il vecchio conteggio.
+  const attuale = matched.reduce((sum, c) => sum + (gara.punteggio_campo
+    ? Number(c[gara.punteggio_campo] || 0) : pesoContratto(c, metrica.regola)), 0);
+  const compenso = calcolaCompenso(attuale, regolaCompenso,
+    regolaCompenso?.tipo === 'obiettivi_combinati' ? produzione : matched);
+  return {
+    ...compenso, attuale, obiettivo: obiettivo?.obiettivo ?? 0, conteggioSquadra,
+    descrizione: gara.descrizione ?? metrica.descrizione ?? ''
+  };
+}
 function easter(year) {
   const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4;
   const f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30;
@@ -123,5 +198,5 @@ function dailyRows(contracts,rows,profiles) {
     return {nome:r.nome,gruppo:r.gruppo,operatori:operators,totale:Object.values(operators).reduce((a,b)=>a+b,0)};
   }).filter(r=>r.totale>0);
 }
-return {LEGNAGO,DAY_OPERATORS,matchRegola,pesoContratto,easter,isWorkday,workingDays,progress,monthlyRows,dailyRows};
+return {LEGNAGO,DAY_OPERATORS,matchRegola,pesoContratto,calcolaCompenso,valutaGara,easter,isWorkday,workingDays,progress,monthlyRows,dailyRows};
 }));

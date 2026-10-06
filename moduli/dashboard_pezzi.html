@@ -202,6 +202,8 @@ table.gara-tab tbody td.metrica {
   border-right: 1px solid var(--border-light);
 }
 table.gara-tab tbody td.compenso { font-weight: 700; }
+.gara-componente + .gara-componente { margin-top: 5px; }
+.gara-componente small { display: block; font-size: 9px; color: var(--text-secondary); }
 table.gara-tab tbody tr.tot td {
   background: #f1f5f9; font-weight: 800; font-size: 12.5px;
   text-transform: uppercase; letter-spacing: .04em;
@@ -524,53 +526,7 @@ function operatoreContratto(contratto, profiliMap) {
 // COMPENSO — DSL scaglioni + bonus (allineato ad admin-gare)
 // ============================================================
 function calcolaCompenso(attuale, regola, contratti) {
-  if (!regola || typeof regola !== 'object') return { euro: 0, label: '' };
-  const attualeNum = Math.max(0, Number(attuale) || 0);
-  const decSoglia = Number(regola.decurtazione_soglia) || 0;
-  if (decSoglia > 0 && attualeNum < decSoglia) return { euro: 0, label: 'DECURTAZIONE' };
-  if (regola.tipo === 'nessuno') return { euro: 0, label: regola.label || '' };
-  if (regola.tipo === 'per_pezzo') {
-    return { euro: attualeNum * (Number(regola.per_pezzo) || 0), label: regola.label || '' };
-  }
-  if (regola.tipo === 'per_pezzo_variabile') {
-    if (!Array.isArray(contratti) || !regola.campo) return { euro: 0, label: '' };
-    const casi = Array.isArray(regola.casi) ? regola.casi : [];
-    let euro = 0;
-    contratti.forEach(c => {
-      const val = c[regola.campo];
-      const caso = casi.find(k => String(k.valore || '').trim().toLowerCase() === String(val || '').trim().toLowerCase());
-      euro += Number(caso?.importo || 0);
-    });
-    return { euro, label: regola.label || '' };
-  }
-  if (regola.tipo !== 'scaglioni') return { euro: 0, label: regola.label || '' };
-  const scaglioni = Array.isArray(regola.scaglioni) ? regola.scaglioni : [];
-  const bonus = Array.isArray(regola.bonus_soglie) ? regola.bonus_soglie : [];
-  let totale = 0;
-  let flatMaxImporto = 0;
-  let flatMaxDa = -1;
-  scaglioni.forEach(s => {
-    const modo = s.tipo_calcolo || 'per_pezzo';
-    const importo = Number(s.importo ?? s.per_pezzo ?? 0);
-    const da = Number(s.da || 0);
-    if (modo === 'flat') {
-      if (attuale >= da) totale += importo;
-    } else if (modo === 'flat_max') {
-      if (attuale >= da && da > flatMaxDa) {
-        flatMaxDa = da;
-        flatMaxImporto = importo;
-      }
-    } else {
-      const a = (s.a === null || s.a === undefined || s.a === '') ? Infinity : Number(s.a);
-      if (attuale > da) {
-        const pezziNelloScaglione = Math.min(attuale, a) - da;
-        if (pezziNelloScaglione > 0) totale += pezziNelloScaglione * importo;
-      }
-    }
-  });
-  totale += flatMaxImporto;
-  bonus.forEach(b => { if (attuale >= Number(b.soglia || 0)) totale += Number(b.bonus || 0); });
-  return { euro: totale, label: regola.label || '' };
+  return MiroxDashboardReport.calcolaCompenso(attuale, regola, contratti);
 }
 
 // ============================================================
@@ -889,31 +845,33 @@ function renderGare() {
     let totCompenso = 0;
     let bodyHtml = '';
     metriche.forEach(m => {
-      const conteggioSquadra = m.tipo_conteggio === 'squadra';
       const compensoSquadra = m.tipo_compenso === 'squadra';
-      const contrattiMatched = conteggioSquadra ? contrattiMatchTotali(m) : contrattiMatchPerOperatore(m, op.id);
-      const attuale = contaConPesi(contrattiMatched, m);
       const o = compensoSquadra ? getObiettivoMese(m.id, null) : getObiettivoMese(m.id, op.id);
-      const obiettivo = o?.obiettivo ?? 0;
-      const c = calcolaCompenso(attuale, o?.compenso_regola, contrattiMatched);
+      const c = MiroxDashboardReport.valutaGara(m, o, DPState.contrattiMese, op.id, DPState.resolveOperatore);
+      const conteggioSquadra = c.conteggioSquadra;
+      const formatoValori = campo => c.componenti?.length
+        ? c.componenti.map(r => `<div class="gara-componente">${escapeHtml(r[campo])} <small>${escapeHtml(r.nome)}</small></div>`).join('')
+        : escapeHtml(c[campo]);
+      const attualeHtml = formatoValori('attuale');
+      const obiettivoHtml = formatoValori('obiettivo');
       const badgeSquadra = (conteggioSquadra || compensoSquadra) ? ' <span title="' + (conteggioSquadra && compensoSquadra ? 'Conteggio e compenso di squadra' : (compensoSquadra ? 'Compenso di squadra (attuale personale)' : 'Conteggio di squadra (compenso personale)')) + '" style="font-size:9.5px;background:#DBEAFE;color:#1E40AF;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700;letter-spacing:.04em">SQUADRA</span>' : '';
-      const hasDesc = !!(m.descrizione && String(m.descrizione).trim());
+      const hasDesc = !!String(c.descrizione).trim();
       const iconaInfo = hasDesc ? ' <span class="mx-info-dot" title="Come funziona questa gara">i</span>' : '';
       const nomeCol = escapeHtml(m.nome) + badgeSquadra + iconaInfo;
-      const rowAttr = hasDesc ? ` class="clickable" data-metrica-id="${m.id}"` : '';
+      const rowAttr = hasDesc ? ` class="clickable" data-metrica-id="${m.id}" data-descrizione="${escapeHtml(c.descrizione)}"` : '';
       if (c.label) {
         bodyHtml += `<tr${rowAttr}>
           <td class="metrica" style="background:${escapeHtml(m.colore_hex)}">${nomeCol}</td>
-          <td>${attuale}</td>
-          <td>${obiettivo}</td>
+          <td>${attualeHtml}</td>
+          <td>${obiettivoHtml}</td>
           <td class="compenso"><span class="badge-dec">${escapeHtml(c.label)}</span></td>
         </tr>`;
       } else {
         totCompenso += c.euro;
         bodyHtml += `<tr${rowAttr}>
           <td class="metrica" style="background:${escapeHtml(m.colore_hex)}">${nomeCol}</td>
-          <td>${attuale}</td>
-          <td>${obiettivo}</td>
+          <td>${attualeHtml}</td>
+          <td>${obiettivoHtml}</td>
           <td class="compenso">${fmtEur(c.euro)}</td>
         </tr>`;
       }
@@ -944,8 +902,8 @@ function renderGare() {
     tr.addEventListener('click', () => {
       const id = Number(tr.dataset.metricaId);
       const m = DPState.metricheGara.find(x => x.id === id);
-      if (!m || !m.descrizione) return;
-      const testoHtml = escapeHtml(m.descrizione).replace(/\n/g, '<br>');
+      if (!m || !tr.dataset.descrizione) return;
+      const testoHtml = escapeHtml(tr.dataset.descrizione).replace(/\n/g, '<br>');
       MiroxUI.alert(testoHtml, { title: m.nome, html: true });
     });
   });

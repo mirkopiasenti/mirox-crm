@@ -13,6 +13,25 @@ La correzione Guardian del 2026-08-21 non modifica lo schema: i callback Telegra
 
 **Per lo stato attuale, NON fare affidamento su questi file.** Interrogare direttamente Supabase con query di introspezione su `information_schema` e `pg_*` (vedi anche `../CLAUDE.md`).
 
+## Configurazioni mensili gare (06/10/2026)
+
+`configura_gare_2026_10.sql` configura solo i 9 obiettivi ottobre dei tre operatori
+canonici Francesca/Matteo/Mirko. Non cambia schema, profili, metriche globali,
+RLS, RPC, contratti o altri mesi. Default `applica=false`: preflight senza
+scritture; rilettura live e controllo vecchi valori oppure valori nuovi identici.
+Applicazione `applica=true` solo dopo il deploy del frontend compatibile; blocco
+transazionale in caso di drift, nessun aggiornamento se gia' identico.
+
+`compenso_regola.gara` contiene gli override mensili: descrizione, tipo conteggio,
+colonna punti, punto vendita e ID canonici della squadra. `obiettivi_combinati`
+contiene importo e condizioni indipendenti nome/soglia/regola, tutte obbligatorie.
+TIED35/100 EUR; CB35 telefoni Consumer VAR/Finanziamento +15 cambi piano TIED
+Consumer/MOBILE Business (equivalenza confermata)/100 EUR; Assicurazioni10 punti
+`punteggio_gara_totale` Legnago della squadra/50 EUR per ciascun destinatario.
+Le tre righe Assicurazioni restano per operatore, con la stessa allowlist squadra;
+non serve spostare gli obiettivi su operatore NULL. Nessuna migration schema.
+Stato: preflight production riuscito senza scritture; applicazione post-deploy pendente.
+
 ## Elenco file
 
 | File | Cosa introduce |

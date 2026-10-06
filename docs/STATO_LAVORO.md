@@ -1,7 +1,15 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato: 2026-10-05. Promemoria di ripresa, non autorizza interventi o deploy;
+Aggiornato: 2026-10-06. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
+
+## Gare ottobre 2026: pronte, pubblicazione/applicazione pendenti
+
+- Confermato: TIED individuali35/100 EUR; CB35 telefoni Consumer VAR/Finanziamento +15 cambi piano Consumer TIED/Business MOBILE (equivalenza autorizzata)/100 EUR; Assicurazioni squadra Francesca/Matteo/Mirko solo Legnago,10 punti reali/50 EUR a ciascuno.
+- DSL `obiettivi_combinati` e override mensile `compenso_regola.gara`; motore condiviso `js/dashboard-report-core.js`, doppio progresso CB/descrizione mensile Dashboard, editor Admin conserva condizioni/scope e modifica soglie/bonus. Storico e Avanzamento invariati.
+- SQL `database/configura_gare_2026_10.sql`: transazionale/idempotente, controlla9righe/valori attesi, ID canonici dinamici; nessuna modifica profili/schema/RLS/CC. Default `applica=false`: preflight production riuscito senza scritture. Matteo obiettivi35/35/10, altri45/50/15; compensi ancora vecchi.
+- 233/233 test+build (232versionati+1backup preesistente),11dedicati; sintassi2pagine valida. Soglie indipendenti, punti decimali/squadra/Legnago, alias/reinserimenti, storico e salvataggio editor coperti. Aggregati ottobre:2assicurazioni Matteo=1punto complessivo squadra.
+- README/AGENTS/CLAUDE/database README aggiornati. Nessun commit/push/deploy o aggiornamento dati. Prossimo: autorizzazione push, pubblicare frontend, rileggere/applicare SQL con `applica=true`, verificare9righe/storico/produzione. Non applicare config prima del motore compatibile; backup preesistente preservato.
 
 ## Identita per contratto: online e bonifica applicata 05/10
 

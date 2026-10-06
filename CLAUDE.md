@@ -1,5 +1,18 @@
 # CLAUDE.md — Guida per AI assistants
 
+## Gare mensili ottobre 2026
+
+Variazioni solo in `gara_obiettivi_mensili.compenso_regola`: override `gara`
+(descrizione/conteggio/punteggio/punto vendita/operatori canonici) e DSL
+`obiettivi_combinati` con tutte le soglie obbligatorie. Motore condiviso
+`js/dashboard-report-core.js` usato da Dashboard e Admin; editor conserva gli
+override mensili. TIED35/100 EUR; CB35 telefoni Consumer VAR/Finanziamento +15
+cambi piano TIED Consumer/MOBILE Business (equivalenza autorizzata)/100 EUR;
+Assicurazioni squadra Francesca/Matteo/Mirko solo Legnago,10 punti reali/50 EUR
+ciascuno. Storico e Avanzamento preservati. Script dati
+`database/configura_gare_2026_10.sql`: default preflight senza scritture,
+applicazione solo dopo deploy compatibile. Nessuna modifica profili/schema/RLS.
+
 Questo file viene letto automaticamente all'avvio di ogni sessione Claude. Contiene il contesto necessario per essere subito produttivi senza ri-esplorare il repo.
 
 ## Identita per contratto (05/10/2026)

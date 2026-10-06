@@ -305,6 +305,7 @@
 <script src="js/auth.js"></script>
 <script src="js/mirox-ui.js"></script>
 <script src="js/mirox-api.js"></script>
+<script src="js/dashboard-report-core.js"></script>
 
 <script>
 const sb = window.db;
@@ -327,62 +328,16 @@ function fmtEur(n) { if (n === null || n === undefined || isNaN(n)) return '-'; 
 // COMPENSO — funzione DSL (stessa che gira lato dashboard_pezzi)
 // ============================================================
 function calcolaCompenso(attuale, regola, contratti) {
-  if (!regola || typeof regola !== 'object') return { euro: 0, label: '' };
-  const attualeNum = Math.max(0, Number(attuale) || 0);
-  // Decurtazione: sotto la soglia, zero compenso + label "DECURTAZIONE" (priorita' massima)
-  const decSoglia = Number(regola.decurtazione_soglia) || 0;
-  if (decSoglia > 0 && attualeNum < decSoglia) return { euro: 0, label: 'DECURTAZIONE' };
-  if (regola.tipo === 'nessuno') return { euro: 0, label: regola.label || '' };
-  if (regola.tipo === 'per_pezzo') {
-    return { euro: attualeNum * (Number(regola.per_pezzo) || 0), label: regola.label || '' };
-  }
-  if (regola.tipo === 'per_pezzo_variabile') {
-    if (!Array.isArray(contratti) || !regola.campo) return { euro: 0, label: '' };
-    const casi = Array.isArray(regola.casi) ? regola.casi : [];
-    let euro = 0;
-    contratti.forEach(c => {
-      const val = c[regola.campo];
-      const caso = casi.find(k => String(k.valore || '').trim().toLowerCase() === String(val || '').trim().toLowerCase());
-      euro += Number(caso?.importo || 0);
-    });
-    return { euro, label: regola.label || '' };
-  }
-  if (regola.tipo !== 'scaglioni') return { euro: 0, label: regola.label || '' };
-  const scaglioni = Array.isArray(regola.scaglioni) ? regola.scaglioni : [];
-  const bonus = Array.isArray(regola.bonus_soglie) ? regola.bonus_soglie : [];
-  let totale = 0;
-  let flatMaxImporto = 0;
-  let flatMaxDa = -1;
-  scaglioni.forEach(s => {
-    const modo = s.tipo_calcolo || 'per_pezzo';
-    const importo = Number(s.importo ?? s.per_pezzo ?? 0);
-    const da = Number(s.da || 0);
-    if (modo === 'flat') {
-      if (attuale >= da) totale += importo;
-    } else if (modo === 'flat_max') {
-      if (attuale >= da && da > flatMaxDa) {
-        flatMaxDa = da;
-        flatMaxImporto = importo;
-      }
-    } else {
-      const a = (s.a === null || s.a === undefined || s.a === '') ? Infinity : Number(s.a);
-      if (attuale > da) {
-        const pezziNelloScaglione = Math.min(attuale, a) - da;
-        if (pezziNelloScaglione > 0) totale += pezziNelloScaglione * importo;
-      }
-    }
-  });
-  totale += flatMaxImporto;
-  bonus.forEach(b => {
-    if (attuale >= Number(b.soglia || 0)) totale += Number(b.bonus || 0);
-  });
-  return { euro: totale, label: regola.label || '' };
+  return MiroxDashboardReport.calcolaCompenso(attuale, regola, contratti);
 }
 
 function riassumiCompenso(regola) {
   const decSoglia = Number(regola?.decurtazione_soglia) || 0;
   const decSuffix = decSoglia > 0 ? ` · DEC<${decSoglia}` : '';
   if (!regola || regola.tipo === 'nessuno') return { text: (regola?.label || 'Nessuno') + decSuffix, cls: 'no' };
+  if (regola.tipo === 'obiettivi_combinati') {
+    return { text: fmtEur(regola.importo) + ' · tutte le soglie', cls: 'ok' };
+  }
   if (regola.tipo === 'per_pezzo') {
     const v = Number(regola.per_pezzo) || 0;
     return { text: fmtEur(v) + ' / pz' + decSuffix, cls: 'ok' };
@@ -550,15 +505,19 @@ function renderGaraIndividuale() {
   metriche.forEach(m => {
     // Obiettivo/compenso su operatore_id=NULL quando tipo_compenso=squadra (comuni al negozio)
     const compensoSquadra = m.tipo_compenso === 'squadra';
-    const conteggioSquadra = m.tipo_conteggio === 'squadra';
     const opTarget = compensoSquadra ? null : State.operatoreSelezionato;
     const o = getObiettivo(m.id, opTarget);
+    const conteggioSquadra = (o?.compenso_regola?.gara?.tipo_conteggio || m.tipo_conteggio) === 'squadra';
+    const combinata = o?.compenso_regola?.tipo === 'obiettivi_combinati';
+    const obiettivoHtml = combinata
+      ? (o.compenso_regola.condizioni || []).map(c => `<div>${escapeHtml(c.soglia)} ${escapeHtml(c.nome)}</div>`).join('')
+      : `<input type="number" min="0" value="${o?.obiettivo ?? 0}" data-metrica="${m.id}" data-squadra="${compensoSquadra ? '1' : '0'}" class="inp-obiettivo">`;
     const compRiassunto = riassumiCompenso(o?.compenso_regola);
     const badgeText = (conteggioSquadra && compensoSquadra) ? 'SQUADRA' : (compensoSquadra ? 'COMPENSO SQUADRA' : (conteggioSquadra ? 'CONTEGGIO SQUADRA' : ''));
     const badge = badgeText ? ` <span style="font-size:9.5px;background:#DBEAFE;color:#1E40AF;padding:1px 6px;border-radius:8px;margin-left:6px;font-weight:700;letter-spacing:.04em">${badgeText}</span>` : '';
     html += `<tr>
       <td><span class="metric-color" style="background:${escapeHtml(m.colore_hex)}"></span><b>${escapeHtml(m.nome)}</b>${badge}</td>
-      <td><input type="number" min="0" value="${o?.obiettivo ?? 0}" data-metrica="${m.id}" data-squadra="${compensoSquadra ? '1' : '0'}" class="inp-obiettivo"></td>
+      <td>${obiettivoHtml}</td>
       <td><span class="badge-compenso ${compRiassunto.cls}">${escapeHtml(compRiassunto.text)}</span></td>
       <td class="actions"><button class="btn-mini btn-edit-compenso" data-metrica="${m.id}" data-squadra="${compensoSquadra ? '1' : '0'}">Modifica compenso</button></td>
     </tr>`;
@@ -698,7 +657,7 @@ function apriEditorScaglioni(metricaId, operatoreId) {
   const o = getObiettivo(metricaId, operatoreId);
   const regolaCorrente = o?.compenso_regola || { tipo: 'nessuno' };
   const draft = JSON.parse(JSON.stringify(regolaCorrente));
-  if (!['scaglioni', 'nessuno', 'per_pezzo', 'per_pezzo_variabile'].includes(draft.tipo)) draft.tipo = 'nessuno';
+  if (!['scaglioni', 'nessuno', 'per_pezzo', 'per_pezzo_variabile', 'obiettivi_combinati'].includes(draft.tipo)) draft.tipo = 'nessuno';
   if (!draft.scaglioni) draft.scaglioni = [];
   if (!draft.bonus_soglie) draft.bonus_soglie = [];
   if (draft.per_pezzo == null) draft.per_pezzo = 0;
@@ -719,8 +678,25 @@ function apriEditorScaglioni(metricaId, operatoreId) {
       <label><input type="radio" name="modo" value="per_pezzo" ${draft.tipo==='per_pezzo'?'checked':''}> Ogni pezzo</label>
       <label><input type="radio" name="modo" value="per_pezzo_variabile" ${draft.tipo==='per_pezzo_variabile'?'checked':''}> Per pezzo variabile</label>
       <label><input type="radio" name="modo" value="scaglioni" ${draft.tipo==='scaglioni'?'checked':''}> Scaglioni + bonus</label>
+      ${Array.isArray(draft.condizioni) ? `<label><input type="radio" name="modo" value="obiettivi_combinati" ${draft.tipo==='obiettivi_combinati'?'checked':''}> Tutte le soglie</label>` : ''}
       <label><input type="radio" name="modo" value="nessuno" ${draft.tipo==='nessuno'?'checked':''}> Nessun compenso</label>
     </div>`;
+    if (draft.gara) {
+      html += `<label style="display:block;margin-top:12px">Descrizione della gara nel mese selezionato
+        <textarea id="inpDescrizioneGara" style="width:100%;min-height:70px">${escapeHtml(draft.gara.descrizione || '')}</textarea>
+      </label>`;
+    }
+    if (draft.tipo === 'obiettivi_combinati') {
+      html += '<h3>Bonus al raggiungimento di tutte le soglie</h3>';
+      html += '<p>Ogni requisito va raggiunto separatamente. I pezzi in eccesso di una voce non sostituiscono quelli mancanti dell’altra.</p>';
+      (draft.condizioni || []).forEach((c, idx) => {
+        html += `<label style="display:flex;align-items:center;gap:12px;margin:8px 0">${escapeHtml(c.nome)}
+          <input type="number" min="1" step="1" value="${escapeHtml(c.soglia)}" class="inp-soglia-combinata" data-idx="${idx}" style="width:100px">
+        </label>`;
+      });
+      html += `<label>Bonus &euro; <input type="number" min="0" step="0.01" id="inpImportoCombinato" value="${escapeHtml(draft.importo ?? 0)}"></label>`;
+      html += '<div class="preview-compenso" id="previewCompenso"></div>';
+    }
     const decOn = Number(draft.decurtazione_soglia) > 0;
     html += `<div class="toggle-row" style="background:#fef2f2;border-radius:8px;padding:8px 10px;margin-top:8px;border:1px solid #fecaca">
       <label style="display:flex;align-items:center;gap:6px;font-weight:700;color:#991b1b">
@@ -813,6 +789,17 @@ function apriEditorScaglioni(metricaId, operatoreId) {
   };
 
   const attach = () => {
+    const descrizione = document.getElementById('inpDescrizioneGara');
+    if (descrizione) descrizione.addEventListener('input', () => { draft.gara.descrizione = descrizione.value; });
+    document.querySelectorAll('.inp-soglia-combinata').forEach(inp => inp.addEventListener('input', () => {
+      draft.condizioni[Number(inp.dataset.idx)].soglia = Number(inp.value);
+      aggiornaPreview();
+    }));
+    const importoCombinato = document.getElementById('inpImportoCombinato');
+    if (importoCombinato) importoCombinato.addEventListener('input', () => {
+      draft.importo = Number(importoCombinato.value);
+      aggiornaPreview();
+    });
     document.querySelectorAll('input[name="modo"]').forEach(r => r.addEventListener('change', () => {
       draft.tipo = document.querySelector('input[name="modo"]:checked').value;
       refresh();
@@ -905,6 +892,11 @@ function apriEditorScaglioni(metricaId, operatoreId) {
   const aggiornaPreview = () => {
     const prev = document.getElementById('previewCompenso');
     if (!prev) return;
+    if (draft.tipo === 'obiettivi_combinati') {
+      prev.textContent = 'Bonus ' + fmtEur(draft.importo) + ' quando sono raggiunti tutti i requisiti:\n'
+        + (draft.condizioni || []).map(c => `${c.soglia} ${c.nome}`).join('\n');
+      return;
+    }
     if (draft.tipo === 'per_pezzo_variabile') {
       // Non ha senso una preview numerica: dipende dal mix. Mostro il riassunto casi.
       if (!draft.casi.length) { prev.textContent = 'Aggiungi almeno un caso.'; return; }
@@ -914,7 +906,7 @@ function apriEditorScaglioni(metricaId, operatoreId) {
     }
     const esempi = [10, 20, 30, 40, 50].map(p => {
       const c = calcolaCompenso(p, draft);
-      return `${p} pezzi → ${fmtEur(c.euro)}`;
+      return `${p} ${draft.gara?.punteggio_campo ? 'punti' : 'pezzi'} → ${fmtEur(c.euro)}`;
     }).join('\n');
     prev.textContent = 'Anteprima:\n' + esempi;
   };
@@ -936,7 +928,14 @@ function apriEditorScaglioni(metricaId, operatoreId) {
   m.foot.querySelector('[data-mx-cancel]').addEventListener('click', () => m.close());
   m.foot.querySelector('[data-mx-ok]').addEventListener('click', async () => {
     let nuova;
-    if (draft.tipo === 'nessuno') {
+    if (draft.tipo === 'obiettivi_combinati') {
+      if (!Number.isFinite(draft.importo) || draft.importo < 0 || draft.condizioni.length < 2
+        || draft.condizioni.some(c => !Number.isInteger(c.soglia) || c.soglia <= 0)) {
+        MiroxUI.alert('Inserisci soglie intere maggiori di zero e un bonus valido.');
+        return;
+      }
+      nuova = { tipo: 'obiettivi_combinati', importo: draft.importo, condizioni: draft.condizioni };
+    } else if (draft.tipo === 'nessuno') {
       nuova = { tipo: 'nessuno' };
     } else if (draft.tipo === 'per_pezzo') {
       nuova = { tipo: 'per_pezzo', per_pezzo: Number(draft.per_pezzo) || 0 };
@@ -959,8 +958,12 @@ function apriEditorScaglioni(metricaId, operatoreId) {
     // Decurtazione: aggiunge la soglia solo se > 0
     const decSoglia = Number(draft.decurtazione_soglia) || 0;
     if (decSoglia > 0) nuova.decurtazione_soglia = decSoglia;
+    if (draft.gara) nuova.gara = draft.gara;
+    if (regolaCorrente.label) nuova.label = regolaCorrente.label;
     try {
-      await upsertObiettivo(metricaId, operatoreId, { compenso_regola: nuova });
+      const patch = { compenso_regola: nuova };
+      if (nuova.tipo === 'obiettivi_combinati') patch.obiettivo = nuova.condizioni[0].soglia;
+      await upsertObiettivo(metricaId, operatoreId, patch);
       m.close();
       renderGaraIndividuale();
       MiroxUI.toast('Compenso salvato', 'success');
