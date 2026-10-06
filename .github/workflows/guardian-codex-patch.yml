@@ -170,6 +170,7 @@ jobs:
           NEEDS_INFORMATION: ${{ steps.validate.outputs.needs_information }}
           BLOCKED: ${{ steps.validate.outputs.blocked }}
           MANUAL_REVIEW: ${{ steps.validate.outputs.manual_review }}
+          CATALOG_REQUIRED: ${{ steps.validate.outputs.catalog_required }}
           PR_URL: ${{ steps.publish.outputs.pull_request_url }}
           PATCH_BRANCH: ${{ steps.branch.outputs.name }}
         run: |
@@ -188,7 +189,7 @@ jobs:
           fi
           result_commit="$(if [ -n "$result_branch" ]; then git rev-parse HEAD; fi)"
           summary="$(if [ -s /tmp/guardian-codex-output.md ]; then tr '\n' ' ' < /tmp/guardian-codex-output.md | cut -c1-5000; elif [ -s codex-output.md ]; then tr '\n' ' ' < codex-output.md | cut -c1-5000; else echo 'Nessun riepilogo Codex disponibile.'; fi)"
-          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$result_branch" --arg commit "$result_commit" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --arg no_changes "$NO_CHANGES" --arg needs_information "$NEEDS_INFORMATION" --arg blocked "$BLOCKED" --arg manual_review "$MANUAL_REVIEW" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,result_commit_sha:(if ($commit|length) > 0 then $commit else null end),branch_name:(if ($branch|length) > 0 then $branch else null end),pull_request_url:(if ($pr|length) > 0 then $pr else null end),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish,no_changes:($no_changes == "true"),needs_information:($needs_information == "true"),blocked:($blocked == "true"),manual_review:($manual_review == "true")}}')"
+          body="$(jq -cn --arg id "$EXECUTION_ID" --arg lease "$LEASE_TOKEN" --arg summary "$summary" --arg branch "$result_branch" --arg commit "$result_commit" --arg pr "$PR_URL" --arg codex "$CODEX_OUTCOME" --arg validate "$VALIDATE_OUTCOME" --arg tests "$TEST_OUTCOME" --arg publish "$PUBLISH_OUTCOME" --arg no_changes "$NO_CHANGES" --arg needs_information "$NEEDS_INFORMATION" --arg blocked "$BLOCKED" --arg manual_review "$MANUAL_REVIEW" --arg catalog_required "$CATALOG_REQUIRED" --argjson success "$success" '{action:"result",execution_id:$id,lease_token:$lease,success:$success,summary:$summary,result_commit_sha:(if ($commit|length) > 0 then $commit else null end),branch_name:(if ($branch|length) > 0 then $branch else null end),pull_request_url:(if ($pr|length) > 0 then $pr else null end),result:{codex:$codex,validate:$validate,tests:$tests,publish:$publish,no_changes:($no_changes == "true"),needs_information:($needs_information == "true"),blocked:($blocked == "true"),manual_review:($manual_review == "true"),catalog_required:($catalog_required == "true")}}')"
           if [ "$success" != true ]; then
             body="$(jq -c --arg error_code "${PREFLIGHT_ERROR:-patch_workflow_failed}" --arg error "$summary" '. + {error_code:$error_code,error:$error}' <<<"$body")"
           fi

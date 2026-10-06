@@ -523,3 +523,5 @@ Applicazione subordinata alla conferma finale Telegram e alla head SHA verificat
 
 Libreria condivisa aggiunta: `js/customer-base-device.js`, esposta su window nel
 wizard e richiesta dal server tramite CommonJS; nessuna nuova dipendenza npm.
+
+Convenzione piani catalogo Guardian: solo `netlify/functions/_lib/guardian-catalog-<codice>.json`; il validator li classifica catalog_required/manual_review/blocked, come le proposte SQL. Senza revisione server legata alla head non si puo proporre il rilascio del piano.

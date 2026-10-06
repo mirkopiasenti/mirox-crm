@@ -1001,3 +1001,5 @@ le nuove combinazioni, preservando tutti i telefoni storici. Il helper condiviso
 Finanziamento/VAR nel wizard e server; altre offerte restano immutate. Script
 SQL iniziale non eseguito e sostituito da piano revisionato, non da SQL spostato.
 Applicazione subordinata alla conferma finale Telegram e alla head SHA verificata.
+
+Convenzione piani catalogo Guardian: solo `netlify/functions/_lib/guardian-catalog-<codice>.json`; il validator li classifica catalog_required/manual_review/blocked, come le proposte SQL. Senza revisione server legata alla head non si puo proporre il rilascio del piano.
