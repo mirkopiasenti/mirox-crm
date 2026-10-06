@@ -448,3 +448,9 @@ Dettagli: `docs/GUARDIAN_VOCALI_2026-10-06.md`. Nessuna nuova env o tabella CC.
 Guardian06/10: i chiarimenti aggiornano il riepilogo anche per una richiesta già
 classificata come miglioria; storico conservato e vecchie approvazioni pendenti
 scadute. Nessuna implementazione o pubblicazione autorizzata dal dialogo.
+
+Guardian06/10: collegamento `kona_ai_messaggi.voice_job_id` UUID con unicita
+per autore; `id` messaggio resta bigint GENERATED ALWAYS e non va fornito
+dal client. Migration additiva `20261006194000_guardian_voice_message_link.sql`,
+privata Guardian, senza cambi CRM/Call Center. Errori coda distinguono fase e
+codice tecnico ripulito, senza stampare testo dei vocali o segreti.

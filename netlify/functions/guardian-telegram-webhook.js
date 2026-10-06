@@ -796,11 +796,11 @@ async function handleOwnerConversation(supabase, chatId, session, text, metadata
   await saveConversation(supabase, chatId, history);
   if (incident) {
     const writer=supabase.from('kona_ai_messaggi');
-    const row={ ...(options.jobId ? {id:options.jobId}: {}),
+    const row={ ...(options.jobId ? {voice_job_id:options.jobId}: {}),
       incidente_id: incident.id, canale: 'telegram', autore_tipo: 'mirko',
       autore_profile_id: ownerProfileId(), testo: conversationText(text), metadati: metadata
     };
-    const {error}=await (options.jobId ? writer.upsert(row,{onConflict:'id',ignoreDuplicates:true}):writer.insert(row));
+    const {error}=await (options.jobId ? writer.upsert(row,{onConflict:'voice_job_id,autore_tipo',ignoreDuplicates:true}):writer.insert(row));
     if (error) throw error;
   }
   let guardian;
@@ -835,15 +835,10 @@ async function handleOwnerConversation(supabase, chatId, session, text, metadata
   }
   history.push({ ...(options.jobId ? {job_id:options.jobId}: {}), at: new Date().toISOString(), author: 'guardian', text: guardian.reply, incident_id: incident?.id || null });
   if (incident) {
-    let replyId;
-    if(options.jobId) {
-      const h=crypto.createHash('sha256').update('guardian:'+options.jobId).digest('hex');
-      replyId=h.slice(0,8)+'-'+h.slice(8,12)+'-4'+h.slice(13,16)+'-8'+h.slice(17,20)+'-'+h.slice(20,32);
-    }
-    const row={...(replyId ? {id:replyId}: {}), incidente_id: incident.id, canale: 'guardian', autore_tipo: 'guardian',
+    const row={...(options.jobId ? {voice_job_id:options.jobId}: {}), incidente_id: incident.id, canale: 'guardian', autore_tipo: 'guardian',
       testo: guardian.reply, metadati: { suggested_action: guardian.suggestedAction, voice_job_id:options.jobId || null }};
     const writer=supabase.from('kona_ai_messaggi');
-    const {error}=await (replyId ? writer.upsert(row,{onConflict:'id',ignoreDuplicates:true}):writer.insert(row));
+    const {error}=await (options.jobId ? writer.upsert(row,{onConflict:'voice_job_id,autore_tipo',ignoreDuplicates:true}):writer.insert(row));
     if (error) throw error;
   }
   let replyMarkup;

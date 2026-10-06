@@ -52,6 +52,7 @@ async function processQueue(db,deps={}) {
     const save=async values=>{const saved=checked(await db.from('kona_ai_vocali_jobs').update({...values,updated_at:now()}).eq('id',job.id).eq('lease_token',token).select('id').maybeSingle());if(!saved)throw new Error('guardian_voice_lease_lost');};
     const notify=async(code,text)=>checked(await db.from('kona_ai_notifiche').upsert({incidente_id:job.incidente_id,
       dedupe_key:`voice:${code}:${job.id}`,payload:{text, ...(['failed','uncertain'].includes(code) ? {reply_markup:{inline_keyboard:[[{text:'Riprova questo vocale',callback_data:`retry_voice:${job.id}`}]]}} : {})},stato:'in_coda',prossimo_tentativo_at:now()}, {onConflict:'dedupe_key',ignoreDuplicates:true}));
+    let stage='transcription';
     try {
       if (job.in_flight) { await save({stato:'incerto',errore_codice:'telegram_delivery_uncertain',lease_token:null,lease_until:null});
         await notify('uncertain','La risposta al vocale è pronta, ma non posso confermare che Telegram l’abbia ricevuta. Ho conservato il vocale e la trascrizione per la verifica.');continue; }
@@ -60,6 +61,7 @@ async function processQueue(db,deps={}) {
         job.transcript=await (deps.transcribe||telegram.transcribeVoice)(file,{timeoutMs:180000});
         await save({transcript:job.transcript});
       }
+      stage='conversation';
       if (!job.risposta) {
         const session=checked(await db.from('kona_ai_telegram_sessioni').select('*').eq('chat_id',chat).maybeSingle()) || {};
         const conversation=deps.conversation || require('../guardian-telegram-webhook')._test.handleOwnerConversation;
@@ -67,6 +69,7 @@ async function processQueue(db,deps={}) {
           {input_type:'voice',telegram_file_id:job.file_id,voice_job_id:job.id},null,{jobId:job.id,deferDelivery:true});
         await save({risposta:job.risposta});
       }
+      stage='delivery';
       await save({in_flight:true});job.in_flight=true;
       const sent=await (deps.send||telegram.sendTelegramMessage)(chat,job.risposta.text,{reply_markup:job.risposta.reply_markup});
       await save({stato:'inviato',in_flight:false,telegram_message_id:sent?.message_id || null,errore_codice:null,lease_token:null,lease_until:null});
@@ -74,7 +77,9 @@ async function processQueue(db,deps={}) {
     } catch(error) {
       const uncertain=job.in_flight && !error.telegramRejected;
       const exhausted=claimed.tentativi>=5 || (error.telegramRejected && error.status!==429 && error.status<500);
-      const code=uncertain?'telegram_delivery_uncertain':error.name==='TimeoutError'?'transcription_timeout':'voice_processing_failed';
+      const detail=/^[A-Za-z0-9_]{1,50}$/.test(String(error.code || '')) ? error.code : error.name==='TimeoutError'?'timeout':'processing_failed';
+      const code=uncertain?'telegram_delivery_uncertain':stage+':'+detail;
+      console.warn('Guardian vocale:',code);
       await save({stato:uncertain?'incerto':exhausted?'fallito':'in_coda',errore_codice:code,
         in_flight:uncertain,next_attempt_at:new Date(Date.now()+Math.max(error.retryAfter || 0,Math.min(900,60*2**claimed.tentativi))*1000).toISOString(),lease_token:null,lease_until:null});
       await notify(uncertain?'uncertain':exhausted?'failed':'retry',uncertain

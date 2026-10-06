@@ -203,3 +203,9 @@ chat. RLS e grant solo service_role; nessuna modifica schema/RLS a tabelle CRM,
 Call Center o Target. Applicata e verificata production il 06/10/2026 prima del deploy: RLS attiva,
 privilegi browser assenti e indice univoco presenti. Riclassificazione usa le colonne esistenti
 `tipo_richiesta`/`riepilogo_ai` e audit, senza ulteriori DDL.
+
+Guardian06/10: collegamento `kona_ai_messaggi.voice_job_id` UUID con unicita
+per autore; `id` messaggio resta bigint GENERATED ALWAYS e non va fornito
+dal client. Migration additiva `20261006194000_guardian_voice_message_link.sql`,
+privata Guardian, senza cambi CRM/Call Center. Errori coda distinguono fase e
+codice tecnico ripulito, senza stampare testo dei vocali o segreti.

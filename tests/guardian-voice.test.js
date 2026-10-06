@@ -28,9 +28,10 @@ function database(seed = {}) {
         try {
           let rows = tables[name].filter(r => filters.every(f => f(r)));
           if (operation === 'insert' || operation === 'upsert') {
-            let existing = operation === 'upsert' && tables[name].find(r => r[upsertOptions?.onConflict] === values[upsertOptions?.onConflict]);
+            if(name==='kona_ai_messaggi' && values.id!==undefined){resolve({data:null,error:{code:'428C9',message:'id is generated always'}});return;}
+            let existing = operation === 'upsert' && tables[name].find(r => String(upsertOptions?.onConflict).split(',').every(k=>r[k]===values[k]));
             if (existing) { if (!upsertOptions?.ignoreDuplicates) Object.assign(existing, values); rows = [existing]; }
-            else { if(name==='kona_ai_vocali_jobs' && tables[name].some(r=>r.update_id===values.update_id)){resolve({data:null,error:{code:'23505'}});return;} const r = { id: require('node:crypto').randomUUID(), numero: 99, created_at: new Date().toISOString(), ...structuredClone(values) }; tables[name].push(r); rows = [r]; }
+            else { if(name==='kona_ai_vocali_jobs' && tables[name].some(r=>r.update_id===values.update_id)){resolve({data:null,error:{code:'23505'}});return;} const r = { id: name==='kona_ai_messaggi' ? tables[name].length+1 : require('node:crypto').randomUUID(), numero: 99, created_at: new Date().toISOString(), ...structuredClone(values) }; tables[name].push(r); rows = [r]; }
           } else if (operation === 'update') rows.forEach(r => Object.assign(r, structuredClone(values)));
           if (sorting) rows.sort((a,b) => String(a[sorting[0]]).localeCompare(String(b[sorting[0]])) * (sorting[1] ? 1 : -1));
           if (cap !== undefined) rows = rows.slice(0, cap);
@@ -84,7 +85,7 @@ test('vocale viene trascritto in background con timeout separato e con contesto 
 test('timeout conserva file e job e accoda un avviso con retry, senza fingere una trascrizione',async t=>{
  env(t);const db=seeded();
  await voice.processQueue(db,deps({transcribe:async()=>{throw Object.assign(new Error('timeout'),{name:'TimeoutError'});}}));
- const job=db.tables.kona_ai_vocali_jobs[0];assert.equal(job.stato,'in_coda');assert.equal(job.file_id,'voice-file');assert.equal(job.errore_codice,'transcription_timeout');
+ const job=db.tables.kona_ai_vocali_jobs[0];assert.equal(job.stato,'in_coda');assert.equal(job.file_id,'voice-file');assert.equal(job.errore_codice,'transcription:timeout');
  assert.equal(job.transcript,undefined);assert.equal(db.tables.kona_ai_notifiche.length,1);
 });
 
@@ -138,7 +139,7 @@ test('chiarimento del proprietario riclassifica il caso senza perdere storico o 
  const response=await webhook.handleOwnerConversation(db,'123',{incidente_attivo_id:incident},'Non è un bug ma una nuova implementazione.',{},null,{jobId,deferDelivery:true});
  assert.match(response.text,/nuova funzionalità/);assert.equal(db.tables.kona_ai_incidenti[0].tipo_richiesta,'miglioria');
  assert.equal(db.tables.kona_ai_approvazioni[0].stato,'scaduta');assert.equal(db.tables.kona_ai_messaggi.length,3);
- assert.equal(db.tables.kona_ai_messaggi[0].id,jobId);
+ assert.equal(db.tables.kona_ai_messaggi[0].voice_job_id,jobId);assert.equal(typeof db.tables.kona_ai_messaggi[0].id,'number');
  const again=await webhook.handleOwnerConversation(db,'123',db.tables.kona_ai_telegram_sessioni[0],'Non è un bug',{},null,{jobId,deferDelivery:true});assert.equal(again.text,response.text);
  assert.equal(db.tables.kona_ai_messaggi.length,3);
 });

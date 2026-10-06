@@ -3,13 +3,13 @@
 Aggiornato: 2026-10-06. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## Guardian: vocali corretti06/10, recupero allegato pendente
+## Guardian: vocali corretti06/10, requisito KG23 recuperato
 
 - KG23: vocale33,6s/133028byte va in timeout prima del salvataggio. Proprietario chiarisce nuova funzionalita: caso riclassificato miglioria con audit, senza inventare requisito.
 - Coda privata e worker background/HMAC, snapshot caso, checkpoint trascrizione/risposta, lease/retry5, cron5min e ripresa esplicita consegne ambigue. Migration/RLS/service-only/indice verificati.
 -248/248test+build/15dedicati;0d0caba online19:09:30, CI37501275540/health37501521350 OK. Collaudo senza audio utente: cron/consegna19:15:30 primo tentativo/TG170.
 -357f9a2 online19:17:07/Netlify6ac52cee/CI37502271739 OK: aggiorna riepilogo anche su miglioria gia classificata. README/AGENTS/CLAUDE/databaseREADME e rapporto vocali aggiornati; backup preservato.
-- Allegato NON inviato a OpenAI: auto-review blocca payload audio senza consenso esplicito. Domanda async pendente, non aggirare. Prossimo: con consenso trascrivere e recuperare requisito in KG23; implementazione effettiva ancora da definire.
+- Consenso esplicito proprietario ricevuto: audio OpenAI HTTP200/2,531s, testo recuperato in KG23/job baa8d026. Requisito: due righe Day by Day e due opzioni Customer Base, CP+telefono finanziato/VAR; nessuna implementazione CRM. Risposta Guardian in coda, da verificare; blocco auto-review rispettato prima del consenso.
 
 ## Avanzamento: CAMBI PIANO aggiunta online 06/10
 

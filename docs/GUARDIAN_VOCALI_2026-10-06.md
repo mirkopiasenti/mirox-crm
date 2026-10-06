@@ -35,11 +35,21 @@ Feature `0d0caba` online alle 19:09:30, Netlify `6ac52b25e0260a00086f3d19`,
 CI `37501275540` e health `37501521350` riuscite, incluso accesso alla coda.
 Collaudo sintetico senza audio utente: job marcato COLLAUDO_SINTETICO_SENZA_AUDIO,
 recuperato dal cron e consegnato alle 19:15:30 al primo tentativo, messaggio170.
-Non prova la trascrizione del vocale originale, il cui consenso resta pendente.
+Questo primo collaudo non usava il vocale originale. Il proprietario ha poi
+autorizzato esplicitamente la trascrizione: HTTP200 in 2,531 secondi, testo
+recuperato e accodato in KG23 per riprendere la conversazione.
 
-La trascrizione del file originale allegato richiede consenso esplicito per
-l’invio a OpenAI: auto-review ha bloccato il tentativo e nessun payload audio è
-stato spedito. La correzione software procede indipendentemente dal consenso.
+Il primo tentativo di invio dell’allegato era stato bloccato dall’auto-review.
+Solo dopo il successivo consenso esplicito del proprietario il file è stato
+inviato a OpenAI. Nessun aggiramento del blocco; chiave privata non esposta.
+Il requisito recuperato riguarda due righe Day by Day e due opzioni Customer
+Base: cambio piano con telefono finanziato oppure VAR. È una proposta di
+funzionalità; nessuna modifica a catalogo, conteggi o pagine CRM applicata.
 
 Riferimenti: [OpenAI trascrizioni](https://developers.openai.com/api/docs/guides/speech-to-text),
 [Netlify background](https://docs.netlify.com/build/functions/background-functions/).
+
+Il collaudo completo del vocale recuperato ha rilevato un errore del collegamento
+audit: ID UUID fornito a un bigint identity. Corretto con colonna separata
+voice_job_id e indice univoco per autore; fixture test ora impone il tipo e
+il divieto di assegnare id. Nessun dato audio perso; retry riusa la trascrizione.
