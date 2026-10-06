@@ -22,9 +22,7 @@ const {
 } = require('./_lib/guardian-codex');
 const {
   answerCallbackQuery,
-  downloadTelegramFile,
   sendTelegramMessage,
-  transcribeVoice
 } = require('./_lib/telegram');
 
 const { REPOSITORY, SHA, BRANCH, validateContract, inspectPull, parsePullNumber } = require('./_lib/guardian-release');
@@ -677,6 +675,14 @@ async function handleCallback(supabase, update, chatId) {
     return;
   }
   await answerCallbackQuery(query.id, 'Ricevuto');
+  if(action==='retry_voice') {
+    const voice=require('./_lib/guardian-voice');
+    const retried=await voice.retry(supabase,chatId,incidentId);
+    if(!retried) {await sendTelegramMessage(chatId,'Il vocale è già in elaborazione o è stato completato.');return;}
+    try {await voice.nudge();} catch(_) {}
+    await sendTelegramMessage(chatId,'Vocale rimesso in coda. Se la risposta precedente era già arrivata, potresti riceverne una seconda copia.');
+    return;
+  }
   if (action === 'publish_production') {
     await publishProduction(supabase, chatId, incidentId);
     return;
@@ -779,24 +785,29 @@ async function saveConversation(supabase, chatId, history) {
   if (error) throw error;
 }
 
-async function handleOwnerConversation(supabase, chatId, session, text, metadata = {}, replyTo = null) {
+async function handleOwnerConversation(supabase, chatId, session, text, metadata = {}, replyTo = null, options = {}) {
   const incident = await resolveConversationIncident(supabase, chatId, session, text, replyTo);
   const previousMessages = incident ? await getMessages(supabase, incident.id, 60) : [];
   const context = await ownerContext(supabase, incident, session);
-  const history = [...context.history, { author: 'mirko', text: conversationText(text), incident_id: incident?.id || null }];
+  const cached = options.jobId && context.history.find(item => item.job_id === options.jobId && item.author === 'guardian');
+  if (cached && options.deferDelivery) return { text: cached.text, reply_markup: cached.reply_markup };
+  const history = [...context.history.filter(item => !options.jobId || item.job_id !== options.jobId), { ...(options.jobId ? {job_id:options.jobId}: {}), at: new Date().toISOString(), author: 'mirko', text: conversationText(text), incident_id: incident?.id || null }];
   // Preserve the question even if the provider is unavailable.
   await saveConversation(supabase, chatId, history);
   if (incident) {
-    const { error } = await supabase.from('kona_ai_messaggi').insert({
+    const writer=supabase.from('kona_ai_messaggi');
+    const row={ ...(options.jobId ? {id:options.jobId}: {}),
       incidente_id: incident.id, canale: 'telegram', autore_tipo: 'mirko',
       autore_profile_id: ownerProfileId(), testo: conversationText(text), metadati: metadata
-    });
+    };
+    const {error}=await (options.jobId ? writer.upsert(row,{onConflict:'id',ignoreDuplicates:true}):writer.insert(row));
     if (error) throw error;
   }
   let guardian;
   try {
     guardian = await generateOwnerReply(incident, previousMessages, text, context);
   } catch (error) {
+    if(options.deferDelivery) throw error;
     console.warn('Guardian conversazione:', cleanText(error?.code || 'provider_unavailable', 100));
     const reason = error?.code === 'openai_invalid_key'
       ? 'OpenAI rifiuta la chiave della chat Netlify. Va verificata OPENAI_API_KEY, separata dalla chiave del worker GitHub.'
@@ -804,13 +815,33 @@ async function handleOwnerConversation(supabase, chatId, session, text, metadata
       : 'Non riesco a rispondere con OpenAI in questo momento.';
     guardian = { reply: `${reason} Ho conservato il tuo messaggio e potremo riprendere da qui.`, suggestedAction: 'nessuna' };
   }
-  history.push({ author: 'guardian', text: guardian.reply, incident_id: incident?.id || null });
-  await saveConversation(supabase, chatId, history);
+  if (incident && guardian.requestType && guardian.requestType !== incident.tipo_richiesta
+    && guardian.requestSummary && ['raccolta','ricevuto','in_attesa_approvazione'].includes(incident.stato)) {
+    const {data:updated,error}=await supabase.from('kona_ai_incidenti').update({tipo_richiesta:guardian.requestType,
+      riepilogo_ai:guardian.requestSummary}).eq('id',incident.id).eq('tipo_richiesta',incident.tipo_richiesta)
+      .in('stato',['raccolta','ricevuto','in_attesa_approvazione']).select('id').maybeSingle();
+    if(error)throw error;
+    if(updated) {
+      const {error:approvalError}=await supabase.from('kona_ai_approvazioni').update({stato:'scaduta'})
+        .eq('incidente_id',incident.id).eq('stato','in_attesa');
+      if(approvalError)throw approvalError;
+      const {error:auditError}=await supabase.from('kona_ai_messaggi').insert({incidente_id:incident.id,
+        canale:'sistema',autore_tipo:'guardian',testo:'Tipologia aggiornata dopo il chiarimento del proprietario: '+guardian.requestType,
+        metadati:{previous_type:incident.tipo_richiesta,request_type:guardian.requestType,voice_job_id:options.jobId || null}});
+      if(auditError)throw auditError;
+    }
+  }
+  history.push({ ...(options.jobId ? {job_id:options.jobId}: {}), at: new Date().toISOString(), author: 'guardian', text: guardian.reply, incident_id: incident?.id || null });
   if (incident) {
-    const { error } = await supabase.from('kona_ai_messaggi').insert({
-      incidente_id: incident.id, canale: 'guardian', autore_tipo: 'guardian',
-      testo: guardian.reply, metadati: { suggested_action: guardian.suggestedAction }
-    });
+    let replyId;
+    if(options.jobId) {
+      const h=crypto.createHash('sha256').update('guardian:'+options.jobId).digest('hex');
+      replyId=h.slice(0,8)+'-'+h.slice(8,12)+'-4'+h.slice(13,16)+'-8'+h.slice(17,20)+'-'+h.slice(20,32);
+    }
+    const row={...(replyId ? {id:replyId}: {}), incidente_id: incident.id, canale: 'guardian', autore_tipo: 'guardian',
+      testo: guardian.reply, metadati: { suggested_action: guardian.suggestedAction, voice_job_id:options.jobId || null }};
+    const writer=supabase.from('kona_ai_messaggi');
+    const {error}=await (replyId ? writer.upsert(row,{onConflict:'id',ignoreDuplicates:true}):writer.insert(row));
     if (error) throw error;
   }
   let replyMarkup;
@@ -819,6 +850,9 @@ async function handleOwnerConversation(supabase, chatId, session, text, metadata
   } else if (incident && incident.stato !== 'archiviato' && guardian.suggestedAction === 'archivia') {
     replyMarkup = { inline_keyboard: [[{ text: 'Archivia', callback_data: `archive:${incident.id}` }]] };
   }
+  if(options.jobId && replyMarkup) history[history.length-1].reply_markup=replyMarkup;
+  await saveConversation(supabase,chatId,history);
+  if (options.deferDelivery) return {text:guardian.reply, ...(replyMarkup ? {reply_markup:replyMarkup}: {})};
   await sendTelegramMessage(chatId, guardian.reply, { reply_markup: replyMarkup });
 }
 
@@ -826,12 +860,6 @@ async function handleMessage(supabase, update, chatId, session) {
   const message = update.message;
   let text = conversationText(message?.text, 4000);
   let metadata = {};
-  if (!text && message?.voice?.file_id) {
-    await sendTelegramMessage(chatId, 'Trascrizione del vocale in corso.');
-    const file = await downloadTelegramFile(message.voice.file_id);
-    text = cleanText(await transcribeVoice(file), 4000);
-    metadata = { input_type: 'voice', telegram_file_id: message.voice.file_id };
-  }
   if (!text) {
     await sendTelegramMessage(chatId, 'Invia un messaggio di testo o un vocale.');
     return;
@@ -881,7 +909,23 @@ async function handleMessage(supabase, update, chatId, session) {
   return handleOwnerConversation(supabase, chatId, session, text, metadata, message.reply_to_message);
 }
 
-exports._test = { handleOwnerConversation, resolveConversationIncident, ownerContext, publishProduction, prepareProductionRelease, latestSuccessfulTest, handleMessage, handleCallback };
+async function handleVoiceUpdate(supabase,update,chatId,deps={}) {
+    const ownerChatId=String(process.env.TELEGRAM_GUARDIAN_OWNER_CHAT_ID || '');
+    const message=update.message;
+    if (String(chatId)!==ownerChatId || message.chat?.type!=='private' || String(message.from?.id)!==ownerChatId || message.from?.is_bot) return response(200,{ok:true});
+    try {
+      const voice=require('./_lib/guardian-voice');
+      const id=await (deps.enqueue || voice.enqueue)(supabase,update,chatId);
+      if(id) {
+        try { await (deps.send || sendTelegramMessage)(chatId,'Vocale ricevuto e accodato. Sto trascrivendo la tua spiegazione; ti rispondo qui appena è pronta.'); } catch (_) {}
+        try { await (deps.nudge || voice.nudge)(); } catch (_) { console.warn('Guardian: vocale accodato, recupero dal cron'); }
+      }
+      return response(200,{ok:true});
+    } catch (_) { return response(503,{ok:false}); }
+  }
+
+
+exports._test = { handleVoiceUpdate, handleOwnerConversation, resolveConversationIncident, ownerContext, publishProduction, prepareProductionRelease, latestSuccessfulTest, handleMessage, handleCallback };
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return response(405, { ok: false });
@@ -911,6 +955,8 @@ exports.handler = async (event) => {
 
   const supabase = getAdminClient();
   if (!supabase) return response(500, { ok: false });
+
+  if (update.message?.voice?.file_id) return handleVoiceUpdate(supabase,update,chatId);
 
   try {
     const claimed = await claimUpdate(supabase, chatId, update.update_id);

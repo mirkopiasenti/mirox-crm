@@ -35,9 +35,15 @@ async function guardianHealth(supabase) {
         const { error } = await supabase.from('kona_ai_telegram_sessioni').select('conversazione').limit(1);
         return { ok: !error, code: error ? 'guardian_memory_unavailable' : null };
       } catch (_) { return { ok: false, code: 'guardian_memory_unavailable' }; }
+    })(),
+    (async () => {
+      try {
+        const { error } = await supabase.from('kona_ai_vocali_jobs').select('id').limit(1);
+        return { ok: !error, code: error ? 'guardian_voice_queue_unavailable' : null };
+      } catch (_) { return { ok: false, code: 'guardian_voice_queue_unavailable' }; }
     })()
   ]);
-  return { ok: checks.every(c => c.ok), chat_openai: checks[0], telegram: checks[1], memory: checks[2] };
+  return { ok: checks.every(c => c.ok), chat_openai: checks[0], telegram: checks[1], memory: checks[2], voice_queue: checks[3] };
 }
 
 module.exports = { guardianHealth };

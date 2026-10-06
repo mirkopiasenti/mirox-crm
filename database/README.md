@@ -193,3 +193,13 @@ l’approvazione al commit patch, base main, PR e test; la transizione condizion
 usa lo stesso UUID, conserva il contratto nell’audit e chiude l’incidente soltanto
 dopo verifica del commit distribuito e salute Guardian. Notifica persistente in
 `kona_ai_notifiche`. Tabelle CRM/Call Center, schema, grant e RLS invariati.
+
+### Guardian: coda vocali, 06/10/2026
+
+`20261006190000_guardian_voice_jobs.sql` aggiunge solo `kona_ai_vocali_jobs`:
+file/update ID univoco, incidente originale, trascrizione/risposta, checkpoint
+invio, lease e massimo cinque tentativi. Indice parziale: una elaborazione per
+chat. RLS e grant solo service_role; nessuna modifica schema/RLS a tabelle CRM,
+Call Center o Target. Applicata e verificata production il 06/10/2026 prima del deploy: RLS attiva,
+privilegi browser assenti e indice univoco presenti. Riclassificazione usa le colonne esistenti
+`tipo_richiesta`/`riepilogo_ai` e audit, senza ulteriori DDL.

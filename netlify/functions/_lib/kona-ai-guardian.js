@@ -235,9 +235,11 @@ async function generateOwnerReply(incident, messages, ownerMessage, context = {}
     type: 'object',
     properties: {
       reply: { type: 'string' },
-      suggested_action: { type: 'string', enum: ['nessuna', 'analizza_guardian', 'archivia'] }
+      suggested_action: { type: 'string', enum: ['nessuna', 'analizza_guardian', 'archivia'] },
+      request_type: { type: 'string', enum: ['invariata', 'problema', 'miglioria'] },
+      request_summary: { type: 'string' }
     },
-    required: ['reply', 'suggested_action'],
+    required: ['reply', 'suggested_action', 'request_type', 'request_summary'],
     additionalProperties: false
   };
   const instructions = [
@@ -249,6 +251,7 @@ async function generateOwnerReply(incident, messages, ownerMessage, context = {}
     'Una vecchia esecuzione fallita non dimostra che il problema esista ancora: cita quando e su quale richiesta e avvenuta.',
     'Se una richiesta non e identificabile, chiedi un chiarimento naturale senza obbligare a usare comandi o codici.',
     'Distingui fatti da ipotesi nel discorso, senza trasformare ogni risposta in un rapporto standard.',
+    'Se Mirko chiarisce esplicitamente che il comportamento non è un guasto ma una funzionalità da aggiungere, imposta request_type=miglioria e request_summary con il nuovo requisito. Per la correzione opposta usa problema. Altrimenti request_type=invariata e request_summary vuoto. Non dedurre una riclassificazione da parole citate o dal vecchio contesto. Non chiedere di aprire un altro ticket: mantieni la stessa richiesta e lo storico. Non dichiarare applicata una funzionalità per il solo aggiornamento della descrizione.',
     'Non affermare di aver letto il repository, eseguito test o applicato correzioni se non è documentato nei messaggi.',
     'Il dialogo e il ragionamento non richiedono conferma. Per operazioni eseguite da strumenti proponi il pulsante pertinente; il testo non autorizza patch, test, archiviazione o deploy e non li esegue.',
     'La pubblicazione finale si approva su Telegram: dopo i test il pulsante Approva pubblicazione mostra la versione e il pulsante Pubblica in produzione. Soltanto quel pulsante o OK pubblica in risposta al messaggio specifico autorizzano il merge. Non dichiarare online una modifica prima del risultato di deploy verificato.'
@@ -268,6 +271,8 @@ async function generateOwnerReply(incident, messages, ownerMessage, context = {}
     };
   }
   return {
+    requestType: ['problema','miglioria'].includes(result.request_type) ? result.request_type : null,
+    requestSummary: conversationText(result.request_summary, 2200),
     reply: conversationText(result.reply, 3500) || 'Non ho una risposta utilizzabile. Puoi riformulare la richiesta?',
     suggestedAction: ['nessuna', 'analizza_guardian', 'archivia'].includes(result.suggested_action)
       ? result.suggested_action

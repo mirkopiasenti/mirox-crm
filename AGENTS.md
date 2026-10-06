@@ -134,7 +134,7 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 
 ### 2. Server (`/netlify/functions/`, Node >=22)
 
-Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i cron Netlify, `public-prenota`, `guardian-telegram-webhook`, `guardian-codex-worker`, `target-telegram-webhook` e `target-worker-background`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `guardian-telemetry-ingest` è autenticata e accetta soltanto eventi tecnici a schema chiuso; `guardian-codex-worker` è protetta da HMAC e da un lease server-only. Il webhook Guardian e' una seconda eccezione pubblica ma richiede sia il secret token Telegram sia il `chat_id` di Mirko. Nessuno degli endpoint è un endpoint anonimo generico. `admin-vendita-config`, `admin-kpi-vendita-consumer`, `admin-kpi-call-center`, `gestisci-controllo-fissi`, `elimina-vendita-contratto`, le action manuali di `gestisci-controllo-lg` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. Le funzioni Guardian condividono inoltre `guardian-telemetry`, `guardian-triage`, `with-telemetry` e l'outbox dell'Observer:
+Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i cron Netlify, `public-prenota`, `guardian-telegram-webhook`, `guardian-codex-worker`, `guardian-voice-background`, `target-telegram-webhook` e `target-worker-background`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `guardian-telemetry-ingest` è autenticata e accetta soltanto eventi tecnici a schema chiuso; `guardian-codex-worker` è protetta da HMAC e da un lease server-only. Il webhook Guardian e' una seconda eccezione pubblica ma richiede sia il secret token Telegram sia il `chat_id` di Mirko. Nessuno degli endpoint è un endpoint anonimo generico. `admin-vendita-config`, `admin-kpi-vendita-consumer`, `admin-kpi-call-center`, `gestisci-controllo-fissi`, `elimina-vendita-contratto`, le action manuali di `gestisci-controllo-lg` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. Le funzioni Guardian condividono inoltre `guardian-telemetry`, `guardian-triage`, `with-telemetry` e l'outbox dell'Observer:
 
 - `target-telegram-webhook.js` (POST) — secret Telegram dedicato e chat privata Mirko; accoda testo/vocali Target con dedupe.
 - `target-worker-background.js` (POST background) — HMAC + timestamp, lease della sessione e checkpoint di invio; report, memoria e dialogo read-only.
@@ -160,6 +160,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `guardian-incidents.js` (GET/POST action-based) — endpoint autenticato della pagina `Segnala Problema`. Ogni richiesta nasce come `problema` o `miglioria`; la raccolta Structured Outputs usa domande e criteri diversi per i due tipi. Gli operatori creano/proseguono solo le proprie richieste; gli admin possono elencarle tutte. Identita', contesto sicuro e ownership sono derivati lato server; tabelle Guardian mai accessibili direttamente dal browser. Il fallback deterministico non blocca l'operatore.
 - `guardian-telemetry-ingest.js` (POST) — endpoint autenticato per batch di massimo 20 eventi e 64 KB. Ripulisce nuovamente il payload, forza l'ambiente server, calcola fingerprint, deduplica gli `event_id` e aggiorna `kona_ai_eventi_tecnici`/`kona_ai_segnali`.
 - `guardian-telegram-webhook.js` (POST) — webhook pubblico solo per necessita' Telegram, protetto da `X-Telegram-Bot-Api-Secret-Token`, confronto constant-time e allowlist rigida `TELEGRAM_GUARDIAN_OWNER_CHAT_ID`. Accetta testo o vocali conclusi, trascritti via Audio Transcriptions; gestisce `/richieste` (con alias `/incidenti`), `/salute`, `/apri`, `/nuovo`, `/nuovo_miglioria`, analisi Guardian, archiviazione e `Approva lavorazione`. Qualunque pulsante operativo collega automaticamente la sessione Telegram alla richiesta scelta, così i messaggi liberi successivi restano nella conversazione corretta; `Archivia` azzera invece la richiesta attiva. `/salute` espone soltanto contatori e checkpoint tecnici dell'Observer, senza dati CRM. L'approvazione crea un audit `prepara_fix` e porta la richiesta a `fix_approvato`, ma non esegue codice finche' Codex non e' collegato.
+- `guardian-voice-background.js` (POST background) — HMAC Guardian + timestamp fresco, proprietario solo da configurazione server, coda vocali privata e lease per chat. Il webhook salva prima dell’ack; retry automatici limitati e consegne ambigue sospese, ripresa solo da pulsante owner.
 - `guardian-codex-worker.js` (POST) — endpoint interno protetto da firma HMAC. Gestisce claim con lease, heartbeat e risultato delle esecuzioni `analisi_codex`, `analisi_automatica`, `scansione_migliorie`, `prepara_patch`, `test_staging` e `rilascio_produzione`; recupera al workflow soltanto contesto Guardian ridotto e invia l'esito a Telegram. Gli esiti automatici sono tradotti in sezioni comprensibili (`Che cosa significa`, conclusione, singola informazione necessaria e prossimo passo). Se `safe_to_prepare_patch` e' falso o mancano dati, il bottone patch viene sostituito da `Aggiungi informazioni`. Per `prepara_patch`, `RICHIEDE_INFORMAZIONI` e `BLOCCATA` chiudono regolarmente il lease senza fingere una modifica e senza abilitare i test della branch. Non accetta JWT, non espone segreti e non concede accesso browser alle tabelle.
 - `guardian-telemetry-ingest.js` deve esportare esplicitamente `handler`: viene importato da `_lib/with-telemetry.js` anche durante il caricamento del worker; un export incoerente rompe il bundle Netlify prima della verifica HMAC.
 - `cron-rientro-sim.js` (scheduled `0 7 * * *`) — notifica giornaliera switch SIM. **Non auth-gated** (chiamata dal cron Netlify, non da utente). Con `MIROX_DEPLOY_ENV=staging` termina subito con `skipped`, senza DB o email.
@@ -229,6 +230,7 @@ Le migration Guardian additive `065`–`068` sono applicate sul production `lbgw
 - `kona_ai_segnali` — migration `068`, aggregati deduplicati per fingerprint/ambiente/release. Contiene soglie, priorità, conteggi, stato, incidente collegato e cooldown delle notifiche.
 - `kona_ai_notifiche` — migration `068`, outbox server-only Telegram con chiave anti-duplicazione, tentativi, backoff e dead-letter dopo otto fallimenti.
 - `kona_ai_observer_checkpoint` — migration `068`, checkpoint e budget giornaliero dell'Observer per ambiente e tipo di scansione.
+- `kona_ai_vocali_jobs` — migration `20261006190000_guardian_voice_jobs.sql`: update/file ID, incidente acquisito alla ricezione, trascrizione e risposta/checkpoint, lease, retry e stato della consegna. RLS attiva senza grant browser; unico job in corso per owner. Isolata dal CRM/Call Center.
 - `kona_ai_telegram_sessioni` — associa il solo `chat_id` proprietario all'incidente attivo, conserva l'ultimo `update_id` Telegram per dedupe e, dopo la migration timestamp applicata il 05/10/2026, gli ultimi 30 messaggi di conversazione.
 
 ### Post-Vendita
@@ -918,3 +920,17 @@ Timeout persistenti del provider e perdita di rete restano possibili: nessuna
 promessa di eliminazione; eventi storici senza causa dimostrata sono archiviati
 con nota di mitigazione, senza dichiararli risolti. Report completo in
 `docs/GUARDIAN_BUG_SETTEMBRE_2026.md`. Schema/RLS CRM e CC invariati.
+
+### Convenzione Guardian: vocali e correzione del requisito (06/10/2026)
+
+Mai trascrivere dentro il webhook sincrono: accodare prima dell’ack e prima del
+claim generale update. Fallimento DB → 503 ritentabile da Telegram, dedupe su
+update_id; snapshot della richiesta per evitare di spostare un vocale dopo un
+cambio conversazione. Helper `_lib/guardian-voice.js`, worker background e cron
+Observer per recovery. Stesso GUARDIAN_WORKER_SECRET, firma su timestamp, nessun
+nuovo secret. Trascrizione checkpoint prima del dialogo; risposta checkpoint
+prima dell’invio, audit/memoria con ID stabile del job. Consegna incerta sospesa
+contro duplicati; nuova copia soltanto dopo pulsante esplicito del proprietario.
+Riclassificazione problema/miglioria solo su chiarimento esplicito del proprietario
+per richiesta raccolta/ricevuto/in_attesa_approvazione: CAS, riepilogo aggiornato,
+audit e scadenza approvazioni pendenti; nessuna patch o pubblicazione dal vocale.

@@ -339,6 +339,8 @@ const handler = async () => {
       processed += 1;
     }
     const weeklyScan = await maybeScheduleImprovementScan(supabase);
+    const {nudge}=require('./_lib/guardian-voice');
+    try {await nudge();} catch (_) {console.warn('Guardian: risveglio vocali rimandato');}
     const outbox = await processOutbox(supabase);
     await supabase.from('kona_ai_observer_checkpoint').update({ ultima_esecuzione_at: nowIso(), ultimo_esito: 'ok', dettagli: { worker_blocked: workerBlocked, segnali_processati: processed, scansione_migliorie: weeklyScan, outbox } }).eq('id', observerCheckpoint.id);
     return { statusCode: 200, body: JSON.stringify({ ok: true, environment: environment(), signals: processed, weekly_scan: weeklyScan, outbox }) };

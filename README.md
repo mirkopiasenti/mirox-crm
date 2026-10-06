@@ -84,6 +84,7 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `guardian-incidents` | GET / POST | authenticated | Crea e prosegue richieste KONA AI di tipo `problema` o `miglioria`, con raccolta AI dedicata. Gli operatori vedono solo le proprie; gli admin possono elencarle tutte. Nessun accesso browser diretto alle tabelle Guardian |
 | `guardian-telemetry-ingest` | POST | authenticated | Riceve batch tecnici ripuliti dal frontend, calcola fingerprint e aggiorna i segnali aggregati; non accetta body applicativi, allegati o segreti |
 | `guardian-telegram-webhook` | POST | webhook Telegram privato | Accetta solo il secret token configurato e il `chat_id` di Mirko; gestisce testo, vocali trascritti, problemi/migliorie, analisi Guardian, analisi Codex read-only, patch/test della branch, proposta di rilascio e archiviazione. Ogni pulsante operativo rende automaticamente attiva la relativa richiesta per i messaggi successivi; l'archiviazione libera invece la sessione. Le azioni sensibili restano auditabili e separate |
+| `guardian-voice-background` | POST background | HMAC + timestamp | Elabora la coda privata dei vocali; salva trascrizione/risposta prima dell’invio e recupera timeout con retry limitati |
 | `guardian-codex-worker` | POST | HMAC worker-only | Endpoint interno per claim, heartbeat e risultato dei workflow Codex. Distingue una patch creata da una richiesta già soddisfatta nel codice corrente: nel secondo caso chiude positivamente l'esecuzione senza branch, pull request o tasto di test. Non accetta JWT utente, non espone dati al browser e non contiene segreti nel payload |
 | `cron-guardian-observer` | scheduled (`*/5 * * * *`) | nessuna (cron Netlify) | Aggrega i segnali Guardian, apre incidenti automatici, avvia Codex read-only entro il budget e processa l'outbox Telegram con retry |
 | `cron-rientro-sim` | scheduled | nessuna (cron Netlify) | Notifica giornaliera rientro SIM; termina senza operazioni quando `MIROX_DEPLOY_ENV=staging` |
@@ -400,7 +401,7 @@ su `main` dopo il merge. I deploy production restano attivi.
 - `cron-rientro-sim`: ogni giorno alle **07:00 UTC** (09:00 ora italiana estate / 08:00 inverno). Cerca pratiche `vendita_switch_sim` con `giorno_rientro = oggi` e `mail_rientro_inviata_at IS NULL`, invia notifica via template `rientro_sim`, imposta `mail_rientro_inviata_at = now()`. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o inviare email.
 - `cron-pulizia-operativa`: ogni giorno alle **02:30 UTC**. Scade gli OTP pending oltre termine, elimina i contatori del rate limit pubblico scaduti, recupera fino a 100 pratiche `bozza` più vecchie di 24 ore cancellando prima i PDF Storage e poi la pratica, rimuove dopo 90 giorni il contesto tecnico degli incidenti Guardian ed elimina gli eventi Observer oltre `expires_at`. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o modificare dati.
 - `cron-target-reports`: ogni **5 minuti**, crea i tre report alle **19:45 Europe/Rome**, lun-sab escluse festivita nazionali/Pasquetta; riprende la coda anche fuori orario. Richiede configurazione esplicita Target production.
-- `cron-guardian-observer`: ogni **5 minuti**. Legge eventi Guardian già ripuliti, aggiorna i gruppi, apre incidenti sopra soglia, avvia al massimo il budget giornaliero di analisi Codex read-only e consegna le notifiche Telegram dalla coda persistente. Non modifica codice o produzione; se il workflow non è configurato conserva la segnalazione e richiede un controllo manuale; non ripete il medesimo segnale senza limite.
+- `cron-guardian-observer`: ogni **5 minuti**. Legge eventi Guardian già ripuliti, aggiorna i gruppi, apre incidenti sopra soglia, avvia al massimo il budget giornaliero di analisi Codex read-only e consegna le notifiche Telegram dalla coda persistente e risveglia il worker dei vocali. Non modifica codice o produzione; se il workflow non è configurato conserva la segnalazione e richiede un controllo manuale; non ripete il medesimo segnale senza limite.
 
 ## Link utili
 
@@ -430,3 +431,16 @@ errori di avvio/SIM. Catalogo vendita: un retry esplicito solo delle letture GET
 su rete/502/503/504. OTP: verifica unica, recupero Storage, protezione dei PDF gia'
 salvati e diagnostica Guardian per fase. Schema CRM invariato.
 Dettaglio e limiti: [registro intervento](docs/GUARDIAN_BUG_SETTEMBRE_2026.md).
+
+### Guardian: vocali recuperabili (06/10/2026)
+
+Il webhook accoda il vocale prima di rispondere a Telegram: conserva update/file
+ID e richiesta selezionata, senza trascrizione sincrona. Il worker background
+usa la stessa chiave Guardian, fino a 180 secondi per la trascrizione, checkpoint
+prima della risposta e al massimo cinque tentativi con backoff. Il cron recupera
+la coda ogni cinque minuti. Una consegna Telegram incerta non viene ripetuta
+senza il pulsante `Riprova questo vocale`; non serve registrare nuovamente l’audio.
+Se il proprietario chiarisce che serve una funzionalità nuova, Guardian può
+riclassificare la richiesta aperta come miglioria, conservando lo storico e
+aggiornando il riepilogo. Questo non autorizza modifiche codice o pubblicazione.
+Dettagli: `docs/GUARDIAN_VOCALI_2026-10-06.md`. Nessuna nuova env o tabella CC.

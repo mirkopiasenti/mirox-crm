@@ -927,3 +927,12 @@ Dettagli e vincoli aggiornati in AGENTS e `docs/GUARDIAN_PUBBLICAZIONE_TELEGRAM.
 Netlify 05/10/2026: anteprime PR disabilitate (`skip_prs=true`); production main
 e deploy automatici al merge restano attivi (`stop_builds=false`). Il controllo
 GitHub fallito dell'anteprima PR12 è storico e non un guasto del CRM production.
+
+## Guardian: vocali e riclassificazione (06/10/2026)
+
+Vocali persistiti in `kona_ai_vocali_jobs` prima dell’ack Telegram, elaborati da
+`guardian-voice-background` con HMAC/timestamp e lease; retry limitati, checkpoint
+trascrizione/risposta, consegna incerta sospesa con ripresa esplicita. Il cron
+Observer risveglia la coda. Riclassificazione su chiarimento del proprietario con
+storico/audit conservati e approvazioni pendenti invalidate. Nessuna env nuova,
+nessuna modifica Call Center; guida `docs/GUARDIAN_VOCALI_2026-10-06.md`.

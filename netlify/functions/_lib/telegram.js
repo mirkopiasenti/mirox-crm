@@ -23,7 +23,7 @@ async function telegramRequest(method, payload = {}) {
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.ok) {
-    throw new Error(result.description || `Telegram API ${response.status}`);
+    throw Object.assign(new Error('Telegram ha rifiutato il messaggio'),{telegramRejected:true,status:response.status,retryAfter:Number(result.parameters?.retry_after || 0)});
   }
   return result.result;
 }
@@ -66,7 +66,7 @@ async function downloadTelegramFile(fileId) {
   };
 }
 
-async function transcribeVoice(file) {
+async function transcribeVoice(file, { timeoutMs = 60000, request = fetch } = {}) {
   const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
   if (!apiKey) throw new Error('OPENAI_API_KEY non configurata per la trascrizione vocale');
 
@@ -76,11 +76,11 @@ async function transcribeVoice(file) {
   form.append('prompt', 'Messaggio tecnico in italiano per KONA AI Guardian sul CRM Mirox.');
   form.append('languages[]', 'it');
 
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+  const response = await request('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}` },
     body: form,
-    signal: AbortSignal.timeout(60000)
+    signal: AbortSignal.timeout(timeoutMs)
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
