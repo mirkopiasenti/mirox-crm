@@ -160,3 +160,8 @@ test('proposta SQL genera notifica persistente con PR e nessun test o rilascio a
  const note=db.tables.kona_ai_notifiche.find(n=>n.dedupe_key==='observer:result:'+e.id);
  assert(note && note.payload.text.includes(url));assert(!note.payload.text.includes('Nessun file'));
 });
+
+test('un piano JSON necessita revisione server prima della pubblicazione',()=>{
+ const result=classifyPatch(['netlify/functions/_lib/guardian-catalog-kg23.json'],'ESITO_PATCH: MODIFICA_PREPARATA');
+ assert(result.catalog_required && result.manual_review && result.blocked);
+});

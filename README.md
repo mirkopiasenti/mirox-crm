@@ -501,3 +501,5 @@ Checkpoint nell'approvazione finale impedisce duplicati. Un fallimento dati
 lascia la richiesta aperta e non viene dichiarato un rilascio riuscito.
 Migration applicata/riletta06/10: privilegi verificati, core e rollback dopo
 precondizione fallita collaudati in transazioni annullate,0record sintetici residui.
+
+Convenzione piani catalogo Guardian: solo `netlify/functions/_lib/guardian-catalog-<codice>.json`; il validator li classifica catalog_required/manual_review/blocked, come le proposte SQL. Senza revisione server legata alla head non si puo proporre il rilascio del piano.
