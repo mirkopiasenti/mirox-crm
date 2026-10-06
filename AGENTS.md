@@ -116,6 +116,7 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 
 | File JS | Espone | Uso |
 |---|---|---|
+| `js/customer-base-device.js` | `window.MiroxCustomerBaseDevice` / CommonJS server | Vincola dispositivo e acquisto nelle due combinazioni Customer Base finanziato/VAR |
 | `js/dashboard-report-core.js` | `window.MiroxDashboardReport` / CommonJS server | Motore puro condiviso con Target e Admin: matching, pesi, calendario, righe Day/Mensile, gare mensili e compensi |
 | `js/config.js` | `window.db`, `window.MiroxEnvironment` | Guard nel sorgente; la build genera il client con URL + publishable/anon key dell'ambiente |
 | `js/auth.js` | `window.Auth` | `richiediAuth()` guard, `logout()`, `getProfilo()`. Le operazioni sensibili sono autorizzate per ruolo lato server; il frontend non richiede password operative o una seconda immissione della password account |
@@ -972,6 +973,17 @@ La revisione resta separata da Codex. Un piano catalogo validato e vincolato
 alla versione puo essere applicato dal rilascio dopo la conferma finale Telegram. Secret,
 workflow, dipendenze e deploy rimangono bloccati prima del push della patch.
 
+### Proposta KG-000023 — Customer Base con telefono (06/10/2026)
+
+La modifica preparata è una configurazione dati additiva e non eseguita:
+`netlify/functions/_lib/guardian-catalog-kg23.json` inserisce in modo
+idempotente le offerte Consumer `Cambio Piano + Telefono Finanziato` e `Cambio
+Piano + Telefono VAR`, entrambe a 1 punto complessivo con
+`abilita_dispositivo=true`, e le due righe Day by Day corrispondenti. Il flag
+del catalogo e il validatore condiviso mantengono i dati del telefono; le regole
+Day by Day distinguono il tipo di acquisto. Non sono stati modificati schema,
+RLS, RPC, tabelle condivise con il Call Center o produzione.
+
 ### Guardian: piano catalogo revisionato e conferma Telegram
 
 La migration `20261006182105_guardian_reviewed_catalog.sql` aggiunge due RPC,
@@ -991,5 +1003,13 @@ Checkpoint nell'approvazione finale impedisce duplicati. Un fallimento dati
 lascia la richiesta aperta e non viene dichiarato un rilascio riuscito.
 Migration applicata/riletta06/10: privilegi verificati, core e rollback dopo
 precondizione fallita collaudati in transazioni annullate,0record sintetici residui.
+
+KG23: il piano JSON backend aggiunge2offerte Consumer/2righe Day by Day a1punto
+complessivo. Aggiorna soltanto le regole delle righe telefono14/15 per escludere
+le nuove combinazioni, preservando tutti i telefoni storici. Il helper condiviso
+`js/customer-base-device.js` vincola dispositivo obbligatorio e tipo acquisto
+Finanziamento/VAR nel wizard e server; altre offerte restano immutate. Script
+SQL iniziale non eseguito e sostituito da piano revisionato, non da SQL spostato.
+Applicazione subordinata alla conferma finale Telegram e alla head SHA verificata.
 
 Convenzione piani catalogo Guardian: solo `netlify/functions/_lib/guardian-catalog-<codice>.json`; il validator li classifica catalog_required/manual_review/blocked, come le proposte SQL. Senza revisione server legata alla head non si puo proporre il rilascio del piano.

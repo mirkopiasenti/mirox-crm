@@ -153,6 +153,7 @@ function finalizeFixture({ identityIds, readError = false }) {
   vm.runInNewContext(source, { module, exports: module.exports, Buffer, console: { log() {} },
     process: { env: { SUPABASE_URL: 'https://test.invalid', SUPABASE_SERVICE_ROLE_KEY: 'private' } },
     require(id) {
+      if (id === '../../js/customer-base-device') return require('../js/customer-base-device');
       if (id === '@supabase/supabase-js') return { createClient: () => db };
       if (id === './_lib/require-auth') return { requireAuth: async () => ({ ok: true, user: { id: 'user' }, profilo: { ruolo: 'admin' } }) };
       if (id === './_lib/privacy-config') return { INFORMATIVE_VERSIONI_CORRENTI: [] };

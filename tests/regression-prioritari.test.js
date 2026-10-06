@@ -28,6 +28,7 @@ function loadCommonJs(relativePath, stubs = {}) {
     module,
     process: { env: {} },
     require(id) {
+      if (id === '../../js/customer-base-device') return require('../js/customer-base-device');
       if (Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];
       throw new Error(`Dipendenza non prevista nel test: ${id}`);
     }

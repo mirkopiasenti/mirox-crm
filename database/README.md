@@ -227,6 +227,15 @@ La revisione resta separata da Codex. Un piano catalogo validato e vincolato
 alla versione puo essere applicato dal rilascio dopo la conferma finale Telegram. Secret,
 workflow, dipendenze e deploy rimangono bloccati prima del push della patch.
 
+## Proposta Customer Base con telefono (06/10/2026)
+
+`../netlify/functions/_lib/guardian-catalog-kg23.json` è una configurazione dati
+transazionale, non una migration schema: propone due offerte Consumer Customer
+Base (`Cambio Piano + Telefono Finanziato` e `Cambio Piano + Telefono VAR`) a 1
+punto complessivo ciascuna, con dispositivo abilitato, e due righe Day by Day
+separate per `Finanziamento` e `VAR`. L’applicazione tramite RPC richiede conferma finale Telegram e precondizioni
+sulle righe attese, senza SQL libero. Non è ancora attivo.
+
 ### Guardian: piano catalogo revisionato e conferma Telegram
 
 La migration `20261006182105_guardian_reviewed_catalog.sql` aggiunge due RPC,
@@ -246,5 +255,13 @@ Checkpoint nell'approvazione finale impedisce duplicati. Un fallimento dati
 lascia la richiesta aperta e non viene dichiarato un rilascio riuscito.
 Migration applicata/riletta06/10: privilegi verificati, core e rollback dopo
 precondizione fallita collaudati in transazioni annullate,0record sintetici residui.
+
+KG23: il piano JSON backend aggiunge2offerte Consumer/2righe Day by Day a1punto
+complessivo. Aggiorna soltanto le regole delle righe telefono14/15 per escludere
+le nuove combinazioni, preservando tutti i telefoni storici. Il helper condiviso
+`js/customer-base-device.js` vincola dispositivo obbligatorio e tipo acquisto
+Finanziamento/VAR nel wizard e server; altre offerte restano immutate. Script
+SQL iniziale non eseguito e sostituito da piano revisionato, non da SQL spostato.
+Applicazione subordinata alla conferma finale Telegram e alla head SHA verificata.
 
 Convenzione piani catalogo Guardian: solo `netlify/functions/_lib/guardian-catalog-<codice>.json`; il validator li classifica catalog_required/manual_review/blocked, come le proposte SQL. Senza revisione server legata alla head non si puo proporre il rilascio del piano.

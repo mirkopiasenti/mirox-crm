@@ -1048,6 +1048,7 @@
 <script src="../js/mirox-ui.js"></script>
 <script src="../js/mirox-api.js"></script>
 <script src="../js/mirox-upload.js"></script>
+<script src="../js/customer-base-device.js"></script>
 <script> // Auth guard: blocca rendering se non loggato
  (async () => {
  const profilo = await Auth.richiediAuth();
@@ -3353,6 +3354,7 @@ Reload Forever
  // acquisto e' SEMPRE VAR (acquisto a rate del modem, niente finanziamento).
  // Forza entrambi i dropdown e disabilita l'edit. Inoltre Kolme e Smartphone
  // Reload non sono rilevanti per il modem FWA, vengono nascosti (vedi sotto).
+ const combinationType=MiroxCustomerBaseDevice.requiredPurchaseType(offertaNome,categoriaNome);
  const fwaIndoor = deviceVisible && isFwaIndoor();
  if (fwaIndoor) {
  refs.dispositivoAssociato.value = 'true';
@@ -3360,10 +3362,14 @@ Reload Forever
  refs.tipoAcquisto.value = 'VAR';
  refs.tipoAcquisto.disabled = true;
  } else {
- refs.dispositivoAssociato.disabled = false;
- refs.tipoAcquisto.disabled = false;
+ refs.dispositivoAssociato.disabled = Boolean(combinationType);
+ refs.tipoAcquisto.disabled = Boolean(combinationType);
  }
 
+ if(combinationType) {
+ refs.dispositivoAssociato.value='true'; refs.dispositivoAssociato.disabled=true;
+ refs.tipoAcquisto.value=combinationType; refs.tipoAcquisto.disabled=true;
+ }
  const hasDevice = deviceVisible && refs.dispositivoAssociato.value === 'true';
  refs.fieldImei.classList.toggle('hidden', !hasDevice);
  refs.fieldFasciaPrezzo.classList.toggle('hidden', !hasDevice);

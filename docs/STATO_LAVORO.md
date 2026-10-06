@@ -6,10 +6,10 @@ istruzioni dell'utente e guide di progetto restano vincolanti.
 ## Guardian: sviluppo Telegram e piano catalogo06/10
 
 -00176fa online19:57:11/CI37507449399/health37507655840: comando owner→patch→test→proposta finale; niente altra analisi discorsiva.4772ce7 online20:10:54/CI37509230594/health37509433150: snapshot catalogo read-only, SQL in PR revisionabile, outbox sviluppo.264test+build.
-- KG23: prima patch bloccata dal gate SQL, punteggio0inventato respinto. Proprietario conferma1punto complessivo per entrambe Consumer. Worker reale3aa38b55/run37509428723 riuscito, PR13/head605db4f conservata. SQL da convertire in piano revisionato, doppio conteggio e vincoli device/tipo acquisto da correggere.
-- RPC20261006182105 aggiunte: core privato/wrapper service-only,2tabelle config, schema chiuso/precondizioni/lease/SHA/test/conferma finale, transazione e checkpoint. Privilegi/rollback reali/lease assente/0residui OK; nessuna approvazione finale simulata o feature applicata.Fondazione9825e73 online20:27:20/CI37511346262OK;273test. Piano JSON ora rilevato dal validator e richiede revisione server;274test OK.
+- KG23: prima patch bloccata dal gate SQL, punteggio0inventato respinto. Proprietario conferma1punto complessivo per entrambe Consumer. Worker reale3aa38b55/run37509428723 riuscito, PR13/head605db4f conservata. PR revisionata: piano JSON1punto, esclusione mirata dei nuovi nomi dalle righe telefono storiche14/15, vincoli device/acquisto condivisi frontend/server;6regressioni reali OK.
+- RPC20261006182105 aggiunte: core privato/wrapper service-only,2tabelle config, schema chiuso/precondizioni/lease/SHA/test/conferma finale, transazione e checkpoint. Privilegi/rollback reali/lease assente/0residui OK; nessuna approvazione finale simulata o feature applicata.273test+build; fondazione9825e73 online20:27:20/Netlify6ac53d5d/CI37511346262OK. Feature da testare in workflow e approvare su Telegram.
 - Vocali0d76d28: FK voice_job_id conserva BIGINT identity. Audio autorizzato HTTP200/2,531s, job baa8d026/TG17219:35:36. Guide README/AGENTS/CLAUDE/databaseREADME e rapporto sviluppo aggiornati; backup/altre attivita preservati.
-- Prossimo: fondazione piano dati online, revisione PR13/test e proposta finale su Telegram.
+- Prossimo: suite completa PR13, binding piano alla head verificata e proposta finale Telegram.
 
 ## Avanzamento: CAMBI PIANO aggiunta online 06/10
 
