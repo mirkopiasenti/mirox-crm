@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "offers": [
+    {
+      "id": "eca12f13-64ad-4feb-89bd-4b7bb0333110",
+      "categoria_id": "f0303c5d-7492-42ca-a0b9-fc972b396da7",
+      "cluster_cliente": "Consumer",
+      "nome_offerta": "Cambio Piano + Telefono Finanziato",
+      "descrizione": "Cambio piano Consumer con telefono Finanziato",
+      "punteggio_gara": 1,
+      "punteggio_extra_gara": 0,
+      "abilita_dispositivo": true,
+      "abilita_switch_sim": false
+    },
+    {
+      "id": "904c59d0-7585-44a4-91a6-279117d5f902",
+      "categoria_id": "f0303c5d-7492-42ca-a0b9-fc972b396da7",
+      "cluster_cliente": "Consumer",
+      "nome_offerta": "Cambio Piano + Telefono VAR",
+      "descrizione": "Cambio piano Consumer con telefono VAR",
+      "punteggio_gara": 1,
+      "punteggio_extra_gara": 0,
+      "abilita_dispositivo": true,
+      "abilita_switch_sim": false
+    }
+  ],
+  "daily_rows": [
+    {
+      "name": "CAMBIO PIANO + TELEFONO FINANZIATO",
+      "group": "Customer Base",
+      "color": "#F4CCCC",
+      "order": 215,
+      "rule": {
+        "categoria": "Customer Base",
+        "cluster": "Consumer",
+        "offerta_match": "^cambio\\s+piano\\s*\\+\\s*telefono\\s+finanziato$",
+        "dispositivo_associato": true,
+        "tipo_acquisto": "Finanziamento"
+      }
+    },
+    {
+      "name": "CAMBIO PIANO + TELEFONO VAR",
+      "group": "Customer Base",
+      "color": "#F4CCCC",
+      "order": 216,
+      "rule": {
+        "categoria": "Customer Base",
+        "cluster": "Consumer",
+        "offerta_match": "^cambio\\s+piano\\s*\\+\\s*telefono\\s+var$",
+        "dispositivo_associato": true,
+        "tipo_acquisto": "VAR"
+      }
+    }
+  ],
+  "daily_updates": [
+    {
+      "id": 14,
+      "expected_name": "CB TELEFONO VAR RID",
+      "expected_rule": {
+        "categoria": "Customer Base",
+        "offerta_match": "telefono",
+        "tipo_acquisto": "VAR"
+      },
+      "rule": {
+        "categoria": "Customer Base",
+        "offerta_match": "telefono",
+        "tipo_acquisto": "VAR",
+        "offerta_not_match": "^cambio\\s+piano\\s*\\+\\s*telefono\\s+(?:finanziato|var)$"
+      }
+    },
+    {
+      "id": 15,
+      "expected_name": "CB TELEFONO FINANZIATO",
+      "expected_rule": {
+        "categoria": "Customer Base",
+        "offerta_match": "telefono",
+        "tipo_acquisto": "Finanziamento"
+      },
+      "rule": {
+        "categoria": "Customer Base",
+        "offerta_match": "telefono",
+        "tipo_acquisto": "Finanziamento",
+        "offerta_not_match": "^cambio\\s+piano\\s*\\+\\s*telefono\\s+(?:finanziato|var)$"
+      }
+    }
+  ]
+}

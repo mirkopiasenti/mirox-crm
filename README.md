@@ -484,8 +484,8 @@ workflow, dipendenze e deploy rimangono bloccati prima del push della patch.
 
 ## Proposta Customer Base — cambio piano con telefono (06/10/2026)
 
-La richiesta KG-000023 è stata preparata come configurazione dati, senza
-modifiche a schema o codice di produzione. `netlify/functions/_lib/guardian-catalog-kg23.json`
+La richiesta KG-000023 comprende una configurazione dati e vincoli condivisi
+tra wizard e server, senza modifiche schema. `netlify/functions/_lib/guardian-catalog-kg23.json`
 aggiunge in modo idempotente due offerte Consumer Customer Base — `Cambio Piano +
 Telefono Finanziato` e `Cambio Piano + Telefono VAR` — entrambe con 1 punto e
 `abilita_dispositivo=true`, così il wizard conserva il telefono associato. Il
@@ -520,3 +520,6 @@ le nuove combinazioni, preservando tutti i telefoni storici. Il helper condiviso
 Finanziamento/VAR nel wizard e server; altre offerte restano immutate. Script
 SQL iniziale non eseguito e sostituito da piano revisionato, non da SQL spostato.
 Applicazione subordinata alla conferma finale Telegram e alla head SHA verificata.
+
+Libreria condivisa aggiunta: `js/customer-base-device.js`, esposta su window nel
+wizard e richiesta dal server tramite CommonJS; nessuna nuova dipendenza npm.

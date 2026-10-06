@@ -1,3 +1,4 @@
+const {validateCombination}=require('../../js/customer-base-device');
 const { createClient } = require('@supabase/supabase-js');
 const { requireAuth } = require('./_lib/require-auth');
 const { INFORMATIVE_VERSIONI_CORRENTI } = require('./_lib/privacy-config');
@@ -452,6 +453,7 @@ function normalizeComparableText(value) {
 
 function validateCategorySpecificRules({ contract, category, offer, index }) {
   const categoryName = normalizeCategoryName(category?.nome);
+  validateCombination(contract,offer?.nome_offerta,category?.nome);
 
   if (categoryName === 'fisso') {
     const tipoAttivazione = normalizeTextArrayValue(
@@ -1547,6 +1549,7 @@ exports.handler = async (event) => {
 };
 
 exports._test = {
+  validateCategorySpecificRules,
   authenticatedOperatorId,
   assertPersistedContractScores,
   buildPdaFinalFileName,

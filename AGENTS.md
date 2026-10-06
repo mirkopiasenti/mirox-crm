@@ -116,6 +116,7 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 
 | File JS | Espone | Uso |
 |---|---|---|
+| `js/customer-base-device.js` | `window.MiroxCustomerBaseDevice` / CommonJS server | Vincola dispositivo e acquisto nelle due combinazioni Customer Base finanziato/VAR |
 | `js/dashboard-report-core.js` | `window.MiroxDashboardReport` / CommonJS server | Motore puro condiviso con Target e Admin: matching, pesi, calendario, righe Day/Mensile, gare mensili e compensi |
 | `js/config.js` | `window.db`, `window.MiroxEnvironment` | Guard nel sorgente; la build genera il client con URL + publishable/anon key dell'ambiente |
 | `js/auth.js` | `window.Auth` | `richiediAuth()` guard, `logout()`, `getProfilo()`. Le operazioni sensibili sono autorizzate per ruolo lato server; il frontend non richiede password operative o una seconda immissione della password account |
@@ -979,7 +980,7 @@ La modifica preparata è una configurazione dati additiva e non eseguita:
 idempotente le offerte Consumer `Cambio Piano + Telefono Finanziato` e `Cambio
 Piano + Telefono VAR`, entrambe a 1 punto complessivo con
 `abilita_dispositivo=true`, e le due righe Day by Day corrispondenti. Il flag
-del catalogo permette al carrello di mantenere i dati del telefono; le regole
+del catalogo e il validatore condiviso mantengono i dati del telefono; le regole
 Day by Day distinguono il tipo di acquisto. Non sono stati modificati schema,
 RLS, RPC, tabelle condivise con il Call Center o produzione.
 

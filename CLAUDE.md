@@ -993,3 +993,11 @@ Checkpoint nell'approvazione finale impedisce duplicati. Un fallimento dati
 lascia la richiesta aperta e non viene dichiarato un rilascio riuscito.
 Migration applicata/riletta06/10: privilegi verificati, core e rollback dopo
 precondizione fallita collaudati in transazioni annullate,0record sintetici residui.
+
+KG23: il piano JSON backend aggiunge2offerte Consumer/2righe Day by Day a1punto
+complessivo. Aggiorna soltanto le regole delle righe telefono14/15 per escludere
+le nuove combinazioni, preservando tutti i telefoni storici. Il helper condiviso
+`js/customer-base-device.js` vincola dispositivo obbligatorio e tipo acquisto
+Finanziamento/VAR nel wizard e server; altre offerte restano immutate. Script
+SQL iniziale non eseguito e sostituito da piano revisionato, non da SQL spostato.
+Applicazione subordinata alla conferma finale Telegram e alla head SHA verificata.
