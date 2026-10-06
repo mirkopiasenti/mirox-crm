@@ -54,6 +54,16 @@ Applicata e riletta production:id23, ordine35. Hash delle altre metriche e di
 tutti gli obiettivi identici prima-dopo, preflight successivo riuscito.
 Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
 
+## Proposta cambi piano con telefono (06/10/2026)
+
+`configura_cambi_piano_telefono.sql` è una configurazione dati additiva e
+idempotente, non una migration schema: estende la riga `CAMBI PIANO` e la
+condizione cambi piano del bonus CB di ottobre con le due offerte Consumer
+`Cambio Piano + Telefono Finanziato` e `Cambio Piano + Telefono VAR`. Richiede
+tipo acquisto e dispositivo associato coerenti, conserva soglie/compensi e usa
+`applica=false` come preflight. Non modifica tabelle condivise col Call Center,
+RLS, RPC o dati clienti e non è stata eseguita.
+
 ## Elenco file
 
 | File | Cosa introduce |
