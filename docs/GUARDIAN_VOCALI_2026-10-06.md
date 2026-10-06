@@ -25,13 +25,17 @@ non identifica con certezza quale richiesta HTTP abbia esaurito il suo timeout.
 
 ## Verifiche
 
-247 test CRM e build superati, inclusi 14 casi dedicati: timeout, doppio update,
+248 test CRM e build superati, inclusi 15 casi dedicati: timeout, doppio update,
 doppio worker, lease, contesto originale, trascrizione/risposta salvate, 429,
 consegna incerta, retry esauriti, HMAC, riclassificazione e webhook 503 ritentabile.
 Migration applicata e verificata production: RLS, browser senza grant e indice
 univoco di elaborazione. KG23 riclassificata come miglioria su chiarimento
 esplicito in questa chat, con audit; requisito completo ancora da recuperare.
-Deploy production da verificare nella sessione.
+Feature `0d0caba` online alle 19:09:30, Netlify `6ac52b25e0260a00086f3d19`,
+CI `37501275540` e health `37501521350` riuscite, incluso accesso alla coda.
+Collaudo sintetico senza audio utente: job marcato COLLAUDO_SINTETICO_SENZA_AUDIO,
+recuperato dal cron e consegnato alle 19:15:30 al primo tentativo, messaggio170.
+Non prova la trascrizione del vocale originale, il cui consenso resta pendente.
 
 La trascrizione del file originale allegato richiede consenso esplicito per
 l’invio a OpenAI: auto-review ha bloccato il tentativo e nessun payload audio è

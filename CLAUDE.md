@@ -936,3 +936,7 @@ trascrizione/risposta, consegna incerta sospesa con ripresa esplicita. Il cron
 Observer risveglia la coda. Riclassificazione su chiarimento del proprietario con
 storico/audit conservati e approvazioni pendenti invalidate. Nessuna env nuova,
 nessuna modifica Call Center; guida `docs/GUARDIAN_VOCALI_2026-10-06.md`.
+
+Guardian06/10: i chiarimenti aggiornano il riepilogo anche per una richiesta già
+classificata come miglioria; storico conservato e vecchie approvazioni pendenti
+scadute. Nessuna implementazione o pubblicazione autorizzata dal dialogo.

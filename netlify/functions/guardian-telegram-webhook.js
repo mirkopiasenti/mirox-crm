@@ -815,7 +815,7 @@ async function handleOwnerConversation(supabase, chatId, session, text, metadata
       : 'Non riesco a rispondere con OpenAI in questo momento.';
     guardian = { reply: `${reason} Ho conservato il tuo messaggio e potremo riprendere da qui.`, suggestedAction: 'nessuna' };
   }
-  if (incident && guardian.requestType && guardian.requestType !== incident.tipo_richiesta
+  if (incident && guardian.requestType && (guardian.requestType !== incident.tipo_richiesta || guardian.requestSummary !== incident.riepilogo_ai)
     && guardian.requestSummary && ['raccolta','ricevuto','in_attesa_approvazione'].includes(incident.stato)) {
     const {data:updated,error}=await supabase.from('kona_ai_incidenti').update({tipo_richiesta:guardian.requestType,
       riepilogo_ai:guardian.requestSummary}).eq('id',incident.id).eq('tipo_richiesta',incident.tipo_richiesta)
@@ -826,7 +826,9 @@ async function handleOwnerConversation(supabase, chatId, session, text, metadata
         .eq('incidente_id',incident.id).eq('stato','in_attesa');
       if(approvalError)throw approvalError;
       const {error:auditError}=await supabase.from('kona_ai_messaggi').insert({incidente_id:incident.id,
-        canale:'sistema',autore_tipo:'guardian',testo:'Tipologia aggiornata dopo il chiarimento del proprietario: '+guardian.requestType,
+        canale:'sistema',autore_tipo:'guardian',testo:guardian.requestType !== incident.tipo_richiesta
+          ? 'Tipologia aggiornata dopo il chiarimento del proprietario: '+guardian.requestType
+          : 'Requisito aggiornato dopo il chiarimento del proprietario.',
         metadati:{previous_type:incident.tipo_richiesta,request_type:guardian.requestType,voice_job_id:options.jobId || null}});
       if(auditError)throw auditError;
     }

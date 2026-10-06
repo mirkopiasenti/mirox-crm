@@ -444,3 +444,7 @@ Se il proprietario chiarisce che serve una funzionalità nuova, Guardian può
 riclassificare la richiesta aperta come miglioria, conservando lo storico e
 aggiornando il riepilogo. Questo non autorizza modifiche codice o pubblicazione.
 Dettagli: `docs/GUARDIAN_VOCALI_2026-10-06.md`. Nessuna nuova env o tabella CC.
+
+Guardian06/10: i chiarimenti aggiornano il riepilogo anche per una richiesta già
+classificata come miglioria; storico conservato e vecchie approvazioni pendenti
+scadute. Nessuna implementazione o pubblicazione autorizzata dal dialogo.

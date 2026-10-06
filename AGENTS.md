@@ -934,3 +934,7 @@ contro duplicati; nuova copia soltanto dopo pulsante esplicito del proprietario.
 Riclassificazione problema/miglioria solo su chiarimento esplicito del proprietario
 per richiesta raccolta/ricevuto/in_attesa_approvazione: CAS, riepilogo aggiornato,
 audit e scadenza approvazioni pendenti; nessuna patch o pubblicazione dal vocale.
+
+Guardian06/10: i chiarimenti aggiornano il riepilogo anche per una richiesta già
+classificata come miglioria; storico conservato e vecchie approvazioni pendenti
+scadute. Nessuna implementazione o pubblicazione autorizzata dal dialogo.

@@ -161,3 +161,12 @@ test('ripresa manuale richiede proprietario e stato sospeso, conserva trascrizio
  assert.equal(db.tables.kona_ai_vocali_jobs[0].transcript,'Salvata');assert.equal(db.tables.kona_ai_vocali_jobs[0].in_flight,false);
  assert.equal(await voice.retry(db,'123',jobId),null);
 });
+
+
+test('un caso già riclassificato come miglioria acquisisce i nuovi dettagli recuperati dal vocale',async t=>{
+ env(t);const db=database({kona_ai_incidenti:[{id:incident,numero:23,stato:'ricevuto',tipo_richiesta:'miglioria',riepilogo_ai:'Dettagli da recuperare.'}],kona_ai_telegram_sessioni:[{chat_id:'123',conversazione:[]}]});
+ t.mock.method(global,'fetch',async()=>({ok:true,json:async()=>({output_text:JSON.stringify({reply:'Ho capito il nuovo requisito.',suggested_action:'nessuna',request_type:'miglioria',request_summary:'Requisito dettagliato chiarito dal proprietario.'})})}));
+ await webhook.handleOwnerConversation(db,'123',{incidente_attivo_id:incident},'Voglio aggiungere questa funzione.',{},null,{jobId,deferDelivery:true});
+ assert.equal(db.tables.kona_ai_incidenti[0].riepilogo_ai,'Requisito dettagliato chiarito dal proprietario.');
+ assert.equal(db.tables.kona_ai_incidenti[0].tipo_richiesta,'miglioria');
+});
