@@ -3,13 +3,13 @@
 Aggiornato: 2026-10-06. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## Gare ottobre 2026: pronte, pubblicazione/applicazione pendenti
+## Gare ottobre 2026: online e configurazione applicata 06/10
 
-- Confermato: TIED individuali35/100 EUR; CB35 telefoni Consumer VAR/Finanziamento +15 cambi piano Consumer TIED/Business MOBILE (equivalenza autorizzata)/100 EUR; Assicurazioni squadra Francesca/Matteo/Mirko solo Legnago,10 punti reali/50 EUR a ciascuno.
-- DSL `obiettivi_combinati` e override mensile `compenso_regola.gara`; motore condiviso `js/dashboard-report-core.js`, doppio progresso CB/descrizione mensile Dashboard, editor Admin conserva condizioni/scope e modifica soglie/bonus. Storico e Avanzamento invariati.
-- SQL `database/configura_gare_2026_10.sql`: transazionale/idempotente, controlla9righe/valori attesi, ID canonici dinamici; nessuna modifica profili/schema/RLS/CC. Default `applica=false`: preflight production riuscito senza scritture. Matteo obiettivi35/35/10, altri45/50/15; compensi ancora vecchi.
-- 233/233 test+build (232versionati+1backup preesistente),11dedicati; sintassi2pagine valida. Soglie indipendenti, punti decimali/squadra/Legnago, alias/reinserimenti, storico e salvataggio editor coperti. Aggregati ottobre:2assicurazioni Matteo=1punto complessivo squadra.
-- README/AGENTS/CLAUDE/database README aggiornati. Nessun commit/push/deploy o aggiornamento dati. Prossimo: autorizzazione push, pubblicare frontend, rileggere/applicare SQL con `applica=true`, verificare9righe/storico/produzione. Non applicare config prima del motore compatibile; backup preesistente preservato.
+- Confermato: TIED individuali 35/100 EUR; CB 35 telefoni Consumer VAR/Finanziamento + 15 cambi piano Consumer TIED/Business MOBILE (equivalenza autorizzata)/100 EUR; Assicurazioni squadra Francesca/Matteo/Mirko solo Legnago, 10 punti reali/50 EUR a ciascuno.
+- DSL `obiettivi_combinati` e override mensile `compenso_regola.gara`; motore condiviso, doppio progresso CB/descrizione mensile Dashboard, editor Admin conserva condizioni/scope e modifica soglie/bonus. Storico e Avanzamento invariati.
+- Push esplicito autorizzato: `ab44097` online, Netlify `6ac4e89af38fe1000833072a`, CI `37463079339` riuscita. SHA/metadati/core e HTML pubblicati verificati (sole riscritture Pretty URLs Netlify); function senza JWT 401. Snapshot del commit: 232/232 test+build; locale con backup preesistente: 233/233, 11 test dedicati.
+- SQL `database/configura_gare_2026_10.sql` applicato e 9 righe confrontate con il piano. Hash altri obiettivi/metriche globali identici prima-dopo, preflight successivo riuscito; nessuna modifica profili/schema/RLS/CC. Default file `applica=false` conservato. Copia prima privata `.backup-private/gare-2026-10/prima.json`.
+- Dati reali: 2 Assicurazioni Matteo = 1 punto squadra per tutte e tre le schede, bonus 0 sotto soglia. Guide README/AGENTS/CLAUDE/database README aggiornate; pubblicazione richiesta comprende la chiusura documentale. Backup preesistente escluso dal commit e preservato. Nessun punto aperto sulle tre gare; obiettivi Avanzamento ottobre restano separati e non configurati.
 
 ## Identita per contratto: online e bonifica applicata 05/10
 

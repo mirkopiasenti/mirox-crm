@@ -11,7 +11,9 @@ cambi piano TIED Consumer/MOBILE Business (equivalenza autorizzata)/100 EUR;
 Assicurazioni squadra Francesca/Matteo/Mirko solo Legnago,10 punti reali/50 EUR
 ciascuno. Storico e Avanzamento preservati. Script dati
 `database/configura_gare_2026_10.sql`: default preflight senza scritture,
-applicazione solo dopo deploy compatibile. Nessuna modifica profili/schema/RLS.
+applicazione solo dopo deploy compatibile. Applicata e riletta il 06/10/2026
+dopo `ab44097`: 9 obiettivi corretti, altre righe e metriche globali invariate.
+Nessuna modifica profili/schema/RLS.
 
 Questo file viene letto automaticamente all'avvio di ogni sessione Claude. Contiene il contesto necessario per essere subito produttivi senza ri-esplorare il repo.
 

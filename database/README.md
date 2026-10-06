@@ -30,7 +30,13 @@ Consumer/MOBILE Business (equivalenza confermata)/100 EUR; Assicurazioni10 punti
 `punteggio_gara_totale` Legnago della squadra/50 EUR per ciascun destinatario.
 Le tre righe Assicurazioni restano per operatore, con la stessa allowlist squadra;
 non serve spostare gli obiettivi su operatore NULL. Nessuna migration schema.
-Stato: preflight production riuscito senza scritture; applicazione post-deploy pendente.
+Stato: applicata in production il 06/10/2026 dopo il deploy `ab44097`
+(Netlify `6ac4e89af38fe1000833072a`). Tutti i 9 obiettivi riletti e confrontati
+con la configurazione prevista; hash di tutte le altre righe obiettivi e delle
+metriche globali identici alla copia precedente. Preflight successivo riuscito.
+Copia precedente privata in `.backup-private/gare-2026-10/prima.json`.
+Su dati reali ottobre: 2 Assicurazioni = 1 punto complessivo squadra, bonus 0
+per ciascuno fino al raggiungimento di 10 punti.
 
 ## Elenco file
 
