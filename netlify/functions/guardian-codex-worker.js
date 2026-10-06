@@ -2,6 +2,7 @@
 
 const { getAdminClient } = require('./_lib/require-auth');
 const { validateContract, SHA } = require('./_lib/guardian-release');
+const {validDevelopment}=require('./_lib/guardian-development');
 const { guardianHealth } = require('./_lib/guardian-health');
 const {
   analysisKeyboard,
@@ -91,9 +92,12 @@ async function releaseAuthorization(supabase, execution) {
   if (approval.incidente_id !== execution.incidente_id || contract.incident_id !== execution.incidente_id
     || contract.head_sha !== execution.base_commit_sha || contract.branch !== execution.branch_name
     || contract.pull_request_url !== execution.pull_request_url) throw new Error('Versione non approvata');
+  const {data: currentIncident,error: currentError}=await supabase.from('kona_ai_incidenti').select('*').eq('id',execution.incidente_id).maybeSingle();
+  if(currentError)throw currentError;
   const { data: tested, error: testError } = await supabase.from('kona_ai_esecuzioni').select('*')
     .eq('id', contract.test_execution_id).maybeSingle();
   if (testError) throw testError;
+  if(tested?.risultato?.development && (!currentIncident || !validDevelopment(tested.risultato.development,currentIncident,owner)))throw new Error('Requisito cambiato dopo i test');
   if (!tested || tested.incidente_id !== execution.incidente_id || tested.tipo_esecuzione !== 'test_staging'
     || tested.stato !== 'completata' || tested.branch_name !== contract.branch
     || tested.pull_request_url !== contract.pull_request_url || tested.result_commit_sha !== contract.head_sha
@@ -361,6 +365,8 @@ async function recordResult(supabase, body) {
     && SHA.test(releaseResult.merge_commit_sha || '') && body.result_commit_sha === releaseResult.merge_commit_sha));
   const now = nowIso();
   const safeResult = sanitizeValue(body.result || {}) || {};
+  delete safeResult.development; // Authority is server-owned, never supplied by the worker.
+  if(execution.risultato?.development)safeResult.development=execution.risultato.development;
   const noChanges = success
     && execution.tipo_esecuzione === 'prepara_patch'
     && safeResult.no_changes === true;
@@ -474,6 +480,19 @@ async function recordResult(supabase, body) {
       });
     } catch (telegramError) {
       console.warn('Notifica Telegram esito Codex non inviata:', telegramError?.message || String(telegramError));
+    }
+  }
+  if(success && execution.tipo_esecuzione==='prepara_patch' && safeResult.development?.auto_test
+    && !noChanges && !needsInformation && !blocked) {
+    try {await require('./guardian-telegram-webhook')._test.startStagingTests(supabase,chatId,execution.incidente_id,{automatic:true,patchId:execution.id});}
+    catch(error) {
+      console.warn('Guardian: prosecuzione test rimandata:',cleanWorkerText(error.message,150));
+      const {error: notificationError}=await supabase.from('kona_ai_notifiche').upsert({
+        incidente_id:execution.incidente_id,dedupe_key:`development:continuation:${execution.id}`,
+        payload:{text:`${heading}\nLa modifica è stata preparata, ma i test non sono partiti: ${cleanWorkerText(error.message,500)}`,reply_markup:patchKeyboard(execution.incidente_id)},
+        stato:'in_coda',prossimo_tentativo_at:now
+      },{onConflict:'dedupe_key',ignoreDuplicates:true});
+      if(notificationError)throw notificationError;
     }
   }
   if (success && execution.tipo_esecuzione === 'test_staging') {

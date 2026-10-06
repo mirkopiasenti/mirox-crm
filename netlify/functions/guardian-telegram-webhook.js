@@ -5,7 +5,6 @@ const { getAdminClient } = require('./_lib/require-auth');
 const {
   cleanText,
   conversationText,
-  generateGuardianAnalysis,
   generateOwnerReply,
   guardianAnalysisKeyboard,
   incidentCode,
@@ -26,6 +25,8 @@ const {
 } = require('./_lib/telegram');
 
 const { REPOSITORY, SHA, BRANCH, validateContract, inspectPull, parsePullNumber } = require('./_lib/guardian-release');
+
+const {requirementHash,developmentMandate,validDevelopment}=require('./_lib/guardian-development');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -305,63 +306,6 @@ async function archiveIncident(supabase, chatId, incidentId) {
   await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} archiviato.`);
 }
 
-async function analyzeIncident(supabase, chatId, incidentId) {
-  const incident = await getIncident(supabase, incidentId);
-  if (!incident) throw new Error('Richiesta non trovata');
-  const now = new Date().toISOString();
-  const { data: approval, error: approvalError } = await supabase
-    .from('kona_ai_approvazioni')
-    .insert({
-      incidente_id: incident.id,
-      azione: 'analizza_guardian',
-      stato: 'approvata',
-      richiesta_da: 'telegram',
-      decisa_da_profile_id: ownerProfileId(),
-      decisa_da_telegram_chat_id: chatId,
-      motivazione: 'Approvazione esplicita tramite pulsante Telegram',
-      decisa_at: now
-    })
-    .select('id')
-    .single();
-  if (approvalError) throw approvalError;
-  await supabase.from('kona_ai_incidenti').update({ stato: 'in_analisi' }).eq('id', incident.id);
-  await sendTelegramMessage(chatId, `Analisi Guardian avviata per ${incidentCode(incident.numero)}.`);
-
-  try {
-    const messages = await getMessages(supabase, incident.id, 80);
-    const analysis = await generateGuardianAnalysis(incident, messages);
-    const { data: savedMessage, error: messageError } = await supabase
-      .from('kona_ai_messaggi')
-      .insert({
-        incidente_id: incident.id,
-        canale: 'guardian',
-        autore_tipo: 'guardian',
-        testo: analysis,
-        metadati: { approval_id: approval.id, analysis_type: 'guardian' }
-      })
-      .select('id')
-      .single();
-    if (messageError) throw messageError;
-    await supabase.from('kona_ai_approvazioni').update({
-      stato: 'eseguita',
-      eseguita_at: new Date().toISOString(),
-      risultato: { message_id: savedMessage.id }
-    }).eq('id', approval.id);
-    await supabase.from('kona_ai_incidenti').update({ stato: 'ricevuto' }).eq('id', incident.id);
-    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)}\nTipo: ${requestTypeLabel(incident.tipo_richiesta)}\n\n${analysis}`, {
-      reply_markup: guardianAnalysisKeyboard(incident.id)
-    });
-  } catch (error) {
-    await supabase.from('kona_ai_approvazioni').update({
-      stato: 'fallita',
-      eseguita_at: new Date().toISOString(),
-      risultato: { error: cleanText(error?.message || String(error), 500) }
-    }).eq('id', approval.id);
-    await supabase.from('kona_ai_incidenti').update({ stato: 'ricevuto' }).eq('id', incident.id);
-    throw error;
-  }
-}
-
 async function createExecution(supabase, incident, approval, type, options = {}) {
   const { data: active, error: activeError } = await supabase
     .from('kona_ai_esecuzioni')
@@ -390,11 +334,17 @@ async function createExecution(supabase, incident, approval, type, options = {})
       base_commit_sha: options.baseCommit || null,
       workflow_name: options.workflow || null,
       pull_request_url: options.pullRequest || null,
-      risultato: { requested_from: 'telegram' },
+      risultato: { requested_from: 'telegram', ...(options.development ? {development:options.development} : {}) },
       timeout_at: new Date(Date.now() + 30 * 60 * 1000).toISOString()
     })
     .select('*')
     .single();
+  if(error?.code==='23505') {
+    const {data: concurrent,error: lookupError}=await supabase.from('kona_ai_esecuzioni').select('*')
+      .eq('incidente_id',incident.id).eq('tipo_esecuzione',type).in('stato',['in_coda','in_esecuzione']).maybeSingle();
+    if(lookupError)throw lookupError;
+    if(concurrent)return {execution:concurrent,created:false};
+  }
   if (error) throw error;
   return { execution, created: true };
 }
@@ -490,26 +440,45 @@ async function startCodexAnalysis(supabase, chatId, incidentId) {
   await dispatchExecution(supabase, chatId, incident, execution);
 }
 
-async function approveWork(supabase, chatId, incidentId) {
+async function approveWork(supabase, chatId, incidentId, options = {}) {
+  if(String(chatId)!==String(process.env.TELEGRAM_GUARDIAN_OWNER_CHAT_ID || ''))throw new Error('Proprietario non autorizzato');
   const incident = await getIncident(supabase, incidentId);
   if (!incident) throw new Error('Richiesta non trovata');
-  if (incident.stato === 'archiviato') {
-    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} è archiviata e non può essere modificata.`);
+  if (!OPEN_INCIDENT_STATES.includes(incident.stato)) {
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} è chiusa e non può essere modificata.`);
     return;
   }
+  if(options.sourceId) {
+    const {data: prior,error: priorError}=await supabase.from('kona_ai_approvazioni').select('*').eq('incidente_id',incident.id)
+      .eq('azione','prepara_fix').contains('risultato',{development:{source_id:options.sourceId}}).limit(1).maybeSingle();
+    if(priorError)throw priorError;
+    if(prior)return;
+  }
   const { data: existingApproval, error: existingError } = await supabase
-    .from('kona_ai_approvazioni')
+    .from('kona_ai_esecuzioni')
     .select('id')
     .eq('incidente_id', incident.id)
-    .eq('azione', 'prepara_fix')
-    .in('stato', ['approvata', 'eseguita'])
-    .maybeSingle();
+    .in('stato', ['in_coda', 'in_esecuzione'])
+    .limit(1).maybeSingle();
   if (existingError) throw existingError;
   if (existingApproval) {
-    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} ha già una modifica approvata o in lavorazione.`);
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} ha già un lavoro Codex in corso.`);
+    return;
+  }
+  const {data: previous,error: previousError}=await supabase.from('kona_ai_esecuzioni').select('*')
+    .eq('incidente_id',incident.id).eq('tipo_esecuzione','prepara_patch').order('created_at',{ascending:false}).limit(1).maybeSingle();
+  if(previousError)throw previousError;
+  if(previous?.stato==='completata' && validDevelopment(previous.risultato?.development,incident,chatId)
+    && !previous.risultato.needs_information && !previous.risultato.blocked && !previous.risultato.no_changes
+    && SHA.test(previous.result_commit_sha || '') && BRANCH.test(previous.branch_name || '')) {
+    await startStagingTests(supabase,chatId,incident.id,{automatic:true,patchId:previous.id});
+    await sendTelegramMessage(chatId,`${incidentCode(incident.numero)}: riuso la modifica già preparata. Puoi verificare o approvare la versione dopo i test.`,
+      {reply_markup:{inline_keyboard:[[{text:'Verifica modifica',callback_data:`test_staging:${incident.id}`}],[{text:'Approva pubblicazione',callback_data:`release_production:${incident.id}`}]]}});
     return;
   }
   const now = new Date().toISOString();
+  const development={auto_test:true,owner_chat_id:String(chatId),requirement_hash:requirementHash(incident),
+    source:options.source || 'telegram_button',source_id:options.sourceId || null,authorized_at:now};
   const { data: approval, error: approvalError } = await supabase.from('kona_ai_approvazioni').insert({
     incidente_id: incident.id,
     azione: 'prepara_fix',
@@ -517,23 +486,25 @@ async function approveWork(supabase, chatId, incidentId) {
     richiesta_da: 'telegram',
     decisa_da_profile_id: ownerProfileId(),
     decisa_da_telegram_chat_id: chatId,
-    motivazione: 'Preparazione modifica approvata esplicitamente tramite Telegram',
-    decisa_at: now
+    motivazione: 'Sviluppo e test approvati esplicitamente; pubblicazione finale separata',
+    risultato:{development},decisa_at: now
   }).select('id').single();
   if (approvalError) throw approvalError;
-  const { execution } = await createExecution(supabase, incident, approval, 'prepara_patch', {
-    sandbox: 'workspace_write',
-    branch: baseBranch()
+  const { execution,created } = await createExecution(supabase, incident, approval, 'prepara_patch', {
+    sandbox: 'workspace_write',branch: baseBranch(),development
   });
+  if(!created) {await supabase.from('kona_ai_approvazioni').update({stato:'scaduta'}).eq('id',approval.id);return execution;}
   await supabase.from('kona_ai_incidenti').update({ stato: 'fix_approvato' }).eq('id', incident.id);
   await dispatchExecution(supabase, chatId, incident, execution);
 }
 
-async function startStagingTests(supabase, chatId, incidentId) {
+async function startStagingTests(supabase, chatId, incidentId, options = {}) {
+  if(String(chatId)!==String(process.env.TELEGRAM_GUARDIAN_OWNER_CHAT_ID || ''))throw new Error('Proprietario non autorizzato');
   const incident = await getIncident(supabase, incidentId);
   if (!incident) throw new Error('Richiesta non trovata');
-  if (incident.stato === 'archiviato') {
-    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} è archiviata e non può essere testata.`);
+  if (!OPEN_INCIDENT_STATES.includes(incident.stato)) {
+    if(options.automatic)return;
+    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} è chiusa e non può essere testata.`);
     return;
   }
   const { data: active, error: activeError } = await supabase.from('kona_ai_esecuzioni')
@@ -541,11 +512,12 @@ async function startStagingTests(supabase, chatId, incidentId) {
     .in('stato', ['in_coda', 'in_esecuzione']).maybeSingle();
   if (activeError) throw activeError;
   if (active) {
-    await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} ha già test della branch in corso.`);
+    if(!options.automatic)await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} ha già test della branch in corso.`);
     return;
   }
-  const { data: patchExecution, error: patchError } = await supabase.from('kona_ai_esecuzioni')
-    .select('branch_name, result_commit_sha, pull_request_url')
+  const query=supabase.from('kona_ai_esecuzioni').select('*');
+  if(options.patchId)query.eq('id',options.patchId);
+  const { data: patchExecution, error: patchError } = await query
     .eq('incidente_id', incident.id)
     .eq('tipo_esecuzione', 'prepara_patch')
     .eq('stato', 'completata')
@@ -557,6 +529,20 @@ async function startStagingTests(supabase, chatId, incidentId) {
     await sendTelegramMessage(chatId, `${incidentCode(incident.numero)} non ha ancora una modifica completata.`);
     return;
   }
+  const development=patchExecution.risultato?.development;
+  if(development && !validDevelopment(development,incident,chatId))throw new Error('Requisito cambiato: serve una nuova modifica, non altra analisi.');
+  if(options.automatic) {
+    const {data: tests,error}=await supabase.from('kona_ai_esecuzioni').select('*').eq('incidente_id',incident.id)
+      .eq('tipo_esecuzione','test_staging').order('created_at',{ascending:false}).limit(30);
+    if(error)throw error;
+    if((tests || []).some(item=>item.risultato?.development?.patch_execution_id===patchExecution.id))return;
+    const {data: ownerApproval,error:authError}=await supabase.from('kona_ai_approvazioni').select('*').eq('id',patchExecution.approvazione_id).maybeSingle();
+    if(authError)throw authError;
+    if(!ownerApproval || !['approvata','eseguita'].includes(ownerApproval.stato) || ownerApproval.azione!=='prepara_fix'
+      || String(ownerApproval.decisa_da_telegram_chat_id)!==String(chatId)
+      || !validDevelopment(ownerApproval.risultato?.development,incident,chatId))throw new Error('Consenso sviluppo assente o superato');
+  }
+  const testDevelopment=development ? {...development,patch_execution_id:patchExecution.id}:null;
   const now = new Date().toISOString();
   const { data: approval, error: approvalError } = await supabase.from('kona_ai_approvazioni').insert({
     incidente_id: incident.id,
@@ -565,18 +551,32 @@ async function startStagingTests(supabase, chatId, incidentId) {
     richiesta_da: 'telegram',
     decisa_da_profile_id: ownerProfileId(),
     decisa_da_telegram_chat_id: chatId,
-    motivazione: 'Test della branch approvati esplicitamente tramite Telegram',
-    decisa_at: now
+    motivazione: development ? 'Test inclusi nello sviluppo autorizzato dal proprietario' : 'Test della branch approvati esplicitamente tramite Telegram',
+    risultato:testDevelopment ? {development:testDevelopment} : {},decisa_at:now
   }).select('id').single();
   if (approvalError) throw approvalError;
-  const { execution } = await createExecution(supabase, incident, approval, 'test_staging', {
+  const { execution,created } = await createExecution(supabase, incident, approval, 'test_staging', {
     sandbox: 'read_only',
     branch: patchExecution.branch_name,
     baseCommit: patchExecution.result_commit_sha,
-    pullRequest: patchExecution.pull_request_url
+    pullRequest: patchExecution.pull_request_url,development:testDevelopment
   });
+  if(!created) {await supabase.from('kona_ai_approvazioni').update({stato:'scaduta'}).eq('id',approval.id);return;}
   await supabase.from('kona_ai_incidenti').update({ stato: 'in_test' }).eq('id', incident.id);
   await dispatchExecution(supabase, chatId, incident, execution);
+}
+
+async function resumeDevelopmentTests(supabase) {
+  const owner=String(process.env.TELEGRAM_GUARDIAN_OWNER_CHAT_ID || '');
+  const {data: patches,error}=await supabase.from('kona_ai_esecuzioni').select('*').eq('tipo_esecuzione','prepara_patch')
+    .eq('stato','completata').contains('risultato',{development:{auto_test:true}}).order('completata_at',{ascending:false}).limit(5);
+  if(error)throw error;
+  for(const patch of patches || []) {
+    if(patch.risultato?.blocked || patch.risultato?.needs_information || patch.risultato?.no_changes
+      || !SHA.test(patch.result_commit_sha || '') || !BRANCH.test(patch.branch_name || ''))continue;
+    try {await startStagingTests(supabase,owner,patch.incidente_id,{automatic:true,patchId:patch.id});}
+    catch(error) {console.warn('Guardian: test da riprendere:',cleanText(error.message,150));}
+  }
 }
 
 async function latestSuccessfulTest(supabase, incidentId) {
@@ -596,10 +596,12 @@ async function prepareProductionRelease(supabase, chatId, incidentId) {
   const incident = await getIncident(supabase, incidentId);
   if (!incident || !OPEN_INCIDENT_STATES.includes(incident.stato)) throw new Error('La richiesta è chiusa o non disponibile.');
   const tested = await latestSuccessfulTest(supabase, incident.id);
+  if(tested.risultato?.development && !validDevelopment(tested.risultato.development,incident,chatId))throw new Error('Requisito cambiato dopo i test: prepara una nuova modifica.');
   const contract = validateContract({ repository: REPOSITORY, base_branch: 'main',
     branch: tested.branch_name, head_sha: tested.result_commit_sha, base_sha: tested.risultato.tested_base_sha,
     pull_request_url: tested.pull_request_url, pull_number: parsePullNumber(tested.pull_request_url),
     test_execution_id: tested.id, incident_id: incident.id });
+  if(tested.risultato?.development && !validDevelopment(tested.risultato.development,incident,chatId))throw new Error('Requisito cambiato dopo i test: prepara una nuova modifica.');
   await inspectPull(contract);
   const now = new Date().toISOString();
   const { error: staleError } = await supabase.from('kona_ai_approvazioni').update({ stato: 'scaduta' })
@@ -697,7 +699,7 @@ async function handleCallback(supabase, update, chatId) {
     return;
   }
   if (action === 'analyze') {
-    await analyzeIncident(supabase, chatId, incidentId);
+    await startCodexAnalysis(supabase, chatId, incidentId);
     return;
   }
   if (action === 'analyze_codex') {
@@ -805,7 +807,8 @@ async function handleOwnerConversation(supabase, chatId, session, text, metadata
   }
   let guardian;
   try {
-    guardian = await generateOwnerReply(incident, previousMessages, text, context);
+    guardian = incident && developmentMandate(text) ? {reply:'Richiesta di sviluppo ricevuta.',suggestedAction:'nessuna'}
+      : await generateOwnerReply(incident, previousMessages, text, context);
   } catch (error) {
     if(options.deferDelivery) throw error;
     console.warn('Guardian conversazione:', cleanText(error?.code || 'provider_unavailable', 100));
@@ -816,10 +819,10 @@ async function handleOwnerConversation(supabase, chatId, session, text, metadata
     guardian = { reply: `${reason} Ho conservato il tuo messaggio e potremo riprendere da qui.`, suggestedAction: 'nessuna' };
   }
   if (incident && guardian.requestType && (guardian.requestType !== incident.tipo_richiesta || guardian.requestSummary !== incident.riepilogo_ai)
-    && guardian.requestSummary && ['raccolta','ricevuto','in_attesa_approvazione'].includes(incident.stato)) {
+    && guardian.requestSummary && OPEN_INCIDENT_STATES.includes(incident.stato)) {
     const {data:updated,error}=await supabase.from('kona_ai_incidenti').update({tipo_richiesta:guardian.requestType,
       riepilogo_ai:guardian.requestSummary}).eq('id',incident.id).eq('tipo_richiesta',incident.tipo_richiesta)
-      .in('stato',['raccolta','ricevuto','in_attesa_approvazione']).select('id').maybeSingle();
+      .in('stato',OPEN_INCIDENT_STATES).select('id').maybeSingle();
     if(error)throw error;
     if(updated) {
       const {error:approvalError}=await supabase.from('kona_ai_approvazioni').update({stato:'scaduta'})
@@ -833,6 +836,11 @@ async function handleOwnerConversation(supabase, chatId, session, text, metadata
       if(auditError)throw auditError;
     }
   }
+  if(incident && OPEN_INCIDENT_STATES.includes(incident.stato) && developmentMandate(text)) {
+    await approveWork(supabase,chatId,incident.id,{source:options.jobId ? 'telegram_voice':'telegram_text',sourceId:options.jobId || metadata.telegram_message_id || null});
+    guardian.reply='Ho registrato il tuo OK allo sviluppo. Se il worker prepara la modifica, i test partiranno automaticamente. Ti chiederò la conferma finale qui per pubblicare.';
+    guardian.suggestedAction='nessuna';
+  }
   history.push({ ...(options.jobId ? {job_id:options.jobId}: {}), at: new Date().toISOString(), author: 'guardian', text: guardian.reply, incident_id: incident?.id || null });
   if (incident) {
     const row={...(options.jobId ? {voice_job_id:options.jobId}: {}), incidente_id: incident.id, canale: 'guardian', autore_tipo: 'guardian',
@@ -843,7 +851,9 @@ async function handleOwnerConversation(supabase, chatId, session, text, metadata
   }
   let replyMarkup;
   if (incident && incident.stato !== 'archiviato' && guardian.suggestedAction === 'analizza_guardian') {
-    replyMarkup = { inline_keyboard: [[{ text: 'Analisi Guardian', callback_data: `analyze:${incident.id}` }]] };
+    replyMarkup = { inline_keyboard: [[{ text: 'Analizza il codice', callback_data: `analyze_codex:${incident.id}` }]] };
+  } else if(incident && OPEN_INCIDENT_STATES.includes(incident.stato) && guardian.suggestedAction==='proponi_sviluppo') {
+    replyMarkup={inline_keyboard:[[{text:'Sviluppa e verifica',callback_data:`approve_work:${incident.id}`}]]};
   } else if (incident && incident.stato !== 'archiviato' && guardian.suggestedAction === 'archivia') {
     replyMarkup = { inline_keyboard: [[{ text: 'Archivia', callback_data: `archive:${incident.id}` }]] };
   }
@@ -856,7 +866,7 @@ async function handleOwnerConversation(supabase, chatId, session, text, metadata
 async function handleMessage(supabase, update, chatId, session) {
   const message = update.message;
   let text = conversationText(message?.text, 4000);
-  let metadata = {};
+  let metadata = {telegram_message_id:message?.message_id || null};
   if (!text) {
     await sendTelegramMessage(chatId, 'Invia un messaggio di testo o un vocale.');
     return;
@@ -922,7 +932,7 @@ async function handleVoiceUpdate(supabase,update,chatId,deps={}) {
   }
 
 
-exports._test = { handleVoiceUpdate, handleOwnerConversation, resolveConversationIncident, ownerContext, publishProduction, prepareProductionRelease, latestSuccessfulTest, handleMessage, handleCallback };
+exports._test = { approveWork,startStagingTests,resumeDevelopmentTests,handleVoiceUpdate, handleOwnerConversation, resolveConversationIncident, ownerContext, publishProduction, prepareProductionRelease, latestSuccessfulTest, handleMessage, handleCallback };
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return response(405, { ok: false });

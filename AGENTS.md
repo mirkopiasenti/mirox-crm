@@ -944,3 +944,19 @@ per autore; `id` messaggio resta bigint GENERATED ALWAYS e non va fornito
 dal client. Migration additiva `20261006194000_guardian_voice_message_link.sql`,
 privata Guardian, senza cambi CRM/Call Center. Errori coda distinguono fase e
 codice tecnico ripulito, senza stampare testo dei vocali o segreti.
+
+### Guardian: sviluppo da Telegram (06/10/2026)
+
+Un comando diretto del proprietario, per esempio “Procedi con l’implementazione”,
+avvia il worker `prepara_patch` sul repository senza un'altra analisi discorsiva.
+Le altre formulazioni libere possono proporre `Sviluppa e verifica`; le domande,
+negazioni, citazioni e condizioni non avviano lavoro tramite classificazione AI.
+Anche i vecchi pulsanti `Analisi Guardian` avviano ora l'analisi Codex del codice.
+La patch approvata include i test della branch, avviati dal risultato e recuperati
+dal cron se il passaggio si interrompe. Consenso, origine del messaggio e hash
+dei requisiti restano nei JSON delle approvazioni/esecuzioni; retry vocali e
+richieste duplicate non avviano una seconda patch. Esiti senza modifica, domanda
+concreta o blocco fermano la catena; i test falliti non ripartono in un ciclo.
+Dopo i test viene proposta la pubblicazione: resta obbligatorio l'OK finale
+Telegram sulla versione verificata. Secret, workflow, SQL e aree protette
+continuano a richiedere revisione tecnica separata. Nessuna nuova env o tabella.

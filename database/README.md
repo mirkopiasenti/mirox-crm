@@ -209,3 +209,9 @@ per autore; `id` messaggio resta bigint GENERATED ALWAYS e non va fornito
 dal client. Migration additiva `20261006194000_guardian_voice_message_link.sql`,
 privata Guardian, senza cambi CRM/Call Center. Errori coda distinguono fase e
 codice tecnico ripulito, senza stampare testo dei vocali o segreti.
+
+Guardian06/10: il consenso allo sviluppo e alla prosecuzione dei test e' conservato
+nel JSON `risultato.development` di `kona_ai_approvazioni`/`kona_ai_esecuzioni`: hash
+requisito, owner, sorgente e ID messaggio/job. Il worker non puo' attribuirsi questa
+autorita' con il risultato. Nessuna migration o modifica alle tabelle CRM/CC;
+restano RLS server-only e vincoli delle esecuzioni attive esistenti.

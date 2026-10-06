@@ -3,15 +3,12 @@
 Aggiornato: 2026-10-06. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## Guardian: vocali corretti06/10, requisito KG23 recuperato
+## Guardian: sviluppo Telegram06/10 in collaudo
 
-- Recupero completo: errore UUID su bigint identity rilevato nel dialogo reale, corretto con voice_job_id/unicita autore; migration applicata senza cambi CRM/CC.0d76d28 online19:34:30/CI37504526771/248test OK. Due messaggi numerici collegati, requisito corretto e risposta Telegram consegnata, nessun reinvio del file audio.
-
-- KG23: vocale33,6s/133028byte va in timeout prima del salvataggio. Proprietario chiarisce nuova funzionalita: caso riclassificato miglioria con audit, senza inventare requisito.
-- Coda privata e worker background/HMAC, snapshot caso, checkpoint trascrizione/risposta, lease/retry5, cron5min e ripresa esplicita consegne ambigue. Migration/RLS/service-only/indice verificati.
--248/248test+build/15dedicati;0d0caba online19:09:30, CI37501275540/health37501521350 OK. Collaudo senza audio utente: cron/consegna19:15:30 primo tentativo/TG170.
--357f9a2 online19:17:07/Netlify6ac52cee/CI37502271739 OK: aggiorna riepilogo anche su miglioria gia classificata. README/AGENTS/CLAUDE/databaseREADME e rapporto vocali aggiornati; backup preservato.
-- Consenso esplicito proprietario ricevuto: audio OpenAI HTTP200/2,531s, testo recuperato in KG23/job baa8d026. Requisito: due righe Day by Day e due opzioni Customer Base, CP+telefono finanziato/VAR; nessuna implementazione CRM. Risposta Guardian consegnata19:35:36/TG172, pulsante Analisi Guardian; blocco auto-review rispettato prima del consenso.
+- Loop KG23: Analisi Guardian solo discorsiva; implementa non dispatchava Codex. Comando diretto owner ora avvia patch e include test/recupero cron, poi proposta finale Telegram. AI propone pulsanti senza autorizzare lavoro; vecchi callback analisi leggono repository.
+- Consenso/hash requisito/sorgente persistiti, deduplica vocali e richieste attive; niente test su requisiti superati o ripetizioni infinite. Needs-info/blocked/no-change fermano la catena; nessun merge senza conferma finale.261/261test+build (13nuovi), deploy/prova reale pendenti. Nessuna nuova migration/env.
+- Vocali0d76d28 online19:34:30/248test: FK voice_job_id conserva BIGINT identity. Audio autorizzato HTTP200/2,531s, job baa8d026 completato/TG17219:35:36; KG23 richiede due righe Day by Day e due opzioni CB, CP+telefono finanziato/VAR. Non ancora implementata nel CRM.
+- Guide README/AGENTS/CLAUDE/databaseREADME e docs/GUARDIAN_SVILUPPO_TELEGRAM_2026-10-06 aggiornati. Backup e lavori estranei preservati.
 
 ## Avanzamento: CAMBI PIANO aggiunta online 06/10
 

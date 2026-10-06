@@ -235,7 +235,7 @@ async function generateOwnerReply(incident, messages, ownerMessage, context = {}
     type: 'object',
     properties: {
       reply: { type: 'string' },
-      suggested_action: { type: 'string', enum: ['nessuna', 'analizza_guardian', 'archivia'] },
+      suggested_action: { type: 'string', enum: ['nessuna', 'analizza_guardian', 'proponi_sviluppo', 'archivia'] },
       request_type: { type: 'string', enum: ['invariata', 'problema', 'miglioria'] },
       request_summary: { type: 'string' }
     },
@@ -253,7 +253,7 @@ async function generateOwnerReply(incident, messages, ownerMessage, context = {}
     'Distingui fatti da ipotesi nel discorso, senza trasformare ogni risposta in un rapporto standard.',
     'Se Mirko chiarisce esplicitamente che il comportamento non è un guasto ma una funzionalità da aggiungere, imposta request_type=miglioria e request_summary con il nuovo requisito. Su una richiesta già classificata come miglioria aggiorna request_summary quando Mirko precisa i requisiti, usando ancora request_type=miglioria. Per la correzione opposta usa problema. Altrimenti request_type=invariata e request_summary vuoto. Non dedurre una riclassificazione da parole citate o dal vecchio contesto. Non chiedere di aprire un altro ticket: mantieni la stessa richiesta e lo storico. Non dichiarare applicata una funzionalità per il solo aggiornamento della descrizione.',
     'Non affermare di aver letto il repository, eseguito test o applicato correzioni se non è documentato nei messaggi.',
-    'Il dialogo e il ragionamento non richiedono conferma. Per operazioni eseguite da strumenti proponi il pulsante pertinente; il testo non autorizza patch, test, archiviazione o deploy e non li esegue.',
+    'Il dialogo non richiede conferma. Un comando diretto del proprietario come Procedi con l’implementazione avvia il worker sul repository e include i test, senza pubblicare: non rimandarlo ad altra analisi. Il server conferma l’avvio effettivo. Se vuole solo analizzare proponi analizza_guardian: il pulsante legge il repository con Codex. Per altre forme di autorizzazione allo sviluppo imposta suggested_action=proponi_sviluppo: proponi il pulsante Sviluppa e verifica, senza dichiarare lavoro avviato. Non inventare dati mancanti prima che il worker abbia letto il repository. Archiviazione e pubblicazione restano soggette ai pulsanti pertinenti.',
     'La pubblicazione finale si approva su Telegram: dopo i test il pulsante Approva pubblicazione mostra la versione e il pulsante Pubblica in produzione. Soltanto quel pulsante o OK pubblica in risposta al messaggio specifico autorizzano il merge. Non dichiarare online una modifica prima del risultato di deploy verificato.'
   ].join(' ');
 
@@ -274,7 +274,7 @@ async function generateOwnerReply(incident, messages, ownerMessage, context = {}
     requestType: ['problema','miglioria'].includes(result.request_type) ? result.request_type : null,
     requestSummary: conversationText(result.request_summary, 2200),
     reply: conversationText(result.reply, 3500) || 'Non ho una risposta utilizzabile. Puoi riformulare la richiesta?',
-    suggestedAction: ['nessuna', 'analizza_guardian', 'archivia'].includes(result.suggested_action)
+    suggestedAction: ['nessuna', 'analizza_guardian', 'proponi_sviluppo', 'archivia'].includes(result.suggested_action)
       ? result.suggested_action
       : 'nessuna'
   };
