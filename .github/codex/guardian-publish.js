@@ -72,6 +72,11 @@ async function publish({ worker, github = githubRequest, inspect = inspectPull, 
       const info = live?.ok ? parsePublishedInfo(await live.text()) : null;
       if (info?.environment === 'production' && info.commit_sha === merge.sha) {
         result.deploy_id = info.deploy_id || null;
+        if(contract.catalog_plan) {
+          const applied=await worker('apply_catalog',{lease_token:lease,merge_commit_sha:merge.sha});
+          if(applied.catalog?.ok!==true || applied.catalog.hash!==contract.catalog_plan.hash)throw releaseError('catalog_apply_failed','Piano catalogo non applicato: il rilascio non è completo.');
+          result.catalog_applied={hash:applied.catalog.hash,ok:true};
+        }
         const health = await worker('health');
         if (!health.ok) throw releaseError('release_health_failed', 'La versione è online ma i controlli Guardian non sono superati.');
         Object.assign(result, { deploy_status: 'ready', health_ok: true });

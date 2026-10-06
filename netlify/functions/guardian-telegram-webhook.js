@@ -26,6 +26,7 @@ const {
 
 const { REPOSITORY, SHA, BRANCH, validateContract, inspectPull, parsePullNumber } = require('./_lib/guardian-release');
 
+const {reviewForTest,validateReference}=require('./_lib/guardian-catalog-plan');
 const {requirementHash,developmentMandate,validDevelopment}=require('./_lib/guardian-development');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -601,7 +602,10 @@ async function prepareProductionRelease(supabase, chatId, incidentId) {
     branch: tested.branch_name, head_sha: tested.result_commit_sha, base_sha: tested.risultato.tested_base_sha,
     pull_request_url: tested.pull_request_url, pull_number: parsePullNumber(tested.pull_request_url),
     test_execution_id: tested.id, incident_id: incident.id });
+  const catalogPlan=await reviewForTest(supabase,tested);
+  if(catalogPlan)contract.catalog_plan=catalogPlan;
   if(tested.risultato?.development && !validDevelopment(tested.risultato.development,incident,chatId))throw new Error('Requisito cambiato dopo i test: prepara una nuova modifica.');
+  await validateReference(supabase,contract.catalog_plan,tested);
   await inspectPull(contract);
   const now = new Date().toISOString();
   const { error: staleError } = await supabase.from('kona_ai_approvazioni').update({ stato: 'scaduta' })
@@ -613,7 +617,7 @@ async function prepareProductionRelease(supabase, chatId, incidentId) {
     risultato: { release_contract: contract }, scade_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
   }).select('*').single();
   if (error) throw error;
-  const text = `${incidentCode(incident.numero)}: modifica verificata e pronta.\n\n${conversationText(incident.titolo || incident.riepilogo_ai, 600)}\nProposta: ${contract.pull_request_url}\nVersione verificata: ${contract.head_sha.slice(0, 12)}\n\nPremendo Pubblica in produzione approvi il merge su GitHub e il rilascio del CRM. Ti comunicherò quando sarà online. Puoi anche rispondere a questo messaggio con “OK pubblica”. La conferma scade tra un’ora.`;
+  const text = `${incidentCode(incident.numero)}: modifica verificata e pronta.\n\n${conversationText(incident.titolo || incident.riepilogo_ai, 600)}\nProposta: ${contract.pull_request_url}\nVersione verificata: ${contract.head_sha.slice(0, 12)}${catalogPlan ? '\nPiano dati revisionato: '+catalogPlan.summary : ''}\n\nPremendo Pubblica in produzione approvi il merge su GitHub, il rilascio del CRM${catalogPlan ? ' e il piano dati indicato' : ''}. Ti comunicherò quando sarà online. Puoi anche rispondere a questo messaggio con “OK pubblica”. La conferma scade tra un’ora.`;
   const sent = await sendTelegramMessage(chatId, text, { reply_markup: publicationKeyboard(approval.id, incident.id) });
   const { error: bindError } = await supabase.from('kona_ai_approvazioni')
     .update({ risultato: { release_contract: contract, telegram_message_id: sent?.message_id || null } })
@@ -641,6 +645,7 @@ async function publishProduction(supabase, chatId, approvalId) {
     || tested.result_commit_sha !== contract.head_sha || tested.risultato.tested_base_sha !== contract.base_sha) {
     throw new Error('La versione verificata è cambiata. Richiedi una nuova proposta.');
   }
+  await validateReference(supabase,contract.catalog_plan,tested);
   await inspectPull(contract);
   const now = new Date().toISOString();
   const { data: claimed, error: claimError } = await supabase.from('kona_ai_approvazioni').update({

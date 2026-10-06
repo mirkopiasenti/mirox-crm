@@ -968,17 +968,45 @@ vanno inventati: conservare gli esistenti o chiedere una sola scelta concreta.
 Le proposte SQL di configurazione dati possono essere conservate in PR draft
 con `manual_review/blocked`, test locali e notifica persistente. Il workflow
 non esegue SQL e la conferma finale continua a rifiutare database/*.sql.
-Questi casi richiedono revisione/applicazione separata da Codex; il bot non
-deve annunciare una pubblicazione completa della funzionalita. Secret,
+La revisione resta separata da Codex. Un piano catalogo validato e vincolato
+alla versione puo essere applicato dal rilascio dopo la conferma finale Telegram. Secret,
 workflow, dipendenze e deploy rimangono bloccati prima del push della patch.
 
 ### Proposta KG-000023 — Customer Base con telefono (06/10/2026)
 
 La modifica preparata è una configurazione dati additiva e non eseguita:
-`database/configura_customer_base_cambio_piano_telefono.sql` inserisce in modo
+`netlify/functions/_lib/guardian-catalog-kg23.json` inserisce in modo
 idempotente le offerte Consumer `Cambio Piano + Telefono Finanziato` e `Cambio
 Piano + Telefono VAR`, entrambe a 1 punto complessivo con
 `abilita_dispositivo=true`, e le due righe Day by Day corrispondenti. Il flag
 del catalogo permette al carrello di mantenere i dati del telefono; le regole
 Day by Day distinguono il tipo di acquisto. Non sono stati modificati schema,
 RLS, RPC, tabelle condivise con il Call Center o produzione.
+
+### Guardian: piano catalogo revisionato e conferma Telegram
+
+La migration `20261006182105_guardian_reviewed_catalog.sql` aggiunge due RPC,
+senza alterare schema/RLS CRM o tabelle CC. `guardian_catalog_apply_v1` e' il
+core privato, senza EXECUTE per service_role/anon/authenticated;
+`guardian_apply_reviewed_catalog` e' service-only e richiede lease, SHA, test,
+revisione Codex locale e consenso finale Telegram non scaduto. Accetta solo
+inserimenti `vendita_offerte`/`dashboard_righe_giornaliera` e aggiornamenti
+`regola` delle righe giornaliere con precondizioni su nome/regola; massimo10
+operazioni per gruppo, nessun DELETE, SQL libero, DDL, RLS, RPC o dati clienti.
+Il piano serializzato/hash e la revisione vivono nel JSON dell'approvazione patch
+server-only, vincolati alla head SHA. Il workflow non puo' attribuirsi la revisione.
+La conferma finale mostra anche il piano dati; cambi a head/piano/requisiti
+invalideranno l'approvazione. Il rilascio controlla merge e SHA online prima
+di applicare il piano in una transazione; verifica salute prima di chiudere.
+Checkpoint nell'approvazione finale impedisce duplicati. Un fallimento dati
+lascia la richiesta aperta e non viene dichiarato un rilascio riuscito.
+Migration applicata/riletta06/10: privilegi verificati, core e rollback dopo
+precondizione fallita collaudati in transazioni annullate,0record sintetici residui.
+
+KG23: il piano JSON backend aggiunge2offerte Consumer/2righe Day by Day a1punto
+complessivo. Aggiorna soltanto le regole delle righe telefono14/15 per escludere
+le nuove combinazioni, preservando tutti i telefoni storici. Il helper condiviso
+`js/customer-base-device.js` vincola dispositivo obbligatorio e tipo acquisto
+Finanziamento/VAR nel wizard e server; altre offerte restano immutate. Script
+SQL iniziale non eseguito e sostituito da piano revisionato, non da SQL spostato.
+Applicazione subordinata alla conferma finale Telegram e alla head SHA verificata.
