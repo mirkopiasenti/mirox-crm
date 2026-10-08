@@ -93,6 +93,57 @@ test('paginazione oltre 1000 e errori post-vendita non diventano report parziali
   const broken=fakeDb(fixture());broken.fail=q=>q.table==='post_vendita_controllo_lg';
   await assert.rejects(reports.buildReports(broken,'2026-10-05',NOW),/Lettura/);
 });
+test('FISSI Standard: Cerea e Da completare, KO/reinserimenti esclusi, stessi risultati pagina e Target',async()=> {
+  const f=fixture();
+  f.gara_obiettivi_mensili.push({id:2,anno:2026,mese:10,metrica_id:2,operatore_id:null,obiettivo:11});
+  f.vendita_contratti.find(c=>c.id==='d').cluster_cliente='Business';
+  f.profili.push({id:'cerea',nome:'CEREA',attivo:true,in_gara:false},
+    {id:'cerea-old',nome:'Alias Cerea',attivo:true,alias_di:'cerea'},
+    {id:'fttc-op',nome:'SOLO FTTC',attivo:true,in_gara:false});
+  const add=(id,store,status,technology,patch={},activation)=> {
+    f.vendita_contratti.push(contract(id,'Fisso',{codice_rivenditore:store,...patch}));
+    if(status!==null) f.post_vendita_controllo_fissi.push({id:'pv-'+id,contratto_id:id,stato:status,tecnologia:technology,data_attivazione:activation});
+  };
+  add('lg-pending',core.LEGNAGO,'Da completare',null,{cluster_cliente:'Business',punteggio_gara_totale:2});
+  add('ce-pending',core.CEREA,'Da completare','FTTH_OF',{operatore_id:'cerea-old',cluster_cliente:'Business',punteggio_gara_totale:2.5});
+  add('ce-active',core.CEREA,'Attivo','FWA OUT',{operatore_id:'cerea',punteggio_gara_totale:3});
+  add('ce-fttc',core.CEREA,'Attivo','FTTC',{operatore_id:'fttc-op',data_contratto:'2026-09-05T12:00:00Z',punteggio_gara_totale:1.5},'2026-10-03');
+  for(const store of [core.LEGNAGO,core.CEREA]) {
+    add(store+'-ko',store,'KO','FTTH_OF');
+    add(store+'-reinsert',store,'Attivo','FTTH_OF',{stato_inserimento:'reinserimento'});
+    add(store+'-fttc-reinsert',store,'Attivo','FTTC',{stato_inserimento:'reinserimento',data_contratto:'2026-09-05T12:00:00Z'},'2026-10-03');
+    add(store+'-fttc-pending',store,'Da completare','FTTC');
+    add(store+'-fttc-next',store,'Attivo','FTTC',{},'2026-11-01');
+    add(store+'-missing',store,null,null);
+  }
+  f.vendita_contratti.push(contract('ce-mobile','Mobile',{operatore_id:'cerea',codice_rivenditore:core.CEREA,cluster_cliente:'Business'}));
+  const p=await reports.buildReports(fakeDb(f),'2026-10-05',NOW);
+  const fixed=p.mensile.find(r=>r.nome==='Fisso');
+  assert.equal(fixed.pezzi,6);assert.equal(fixed.punteggio,11);
+  assert.equal(fixed.andamento,'RAGGIUNTO');
+  assert.equal(p.mensile.find(r=>r.nome==='Mobile').pezzi,1);
+  assert.equal(p.mensile.find(r=>r.nome==='EXTRA GARA P.IVA').punteggio,2);
+  assert.equal(p.vendite.totale,1);
+
+  // Esegue il caricamento reale del browser: deve includere anche operatori Cerea
+  // non in gara e l'operatore che ha solo una FTTC firmata il mese precedente.
+  const html=fs.readFileSync(require('node:path').join(__dirname,'../moduli/dashboard_pezzi.html'),'utf8');
+  const script=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(s=>s.includes('const sb'));
+  const ctx=vm.createContext({db:fakeDb(f),MiroxDashboardReport:core});
+  vm.runInContext(script.split('(function init()')[0],ctx);
+  vm.runInContext('DPState.anno=2026; DPState.mese=10;',ctx);
+  await vm.runInContext('caricaDatiMensili()',ctx);
+  const state=vm.runInContext('DPState',ctx);
+  assert.deepEqual(Array.from(state.operatoriAttiviMese,p=>p.id).sort(),['cerea','fttc-op','op']);
+  const browser=core.monthlyRows(state,'2026-10-05');
+  const browserFixed=browser.find(r=>r.nome==='Fisso');
+  assert.equal(browserFixed.attuale,6);assert.equal(browserFixed.punteggio,11);
+  const perOperator=Object.fromEntries(state.operatoriAttiviMese.map((op,i)=>[op.id,browserFixed.conteggi[i]]));
+  assert.deepEqual(perOperator,{op:3,cerea:2,'fttc-op':1});
+  const byName=(a,b)=>a.nome.localeCompare(b.nome);
+  assert.deepEqual(JSON.parse(JSON.stringify(browser.map(({nome,tabella,attuale,punteggio,obiettivo,andamento,eccedenza})=>
+    ({nome,tabella,pezzi:attuale,punteggio,obiettivo,andamento,eccedenza})).sort(byName))),[...p.mensile].sort(byName));
+});
 test('date manuali validate e richiesta naturale report di ieri',()=> {
   assert.throws(()=>reports.validateDate('2026-02-30',NOW));
   assert.throws(()=>reports.validateDate('2026-10-06',NOW));

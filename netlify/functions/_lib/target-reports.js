@@ -45,7 +45,7 @@ function monthlyState(contracts,metrics,objectives,profiles,post,fttc,year,month
   const map=new Map(active.map(p=>[p.id,p]));
   const resolve=id=> { let cur=id; for(let i=0;i<3;i++) { const p=map.get(cur); if(!p?.alias_di) return cur; cur=p.alias_di; } return cur; };
   const ids=new Set(active.filter(p=>p.in_gara&&!p.alias_di).map(p=>p.id));
-  [...contracts,...fttc].filter(c=>c.codice_rivenditore===core.LEGNAGO && c.stato_inserimento!=='reinserimento').forEach(c=>ids.add(resolve(c.operatore_id)));
+  [...contracts,...fttc].filter(c=>core.inMonthlyScope(c,true)).forEach(c=>ids.add(resolve(c.operatore_id)));
   return {anno:year,mese:month,contrattiMese:contracts.filter(c=>c.stato_inserimento!=='reinserimento'),metricheGara:metrics,obiettivi:objectives,
     operatoriAttiviMese:[...ids].map(id=>map.get(id)).filter(p=>p&&!p.alias_di),resolveOperatore:resolve,
     statoPostVendita:{fisso:new Map(post.fisso.map(r=>[r.contratto_id,r.stato])),energia:new Map(post.energia.map(r=>[r.contratto_id,r.stato])),allarmi:new Map(post.allarmi.map(r=>[r.contratto_id,r.stato]))},
@@ -76,7 +76,7 @@ async function buildReports(db,date = today(),now = new Date()) {
   const callStart=romeMidnight(date),callEnd=romeMidnight(nextDay(date));
   const timeFilter=col=>q=>q.gte(col,callStart).lt(col,callEnd).lte(col,now.toISOString());
   const [contracts,rows,metrics,objectives,profiles,consumer,business,appointments,activations]=await Promise.all([
-    paged(db,'vendita_contratti',CONTRACT_FIELDS,q=>q.gte('data_contratto',start+'T00:00:00Z').lt('data_contratto',end+'T00:00:00Z').eq('codice_rivenditore',core.LEGNAGO)),
+    paged(db,'vendita_contratti',CONTRACT_FIELDS,q=>q.gte('data_contratto',start+'T00:00:00Z').lt('data_contratto',end+'T00:00:00Z').in('codice_rivenditore',[core.LEGNAGO,core.CEREA])),
     paged(db,'dashboard_righe_giornaliera','id,nome,gruppo,ordine,regola',q=>q.eq('attiva',true)),
     paged(db,'gara_metriche','id,nome,tabella,ordine,regola,punteggio_campo',q=>q.eq('attiva',true).in('tabella',['avanzamento_standard','avanzamento_extra_piva'])),
     paged(db,'gara_obiettivi_mensili','id,metrica_id,operatore_id,obiettivo',q=>q.eq('anno',year).eq('mese',month)),

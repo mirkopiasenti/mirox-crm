@@ -1,7 +1,13 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato: 2026-10-06. Promemoria di ripresa, non autorizza interventi o deploy;
+Aggiornato: 2026-10-08. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
+
+## FISSI Avanzamento Standard: modifica pronta08/10
+
+- Consumer/Business Legnago e Cerea, no KO/reinserimenti. NonFTTC: mese firma e stato Da completare/In Attivazione/Attivo; senza controllo esclusi. FTTC: solo Attivo e mese attivazione, anche firma precedente. Tecnologia vuota segue nonFTTC. Pezzi1 e punteggio reale; obiettivo/andamento sui punti. Altri avanzamenti/Day invariati.
+- Motore condiviso, caricamento pagina e Target aggiornati, operatori Cerea/alias inclusi anche se non in gara o solo FTTC precedente. Build e286/286test locali OK (285versionati+1backup); regressione integrata esegue loader browser e report server, controlla pezzi/punti/soglia/stati/store/alias/FTTC/ExtraPIVA.
+- Guide AGENTS/README/CLAUDE/database README/Target aggiornate; nessuna modifica DB/schema/obiettivi. Commit locale pronto, nessun nuovo push/deploy: prossima azione pubblicazione su richiesta esplicita. Backup/Guardian preesistenti preservati; correzione anagrafica ancora sospesa sulla scelta del proprietario.
 
 ## Guardian: KG23 online, correzione vocali06/10 sera
 

@@ -5,7 +5,12 @@
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
 'use strict';
 const LEGNAGO = '9001415852';
+const CEREA = '9000822241';
 const DAY_OPERATORS = ['MATTEO', 'MIRKO', 'FRANCESCA', 'CEREA'];
+function inMonthlyScope(c, includeCereaFissi=false) {
+  return c.stato_inserimento!=='reinserimento' && (c.codice_rivenditore===LEGNAGO
+    || (includeCereaFissi && c.codice_rivenditore===CEREA && c.categoria_snapshot==='Fisso'));
+}
 function matchRegola(contratto, regola) {
   if (!regola || typeof regola !== 'object') return true;
   // OR: se presente, ognuna delle sotto-regole viene valutata; basta che una matchi
@@ -168,15 +173,16 @@ function monthlyRows(state,asOf) {
   };
   return state.metricheGara.filter(m=>m.tabella.startsWith('avanzamento_')).map(m=> {
     const piva=m.tabella!=='avanzamento_standard';
+    const standardFissi=!piva && m.regola?.categoria==='Fisso';
     let lists=state.operatoriAttiviMese.map(op=>state.contrattiMese.filter(c=>
-      c.codice_rivenditore===LEGNAGO && c.stato_inserimento!=='reinserimento'
+      inMonthlyScope(c,standardFissi)
       && state.resolveOperatore(c.operatore_id)===op.id && matchRegola(c,m.regola)));
     if(piva) lists=lists.map(list=>list.filter(validPiva));
     else if(m.regola?.categoria==='Energia') lists=lists.map(list=>list.filter(c=>state.statoPostVendita.energia.get(c.id)!=='Rifiutato'));
     else if(m.regola?.categoria==='Allarmi') lists=lists.map(list=>list.filter(c=>['In Attivazione','OK'].includes(state.statoPostVendita.allarmi.get(c.id))));
-    else if(m.regola?.categoria==='Fisso') lists=lists.map((list,index)=>[
-      ...list.filter(c=>state.tecnologiaFisso.get(c.id)!=='FTTC' && ['Attivo','In Attivazione'].includes(state.statoPostVendita.fisso.get(c.id))),
-      ...(state.fissoFTTCAttivatiMese||[]).filter(c=>c.codice_rivenditore===LEGNAGO && c.stato_inserimento!=='reinserimento' && state.resolveOperatore(c.operatore_id)===state.operatoriAttiviMese[index].id)
+    else if(standardFissi) lists=lists.map((list,index)=>[
+      ...list.filter(c=>state.tecnologiaFisso.get(c.id)!=='FTTC' && ['Da completare','Attivo','In Attivazione'].includes(state.statoPostVendita.fisso.get(c.id))),
+      ...(state.fissoFTTCAttivatiMese||[]).filter(c=>inMonthlyScope(c,true) && state.resolveOperatore(c.operatore_id)===state.operatoriAttiviMese[index].id && matchRegola(c,m.regola))
     ]);
     const conteggi=lists.map(list=>list.reduce((sum,c)=>sum+pesoContratto(c,m.regola),0));
     const attuale=conteggi.reduce((a,b)=>a+b,0);
@@ -198,5 +204,5 @@ function dailyRows(contracts,rows,profiles) {
     return {nome:r.nome,gruppo:r.gruppo,operatori:operators,totale:Object.values(operators).reduce((a,b)=>a+b,0)};
   }).filter(r=>r.totale>0);
 }
-return {LEGNAGO,DAY_OPERATORS,matchRegola,pesoContratto,calcolaCompenso,valutaGara,easter,isWorkday,workingDays,progress,monthlyRows,dailyRows};
+return {LEGNAGO,CEREA,DAY_OPERATORS,inMonthlyScope,matchRegola,pesoContratto,calcolaCompenso,valutaGara,easter,isWorkday,workingDays,progress,monthlyRows,dailyRows};
 }));

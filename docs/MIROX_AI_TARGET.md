@@ -24,7 +24,8 @@ ora legale. Se il cron manca l'istante previsto, recupera entro la stessa sera;
 il report resta datato e indica l'ora effettiva di lettura. Non e' una garanzia
 al secondo: generazione, coda e provider possono ritardare la consegna.
 
-Vendite e mensile mantengono Legnago (`9001415852`) ed escludono reinserimenti.
+Vendite e mensile mantengono Legnago (`9001415852`) ed escludono reinserimenti;
+dal 08/10/2026 FISSI Standard include anche Cerea (`9000822241`).
 La data contratto e' selezionata con i confini UTC gia' usati dalla pagina;
 chiamate (`data_ora`) e appuntamenti (`created_at`) seguono Europe/Rome.
 Il totale Day by Day somma le righe, non i contratti distinti: uno stesso
@@ -37,7 +38,11 @@ Business outbound; gli altri al Consumer (inclusi gli eventuali non assegnati).
 
 `js/dashboard-report-core.js` e' il motore puro condiviso con la pagina:
 matching, pesi, calendario e mensile. Conserva i filtri post-vendita esistenti:
-FTTC contati solo se attivati nel mese, Energia rifiutata esclusa,
+FISSI Standard Consumer/Business: non-FTTC nel mese di firma con stato
+Da completare/In Attivazione/Attivo, FTTC solo Attivo nel mese di attivazione;
+KO, reinserimenti e assenza della riga post-vendita esclusi. Gli operatori
+canonici attivi con soli Fissi Cerea compaiono anche nel mensile.
+Energia rifiutata esclusa,
 W3 Protetti Standard solo In Attivazione/OK; Extra Gara P.IVA usa gli stati
 Business gia' applicati nella pagina e i punteggi extra.
 Andamento confronta punteggio e quota obiettivo maturata sui giorni lavorativi;
