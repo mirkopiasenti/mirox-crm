@@ -40,7 +40,9 @@ Business outbound; gli altri al Consumer (inclusi gli eventuali non assegnati).
 matching, pesi, calendario e mensile. Conserva i filtri post-vendita esistenti:
 FISSI Standard Consumer/Business: non-FTTC nel mese di firma con stato
 Da completare/In Attivazione/Attivo, FTTC solo Attivo nel mese di attivazione;
-KO, reinserimenti e assenza della riga post-vendita esclusi. Gli operatori
+KO e reinserimenti esclusi; inclusi i Fissi ancora da verificare, senza riga
+post-vendita (il trigger la crea dopo la verifica). Errori di lettura
+bloccanti, mai interpretati come assenza di record. Gli operatori
 canonici attivi con soli Fissi Cerea compaiono anche nel mensile.
 Energia rifiutata esclusa,
 W3 Protetti Standard solo In Attivazione/OK; Extra Gara P.IVA usa gli stati

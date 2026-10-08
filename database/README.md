@@ -44,7 +44,10 @@ Regola applicata dal motore condiviso, senza SQL/migration o modifiche ai dati.
 Metrica FISSI Standard: Legnago e Cerea, Consumer/Business, senza KO e
 reinserimenti. Non-FTTC: mese `data_contratto`, stati `Da completare`,
 `In Attivazione`, `Attivo`; FTTC: solo Attivo e mese `data_attivazione`.
-Riga post-vendita assente esclusa; tecnologia vuota segue i non-FTTC.
+I contratti ancora da verificare, senza riga post-vendita, contano come
+pendenti nel mese di firma: il trigger crea la riga solo dopo la verifica.
+Tecnologia vuota segue i non-FTTC. Errori di lettura dei controlli bloccanti,
+mai assimilati a record assente. Nessuna riga DB creata per il conteggio.
 Punteggio somma `punteggio_gara_totale`, obiettivi esistenti conservati.
 Altre metriche Avanzamento e Day by Day restano Legnago; alias e operatori
 attivi gestiti allo stesso modo da pagina e Target.

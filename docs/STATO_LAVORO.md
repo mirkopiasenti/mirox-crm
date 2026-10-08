@@ -3,11 +3,11 @@
 Aggiornato: 2026-10-08. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## FISSI Avanzamento Standard: modifica pronta08/10
+## FISSI Avanzamento Standard: correzione pendenti08/10
 
-- Consumer/Business Legnago e Cerea, no KO/reinserimenti. NonFTTC: mese firma e stato Da completare/In Attivazione/Attivo; senza controllo esclusi. FTTC: solo Attivo e mese attivazione, anche firma precedente. Tecnologia vuota segue nonFTTC. Pezzi1 e punteggio reale; obiettivo/andamento sui punti. Altri avanzamenti/Day invariati.
-- Motore condiviso, caricamento pagina e Target aggiornati, operatori Cerea/alias inclusi anche se non in gara o solo FTTC precedente. Build e286/286test locali OK (285versionati+1backup); regressione integrata esegue loader browser e report server, controlla pezzi/punti/soglia/stati/store/alias/FTTC/ExtraPIVA.
-- Guide AGENTS/README/CLAUDE/database README/Target aggiornate; nessuna modifica DB/schema/obiettivi. Commit locale pronto, nessun nuovo push/deploy: prossima azione pubblicazione su richiesta esplicita. Backup/Guardian preesistenti preservati; correzione anagrafica ancora sospesa sulla scelta del proprietario.
+- Prima pubblicazione175e772/Netlify6ac7cca17641670008f4dce2/CI37813468417OK: include Cerea e stato Da completare ma ottobre resta11pezzi/14,25punti. Segnalazione utente riprodotta nel Chrome: Matteo8/Francesca3. Causa:6Fissi da_controllare senza riga post-vendita (il trigger la crea solo dopo verifica), ancora esclusi.
+- Correzione: quei contratti contano come pendenti nel mese firma. Consumer/Business Legnago+Cerea, no KO/reinserimenti; FTTC solo Attivo/mese attivazione, come prima. Errori lettura controlli/attivazioni bloccano caricamento, mai assimilati a record assente. Nessuna modifica DB/schema/obiettivi o altri avanzamenti/Day.
+- Verifica su dati reali letti08/10:17pezzi/24,25punti, Matteo13/Francesca4; di cui6pendenti/10punti. Motore condiviso Dashboard/PNG/Target. Build287/287test locali OK (286versionati+1backup), regressioni loader browser/report server e letture fallite. Guide AGENTS/README/CLAUDE/database README/Target aggiornate; pubblicazione correzione in corso sul push autorizzato. Backup/Guardian preesistenti preservati, anagrafica ancora sospesa sulla scelta utente.
 
 ## Guardian: KG23 online, correzione vocali06/10 sera
 

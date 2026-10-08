@@ -693,6 +693,9 @@ async function caricaDatiMensili() {
       sb.from('post_vendita_controllo_lg').select('contratto_id, stato').in('contratto_id', contrattiPostVenditaIds),
       sb.from('post_vendita_controllo_allarmi').select('contratto_id, stato').in('contratto_id', contrattiPostVenditaIds)
     ]);
+    if (rFisso.error) throw rFisso.error;
+    if (rLg.error) throw rLg.error;
+    if (rAll.error) throw rAll.error;
     (rFisso.data || []).forEach(r => {
       DPState.statoPostVendita.fisso.set(r.contratto_id, r.stato);
       DPState.tecnologiaFisso.set(r.contratto_id, r.tecnologia);
@@ -712,11 +715,13 @@ async function caricaDatiMensili() {
     .eq('stato', 'Attivo')
     .gte('data_attivazione', `${DPState.anno}-${String(DPState.mese).padStart(2,'0')}-01`)
     .lt('data_attivazione', `${annoPost}-${String(mesePost).padStart(2,'0')}-01`);
+  if (rFttcPv.error) throw rFttcPv.error;
   const fttcIds = (rFttcPv.data || []).map(r => r.contratto_id);
   if (fttcIds.length) {
     const rFttcContr = await sb.from('vendita_contratti')
       .select('id, operatore_id, cluster_cliente, categoria_snapshot, data_contratto, stato_inserimento, punteggio_gara_totale, codice_rivenditore')
       .in('id', fttcIds);
+    if (rFttcContr.error) throw rFttcContr.error;
     // FISSI Standard: attivazioni FTTC di entrambi i punti vendita, senza reinserimenti.
     DPState.fissoFTTCAttivatiMese = (rFttcContr.data || []).filter(c =>
       MiroxDashboardReport.inMonthlyScope(c, true)

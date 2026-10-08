@@ -181,7 +181,9 @@ function monthlyRows(state,asOf) {
     else if(m.regola?.categoria==='Energia') lists=lists.map(list=>list.filter(c=>state.statoPostVendita.energia.get(c.id)!=='Rifiutato'));
     else if(m.regola?.categoria==='Allarmi') lists=lists.map(list=>list.filter(c=>['In Attivazione','OK'].includes(state.statoPostVendita.allarmi.get(c.id))));
     else if(standardFissi) lists=lists.map((list,index)=>[
-      ...list.filter(c=>state.tecnologiaFisso.get(c.id)!=='FTTC' && ['Da completare','Attivo','In Attivazione'].includes(state.statoPostVendita.fisso.get(c.id))),
+      // Il controllo nasce dopo la verifica: prima, il Fisso e' ancora pendente.
+      ...list.filter(c=>state.tecnologiaFisso.get(c.id)!=='FTTC' && (!state.statoPostVendita.fisso.has(c.id)
+        || ['Da completare','Attivo','In Attivazione'].includes(state.statoPostVendita.fisso.get(c.id)))),
       ...(state.fissoFTTCAttivatiMese||[]).filter(c=>inMonthlyScope(c,true) && state.resolveOperatore(c.operatore_id)===state.operatoriAttiviMese[index].id && matchRegola(c,m.regola))
     ]);
     const conteggi=lists.map(list=>list.reduce((sum,c)=>sum+pesoContratto(c,m.regola),0));
