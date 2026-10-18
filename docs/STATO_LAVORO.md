@@ -1,7 +1,13 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato: 2026-10-08. Promemoria di ripresa, non autorizza interventi o deploy;
+Aggiornato: 2026-10-18. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
+
+## Compilatore disdette: ricerca obbligatoria locale 18/10
+
+- All’apertura solo ricerca cliente. Le quattro scelte compaiono dopo selezione CRM o ricerca riuscita senza risultati; «Nessuna anagrafica trovata» apre i moduli vuoti per compilazione completa. Errori/risposte malformate non sbloccano il form; nuova ricerca azzera dati e ignora risposte tardive.
+- Duplicazione storico passa dalla ricerca CF/P.IVA: snapshot solo dopo selezione della stessa anagrafica e scelta nello stesso cluster; senza risultati compilazione vuota. Nessuna modifica backend/DB/schema/RLS o servizio esterno.
+- Verifiche: build e 287/287 test OK; controllo Chrome headless con dati simulati di Consumer/Business, assenza/errori, quattro moduli, cambio ricerca/risposte tardive, duplicazione e mobile 390px. Guide README/AGENTS/CLAUDE/database README aggiornate. Push autorizzato dal proprietario il 18/10: pubblicazione in corso, verificare CI e versione production. Modifiche backup/Guardian preesistenti escluse dal commit.
 
 ## FISSI Avanzamento Standard: correzione pendenti08/10
 

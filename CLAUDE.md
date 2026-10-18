@@ -1,5 +1,14 @@
 # CLAUDE.md — Guida per AI assistants
 
+## Compilatore disdette: ricerca obbligatoria (18/10/2026)
+
+All’apertura mostra soltanto la ricerca CRM. Le quattro scelte compaiono dopo
+la selezione di un’anagrafica oppure dopo una ricerca riuscita senza risultati:
+«Nessuna anagrafica trovata», compilazione completa con modulo vuoto. Errori
+non sbloccano il form; cambiare ricerca azzera i dati precedenti. La duplicazione
+dallo storico passa dalla stessa ricerca e recupera lo snapshot soltanto per
+la stessa anagrafica e lo stesso cluster. Nessuna modifica DB/schema/RLS.
+
 ## Avanzamento: riga CAMBI PIANO (06/10/2026)
 
 Metrica `avanzamento_standard` attiva, ordine35 tra TELEFONI CB/FISSI: TIED

@@ -149,22 +149,6 @@
     .history-state { padding: 46px 20px; text-align: center; color: var(--mx-text-secondary); font-size: 13px; }
     .load-more-wrap { display: none; justify-content: center; padding-top: 20px; }
     .load-more-wrap.is-visible { display: flex; }
-    .module-modal {
-      position: fixed;
-      inset: 0;
-      z-index: 1000;
-      display: grid;
-      place-items: center;
-      padding: 20px;
-      background: rgba(15, 23, 42, .55);
-    }
-    .module-modal-card { width: min(460px, 100%); padding: 24px; border-radius: 16px; background: #fff; box-shadow: 0 24px 70px rgba(15,23,42,.28); }
-    .module-modal-card h2 { margin: 0; font-size: 19px; }
-    .module-modal-card > p { margin: 7px 0 18px; color: var(--mx-text-secondary); font-size: 13px; line-height: 1.5; }
-    .module-modal-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .module-modal-option { padding: 18px; border: 1px solid var(--mx-border); border-radius: 12px; background: #fff; color: var(--mx-text); font: 700 14px Inter, sans-serif; cursor: pointer; }
-    .module-modal-option:hover { border-color: var(--mx-primary); background: var(--mx-primary-bg); color: var(--mx-primary-dark); }
-    .module-modal-cancel { width: 100%; margin-top: 12px; border: 0; background: transparent; color: var(--mx-text-secondary); padding: 8px; font: 600 12px Inter, sans-serif; cursor: pointer; }
     [hidden] { display: none !important; }
     @media (max-width: 900px) {
       .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -210,18 +194,18 @@
         <div class="customer-search-head">
           <div>
             <h2>Richiama un’anagrafica dal CRM</h2>
-            <p>Cerca per nome, cognome, codice fiscale, ragione sociale o partita IVA. Verranno inseriti soltanto i dati già disponibili.</p>
+            <p>Prima cerca il cliente per nome, cognome, codice fiscale, ragione sociale o partita IVA. Seleziona l’anagrafica trovata oppure, se non ci sono risultati, compila tutti i dati manualmente.</p>
           </div>
         </div>
         <form class="customer-search-form" id="anagraficaSearchForm" role="search">
           <input type="search" id="anagraficaSearchInput" minlength="2" maxlength="80" placeholder="Nome, cognome, CF, ragione sociale o P.IVA" autocomplete="off" aria-label="Cerca per nome, cognome, codice fiscale, ragione sociale o partita IVA">
           <button type="submit" class="btn btn-primary" id="anagraficaSearchButton">Cerca</button>
         </form>
-        <p class="customer-search-state" id="anagraficaSearchState" hidden></p>
+        <p class="customer-search-state" id="anagraficaSearchState" role="status" aria-live="polite" hidden></p>
         <div class="customer-results" id="anagraficaResults" hidden></div>
       </div>
 
-      <div class="intro-card" id="moduleSelector">
+      <div class="intro-card" id="moduleSelector" hidden>
         <h2>Scegli il modulo da compilare</h2>
         <p>I campi e le opzioni verranno adattati automaticamente al modello selezionato.</p>
         <div class="module-grid">
@@ -433,18 +417,6 @@
     </section>
   </main>
 
-  <div class="module-modal" id="moduleChoiceModal" role="dialog" aria-modal="true" aria-labelledby="moduleChoiceTitle" hidden>
-    <div class="module-modal-card">
-      <h2 id="moduleChoiceTitle">Scegli il modulo</h2>
-      <p id="moduleChoiceDescription">Seleziona se compilare una disdetta SIM oppure Fisso.</p>
-      <div class="module-modal-options">
-        <button type="button" class="module-modal-option" id="chooseSim">Disdetta SIM</button>
-        <button type="button" class="module-modal-option" id="chooseFisso">Disdetta Fisso</button>
-      </div>
-      <button type="button" class="module-modal-cancel" id="cancelModuleChoice">Annulla</button>
-    </div>
-  </div>
-
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
   <script src="../js/config.js"></script>
   <script src="../js/auth.js"></script>
@@ -462,12 +434,47 @@
     let selectedType = '';
     let historyPage = 1;
     let historyLoaded = false;
-    let moduleChoiceResolver = null;
+    let customerSearchResolved = false;
+    let selectedCustomer = null;
+    let searchVersion = 0;
+    let duplicateSource = null;
 
     const form = document.getElementById('disdettaForm');
     const formCard = document.getElementById('formCard');
     const moduleSelector = document.getElementById('moduleSelector');
     const historyRows = document.getElementById('historyRows');
+
+    function resetCustomerSearch() {
+      searchVersion += 1;
+      customerSearchResolved = false;
+      selectedCustomer = null;
+      duplicateSource = null;
+      form.reset();
+      selectedType = '';
+      formCard.classList.remove('is-visible');
+      moduleSelector.hidden = true;
+      document.querySelectorAll('.module-choice').forEach(button => button.classList.remove('is-selected'));
+      document.getElementById('anagraficaResults').replaceChildren();
+      document.getElementById('anagraficaResults').hidden = true;
+      document.getElementById('anagraficaSearchState').hidden = true;
+      document.getElementById('anagraficaSearchButton').disabled = false;
+    }
+
+    function resolveCustomerSearch(customer) {
+      selectedCustomer = customer;
+      customerSearchResolved = true;
+      if (!customer || customer.cf_piva.toUpperCase() !== (duplicateSource?.partita_iva || duplicateSource?.codice_fiscale || '').toUpperCase()) {
+        duplicateSource = null;
+      }
+      document.getElementById('anagraficaResults').hidden = true;
+      const state = document.getElementById('anagraficaSearchState');
+      state.textContent = customer
+        ? `Anagrafica selezionata: ${customer.display_name} (${customer.cf_piva}). Scegli il tipo di disdetta e completa i dati mancanti.`
+        : 'Nessuna anagrafica trovata. Scegli il tipo di disdetta e compila tutti i dati del cliente.';
+      state.hidden = false;
+      moduleSelector.hidden = false;
+      moduleSelector.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
     function todayLocal() {
       const now = new Date();
@@ -484,7 +491,7 @@
 
     function selectModule(type) {
       const config = TYPES[type];
-      if (!config) return;
+      if (!config || !customerSearchResolved) return;
       selectedType = type;
       document.getElementById('tipoModulo').value = type;
       document.getElementById('selectedModuleTitle').textContent = `Nuova disdetta ${config.label}`;
@@ -518,13 +525,14 @@
       form.reset();
       selectedType = '';
       formCard.classList.remove('is-visible');
-      moduleSelector.hidden = false;
+      moduleSelector.hidden = !customerSearchResolved;
       document.querySelectorAll('.module-choice').forEach(button => button.classList.remove('is-selected'));
       document.getElementById('dataDisdetta').value = todayLocal();
       moduleSelector.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function fillForm(type, values, message) {
+      if (!customerSearchResolved) return;
       form.reset();
       selectModule(type);
       const config = TYPES[type];
@@ -541,24 +549,6 @@
       switchPanel('compiler');
       formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
       if (message) MiroxUI.toast(message, 'success');
-    }
-
-    function closeModuleChoice(value) {
-      document.getElementById('moduleChoiceModal').hidden = true;
-      const resolver = moduleChoiceResolver;
-      moduleChoiceResolver = null;
-      if (resolver) resolver(value);
-    }
-
-    function chooseModuleForCluster(cluster, title) {
-      const suffix = cluster === 'business' ? 'business' : 'consumer';
-      document.getElementById('moduleChoiceTitle').textContent = title || 'Scegli il modulo';
-      document.getElementById('moduleChoiceDescription').textContent = `Seleziona il nuovo modulo ${cluster === 'business' ? 'Business' : 'Consumer'} da compilare.`;
-      document.getElementById('chooseSim').dataset.targetType = `sim_${suffix}`;
-      document.getElementById('chooseFisso').dataset.targetType = `fisso_${suffix}`;
-      document.getElementById('moduleChoiceModal').hidden = false;
-      document.getElementById('chooseSim').focus();
-      return new Promise(resolve => { moduleChoiceResolver = resolve; });
     }
 
     function switchPanel(name) {
@@ -604,22 +594,42 @@
     async function duplicateHistoryItem(item) {
       const config = TYPES[item.tipo];
       if (!config || !item.duplicabile) return;
-      const targetType = await chooseModuleForCluster(config.business ? 'business' : 'consumer', 'Duplica i dati della disdetta');
-      if (!targetType) return;
+      resetCustomerSearch();
+      duplicateSource = item;
+      document.getElementById('anagraficaSearchInput').value = item.partita_iva || item.codice_fiscale || '';
+      switchPanel('compiler');
+      document.getElementById('anagraficaSearchInput').focus();
+      await searchAnagrafiche(true);
+    }
+
+    async function startModule(type) {
+      if (!customerSearchResolved || !TYPES[type]) return;
+      if (!duplicateSource) {
+        fillForm(type, { ...selectedCustomer?.prefill, data: todayLocal() });
+        return;
+      }
+      const source = duplicateSource;
+      const version = searchVersion;
+      if (TYPES[type].business !== TYPES[source.tipo].business) {
+        await MiroxUI.alert('Per duplicare i dati scegli un modulo dello stesso cluster della disdetta originale.', { type: 'error' });
+        return;
+      }
       const loading = MiroxUI.loading.show('Recupero dei dati in corso...', 'Preparazione del nuovo modulo.');
       try {
         const response = await MiroxApi.fetch(ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'duplicate_data', id: item.id, target_type: targetType })
+          body: JSON.stringify({ action: 'duplicate_data', id: source.id, target_type: type })
         });
         const result = await response.json();
+        if (version !== searchVersion) { loading.hide(); return; }
         if (!response.ok || !result.success) throw new Error(result.error || 'Dati non disponibili');
         loading.success('Dati duplicati');
         setTimeout(() => loading.hide(), 500);
-        fillForm(targetType, result.disdetta, 'Dati duplicati. Verifica e modifica il numero da disdire.');
+        fillForm(type, result.disdetta, 'Dati duplicati. Verifica e modifica il numero da disdire.');
         document.getElementById('utenza').focus();
       } catch (error) {
+        if (version !== searchVersion) { loading.hide(); return; }
         loading.error('Duplicazione non riuscita');
         setTimeout(() => loading.hide(), 800);
         await MiroxUI.alert(error.message || 'Impossibile duplicare la disdetta', { type: 'error' });
@@ -682,9 +692,7 @@
       const state = document.getElementById('anagraficaSearchState');
       container.replaceChildren();
       if (!items.length) {
-        container.hidden = true;
-        state.textContent = 'Nessuna anagrafica trovata.';
-        state.hidden = false;
+        resolveCustomerSearch(null);
         return;
       }
       items.forEach(item => {
@@ -703,22 +711,23 @@
         kind.className = 'customer-result-kind';
         kind.textContent = item.cluster === 'business' ? 'Business' : 'Consumer';
         button.append(copy, kind);
-        button.addEventListener('click', async () => {
-          const targetType = await chooseModuleForCluster(item.cluster, 'Compila una disdetta per questa anagrafica');
-          if (!targetType) return;
-          fillForm(targetType, { ...item.prefill, data: todayLocal() }, 'Dati CRM inseriti. Completa i campi mancanti.');
-        });
+        button.addEventListener('click', () => resolveCustomerSearch(item));
         container.appendChild(button);
       });
-      state.hidden = true;
+      state.textContent = 'Seleziona l’anagrafica del cliente per scegliere il tipo di disdetta.';
+      state.hidden = false;
       container.hidden = false;
     }
 
-    async function searchAnagrafiche() {
+    async function searchAnagrafiche(preserveDuplicate = false) {
       const input = document.getElementById('anagraficaSearchInput');
       const button = document.getElementById('anagraficaSearchButton');
       const state = document.getElementById('anagraficaSearchState');
       const query = input.value.trim();
+      const source = preserveDuplicate ? duplicateSource : null;
+      resetCustomerSearch();
+      duplicateSource = source;
+      const version = searchVersion;
       if (query.length < 2) {
         state.textContent = 'Inserisci almeno 2 caratteri.';
         state.hidden = false;
@@ -732,14 +741,17 @@
       try {
         const response = await MiroxApi.fetch(`${ENDPOINT}?action=search_anagrafica&q=${encodeURIComponent(query)}`);
         const result = await response.json();
+        if (version !== searchVersion) return;
         if (!response.ok || !result.success) throw new Error(result.error || 'Errore durante la ricerca');
-        renderAnagraficaResults(result.anagrafiche || []);
+        if (!Array.isArray(result.anagrafiche)) throw new Error('Risposta di ricerca non valida. Riprova.');
+        renderAnagraficaResults(result.anagrafiche);
       } catch (error) {
-        state.textContent = '';
-        state.hidden = true;
+        if (version !== searchVersion) return;
+        state.textContent = 'Ricerca non riuscita. Riprova per proseguire.';
+        state.hidden = false;
         await MiroxUI.alert(error.message || 'Impossibile cercare le anagrafiche', { type: 'error' });
       } finally {
-        button.disabled = false;
+        if (version === searchVersion) button.disabled = false;
       }
     }
 
@@ -768,7 +780,7 @@
       }
     }
 
-    document.querySelectorAll('.module-choice').forEach(button => button.addEventListener('click', () => selectModule(button.dataset.type)));
+    document.querySelectorAll('.module-choice').forEach(button => button.addEventListener('click', () => startModule(button.dataset.type)));
     document.querySelectorAll('.nav-tab').forEach(button => button.addEventListener('click', () => switchPanel(button.dataset.panel)));
     document.getElementById('changeModule').addEventListener('click', resetModuleSelection);
     document.getElementById('clearDate').addEventListener('click', () => { document.getElementById('dataDisdetta').value = ''; });
@@ -778,19 +790,10 @@
       event.preventDefault();
       searchAnagrafiche();
     });
-    document.getElementById('chooseSim').addEventListener('click', event => closeModuleChoice(event.currentTarget.dataset.targetType));
-    document.getElementById('chooseFisso').addEventListener('click', event => closeModuleChoice(event.currentTarget.dataset.targetType));
-    document.getElementById('cancelModuleChoice').addEventListener('click', () => closeModuleChoice(null));
-    document.getElementById('moduleChoiceModal').addEventListener('click', event => {
-      if (event.target === event.currentTarget) closeModuleChoice(null);
-    });
-    document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && !document.getElementById('moduleChoiceModal').hidden) closeModuleChoice(null);
-    });
-
+    document.getElementById('anagraficaSearchInput').addEventListener('input', resetCustomerSearch);
     form.addEventListener('submit', async event => {
       event.preventDefault();
-      if (!selectedType || !form.checkValidity()) {
+      if (!customerSearchResolved || !selectedType || !form.checkValidity()) {
         form.reportValidity();
         return;
       }
