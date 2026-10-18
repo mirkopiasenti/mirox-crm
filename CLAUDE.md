@@ -1,13 +1,14 @@
 # CLAUDE.md — Guida per AI assistants
 
-## Compilatore disdette: ricerca obbligatoria (18/10/2026)
+## Compilatore disdette: prima modulo, poi ricerca (18/10/2026)
 
-All’apertura mostra soltanto la ricerca CRM. Le quattro scelte compaiono dopo
-la selezione di un’anagrafica oppure dopo una ricerca riuscita senza risultati:
-«Nessuna anagrafica trovata», compilazione completa con modulo vuoto. Errori
-non sbloccano il form; cambiare ricerca azzera i dati precedenti. La duplicazione
-dallo storico passa dalla stessa ricerca e recupera lo snapshot soltanto per
-la stessa anagrafica e lo stesso cluster. Nessuna modifica DB/schema/RLS.
+All’apertura mostra le quattro tipologie di disdetta. Dopo la scelta mostra la
+ricerca CRM obbligatoria. Il form del modulo scelto si apre dopo selezione cliente
+o ricerca riuscita senza risultati: «Nessuna anagrafica trovata», compilazione
+completa con modulo vuoto. Errori non sbloccano il form. Cambiare ricerca azzera
+i dati mantenendo il tipo; Cambia modulo azzera tutto e torna alle quattro scelte.
+Anche dallo storico prima scelta SIM/Fisso nello stesso cluster, poi ricerca:
+snapshot solo per la stessa anagrafica. Nessuna modifica DB/schema/RLS.
 
 ## Avanzamento: riga CAMBI PIANO (06/10/2026)
 

@@ -3,11 +3,12 @@
 Aggiornato: 2026-10-18. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## Compilatore disdette: ricerca obbligatoria locale 18/10
+## Compilatore disdette: ordine invertito in locale 18/10
 
-- All’apertura solo ricerca cliente. Le quattro scelte compaiono dopo selezione CRM o ricerca riuscita senza risultati; «Nessuna anagrafica trovata» apre i moduli vuoti per compilazione completa. Errori/risposte malformate non sbloccano il form; nuova ricerca azzera dati e ignora risposte tardive.
-- Duplicazione storico passa dalla ricerca CF/P.IVA: snapshot solo dopo selezione della stessa anagrafica e scelta nello stesso cluster; senza risultati compilazione vuota. Nessuna modifica backend/DB/schema/RLS o servizio esterno.
-- Verifiche: build e 287/287 test OK; controllo Chrome headless con dati simulati di Consumer/Business, assenza/errori, quattro moduli, cambio ricerca/risposte tardive, duplicazione e mobile 390px. Guide README/AGENTS/CLAUDE/database README aggiornate. Push autorizzato dal proprietario il 18/10: pubblicazione in corso, verificare CI e versione production. Modifiche backup/Guardian preesistenti escluse dal commit.
+- Nuova scelta utente: prima le quattro tipologie, poi ricerca CRM obbligatoria. Selezione cliente o ricerca riuscita senza risultati apre direttamente il modulo scelto; «Nessuna anagrafica trovata» con tutti i dati vuoti. Errori/risposte malformate bloccano il form; nuova ricerca azzera cliente/dati mantenendo il tipo e ignora risposte tardive.
+- Cambia modulo presente anche durante la ricerca: azzera tutto e torna alle quattro scelte. Duplicazione storico: prima SIM/Fisso stesso cluster, poi ricerca CF/P.IVA; snapshot solo per la stessa anagrafica. Nessuna modifica backend/DB/schema/RLS o servizio esterno.
+- Guide README/AGENTS/CLAUDE/database README aggiornate; build e287/287test OK; Chrome headless con dati simulati Consumer/Business, quattro moduli, assenza/errori, cambio modulo/ricerca, risposte tardive, duplicazione e mobile390px verificati.
+- Online resta `e4a6ba7` (ordine precedente), CI39148634228/Netlify6ad4fe6406849e348f551ae9 verificati. Push dell’inversione autorizzato dal proprietario: pubblicazione in corso, verificare CI e versione production. Modifiche backup/Guardian preesistenti preservate.
 
 ## FISSI Avanzamento Standard: correzione pendenti08/10
 
