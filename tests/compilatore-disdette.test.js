@@ -223,7 +223,7 @@ test('pagina, backend, template e migration espongono compilazione e storico ser
   assert.match(migration, /'disdette-files'[\s\S]*false[\s\S]*ARRAY\['application\/pdf'\]/i);
   assert.match(extensionMigration, /ADD COLUMN IF NOT EXISTS utenza text/i);
   assert.match(extensionMigration, /ADD COLUMN IF NOT EXISTS dati_compilazione jsonb/i);
-  assert.match(netlifyConfig, /included_files = \["netlify\/functions\/_templates\/disdette\/\*\.pdf"\]/);
+  assert.match(netlifyConfig, /included_files\s*=\s*\[[^\]]*"netlify\/functions\/_templates\/disdette\/\*\.pdf"/);
 
   for (const variant of Object.values(VARIANTS)) {
     assert.equal(

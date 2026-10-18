@@ -136,6 +136,7 @@ Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
 | `072_limita_telefoni_cb_dashboard.sql` | Allinea `TELEFONI CB` di Gare Individuali e Avanzamento Mensile al KPI Customer Base Consumer: conta soltanto `Telefono Incluso` con dispositivo associato e `tipo_acquisto` VAR o Finanziamento, escludendo Cambi Piano e Caring. |
 
 | `20261005185700_mirox_ai_target.sql` | Nuove `mirox_target_sessioni` e `mirox_target_jobs` server-only: memoria, lease, coda con dedupe/checkpoint e stato incerto. RLS e grant espliciti alla sola service role; nessun cambio a tabelle CC/RPC esistenti. Migration applicata il 05/10/2026 a production `lbgwamhjkjjfwgusafbi`; versione locale allineata al registro Supabase. RLS e privilegi anon/authenticated/service_role verificati. |
+| `20261018180938_compilatore_subentri.sql` | Crea `subentri_generati` con bozze idempotenti private per operatore, manifest allegati immutabile, snapshot e indice dei PDF generati; bucket privato `subentri-files` per PDF/JPEG/PNG max 4 MiB. RLS e grant solo service role, nessuna policy Storage browser, nessuna modifica alle tabelle condivise. **Applicata e verificata il 18/10/2026 su production `lbgwamhjkjjfwgusafbi`**; anon/authenticated senza SELECT/INSERT, archivio inizialmente vuoto. |
 
 Dal 05/10 i nuovi report Target salvano in `messaggi` una stringa vendite e due
 oggetti immagine (SVG, dimensioni, caption e testo alternativo). Il JSONB array
@@ -154,11 +155,13 @@ libere e cron conservano gli stessi snapshot/formati e checkpoint esistenti.
 ## Linee guida
 
 - **Non aggiungere nuove migrazioni** senza coordinarle con l'utente
-- Per nuove modifiche schema: applicare via SQL Editor Supabase E aggiungere il file qui con prefisso numerico progressivo (`015_`, `016_`, ...)
+- Per nuove modifiche schema: applicare via SQL Editor Supabase E aggiungere il file qui con prefisso numerico progressivo (`015_`, `016_`, ...) oppure timestamp generato con `supabase migration new` per evitare collisioni tra filoni
 - **Anche** RLS policies, RPC, trigger, viste e indici vanno salvati in un file `.sql` con prefisso progressivo, come tabelle e colonne. L'eccezione precedente ("possono evolvere senza file") è rimossa: è la causa del drift recuperato dalla migration `069`
 - Quando si aggiunge un nuovo file `.sql` in questa cartella, **aggiornare contestualmente la tabella "Elenco file"** sopra (regola di manutenzione documentale — vedi sezione "Manutenzione di questa guida" in `../CLAUDE.md`)
 
 ## Registro aggiornamenti
+
+- **2026-10-18, Compilatore Subentri**: migration `20261018180938_compilatore_subentri.sql` generata dalla CLI e conservata in `/database/`, applicata su autorizzazione allo sviluppo completo. Nuova tabella/bucket isolati senza FK, trigger, RPC o modifiche RLS a tabelle CRM/CC. RLS ON senza policy e nessun privilegio anon/authenticated; service role autorizzata. Bucket privato, MIME/limite riletti, zero record reali. Advisor aggiunge soltanto [INFO intenzionale RLS senza policy](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy) sulla nuova tabella; avvisi preesistenti invariati. Backend e browser collaudati con dati sintetici, pubblicazione codice autorizzata il 18/10/2026, esito nel promemoria.
 
 - **2026-10-05, identita per contratto**: nessuna migration/schema/RLS modificati. Nuovi carrelli: PDF distinti e INSERT batch in `vendita_documenti` per tutti i contratti, controllo copertura prima di `finalize`. Bonifica autorizzata dal 01/07/2026 Europe/Rome con `scripts/backfill-identita-contratti.js`: solo aggiunta di record/copie mancanti, SHA256/readback, originali invariati e UNIQUE `(storage_bucket, storage_path)` rispettata. `--same-client` e un'eccezione esplicitamente autorizzata dal proprietario per il PDF piu recente di uno stesso `anagrafica_id`. Piano/provenienza e risultati in `.backup-private/identity-backfill/`, mai nella build/Git. Esito finale nel promemoria e in `docs/IDENTITA_CONTRATTI_2026-10-05.md`.
 

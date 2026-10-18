@@ -261,7 +261,7 @@
     }
 
     // ----- POPUP ALLEGATI -------------------------------------
-    // items: [{ name, displayName?, url, downloadUrl?, openText?, downloadText? }]
+    // items: [{ name, displayName?, url, downloadUrl?, openText?, downloadText?, extension? }]
     function allegati({title = 'Allegati pratica', items = [], emptyText = 'Nessun allegato disponibile per questa pratica.'} = {}) {
         let html;
         if (!items.length) {
@@ -269,8 +269,10 @@
         } else {
             const rows = items.map(it => {
                 const name = esc(it.displayName || it.name || 'Documento');
-                // Policy Mirox: tutti gli allegati sono PDF. L'icona mostra sempre "PDF".
-                const ext = 'PDF';
+                // Default PDF storico; i moduli con immagini indicano l'estensione validata.
+                const requestedExt = String(it.extension || 'pdf').toLowerCase();
+                const fileExt = ['pdf', 'jpg', 'jpeg', 'png'].includes(requestedExt) ? requestedExt : 'pdf';
+                const ext = fileExt.toUpperCase();
                 let openBtn = '';
                 let dlBtn = '';
                 if (it.bucket && it.path) {
@@ -285,7 +287,7 @@
                     const openUrl = it.url || it.downloadUrl;
                     const dlUrl = it.downloadUrl || it.url;
                     const baseDl = (it.displayName || it.name || 'documento').replace(/\.[a-z0-9]+$/i, '');
-                    const dlName = baseDl + '.pdf';
+                    const dlName = baseDl + '.' + fileExt;
                     openBtn = openUrl ? `<a href="${esc(openUrl)}" target="_blank" rel="noopener">${esc(it.openText || 'Apri')}</a>` : '';
                     dlBtn = dlUrl ? `<a href="${esc(dlUrl)}" download="${esc(dlName)}">${esc(it.downloadText || 'Scarica')}</a>` : '';
                 }

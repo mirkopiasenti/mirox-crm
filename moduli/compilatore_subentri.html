@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <title>Compilatore Subentri - Mirox</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/mirox-modules.css">
+  <link rel="stylesheet" href="../css/compilatore-subentri.css">
+  <script src="../js/mirox-safe.js"></script>
+</head>
+<body>
+  <header class="page-header"><div><h1>Compilatore Subentri</h1><p>Compila e archivia i moduli di cessione WINDTRE.</p><a class="btn-back" href="../dashboard.html">Torna alla dashboard</a></div></header>
+  <nav class="nav-tabs" aria-label="Sezioni del Compilatore Subentri">
+    <button class="nav-tab active" type="button" data-tab="compiler">Compila subentro</button>
+    <button class="nav-tab" type="button" data-tab="history">Storico subentri</button>
+  </nav>
+  <main class="subentri-shell">
+    <section id="compilerPanel">
+      <section class="sub-card" id="worldSelector" aria-labelledby="worldTitle">
+        <p class="eyebrow">Nuovo subentro</p><h2 id="worldTitle">Scegli Mobile o Fisso</h2><p class="muted">Seleziona il servizio per iniziare.</p>
+        <div class="choice-grid worlds">
+          <button class="module-choice" type="button" id="chooseMobile"><span class="choice-tag">Disponibile</span><strong>Mobile</strong><span>Cessione delle numerazioni mobile.</span></button>
+          <button class="module-choice" type="button" disabled><span class="choice-tag">In preparazione</span><strong>Fisso</strong><span>Temporaneamente non disponibile.</span></button>
+        </div>
+      </section>
+      <section class="sub-card" id="categorySelector" hidden aria-labelledby="categoryTitle">
+        <div class="card-head"><div><p class="eyebrow">Mobile</p><h2 id="categoryTitle">Scegli la tipologia di subentro</h2></div><button class="sub-button" type="button" data-reset>Mobile o Fisso</button></div>
+        <div class="choice-grid categories">
+          <button class="module-choice" type="button" id="chooseMicrobusinessPrivato"><span class="choice-tag">Disponibile</span><strong>Subentro da Microbusiness a Privato</strong><span>Ricerca cedente e subentrante, documenti e modulo.</span></button>
+          <button class="module-choice" type="button" disabled><span class="choice-tag">In preparazione</span><strong>Subentro da Privato a Privato</strong><span>Solo per Tied.</span></button>
+          <button class="module-choice" type="button" disabled><span class="choice-tag">In preparazione</span><strong>Subentro da 1928 a Privato</strong></button>
+          <button class="module-choice" type="button" disabled><span class="choice-tag">In preparazione</span><strong>Subentro da Privato a Microbusiness</strong></button>
+          <button class="module-choice" type="button" disabled><span class="choice-tag">In preparazione</span><strong>Subentro da Microbusiness a Microbusiness</strong></button>
+        </div>
+      </section>
+      <section id="searchSection" hidden>
+        <div class="sub-card card-head"><div><p class="eyebrow">Mobile</p><h2>Microbusiness a Privato</h2><p class="muted">Esegui entrambe le ricerche. Se un cliente non è presente, potrai compilare i suoi dati manualmente.</p></div><button type="button" class="sub-button" data-categories>Cambia tipologia</button></div>
+        <div class="search-grid">
+          <section class="sub-card search-card" data-role="cedente"><h3>1. Cliente cedente</h3><p class="muted">Cerca l’attuale intestatario Microbusiness.</p><form class="search-form" id="searchCedente"><label class="sr-only" for="queryCedente">Cerca il cedente</label><input id="queryCedente" type="search" minlength="2" maxlength="80" placeholder="Ragione sociale, P.IVA o referente" autocomplete="off" required><button type="submit" class="sub-button primary">Cerca</button></form><p id="stateCedente" class="search-state" role="status" aria-live="polite"></p><div id="resultsCedente" class="search-results"></div></section>
+          <section class="sub-card search-card" data-role="subentrante"><h3>2. Cliente subentrante</h3><p class="muted">Cerca il nuovo intestatario privato.</p><form class="search-form" id="searchSubentrante"><label class="sr-only" for="querySubentrante">Cerca il subentrante</label><input id="querySubentrante" type="search" minlength="2" maxlength="80" placeholder="Nome, cognome o codice fiscale" autocomplete="off" required><button type="submit" class="sub-button primary">Cerca</button></form><p id="stateSubentrante" class="search-state" role="status" aria-live="polite"></p><div id="resultsSubentrante" class="search-results"></div></section>
+        </div>
+      </section>
+      <section class="sub-card" id="formCard" hidden>
+        <div class="card-head"><div><p class="eyebrow">Compilazione</p><h2>Subentro da Microbusiness a Privato</h2><p class="muted">Verifica i dati richiamati dal CRM. I campi con * sono obbligatori; la data è modificabile e facoltativa.</p></div></div>
+        <form id="subentroForm" novalidate>
+          <fieldset id="compilerFields" class="unframed">
+            <section class="form-section"><h3>Dati generali</h3><div class="form-grid" data-fields="generale"></div></section>
+            <section class="form-section"><h3>Cliente cedente</h3><div class="field"><label for="cedente_tipo">Tipo Microbusiness *</label><select id="cedente_tipo" name="cedente_tipo" required><option value="">Seleziona</option><option value="impresa">Impresa con persona/delegato</option><option value="professionista">Libero professionista / Artigiano</option></select></div><div class="form-grid" data-fields="cedente"></div><fieldset class="unframed conditional" id="impresaFields" hidden disabled><legend>Dati dell’impresa</legend><div class="form-grid" data-fields="impresa"></div></fieldset></section>
+            <section class="form-section"><h3>Cliente subentrante privato</h3><div class="field"><label for="subentrante_sesso">Sesso *</label><select id="subentrante_sesso" name="subentrante_sesso" required><option value="">Seleziona</option><option value="M">M</option><option value="F">F</option></select></div><div class="form-grid" data-fields="subentrante"></div></section>
+            <section class="form-section"><div class="card-head"><div><h3>Numeri mobile da trasferire</h3><p class="muted" id="pageCount" aria-live="polite"></p></div><button type="button" class="sub-button" id="addNumber">Aggiungi numero</button></div><div id="numberRows"></div><p class="muted">Sono accettati numeri italiani, anche con prefisso +39. Ogni pagina del modulo contiene fino a quattro numeri.</p></section>
+            <section class="form-section"><h3>Modalità di pagamento</h3><div class="field"><label for="pagamento">Pagamento *</label><select id="pagamento" name="pagamento" required><option value="">Seleziona</option><option value="iban">Addebito su conto corrente (IBAN)</option><option value="bollettino">Bollettino postale</option></select></div><fieldset id="bankFields" class="unframed conditional" hidden disabled><legend>Addebito su conto corrente</legend><div class="form-grid" data-fields="banca"></div><div class="card-head"><h4>Sottoscrittore del mandato</h4><button type="button" class="sub-button" id="copySubscriber">Copia dati del subentrante</button></div><div class="form-grid" data-fields="sottoscrittore"></div><div class="card-head"><h4>Intestatario del conto / Debitore</h4><button type="button" class="sub-button" id="copyAccount">Copia dati del sottoscrittore</button></div><p class="muted">Riporta l’intestazione esatta del conto e tutti gli eventuali cointestatari.</p><div class="form-grid" data-fields="conto"></div></fieldset></section>
+            <section class="form-section"><h3>Consensi del subentrante</h3><p class="muted">Riporta la scelta del cliente per ciascun consenso. Nessuna opzione è preselezionata.</p><div id="consentRows"></div></section>
+            <section class="form-section"><h3>Documentazione da allegare</h3><p class="muted">PDF, JPEG o PNG, massimo 4 MiB per file e quattro file per gruppo. Per carta d’identità e tessera sanitaria allega un PDF completo fronte/retro oppure le immagini di entrambi i lati.</p><div id="documentRows"></div></section>
+            <section class="form-section"><h3>Luogo e data</h3><div class="form-grid" data-fields="firma"></div><p class="signature-note">Gli spazi firma restano vuoti: il modulo dovrà essere firmato da cedente, subentrante e, quando previsto, sottoscrittore del mandato.</p></section>
+            <div class="form-actions"><button type="submit" class="sub-button primary" id="generateButton">Genera e archivia PDF</button></div>
+          </fieldset>
+        </form>
+        <p id="generationState" role="status" aria-live="polite"></p>
+        <div id="generatedResult" class="result-box" hidden><h3>Subentro archiviato</h3><p id="generatedDescription"></p><div class="actions"><button type="button" class="sub-button primary" id="viewGenerated">Visualizza PDF</button><button type="button" class="sub-button" id="viewGeneratedDocs">Visualizza allegati</button><button type="button" class="sub-button" data-categories>Nuovo subentro</button></div></div>
+      </section>
+    </section>
+    <section id="historyPanel" class="sub-card" hidden><div class="card-head"><div><h2>Storico subentri</h2><p class="muted">Moduli e documentazione archiviati dagli operatori.</p></div><button type="button" class="sub-button" id="refreshHistory">Aggiorna</button></div><p id="historyState" role="status" aria-live="polite"></p><div class="table-scroll"><table><thead><tr><th>Tipologia</th><th>Cedente</th><th>Subentrante</th><th>Numeri</th><th>Creazione</th><th>Azioni</th></tr></thead><tbody id="historyRows"></tbody></table></div><button type="button" class="sub-button" id="loadMore" hidden>Carica altri</button></section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
+  <script src="../js/config.js"></script><script src="../js/auth.js"></script><script src="../js/mirox-api.js"></script><script src="../js/mirox-ui.js"></script><script src="../js/mirox-upload.js"></script>
+  <script src="../js/subentri-core.js"></script><script src="../js/compilatore-subentri.js"></script>
+</body>
+</html>

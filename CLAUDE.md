@@ -1,5 +1,24 @@
 # CLAUDE.md — Guida per AI assistants
 
+## Compilatore Subentri (18/10/2026)
+
+Nuova Applicazione `moduli/compilatore_subentri.html`: scelta Mobile/Fisso (Fisso
+inattivo), cinque categorie Mobile, solo Microbusiness→Privato implementata.
+Popup documenti prima delle due ricerche CRM distinte; entrambe devono riuscire
+con selezione o assenza risultati prima del form. Solo IBAN/bollettino, niente
+codice domiciliazione, sei consensi espliciti, firme vuote. Quattro numeri per
+pagina con ripetizione automatica. Tre gruppi allegati obbligatori PDF/JPEG/PNG,
+4 MiB/file, fronte/retro identità e tessera del subentrante più visura.
+`js/subentri-core.js` condivide campi/validazione browser-server;
+`gestisci-subentri` gestisce bozze idempotenti con manifest/SHA256, upload,
+finalize con verifica byte, storico, signed URL 300s e duplicazione (nuove
+ricerche, nuovi consensi/allegati). Template privato `_templates/subentri/`,
+PDF deterministico `pdf-subentro.js`. Migration `20261018180938_compilatore_subentri.sql`
+applicata production: `subentri_generati`/`subentri-files` server-only e isolati,
+nessuna modifica a tabelle/RPC/policy CC. Bozze non cancellate automaticamente,
+retry nel form; nessuna ripresa dopo chiusura scheda. Push autorizzato il 18/10/2026; verifica pubblicazione nel promemoria.
+Dettagli e regole aggiornate in AGENTS/README/database README.
+
 ## Compilatore disdette: prima modulo, poi ricerca (18/10/2026)
 
 All’apertura mostra le quattro tipologie di disdetta. Dopo la scelta mostra la
