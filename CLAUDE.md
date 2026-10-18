@@ -4,7 +4,10 @@
 
 Nuova Applicazione `moduli/compilatore_subentri.html`: scelta Mobile/Fisso (Fisso
 inattivo), cinque categorie Mobile, solo Microbusiness→Privato implementata.
-Popup documenti prima delle due ricerche CRM distinte; entrambe devono riuscire
+Popup documenti prima delle due ricerche CRM distinte: solo P.IVA completa per
+cedente e CF personale completo per subentrante, validati browser/server. Dopo
+selezione barra/stato nascosti, intestatario in evidenza e Annulla indipendente
+per rifare la ricerca, conservando l’altra selezione. Entrambe devono riuscire
 con selezione o assenza risultati prima del form. Solo IBAN/bollettino, niente
 codice domiciliazione, sei consensi espliciti, firme vuote. Quattro numeri per
 pagina con ripetizione automatica. Tre gruppi allegati obbligatori PDF/JPEG/PNG,

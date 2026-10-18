@@ -70,6 +70,18 @@
   });
   class ValidationError extends Error { constructor(message) { super(message); this.status = 400; } }
   function fail(message) { throw new ValidationError(message); }
+  function validateSearchIdentifier(role, value) {
+    const identifier = typeof value === 'string' ? value.trim().toUpperCase() : '';
+    if (role === 'cedente') {
+      if (!/^\d{11}$/.test(identifier)) fail('Cliente cedente: inserisci una partita IVA completa di 11 cifre');
+    } else if (role === 'subentrante') {
+      // Sono ammesse anche le sostituzioni numeriche previste dall'omocodia.
+      if (!/^[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-EHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/.test(identifier)) {
+        fail('Cliente subentrante: inserisci un codice fiscale personale completo di 16 caratteri');
+      }
+    } else fail('Ruolo anagrafica non valido');
+    return identifier;
+  }
   function clean(value, max, label, optional = false) {
     if (value !== undefined && value !== null && typeof value !== 'string') fail(`${label}: valore non valido`);
     const text = String(value || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().toLocaleUpperCase('it-IT');
@@ -139,5 +151,5 @@
     }
     return result;
   }
-  return Object.freeze({ TYPE, MAX_NUMERI, FIELDS, CONSENSI, DOCUMENTI, validatePayload, ValidationError });
+  return Object.freeze({ TYPE, MAX_NUMERI, FIELDS, CONSENSI, DOCUMENTI, validatePayload, validateSearchIdentifier, ValidationError });
 });

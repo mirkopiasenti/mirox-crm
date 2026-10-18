@@ -39,8 +39,36 @@
       <section id="searchSection" hidden>
         <div class="sub-card card-head"><div><p class="eyebrow">Mobile</p><h2>Microbusiness a Privato</h2><p class="muted">Esegui entrambe le ricerche. Se un cliente non è presente, potrai compilare i suoi dati manualmente.</p></div><button type="button" class="sub-button" data-categories>Cambia tipologia</button></div>
         <div class="search-grid">
-          <section class="sub-card search-card" data-role="cedente"><h3>1. Cliente cedente</h3><p class="muted">Cerca l’attuale intestatario Microbusiness.</p><form class="search-form" id="searchCedente"><label class="sr-only" for="queryCedente">Cerca il cedente</label><input id="queryCedente" type="search" minlength="2" maxlength="80" placeholder="Ragione sociale, P.IVA o referente" autocomplete="off" required><button type="submit" class="sub-button primary">Cerca</button></form><p id="stateCedente" class="search-state" role="status" aria-live="polite"></p><div id="resultsCedente" class="search-results"></div></section>
-          <section class="sub-card search-card" data-role="subentrante"><h3>2. Cliente subentrante</h3><p class="muted">Cerca il nuovo intestatario privato.</p><form class="search-form" id="searchSubentrante"><label class="sr-only" for="querySubentrante">Cerca il subentrante</label><input id="querySubentrante" type="search" minlength="2" maxlength="80" placeholder="Nome, cognome o codice fiscale" autocomplete="off" required><button type="submit" class="sub-button primary">Cerca</button></form><p id="stateSubentrante" class="search-state" role="status" aria-live="polite"></p><div id="resultsSubentrante" class="search-results"></div></section>
+          <section class="sub-card search-card" data-role="cedente">
+            <h3>1. Cliente cedente</h3>
+            <p class="muted" id="descriptionCedente">Inserisci la partita IVA dell’attuale intestatario Microbusiness.</p>
+            <form class="search-form" id="searchCedente" novalidate>
+              <label class="sr-only" for="queryCedente">Partita IVA del cedente</label>
+              <input id="queryCedente" type="search" minlength="11" maxlength="11" pattern="[0-9]{11}" inputmode="numeric" placeholder="Partita IVA del cedente" autocomplete="off" required>
+              <button type="submit" class="sub-button primary">Cerca</button>
+            </form>
+            <p id="stateCedente" class="search-state" role="status" aria-live="polite" hidden></p>
+            <div id="resultsCedente" class="search-results"></div>
+            <div id="selectedCedente" class="selected-customer" hidden>
+              <div class="selected-customer-copy" role="status" aria-live="polite"><span class="selected-customer-label">Intestatario</span><strong id="nameCedente"></strong><span id="codeCedente" class="selected-customer-code"></span></div>
+              <button type="button" class="cancel-selection" id="cancelCedente" aria-label="Annulla la selezione del cedente">Annulla</button>
+            </div>
+          </section>
+          <section class="sub-card search-card" data-role="subentrante">
+            <h3>2. Cliente subentrante</h3>
+            <p class="muted" id="descriptionSubentrante">Inserisci il codice fiscale del nuovo intestatario privato.</p>
+            <form class="search-form" id="searchSubentrante" novalidate>
+              <label class="sr-only" for="querySubentrante">Codice fiscale del subentrante</label>
+              <input id="querySubentrante" type="search" minlength="16" maxlength="16" pattern="[A-Za-z0-9]{16}" placeholder="Codice fiscale del subentrante" autocomplete="off" required>
+              <button type="submit" class="sub-button primary">Cerca</button>
+            </form>
+            <p id="stateSubentrante" class="search-state" role="status" aria-live="polite" hidden></p>
+            <div id="resultsSubentrante" class="search-results"></div>
+            <div id="selectedSubentrante" class="selected-customer" hidden>
+              <div class="selected-customer-copy" role="status" aria-live="polite"><span class="selected-customer-label">Intestatario</span><strong id="nameSubentrante"></strong><span id="codeSubentrante" class="selected-customer-code"></span></div>
+              <button type="button" class="cancel-selection" id="cancelSubentrante" aria-label="Annulla la selezione del subentrante">Annulla</button>
+            </div>
+          </section>
         </div>
       </section>
       <section class="sub-card" id="formCard" hidden>

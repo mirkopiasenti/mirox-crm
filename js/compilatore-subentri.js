@@ -65,8 +65,26 @@
   }
   function clearRole(role) {
     const state=roles[role];state.version++;state.resolved=false;state.row=null;
-    $(`state${titleCase(role)}`).textContent='';$(`results${titleCase(role)}`).replaceChildren();
+    setSearchState(role,'');$(`results${titleCase(role)}`).replaceChildren();
     $(`search${titleCase(role)}`).querySelector('button').disabled=false;
+    renderSelectedCustomer(role);
+  }
+  function setSearchState(role,message) {
+    const status=$(`state${titleCase(role)}`);
+    status.textContent=message;status.hidden=!message||!!roles[role].row;
+  }
+  function renderSelectedCustomer(role) {
+    const title=titleCase(role),row=roles[role].row;
+    $(`search${title}`).hidden=!!row;$(`description${title}`).hidden=!!row;
+    $(`selected${title}`).hidden=!row;
+    $(`name${title}`).textContent=row?.display_name||'';
+    $(`code${title}`).textContent=row?`${role==='cedente'?'P.IVA':'Codice fiscale'}: ${row.cf_piva.toUpperCase()}`:'';
+    $(`state${title}`).hidden=!!row||!$(`state${title}`).textContent;
+  }
+  function cancelSelection(role) {
+    if(busy)return;
+    clearRole(role);resetForm();
+    const input=$(`query${titleCase(role)}`);input.value='';input.focus();
   }
   function reset(toCategories=false) {
     if(busy)return;
@@ -91,7 +109,8 @@
   function resolveRole(role,row) {
     if(!active||busy)return;
     roles[role].resolved=true;roles[role].row=row;$(`results${titleCase(role)}`).replaceChildren();
-    $(`state${titleCase(role)}`).textContent=row?`Selezionato: ${row.display_name} · ${row.cf_piva}`:'Nessuna anagrafica trovata. Compila i dati manualmente.';
+    setSearchState(role,row?'':'Nessuna anagrafica trovata. Compila i dati manualmente.');
+    renderSelectedCustomer(role);
     if(!Object.values(roles).every(state=>state.resolved))return;
     resetForm();for(const key of Object.keys(roles))prefill(key,roles[key].row);
     const sameClients=duplicate && roles.cedente.row && roles.subentrante.row && roles.cedente.row.cf_piva.toUpperCase()===duplicate.cedente_partita_iva && roles.subentrante.row.cf_piva.toUpperCase()===duplicate.subentrante_codice_fiscale;
@@ -105,20 +124,25 @@
   async function search(role) {
     if(!active||busy)return;
     clearRole(role);resetForm();
-    const state=roles[role],version=state.version;const query=$(`query${titleCase(role)}`).value.trim();const status=$(`state${titleCase(role)}`);const button=$(`search${titleCase(role)}`).querySelector('button');
-    if(query.length<2){status.textContent='Inserisci almeno due caratteri.';return;}
-    button.disabled=true;status.textContent='Ricerca in corso...';
+    const state=roles[role],version=state.version;const input=$(`query${titleCase(role)}`);const button=$(`search${titleCase(role)}`).querySelector('button');
+    let query;
+    try {query=Core.validateSearchIdentifier(role,input.value);input.value=query;}
+    catch(error){setSearchState(role,error.message);input.focus();return;}
+    button.disabled=true;setSearchState(role,'Ricerca in corso...');
     try {
       const result=await api(`${ENDPOINT}?action=search_anagrafica&ruolo=${role}&q=${encodeURIComponent(query)}`);
       if(!active||version!==state.version)return;
       if(!Array.isArray(result.anagrafiche)||result.anagrafiche.some(item=>!item||typeof item.id!=='string'||typeof item.display_name!=='string'||typeof item.cf_piva!=='string'||!item.prefill||typeof item.prefill!=='object'||Array.isArray(item.prefill)))throw new Error('Risposta di ricerca non valida');
+      for(const item of result.anagrafiche) {
+        if(Core.validateSearchIdentifier(role,item.cf_piva)!==query)throw new Error('Risposta di ricerca non valida');
+      }
       if(!result.anagrafiche.length){resolveRole(role,null);return;}
-      status.textContent='Seleziona l’anagrafica corretta.';
+      setSearchState(role,'Seleziona l’anagrafica corretta.');
       for(const item of result.anagrafiche) {
         const resultButton=el('button','search-result');resultButton.type='button';resultButton.append(el('strong','',item.display_name),el('small','',item.cf_piva));
         resultButton.addEventListener('click',()=>{if(version===state.version)resolveRole(role,item);});$(`results${titleCase(role)}`).append(resultButton);
       }
-    } catch(error) {if(version===state.version&&active)status.textContent=`Ricerca non riuscita: ${error.message}. Riprova per proseguire.`;}
+    } catch(error) {if(version===state.version&&active)setSearchState(role,`Ricerca non riuscita: ${error.message}. Riprova per proseguire.`);}
     finally {if(version===state.version)button.disabled=false;}
   }
   async function api(url,body) {
@@ -153,7 +177,7 @@
   }
   function setBusy(value) {
     busy=value;$('compilerFields').disabled=value;
-    document.querySelectorAll('[data-reset],[data-categories],.search-form button,.search-form input,[data-tab]').forEach(node=>{node.disabled=value;});
+    document.querySelectorAll('[data-reset],[data-categories],.search-form button,.search-form input,.cancel-selection,[data-tab]').forEach(node=>{node.disabled=value;});
   }
   async function generate(event) {
     event.preventDefault();if(busy||generatedId||!active||!Object.values(roles).every(state=>state.resolved))return;
@@ -237,6 +261,7 @@
   document.querySelectorAll('[data-categories]').forEach(button=>button.addEventListener('click',()=>reset(true)));
   document.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>switchTab(button.dataset.tab)));
   for(const role of Object.keys(roles)) {
+    $(`cancel${titleCase(role)}`).addEventListener('click',()=>cancelSelection(role));
     $(`search${titleCase(role)}`).addEventListener('submit',event=>{event.preventDefault();search(role);});
     $(`query${titleCase(role)}`).addEventListener('input',()=>{if(busy)return;clearRole(role);resetForm();});
   }

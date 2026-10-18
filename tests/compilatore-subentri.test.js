@@ -65,7 +65,7 @@ function memoryStore({anagrafiche=[],searchError=false}={}) {
     select(columns='*',opts={}){this.columns=columns;this.count=opts.count;return this;}
     eq(key,value){this.filters.push(row=>row[key]===value);return this;}
     in(key,values){this.filters.push(row=>values.includes(row[key]));return this;}
-    ilike(){return this;}
+    ilike(key,value){this.filters.push(row=>String(row[key]||'').toUpperCase()===value.toUpperCase());return this;}
     order(){return this;}
     range(from,to){this.rangeValues=[from,to];return this;}
     limit(){return this;}
@@ -156,11 +156,11 @@ test('subentri: finalizzazione verifica il checksum anche di un allegato già ca
 test('subentri: ricerche distinte per cluster e fallimento DB bloccante',async()=>{
   const rows=[{id:owner,cluster:'Business',cf_piva:'00000000000',ragione_sociale:'Azienda Test',nome_referente:'Luca Esempio'},{id:other,cluster:'Consumer',cf_piva:'CMPGLI90A41L781X',ragione_sociale:'Giulia Campione'}];
   const store=memoryStore({anagrafiche:rows});
-  const cedente=await request(store,null,{method:'GET',query:{action:'search_anagrafica',ruolo:'cedente',q:'test'}});
+  const cedente=await request(store,null,{method:'GET',query:{action:'search_anagrafica',ruolo:'cedente',q:'00000000000'}});
   assert.equal(cedente.anagrafiche.length,1);assert.equal(cedente.anagrafiche[0].cluster,'business');assert.equal(cedente.anagrafiche[0].prefill.nome,'Luca');
-  const subentrante=await request(store,null,{method:'GET',query:{action:'search_anagrafica',ruolo:'subentrante',q:'test'}});
+  const subentrante=await request(store,null,{method:'GET',query:{action:'search_anagrafica',ruolo:'subentrante',q:'cmpgli90a41l781x'}});
   assert.equal(subentrante.anagrafiche.length,1);assert.equal(subentrante.anagrafiche[0].cf_piva,'CMPGLI90A41L781X');
-  const broken=await request(memoryStore({searchError:true}),null,{method:'GET',query:{action:'search_anagrafica',ruolo:'cedente',q:'test'}});
+  const broken=await request(memoryStore({searchError:true}),null,{method:'GET',query:{action:'search_anagrafica',ruolo:'cedente',q:'00000000000'}});
   assert.equal(broken.status,500);assert.equal(broken.anagrafiche,undefined);assert.doesNotMatch(broken.error,/query_failed/);
 });
 test('subentri: IBAN estero e professionista su PDF, limiti e caratteri non stampabili',async()=>{
@@ -173,4 +173,25 @@ test('subentri: IBAN estero e professionista su PDF, limiti e caratteri non stam
 test('subentri: multipart richiede un solo file e rifiuta dimensioni oltre limite',async()=>{
   await assert.rejects(readMultipart({body:Buffer.alloc(4*1024*1024+65537).toString('base64'),isBase64Encoded:true,headers:{'content-type':'multipart/form-data; boundary=test'}}),/4 MiB/);
   await assert.rejects(readMultipart({body:'bad',headers:{'content-type':'multipart/form-data'}}),/multipart non valido/);
+});
+
+test('subentri: ricerca cedente solo P.IVA completa e subentrante solo CF personale',()=>{
+  assert.equal(Core.validateSearchIdentifier('cedente',' 00000000000 '),'00000000000');
+  assert.equal(Core.validateSearchIdentifier('subentrante',' cmpgli90a41l781x '),'CMPGLI90A41L781X');
+  assert.equal(Core.validateSearchIdentifier('subentrante','CMPGLIVLARMLTSMX'),'CMPGLIVLARMLTSMX');
+  for(const value of ['CMPGLI90A41L781X','AZIENDA TEST','0000','0000000000%','000000000000'])assert.throws(()=>Core.validateSearchIdentifier('cedente',value),/partita IVA completa/);
+  for(const value of ['00000000000','0000000000000000','GIULIA CAMPIONE','CMPGLI90A41L781','CMPGLI90Z41L781X'])assert.throws(()=>Core.validateSearchIdentifier('subentrante',value),/codice fiscale personale completo/);
+});
+test('subentri: la Function rifiuta identificativi del ruolo sbagliato prima di interrogare il CRM',async()=>{
+  let queried=false;
+  const dependencies={requireAuth:async()=>({ok:true,user:{id:owner},profilo:{nome:'Test'}}),getAdminClient:()=>({from(){queried=true;throw new Error('Non deve interrogare il CRM');}})};
+  for(const [ruolo,q] of [['cedente','CMPGLI90A41L781X'],['cedente','Azienda'],['subentrante','00000000000'],['subentrante','0000000000000000']]) {
+    const response=await handle({httpMethod:'GET',queryStringParameters:{action:'search_anagrafica',ruolo,q}},dependencies);
+    assert.equal(response.statusCode,400);assert.equal(queried,false);
+  }
+});
+test('subentri: ricerca esatta senza corrispondenza non restituisce altre P.IVA o CF',async()=>{
+  const store=memoryStore({anagrafiche:[{id:owner,cluster:'Business',cf_piva:'00000000000',ragione_sociale:'Azienda Test'}]});
+  const result=await request(store,null,{method:'GET',query:{action:'search_anagrafica',ruolo:'cedente',q:'00000000001'}});
+  assert.equal(result.status,200);assert.deepEqual(result.anagrafiche,[]);
 });

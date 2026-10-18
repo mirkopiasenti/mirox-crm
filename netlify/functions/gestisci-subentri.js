@@ -4,7 +4,7 @@ const Busboy = require('busboy');
 const { PDFDocument } = require('pdf-lib');
 const { requireAuth, getAdminClient } = require('./_lib/require-auth');
 const { generateSubentroPdf } = require('./_lib/pdf-subentro');
-const { validatePayload, ValidationError, DOCUMENTI } = require('../../js/subentri-core');
+const { validatePayload, validateSearchIdentifier, ValidationError, DOCUMENTI } = require('../../js/subentri-core');
 const BUCKET = 'subentri-files';
 const TABLE = 'subentri_generati';
 const MAX_FILE = 4 * 1024 * 1024;
@@ -163,16 +163,13 @@ function buildAnagraficaResult(row) {
 }
 async function search({supabase,event}) {
   const {q,ruolo}=event.queryStringParameters||{};
-  const query=String(q||'').trim().replace(/\s+/g,' ');
-  if(query.length<2||query.length>80) fail('Inserisci da 2 a 80 caratteri');
-  if(!['cedente','subentrante'].includes(ruolo)) fail('Ruolo anagrafica non valido');
-  const results=await Promise.all(['cf_piva','ragione_sociale','nome_referente'].map(column=>{
-    const search=supabase.from('anagrafica').select('id, cluster, cf_piva, ragione_sociale, nome_referente, cellulare, via, civico, comune, provincia');
-    const scoped=ruolo==='cedente'?search.eq('cluster','Business'):search.in('cluster',['Consumer','Turista']);
-    return scoped.ilike(column,`%${query.replace(/[%_\\]/g,'\\$&')}%`).limit(40);
-  }));
+  const query=validateSearchIdentifier(ruolo,q);
+  const search=supabase.from('anagrafica').select('id, cluster, cf_piva, ragione_sociale, nome_referente, cellulare, via, civico, comune, provincia');
+  const scoped=ruolo==='cedente'?search.eq('cluster','Business'):search.in('cluster',['Consumer','Turista']);
+  // Nessun wildcard: la ricerca accetta esclusivamente l'identificativo completo.
+  const result=await scoped.ilike('cf_piva',query).limit(20);
   const items=new Map();
-  for(const result of results) for(const row of checkError(result)||[]) {
+  for(const row of checkError(result)||[]) {
     const item=buildAnagraficaResult(row);
     if((ruolo==='cedente')===(item.cluster==='business')) items.set(item.id,item);
   }
