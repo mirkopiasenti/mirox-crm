@@ -57,6 +57,12 @@ test('subentri: manifest richiede le tre categorie, limiti e path generati dal s
   assert.throws(()=>validateManifest(manifest.map((x,i)=>i===2?{...x,tipo:'identita'}:x),'test'),/Visura camerale/);
   assert.throws(()=>validateManifest(manifest.map(x=>({...x,size:5*1024*1024})),'test'),/4 MiB/);
 });
+test('subentri: standard ammette solo manifest vuoto e le modalità devono essere valide',()=>{
+  assert.equal(Core.validateMode('standard'),'standard');assert.equal(Core.validateMode('invia_pratica'),'invia_pratica');
+  for(const mode of [undefined,null,'','altro'])assert.throws(()=>Core.validateMode(mode),/Scegli Invia pratica/);
+  assert.deepEqual(validateManifest([],'2026/test','standard'),[]);
+  for(const manifest of [undefined,null,[{tipo:'visura'}]])assert.throws(()=>validateManifest(manifest,'2026/test','standard'),/non prevede allegati/);
+});
 
 function memoryStore({anagrafiche=[],searchError=false}={}) {
   const rows=new Map(),files=new Map();const mutations=[];let failSigning=false;
@@ -109,6 +115,36 @@ function multipart(row,entry,bytes) {
 }
 async function upload(store,event,user=owner) {const result=await handle(event,{requireAuth:async()=>({ok:true,user:{id:user},profilo:{nome:'Test'}}),getAdminClient:()=>store.supabase});return {status:result.statusCode,...JSON.parse(result.body)};}
 
+test('subentri: standard genera e archivia solo il PDF senza upload, con retry e storico',async()=>{
+  const store=memoryStore();const body={action:'create',id,subentro:sample(),modalita_compilazione:'standard',documenti:[]};
+  assert.equal((await request(store,body)).status,200);assert.equal((await request(store,body)).status,200);
+  assert.equal(store.rows.get(id).modalita_compilazione,'standard');assert.equal(store.files.size,0);
+  assert.equal((await request(store,{action:'finalize',id},{user:other})).status,404);
+  const result=await request(store,{action:'finalize',id});assert.equal(result.status,200);assert.equal(result.subentro.modalita_compilazione,'standard');assert.equal(result.subentro.numero_pagine,2);
+  assert.equal((await request(store,{action:'finalize',id})).status,200);assert.equal(store.files.size,1);assert.equal(store.rows.size,1);
+  const list=await request(store,null,{method:'GET'});assert.equal(list.subentri[0].modalita_compilazione,'standard');
+  assert.deepEqual((await request(store,{action:'documents',id})).documenti,[]);
+  assert.equal((await request(store,{action:'duplicate_data',id})).subentro.modalita_compilazione,undefined);
+});
+test('subentri: invia pratica richiede i documenti e la modalità non può cambiare nei retry o finalize',async()=>{
+  const store=memoryStore();const base={action:'create',id,subentro:sample(),documenti:[]};
+  assert.equal((await request(store,{...base,modalita_compilazione:'invia_pratica'})).status,400);
+  assert.equal((await request(store,{...base,modalita_compilazione:'altro'})).status,400);
+  assert.equal((await request(store,{...base,modalita_compilazione:null})).status,400);assert.equal(store.rows.size,0);
+  const {body}=await draft(store);assert.equal(store.rows.get(id).modalita_compilazione,'invia_pratica');
+  assert.equal((await request(store,{...body,modalita_compilazione:'invia_pratica'})).status,200);
+  assert.equal((await request(store,{...base,modalita_compilazione:'standard'})).status,409);
+  assert.equal((await request(store,{action:'finalize',id,modalita_compilazione:'standard'})).status,409);assert.equal(store.files.size,0);
+  store.rows.get(id).documenti=[];
+  assert.equal((await request(store,{action:'finalize',id})).status,400);assert.equal(store.rows.get(id).stato,'bozza');
+});
+test('subentri: standard rifiuta documenti e upload diretti anche con richiesta forgiata',async()=>{
+  const store=memoryStore();const {body,bytes}=await draft(store);
+  const standardId=crypto.randomUUID();const standard={...body,id:standardId,modalita_compilazione:'standard'};
+  assert.equal((await request(store,standard)).status,400);assert.equal(store.rows.size,1);
+  assert.equal((await request(store,{...standard,documenti:[]})).status,200);
+  assert.equal((await upload(store,multipart(store.rows.get(standardId),body.documenti[0],bytes))).status,400);assert.equal(store.files.size,0);
+});
 test('subentri: tutti i dati richiedono auth prima di leggere o scrivere',async()=>{
   const store=memoryStore();for(const body of [{action:'create'},{action:'finalize',id},{action:'signed_url',id}])assert.equal((await request(store,body,{denied:true})).status,401);assert.equal(store.rows.size,0);assert.equal(store.files.size,0);
 });

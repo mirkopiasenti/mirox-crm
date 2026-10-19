@@ -36,7 +36,7 @@
       row.append(pair);$('consentRows').append(row);
     }
     for(const [key,label] of Object.entries(Core.DOCUMENTI)) {
-      const field=el('div','field document-field');const caption=el('label','',label+' *');const input=el('input');input.type='file';input.multiple=true;input.required=true;input.accept='.pdf,.jpg,.jpeg,.png';input.id=`file_${key}`;input.dataset.kind=key;caption.htmlFor=input.id;
+      const field=el('div','field document-field');const caption=el('label','',label+' *');const input=el('input');input.type='file';input.multiple=true;input.accept='.pdf,.jpg,.jpeg,.png';input.id=`file_${key}`;input.dataset.kind=key;caption.htmlFor=input.id;
       const status=el('p','file-state');status.id=`files_${key}`;status.setAttribute('aria-live','polite');
       input.addEventListener('change',()=>{pending=null;status.textContent=[...input.files].map(file=>`${file.name} (${(file.size/1024/1024).toFixed(2)} MiB)`).join(' · ');});
       field.append(caption,input,status);$('documentRows').append(field);
@@ -45,6 +45,14 @@
   function updateConditional() {
     $('impresaFields').hidden=$('cedente_tipo').value!=='impresa';$('impresaFields').disabled=$('impresaFields').hidden;
     $('bankFields').hidden=$('pagamento').value!=='iban';$('bankFields').disabled=$('bankFields').hidden;
+    const mode=form.querySelector('[name="modalita_compilazione"]:checked')?.value;
+    const sending=mode==='invia_pratica';
+    $('documentSection').hidden=!sending;$('documentSection').disabled=!sending;
+    for(const kind of Object.keys(Core.DOCUMENTI)) {
+      const input=$(`file_${kind}`);input.required=sending;
+      if(!sending){input.value='';$(`files_${kind}`).textContent='';}
+    }
+    $('generateButton').textContent=sending?'Invia pratica':mode==='standard'?'Genera e archivia PDF':'Prosegui';
   }
   function updateNumberRows() {
     const rows=[...$('numberRows').children];
@@ -95,7 +103,8 @@
   async function chooseCategory(source=null) {
     if(busy||choosing)return;
     choosing=true;
-    const accepted=await MiroxUI.confirm('Documentazione da allegare:\n\nCarta d’identità fronte/retro - subentrante\nTessera sanitaria fronte/retro - subentrante\nVisura camerale',{title:'Subentro da Microbusiness a Privato',okText:'Prosegui',cancelText:'Indietro'});
+    const list=Object.values(Core.DOCUMENTI).map(label=>`<li>${MiroxSafe.escapeHtml(label)}</li>`).join('');
+    const accepted=await MiroxUI.confirm(`<p>Documentazione da allegare:</p><ul class="sub-doc-list">${list}</ul><p>Obbligatoria solo scegliendo Invia pratica. La compilazione standard non richiede allegati.</p>`,{html:true,title:'Subentro da Microbusiness a Privato',okText:'Prosegui',cancelText:'Indietro'});
     choosing=false;if(!accepted)return;
     reset(true);active=true;duplicate=source;$('categorySelector').hidden=true;$('searchSection').hidden=false;
     if(source) { $('queryCedente').value=source.cedente_partita_iva||'';$('querySubentrante').value=source.subentrante_codice_fiscale||''; }
@@ -117,7 +126,7 @@
     if(sameClients) {
       for(const [name,value] of Object.entries(duplicate))if(typeof value==='string')setValue(name,value);
       $('numberRows').replaceChildren();duplicate.numeri.forEach(number=>addNumber(number));
-      MiroxUI.toast('Dati duplicati. Verifica numeri e date, indica i consensi e allega nuovamente i documenti.','success');
+      MiroxUI.toast('Dati duplicati. Verifica numeri e date, indica i consensi e scegli come procedere.','success');
     } else if(duplicate) MiroxUI.toast('La duplicazione richiede le stesse anagrafiche. Compila con i dati dei clienti selezionati.','info');
     duplicate=null;updateConditional();$('formCard').hidden=false;$('formCard').scrollIntoView({behavior:'smooth',block:'start'});
   }
@@ -182,13 +191,13 @@
   async function generate(event) {
     event.preventDefault();if(busy||generatedId||!active||!Object.values(roles).every(state=>state.resolved))return;
     if(!form.reportValidity())return;
-    let data,files;
-    try {data=payload();files=selectedFiles();}catch(error){await MiroxUI.alert(error.message,{type:'error'});return;}
+    let data,files,mode;
+    try {mode=Core.validateMode(form.querySelector('[name="modalita_compilazione"]:checked')?.value);data=payload();files=mode==='invia_pratica'?selectedFiles():[];}catch(error){await MiroxUI.alert(error.message,{type:'error'});return;}
     setBusy(true);
     try {
-      const fingerprint=JSON.stringify(data);
+      const fingerprint=JSON.stringify({data,mode});
       if(!pending||pending.fingerprint!==fingerprint) {
-        $('generationState').textContent='Preparazione dei documenti...';
+        $('generationState').textContent=mode==='invia_pratica'?'Preparazione dei documenti...':'Preparazione del modulo...';
         const entries=[];
         for(const {kind,file,mime} of files) {
           const bytes=await file.arrayBuffer();const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('');
@@ -196,18 +205,19 @@
         }
         pending={id:crypto.randomUUID(),fingerprint,entries,uploaded:new Set()};
       }
-      await api(ENDPOINT,{action:'create',id:pending.id,subentro:data,documenti:pending.entries.map(entry=>entry.manifest)});
+      await api(ENDPOINT,{action:'create',id:pending.id,subentro:data,modalita_compilazione:mode,documenti:pending.entries.map(entry=>entry.manifest)});
       for(let i=0;i<pending.entries.length;i++) {
         const entry=pending.entries[i];if(pending.uploaded.has(entry.manifest.id))continue;
         $('generationState').textContent=`Caricamento allegato ${i+1} di ${pending.entries.length}...`;
         const upload=new FormData();upload.append('id',pending.id);upload.append('document_id',entry.manifest.id);upload.append('file',entry.file,entry.file.name);
         await api(ENDPOINT,upload);pending.uploaded.add(entry.manifest.id);
       }
-      $('generationState').textContent='Verifica degli allegati e generazione del modulo...';
+      $('generationState').textContent=mode==='invia_pratica'?'Verifica degli allegati e generazione del modulo...':'Generazione del modulo...';
       const result=await api(ENDPOINT,{action:'finalize',id:pending.id});generatedId=result.subentro.id;historyLoaded=false;
-      $('generatedDescription').textContent=`Modulo generato in ${result.subentro.numero_pagine} ${result.subentro.numero_pagine===1?'pagina':'pagine'}. Il PDF e gli allegati sono disponibili anche nello storico.`;
+      $('generatedDescription').textContent=`Modulo generato in ${result.subentro.numero_pagine} ${result.subentro.numero_pagine===1?'pagina':'pagine'}. ${mode==='invia_pratica'?'Il PDF e gli allegati sono disponibili':'Il PDF è disponibile'} anche nello storico.`;
+      $('viewGeneratedDocs').hidden=mode==='standard';
       $('generationState').textContent='Generazione completata.';$('generatedResult').hidden=false;$('generatedResult').scrollIntoView({behavior:'smooth',block:'center'});
-    } catch(error) {$('generationState').textContent='Operazione non completata. Puoi riprovare: gli allegati già caricati sono conservati.';await MiroxUI.alert(error.message,{type:'error'});}
+    } catch(error) {$('generationState').textContent=mode==='invia_pratica'?'Operazione non completata. Puoi riprovare: gli allegati già caricati sono conservati.':'Operazione non completata. Puoi riprovare.';await MiroxUI.alert(error.message,{type:'error'});}
     finally {setBusy(false);if(generatedId)$('compilerFields').disabled=true;updateConditional();}
   }
   async function openPdf(id,documentId) {
@@ -233,13 +243,14 @@
     try {const result=await api(ENDPOINT,{action:'duplicate_data',id});await chooseCategory(result.subentro);}catch(error){await MiroxUI.alert(error.message,{type:'error'});}
   }
   function historyRow(item) {
-    const row=el('tr');row.append(el('td','','Mobile · Microbusiness a Privato'));
+    const row=el('tr');const type=el('td','','Mobile · Microbusiness a Privato');type.append(el('small','',item.modalita_compilazione==='standard'?'Compilazione standard':'Invia pratica'));row.append(type);
     const cedente=el('td','',item.cedente_nome);cedente.append(el('small','',item.cedente_partita_iva));row.append(cedente);
     const subentrante=el('td','',`${item.subentrante_nome} ${item.subentrante_cognome}`);subentrante.append(el('small','',item.subentrante_codice_fiscale));row.append(subentrante);
     row.append(el('td','',(item.numeri||[]).join(', ')));
     const when=el('td','',new Intl.DateTimeFormat('it-IT',{timeZone:'Europe/Rome',dateStyle:'short',timeStyle:'short'}).format(new Date(item.created_at)));when.append(el('small','',item.created_by_nome));row.append(when);
     const cell=el('td');const actions=el('div','actions');
-    for(const [label,fn] of [['Visualizza PDF',()=>openPdf(item.id)],['Allegati',()=>showDocuments(item.id)],['Duplica dati',()=>duplicateItem(item.id)]]) {const button=el('button','sub-button',label);button.type='button';button.addEventListener('click',fn);actions.append(button);}
+    const buttons=[['Visualizza PDF',()=>openPdf(item.id)],...(item.modalita_compilazione==='standard'?[]:[['Allegati',()=>showDocuments(item.id)]]),['Duplica dati',()=>duplicateItem(item.id)]];
+    for(const [label,fn] of buttons) {const button=el('button','sub-button',label);button.type='button';button.addEventListener('click',fn);actions.append(button);}
     cell.append(actions);row.append(cell);return row;
   }
   async function loadHistory(reset=false) {
@@ -267,6 +278,7 @@
   }
   form.addEventListener('submit',generate);form.addEventListener('input',()=>{if(!busy)pending=null;});form.addEventListener('change',()=>{if(!busy)pending=null;});
   $('cedente_tipo').addEventListener('change',updateConditional);$('pagamento').addEventListener('change',updateConditional);
+  form.querySelectorAll('[name="modalita_compilazione"]').forEach(input=>input.addEventListener('change',updateConditional));
   $('addNumber').addEventListener('click',()=>{addNumber();pending=null;});$('copySubscriber').addEventListener('click',()=>{copySubscriber();pending=null;});$('copyAccount').addEventListener('click',()=>{copyAccount();pending=null;});
   $('viewGenerated').addEventListener('click',()=>openPdf(generatedId));$('viewGeneratedDocs').addEventListener('click',()=>showDocuments(generatedId));
   $('refreshHistory').addEventListener('click',()=>loadHistory(true));$('loadMore').addEventListener('click',()=>loadHistory());

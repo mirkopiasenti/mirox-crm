@@ -4,13 +4,13 @@ const Busboy = require('busboy');
 const { PDFDocument } = require('pdf-lib');
 const { requireAuth, getAdminClient } = require('./_lib/require-auth');
 const { generateSubentroPdf } = require('./_lib/pdf-subentro');
-const { validatePayload, validateSearchIdentifier, ValidationError, DOCUMENTI } = require('../../js/subentri-core');
+const { validatePayload, validateMode, validateSearchIdentifier, ValidationError, DOCUMENTI } = require('../../js/subentri-core');
 const BUCKET = 'subentri-files';
 const TABLE = 'subentri_generati';
 const MAX_FILE = 4 * 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TYPES = {'application/pdf':'.pdf','image/jpeg':'.jpg','image/png':'.png'};
-const SUMMARY = 'id, tipo, cedente_nome, cedente_partita_iva, subentrante_nome, subentrante_cognome, subentrante_codice_fiscale, numeri, nome_file, numero_pagine, created_at, created_by_nome';
+const SUMMARY = 'id, tipo, modalita_compilazione, cedente_nome, cedente_partita_iva, subentrante_nome, subentrante_cognome, subentrante_codice_fiscale, numeri, nome_file, numero_pagine, created_at, created_by_nome';
 const HEADERS = {'Content-Type':'application/json','Cache-Control':'no-store','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type, Authorization','Access-Control-Allow-Methods':'GET, POST, OPTIONS'};
 function response(statusCode,payload) { return {statusCode,headers:HEADERS,body:JSON.stringify(payload)}; }
 function fail(message,status=400) { const error=new ValidationError(message); error.status=status; throw error; }
@@ -22,7 +22,12 @@ function parseBody(event) {
   try { const value=JSON.parse(event.body||'{}'); if(value && typeof value==='object' && !Array.isArray(value)) return value; } catch(_) { /* errore validazione ripulito */ }
   fail('Payload JSON non valido');
 }
-function validateManifest(input,prefix) {
+function validateManifest(input,prefix,mode='invia_pratica') {
+  validateMode(mode);
+  if(mode==='standard') {
+    if(!Array.isArray(input)||input.length) fail('La compilazione standard non prevede allegati');
+    return [];
+  }
   if(!Array.isArray(input)||input.length<3||input.length>12) fail('Allega carta d’identità, tessera sanitaria e visura (massimo 12 file)');
   const ids=new Set(); const counts={};
   const result=input.map(item=>{
@@ -60,28 +65,31 @@ async function signed(supabase,path) {
 async function readyResponse(supabase,row) {
   let url=null;
   try {url=await signed(supabase,row.storage_path);} catch(_) { /* il salvataggio è concluso, il link può essere richiesto dallo storico */ }
-  return response(200,{success:true,subentro:{id:row.id,nome_file:row.nome_file,numero_pagine:row.numero_pagine},signed_url:url});
+  return response(200,{success:true,subentro:{id:row.id,nome_file:row.nome_file,numero_pagine:row.numero_pagine,modalita_compilazione:row.modalita_compilazione},signed_url:url});
 }
 async function create({supabase,auth,body}) {
   const id=uuid(body.id); const data=validatePayload(body.subentro);
+  // I client già aperti prima dell'introduzione della scelta richiedono tutti gli allegati.
+  const mode=validateMode(body.modalita_compilazione===undefined?'invia_pratica':body.modalita_compilazione);
   // Prima di qualsiasi scrittura, verifica anche l'effettiva stampabilità.
   await generateSubentroPdf(data);
   const existing=checkError(await supabase.from(TABLE).select('*').eq('id',id).maybeSingle());
   const prefix=existing?.storage_prefix||`${new Date().getUTCFullYear()}/${id}`;
-  const documenti=validateManifest(body.documenti,prefix);
-  const hash=digest(JSON.stringify({data,documenti}));
+  const documenti=validateManifest(body.documenti,prefix,mode);
+  // Conserva l'hash dei retry delle bozze con documenti create dalla versione precedente.
+  const hash=digest(JSON.stringify({data,documenti,...(mode==='standard'?{modalita_compilazione:mode}:{})}));
   if(existing) {
     if(existing.created_by!==auth.user.id) fail('Compilazione non disponibile',403);
-    if(existing.request_sha256!==hash) fail('I dati sono cambiati: avvia una nuova compilazione',409);
+    if(existing.modalita_compilazione!==mode||existing.request_sha256!==hash) fail('I dati sono cambiati: avvia una nuova compilazione',409);
     return response(200,{success:true,id,stato:existing.stato});
   }
   const row={id,tipo:data.tipo,stato:'bozza',cedente_nome:data.cedente_ragione_sociale||`${data.cedente_nome} ${data.cedente_cognome}`,cedente_partita_iva:data.cedente_partita_iva,
     subentrante_nome:data.subentrante_nome,subentrante_cognome:data.subentrante_cognome,subentrante_codice_fiscale:data.subentrante_codice_fiscale,numeri:data.numeri,
-    dati_compilazione:data,documenti,request_sha256:hash,storage_prefix:prefix,created_by:auth.user.id,created_by_nome:String(auth.profilo.nome||'Operatore Mirox').slice(0,250)};
+    dati_compilazione:data,documenti,modalita_compilazione:mode,request_sha256:hash,storage_prefix:prefix,created_by:auth.user.id,created_by_nome:String(auth.profilo.nome||'Operatore Mirox').slice(0,250)};
   const result=await supabase.from(TABLE).insert(row);
   if(result.error?.code==='23505') {
     const concurrent=await ownedDraft(supabase,id,auth);
-    if(concurrent.request_sha256!==hash) fail('Compilazione già presente con dati diversi',409);
+    if(concurrent.modalita_compilazione!==mode||concurrent.request_sha256!==hash) fail('Compilazione già presente con dati diversi',409);
     return response(200,{success:true,id,stato:concurrent.stato});
   }
   checkError(result);
@@ -128,6 +136,7 @@ async function upload({supabase,auth,event}) {
   const {fields,file}=await readMultipart(event);
   const row=await ownedDraft(supabase,fields.id,auth);
   if(row.stato!=='bozza') fail('Il subentro è già stato generato',409);
+  if(validateMode(row.modalita_compilazione)==='standard') fail('La compilazione standard non prevede allegati');
   const entry=row.documenti.find(item=>item.id===uuid(fields.document_id));
   if(!entry) fail('Allegato non previsto');
   await validateFile(file,entry);
@@ -141,6 +150,7 @@ async function upload({supabase,auth,event}) {
 async function finalize({supabase,auth,body}) {
   const row=await ownedDraft(supabase,body.id,auth);
   if(row.stato==='generato') return readyResponse(supabase,row);
+  validateManifest(row.documenti,row.storage_prefix,row.modalita_compilazione);
   for(const entry of row.documenti) await downloadVerified(supabase,entry.storage_path,entry.sha256,entry.size);
   const pdf=await generateSubentroPdf(row.dati_compilazione,{createdAt:row.created_at});
   if(pdf.buffer.length>MAX_FILE) fail('Il PDF generato supera il limite del documento');

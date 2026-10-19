@@ -10,15 +10,22 @@ selezione barra/stato nascosti, intestatario in evidenza e Annulla indipendente
 per rifare la ricerca, conservando l’altra selezione. Entrambe devono riuscire
 con selezione o assenza risultati prima del form. Solo IBAN/bollettino, niente
 codice domiciliazione, sei consensi espliciti, firme vuote. Quattro numeri per
-pagina con ripetizione automatica. Tre gruppi allegati obbligatori PDF/JPEG/PNG,
-4 MiB/file, fronte/retro identità e tessera del subentrante più visura.
+pagina con ripetizione automatica. Popup iniziale con tre documenti in elenco puntato.
+Sotto luogo/data scelta obbligatoria senza default: Invia pratica archivia PDF e
+documenti nello storico CRM; Compilazione standard archivia solo PDF, senza
+allegati. Nessun invio esterno. Upload visibile/obbligatorio solo per Invia pratica:
+tre gruppi PDF/JPEG/PNG, 4 MiB/file, fronte/retro identità e tessera più visura.
+Passare a standard svuota i file selezionati; storico e azioni distinguono le modalità.
 `js/subentri-core.js` condivide campi/validazione browser-server;
 `gestisci-subentri` gestisce bozze idempotenti con manifest/SHA256, upload,
 finalize con verifica byte, storico, signed URL 300s e duplicazione (nuove
-ricerche, nuovi consensi/allegati). Template privato `_templates/subentri/`,
+ricerche, nuovi consensi e scelta modalità, allegati nuovi solo per Invia pratica). Template privato `_templates/subentri/`,
 PDF deterministico `pdf-subentro.js`. Migration `20261018180938_compilatore_subentri.sql`
 applicata production: `subentri_generati`/`subentri-files` server-only e isolati,
-nessuna modifica a tabelle/RPC/policy CC. Bozze non cancellate automaticamente,
+nessuna modifica a tabelle/RPC/policy CC. Migration
+`20261018184140_subentri_modalita_compilazione.sql` applicata: modalità immutabile e
+CHECK manifest vuoto solo standard. Compatibilità retry/client precedenti mantenuta.
+Pubblicazione del nuovo flusso richiesta il 19/10/2026; esito nel promemoria. Bozze non cancellate automaticamente,
 retry nel form; nessuna ripresa dopo chiusura scheda. Push autorizzato il 18/10/2026; verifica pubblicazione nel promemoria.
 Dettagli e regole aggiornate in AGENTS/README/database README.
 

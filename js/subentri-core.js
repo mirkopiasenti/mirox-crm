@@ -130,6 +130,10 @@
     if (rule && patterns[rule] && !patterns[rule].test(value)) fail(`${label}: formato non valido`);
     return value;
   }
+  function validateMode(value) {
+    if (!['invia_pratica', 'standard'].includes(value)) fail('Scegli Invia pratica oppure Compilazione standard');
+    return value;
+  }
   function validatePayload(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) fail('Dati subentro non validi');
     if (raw.tipo !== TYPE) fail('Questa categoria di subentro non è ancora disponibile');
@@ -151,5 +155,5 @@
     }
     return result;
   }
-  return Object.freeze({ TYPE, MAX_NUMERI, FIELDS, CONSENSI, DOCUMENTI, validatePayload, validateSearchIdentifier, ValidationError });
+  return Object.freeze({ TYPE, MAX_NUMERI, FIELDS, CONSENSI, DOCUMENTI, validatePayload, validateMode, validateSearchIdentifier, ValidationError });
 });
