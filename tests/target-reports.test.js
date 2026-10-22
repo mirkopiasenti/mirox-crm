@@ -93,6 +93,41 @@ test('paginazione oltre 1000 e errori post-vendita non diventano report parziali
   const broken=fakeDb(fixture());broken.fail=q=>q.table==='post_vendita_controllo_lg';
   await assert.rejects(reports.buildReports(broken,'2026-10-05',NOW),/Lettura/);
 });
+test('Luce & Gas P.IVA ed Extra escludono Annullato e Rifiutato da pezzi e punti, conservando gli altri stati e lo Standard',async()=> {
+  const f=fixture();
+  f.gara_metriche.push({id:7,nome:'LUCE & GAS P.IVA',ordine:1,attiva:true,tabella:'avanzamento_piva',regola:{cluster:'Business',categoria:'Energia'}});
+  const cases=[
+    ['annullato','Annullato',3],['rifiutato','Rifiutato',4],['attivato','Attivato',2],
+    ['lavorazione','In lavorazione',1.5],['nullo',null,0.5],['senza-controllo',undefined,1],
+    ['consumer','Attivato',5,{cluster_cliente:'Consumer'}],
+    ['cerea','Attivato',7,{codice_rivenditore:core.CEREA}],
+    ['reinserimento','Attivato',9,{stato_inserimento:'reinserimento'}]
+  ];
+  cases.forEach(([id,stato,points,patch])=> {
+    f.vendita_contratti.push(contract(id,'Energia',{cluster_cliente:'Business',punteggio_extra_gara_totale:points,...patch}));
+    if(stato!==undefined) f.post_vendita_controllo_lg.push({id:'lg-'+id,contratto_id:id,stato});
+  });
+  const p=await reports.buildReports(fakeDb(f),'2026-10-05',NOW);
+  const extra=p.mensile.find(r=>r.nome==='EXTRA GARA P.IVA');
+  assert.equal(extra.pezzi,4);assert.equal(extra.punteggio,5);
+  const state=reports.monthlyState(f.vendita_contratti,f.gara_metriche,[],f.profili,
+    {fisso:f.post_vendita_controllo_fissi,energia:f.post_vendita_controllo_lg,allarmi:f.post_vendita_controllo_allarmi},[],2026,10);
+  const rows=core.monthlyRows(state,'2026-10-05');
+  for(const nome of ['LUCE & GAS P.IVA','EXTRA GARA P.IVA']) {
+    const row=rows.find(r=>r.nome===nome);
+    assert.deepEqual(row.conteggi,[4]);assert.equal(row.punteggio,5);
+  }
+  assert.equal(rows.find(r=>r.nome==='Energia').attuale,6);
+  assert.equal(rows.find(r=>r.nome==='Energia').punteggio,6);
+  const html=fs.readFileSync(require('node:path').join(__dirname,'../moduli/dashboard_pezzi.html'),'utf8');
+  const script=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(s=>s.includes('const sb'));
+  const ctx=vm.createContext({db:{},MiroxDashboardReport:core});
+  vm.runInContext(script.split('(function init()')[0],ctx);
+  Object.assign(vm.runInContext('DPState',ctx),state);
+  for(const [id,stato] of cases) {
+    assert.equal(ctx.isContrattoValidoAvanzamentoPiva({id,categoria_snapshot:'Energia'}),!['Annullato','Rifiutato'].includes(stato));
+  }
+});
 test('FISSI Standard: Cerea e pendenti anche prima della verifica, KO/reinserimenti esclusi, pagina e Target coerenti',async()=> {
   const f=fixture();
   f.gara_obiettivi_mensili.push({id:2,anno:2026,mese:10,metrica_id:2,operatore_id:null,obiettivo:13});

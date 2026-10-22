@@ -44,7 +44,9 @@ KO e reinserimenti esclusi; inclusi i Fissi ancora da verificare, senza riga
 post-vendita (il trigger la crea dopo la verifica). Errori di lettura
 bloccanti, mai interpretati come assenza di record. Gli operatori
 canonici attivi con soli Fissi Cerea compaiono anche nel mensile.
-Energia rifiutata esclusa,
+Energia Standard: Rifiutato escluso. Energia P.IVA/Extra Gara P.IVA:
+Rifiutato e Annullato esclusi da pezzi e punti dal 22/10/2026; altri stati
+e assenza del controllo ammessi, come nella pagina.
 W3 Protetti Standard solo In Attivazione/OK; Extra Gara P.IVA usa gli stati
 Business gia' applicati nella pagina e i punteggi extra.
 Andamento confronta punteggio e quota obiettivo maturata sui giorni lavorativi;

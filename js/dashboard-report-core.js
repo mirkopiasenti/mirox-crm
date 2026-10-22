@@ -167,7 +167,7 @@ function monthlyRows(state,asOf) {
   const validPiva=c=> {
     const status=state.statoPostVendita;
     if(c.categoria_snapshot==='Fisso') return ['In Attivazione','Attivo'].includes(status.fisso.get(c.id));
-    if(c.categoria_snapshot==='Energia') return status.energia.get(c.id)!=='Rifiutato';
+    if(c.categoria_snapshot==='Energia') return !['Rifiutato','Annullato'].includes(status.energia.get(c.id));
     if(c.categoria_snapshot==='Allarmi') return status.allarmi.get(c.id)==='OK';
     return true;
   };

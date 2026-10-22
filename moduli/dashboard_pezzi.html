@@ -812,7 +812,7 @@ function contaMatchTotale(metrica) {
 
 // Filtro post-vendita per Avanzamento P.IVA / Extra Gara P.IVA:
 // Fisso   -> stato IN ('In Attivazione','Attivo')
-// Energia -> stato != 'Rifiutato' (NULL ammesso)
+// Energia -> stato diverso da 'Rifiutato' e 'Annullato' (NULL ammesso)
 // Allarmi -> stato = 'OK'
 // Altre categorie -> sempre valido
 function isContrattoValidoAvanzamentoPiva(c) {
@@ -823,7 +823,7 @@ function isContrattoValidoAvanzamentoPiva(c) {
   }
   if (cat === 'Energia') {
     const s = DPState.statoPostVendita?.energia.get(c.id);
-    return s !== 'Rifiutato';
+    return !['Rifiutato', 'Annullato'].includes(s);
   }
   if (cat === 'Allarmi') {
     const s = DPState.statoPostVendita?.allarmi.get(c.id);

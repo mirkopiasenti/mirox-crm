@@ -38,6 +38,13 @@ Copia precedente privata in `.backup-private/gare-2026-10/prima.json`.
 Su dati reali ottobre: 2 Assicurazioni = 1 punto complessivo squadra, bonus 0
 per ciascuno fino al raggiungimento di 10 punti.
 
+## Luce & Gas P.IVA: esclusione annullati (22/10/2026)
+
+Solo regola applicativa nel motore condiviso: LUCE & GAS P.IVA ed EXTRA GARA
+P.IVA escludono `Rifiutato` e `Annullato`, sia pezzi sia punti. Gli altri stati
+e l’assenza del controllo restano ammessi. Standard Energia invariato.
+Nessuna migration o modifica DB, al catalogo o agli obiettivi.
+
 ## Conteggio FISSI Standard (08/10/2026)
 
 Regola applicata dal motore condiviso, senza SQL/migration o modifiche ai dati.

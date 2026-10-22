@@ -41,6 +41,10 @@ La sezione Avanzamento Standard contiene anche `CAMBI PIANO`, ordinata tra `TELE
 
 La riga FISSI include Consumer e Business di Legnago e Cerea, escludendo reinserimenti e KO. I non-FTTC contano nel mese di `data_contratto` con stato `Da completare`, `In Attivazione` o `Attivo`; I Fissi ancora `da_controllare`, senza riga post-vendita, contano come pendenti nel mese di firma: il trigger crea il controllo solo dopo la verifica. Un errore di lettura dei controlli deve bloccare il caricamento, mai essere interpretato come assenza di record. Gli FTTC contano solo se `Attivo`, nel mese di `data_attivazione`, anche per contratti di mesi precedenti. Tecnologia non compilata segue il ramo non-FTTC. Pezzi e punteggio mantengono rispettivamente conteggio e somma `punteggio_gara_totale`; obiettivo/andamento usano i punti. Il motore condiviso applica la stessa regola a Dashboard, PNG e Target e include gli operatori canonici attivi con Fissi a Cerea. Gli altri avanzamenti e il Day by Day restano solo Legnago. Regola globale di calcolo, senza modifiche a metriche/obiettivi o schema DB.
 
+### Luce & Gas nell’Avanzamento P.IVA (22/10/2026)
+
+Le righe LUCE & GAS P.IVA ed EXTRA GARA P.IVA escludono Energia sia in stato `Rifiutato` sia `Annullato`. Gli altri stati e l’assenza del controllo post-vendita continuano a contare. Il motore condiviso applica il filtro a pezzi e punti in Dashboard, PNG e Target. La riga Luce & Gas Standard conserva il filtro preesistente (solo `Rifiutato` escluso). Nessuna modifica DB, al catalogo o agli obiettivi.
+
 ### Self-check di fine task
 
 Prima di dichiarare un task concluso:

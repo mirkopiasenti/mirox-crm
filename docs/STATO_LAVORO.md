@@ -1,7 +1,13 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato: 2026-10-19. Promemoria di ripresa, non autorizza interventi o deploy;
+Aggiornato: 2026-10-22. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
+
+## Extra Gara P.IVA: esclusione Annullato pronta22/10
+
+- Richiesta utente applicata a LUCE & GAS P.IVA ed EXTRA GARA P.IVA: esclusi Rifiutato e Annullato da pezzi e punti; altri stati/NULL/assenza controllo ammessi. Motore condiviso Dashboard/PNG/Target e helper browser allineati. Standard Energia conserva il solo filtro Rifiutato. Nessuna modifica DB/schema/catalogo/obiettivi.
+- Build+311/311test locali OK (310versionati+1backup). Regressione integrata: stati rifiutato/annullato/attivato/lavorazione/null/assente, scope Business/Legnago, no reinserimenti, punti/pezzi, browser helper e Standard invariato. Guide README/AGENTS/CLAUDE/databaseREADME/Target aggiornate. Commit locale pronto; nessun push/deploy per questa modifica, pubblicazione su richiesta esplicita.
+- Ricognizione read-only22/10: metrica production21 solo cluster Business, obiettivo ottobre45punti, mese firmaUTC, Legnago/no reinserimenti/operatori attivi. Include anche Customer Base Business. Fissi PIVA solo In Attivazione/Attivo (FTTC mese firma); Allarmi solo OK. Backup/Guardian preesistenti preservati.
 
 ## Compilatore Subentri: pubblicazione due modalità richiesta19/10
 

@@ -640,7 +640,7 @@ Tab **Avanzamento Mensile**: 2 sezioni (Standard / Avanzamento P.IVA — che rag
   - **Colonna Punteggio** = somma di `vendita_contratti.punteggio_extra_gara_totale` sui contratti filtrati (non conteggio pezzi).
   - **Filtro post-vendita per categoria** applicato SIA alle righe P.IVA singole SIA alla riga Extra Gara P.IVA (per garantire che la somma delle righe = riga aggregata):
     - **Fisso** → incluso solo se `post_vendita_controllo_fissi.stato` IN (`In Attivazione`, `Attivo`)
-    - **Energia** → escluso solo se `post_vendita_controllo_lg.stato` = `Rifiutato` (NULL ammesso)
+    - **Energia** → escluso se `post_vendita_controllo_lg.stato` IN (`Rifiutato`, `Annullato`) dal 22/10/2026 (NULL e assenza ammessi); vale per LUCE & GAS P.IVA ed EXTRA GARA P.IVA, sia pezzi sia punti. Standard conserva il filtro precedente.
     - **Allarmi** → incluso solo se `post_vendita_controllo_allarmi.stato` = `OK`
     - Altre categorie (Mobile, Customer Base, Assicurazioni) → sempre incluse
   - Celle per operatore mostrano il numero di **pezzi filtrati** (coerenti col filtro post-vendita).
