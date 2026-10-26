@@ -209,8 +209,8 @@ test('dettaglio L&G: senza stato prima/uguale al CSV non trovato, dopo da verifi
   assert.ok(core.dettaglioEnergiaMensile({...state,ultimoCsvLgAt:null},{categoria:'Energia'}).filter(r=>!['valido','ko'].includes(r.contratto.id)).every(r=>r.esito==='Da verificare'));
   assert.ok(core.dettaglioEnergiaMensile(state,{categoria:'Energia',cluster:'Business'}).length===0);
 });
-test('popup L&G: elenco per esito riconciliato con il netto, identificazione contratti e dati non fidati escaped',async()=> {
-  const cases=[['valido','Attivato'],['annullato','Annullato'],['rifiutato','Rifiutato'],['prima',null],['dopo','—']];
+test('popup L&G: solo esiti e conteggi aggregati, senza dettagli dei contratti e con stati escaped',async()=> {
+  const cases=[['valido','Attivato'],['annullato','Annullato'],['rifiutato','Rifiutato'],['prima',null],['dopo','—'],['lavorazione1','In lavorazione'],['lavorazione2','in lavorazione'],['controllare','Da controllare'],['manuale','<img src=x onerror=alert(1)>']];
   const contracts=cases.map(([id])=>contract(id,'Energia',{data_contratto:id==='dopo'?'2026-10-23T08:00:00Z':'2026-10-05T08:00:00Z',anagrafica:{ragione_sociale:'<img src=x onerror=alert(1)>'},nome_offerta_snapshot:'Offerta & test',numero_contratto_energia:'PC-TEST',pod_pdr:'POD-TEST'}));
   const html=fs.readFileSync(require('node:path').join(__dirname,'../moduli/dashboard_pezzi.html'),'utf8');
   const script=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(s=>s.includes('const sb'));
@@ -221,13 +221,13 @@ test('popup L&G: elenco per esito riconciliato con il netto, identificazione con
   vm.runInContext(script.split('(function init()')[0],ctx);
   Object.assign(vm.runInContext('DPState',ctx),{contrattiMese:contracts,metricheGara:[{id:3,tabella:'avanzamento_standard',regola:{categoria:'Energia'}}],operatoriAttiviMese:[{id:'op'}],resolveOperatore:id=>id,profiliMap:new Map([['op',{nome:'Operatore & test'}]]),ultimoCsvLgAt:'2026-10-22T15:37:52Z',statoPostVendita:{energia:new Map(cases)}});
   await ctx.apriDettaglioLgNetto(3);
-  assert.equal(popup.options.large,true);assert.match(popup.options.footerHtml,/Chiudi/);
-  assert.match(popup.body,/Totale contratti: 5 - Conteggio Netto: 1/);
-  for(const label of ['Attivato','Annullato','Rifiutato','Da verificare','Contratto non trovato'])assert.ok(popup.body.includes(label+' (1)'));
-  assert.match(popup.body,/PC-TEST/);assert.match(popup.body,/POD-TEST/);
-  assert.match(popup.body,/22\/10\/2026, 17:37:52/);
+  assert.equal(popup.options.title,'Luce & Gas - riepilogo esiti');assert.match(popup.options.footerHtml,/Chiudi/);
+  for(const label of ['Attivato','Annullato','Rifiutato','Da verificare','Contratto non trovato','Da controllare'])assert.ok(popup.body.includes(label+': <strong>1</strong>'));
+  assert.match(popup.body,/In lavorazione: <strong>2<\/strong>/);
+  assert.equal((popup.body.match(/<li>/g)||[]).length,8);
+  assert.doesNotMatch(popup.body,/PC-TEST|POD-TEST|Offerta|Operatore|Cliente|<ol>|<section>/);
+  assert.equal([...popup.body.matchAll(/<strong>(\d+)<\/strong>/g)].reduce((sum,m)=>sum+Number(m[1]),0),contracts.length);
   assert.match(popup.body,/&lt;img/);assert.doesNotMatch(popup.body,/<img/);
-  assert.match(popup.body,/Offerta &amp; test/);assert.match(popup.body,/Operatore &amp; test/);
 });
 test('FISSI Standard: Cerea e pendenti anche prima della verifica, KO/reinserimenti esclusi, pagina e Target coerenti',async()=> {
   const f=fixture();

@@ -266,12 +266,8 @@ table.avanz td.lg-netto span + span { margin-left: 16px; }
 .lg-info { margin-left: 8px; width: 18px; height: 18px; padding: 0; border: 1px solid #000;
   border-radius: 50%; background: #fff; color: #000; font: 12px Georgia, serif; cursor: pointer; }
 .lg-info:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.lg-esiti-list { max-height: 55vh; overflow-y: auto; text-align: left; }
-.lg-esiti-list section { margin: 16px 0; }
-.lg-esiti-list h4 { margin-bottom: 8px; }
-.lg-esiti-list ol { padding-left: 22px; }
+.lg-esiti-list { max-height: 55vh; overflow-y: auto; text-align: left; padding-left: 22px; }
 .lg-esiti-list li { margin: 8px 0; overflow-wrap: anywhere; }
-.lg-esiti-list small { display: block; }
 
 .empty-state { padding: 40px 20px; text-align: center; color: var(--text-secondary); }
 .empty-state .empty-icon { font-size: 36px; margin-bottom: 8px; opacity: 0.45; }
@@ -685,7 +681,6 @@ async function caricaDatiMensili() {
         tipo_attivazione, apri_chiudi, intestatario, switch_sim, modalita_pagamento,
         dispositivo_associato, tipo_acquisto, fascia_prezzo, finanziaria, kolme,
         reload_exchange, data_contratto, created_at, stato_controllo, stato_inserimento,
-        numero_contratto_energia, pod_pdr, anagrafica:anagrafica_id (ragione_sociale),
         codice_rivenditore,
         punteggio_gara_offerta, punteggio_gara_opzione, punteggio_gara_totale,
         punteggio_extra_gara_offerta, punteggio_extra_gara_opzione, punteggio_extra_gara_totale,
@@ -951,24 +946,14 @@ function apriDettaglioLgNetto(metricaId) {
   const nomi = {attivato:'Attivato', 'in attivazione':'In attivazione', 'in lavorazione':'In lavorazione', nuovo:'Nuovo', annullato:'Annullato', rifiutato:'Rifiutato'};
   dettagli.forEach(d => {
     const key = d.esito.toLocaleLowerCase('it');
-    if (!gruppi.has(key)) gruppi.set(key, {nome: nomi[key] || d.esito, righe: []});
-    gruppi.get(key).righe.push(d);
+    if (!gruppi.has(key)) gruppi.set(key, {nome: nomi[key] || d.esito, conteggio: 0});
+    gruppi.get(key).conteggio++;
   });
   const elenco = [...gruppi.values()].sort((a,b) => a.nome.localeCompare(b.nome, 'it')).map(g => {
-    const righe = g.righe.sort((a,b) => String(a.dataInserimento || '').localeCompare(String(b.dataInserimento || ''))).map(d => {
-      const c = d.contratto;
-      const operatore = DPState.profiliMap.get(DPState.resolveOperatore(c.operatore_id))?.nome || 'non disponibile';
-      return `<li><strong>${escapeHtml(c.anagrafica?.ragione_sociale || 'Cliente non disponibile')}</strong> - ${escapeHtml(c.nome_offerta_snapshot || 'Luce & Gas')}
-        <small>PC: ${escapeHtml(c.numero_contratto_energia || '-')} - POD/PDR: ${escapeHtml(c.pod_pdr || '-')}</small>
-        <small>Operatore: ${escapeHtml(operatore)} - Inserimento: ${escapeHtml(fmtUltimoCsvLg(d.dataInserimento, true))}</small></li>`;
-    }).join('');
-    return `<section><h4>${escapeHtml(g.nome)} (${g.righe.length})</h4><ol>${righe}</ol></section>`;
+    return `<li>${escapeHtml(g.nome)}: <strong>${g.conteggio.toLocaleString('it-IT')}</strong></li>`;
   }).join('');
-  const netto = dettagli.filter(d => d.inclusoNelNetto).length;
-  const html = `<p>Totale contratti: ${dettagli.length} - Conteggio Netto: ${netto}<br>Ultimo CSV: ${escapeHtml(fmtUltimoCsvLg(DPState.ultimoCsvLgAt, true))}</p>
-    <p>Senza stato: inseriti dopo il CSV = Da verificare; inseriti prima o alla stessa ora = Contratto non trovato. Senza una data disponibile restano Da verificare.</p>
-    <div class="lg-esiti-list">${elenco || '<p>Nessun contratto nel periodo selezionato.</p>'}</div>`;
-  const popup = MiroxUI._build({title: 'Luce & Gas - contratti per esito', bodyHtml: html, large: true,
+  const html = elenco ? `<ul class="lg-esiti-list">${elenco}</ul>` : '<p>Nessun contratto nel periodo selezionato.</p>';
+  const popup = MiroxUI._build({title: 'Luce & Gas - riepilogo esiti', bodyHtml: html,
     footerHtml: '<button type="button" class="mx-btn mx-btn-primary" data-lg-close>Chiudi</button>'});
   popup.foot.querySelector('[data-lg-close]').addEventListener('click', popup.close);
   return popup;
@@ -1049,7 +1034,7 @@ function renderAvanzamento() {
              <td class="andamento ${andCls}">${andTxt}</td>
              <td class="eccedenza ${eccCls}">${eccTxt}</td>`}
         ${hasNetto ? (m.regola?.categoria === 'Energia'
-          ? `<td class="lg-netto"><span>Conteggio Netto: ${row.conteggioNetto.toLocaleString('it-IT')}</span> <span>Ultimo CSV: ${escapeHtml(fmtUltimoCsvLg(DPState.ultimoCsvLgAt))}</span><button type="button" class="lg-info" aria-label="Mostra contratti Luce e Gas per esito" title="Contratti per esito" data-html2canvas-ignore="true" onclick="apriDettaglioLgNetto(${Number(m.id)})">i</button></td>`
+          ? `<td class="lg-netto"><span>Conteggio Netto: ${row.conteggioNetto.toLocaleString('it-IT')}</span> <span>Ultimo CSV: ${escapeHtml(fmtUltimoCsvLg(DPState.ultimoCsvLgAt))}</span><button type="button" class="lg-info" aria-label="Mostra riepilogo esiti Luce e Gas" title="Riepilogo esiti" data-html2canvas-ignore="true" onclick="apriDettaglioLgNetto(${Number(m.id)})">i</button></td>`
           : '<td class="lg-netto-empty"></td>') : ''}
       </tr>`;
     });
