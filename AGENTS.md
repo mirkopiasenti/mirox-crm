@@ -49,6 +49,8 @@ Le righe LUCE & GAS P.IVA ed EXTRA GARA P.IVA escludono Energia sia in stato `Ri
 
 Nell’Avanzamento Standard, la riga Luce & Gas aggiunge dopo Eccedenza il testo nero normale `Conteggio Netto: N` e la data/ora Europe/Rome dell’ultimo aggiornamento CSV registrato. Il netto conta un pezzo per contratto Energia del mese di firma UTC, Consumer/Business di Legnago, senza reinserimenti e con operatore canonico attivo: serve uno stato post-vendita non vuoto, diverso da trattino/`—`/`Annullato`/`Rifiutato` (trim e confronto senza distinzione maiuscole). Gli altri stati, anche manuali, sono ammessi. Il valore è calcolato dal motore condiviso; annotazione solo Dashboard e relativo PNG, senza alterare pezzi/punteggio/obiettivo/andamento esistenti o Avanzamento P.IVA. La data è il massimo globale di `post_vendita_controllo_lg.ultimo_csv_upload_at`, anche se riguarda un altro mese o stato escluso; nessun fallback su `updated_at`. Senza CSV mostra `non disponibile`. Errori di lettura bloccanti. Nessuna nuova metrica, obiettivo o modifica DB.
 
+Il dettaglio info del Conteggio Netto elenca tutti i contratti Energia nel medesimo perimetro, compresi Annullato/Rifiutato e assenti dal netto. Raggruppa per esito; per stato vuoto/trattino confronta `data_contratto` (Data Inserimento mostrata in Controllo L&G, fallback `created_at`) con l’ultimo CSV globale: successivo = `Da verificare`, precedente o uguale = `Contratto non trovato`. Senza timestamp affidabili/CSV usa `Da verificare`. Etichette derivate nel popup, nessuna scrittura degli stati. Dati cliente limitati a ragione sociale, offerta, PC/POD, operatore e data inserimento; contenuti sempre escaped. Colonna annotazione priva di sfondo grigio, bordi o separatori; intestazione sezione limitata alle colonne originali.
+
 ### Self-check di fine task
 
 Prima di dichiarare un task concluso:
@@ -130,7 +132,7 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 |---|---|---|
 | `js/subentri-core.js` | `window.MiroxSubentri` / CommonJS server | Campi, consensi, categorie documentali e validazione pura condivisa del Compilatore Subentri |
 | `js/customer-base-device.js` | `window.MiroxCustomerBaseDevice` / CommonJS server | Vincola dispositivo e acquisto nelle due combinazioni Customer Base finanziato/VAR |
-| `js/dashboard-report-core.js` | `window.MiroxDashboardReport` / CommonJS server | Motore puro condiviso con Target e Admin: matching, pesi, calendario, righe Day/Mensile, gare mensili e compensi |
+| `js/dashboard-report-core.js` | `window.MiroxDashboardReport` / CommonJS server | Motore puro condiviso con Target e Admin: matching, pesi, calendario, righe Day/Mensile, netto e dettaglio Luce & Gas, gare mensili e compensi |
 | `js/config.js` | `window.db`, `window.MiroxEnvironment` | Guard nel sorgente; la build genera il client con URL + publishable/anon key dell'ambiente |
 | `js/auth.js` | `window.Auth` | `richiediAuth()` guard, `logout()`, `getProfilo()`. Le operazioni sensibili sono autorizzate per ruolo lato server; il frontend non richiede password operative o una seconda immissione della password account |
 | `js/mirox-safe.js` | `window.MiroxSafe` | `escapeHtml`, `safeUrl`, `isUuid`, `isRecordId`, `safeCssColor`. Caricato da tutte le pagine per impedire che dati DB/input diventino markup, URL o handler eseguibili |

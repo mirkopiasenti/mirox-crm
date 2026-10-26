@@ -165,6 +165,20 @@ function progress(score,goal,year,month,asOf) {
 function statoEnergiaNettoValido(stato) {
   return !['','-','—','–','annullato','rifiutato'].includes(String(stato??'').trim().toLowerCase());
 }
+function dettaglioEnergiaMensile(state, regola) {
+  const operatori=new Set(state.operatoriAttiviMese.map(op=>op.id));
+  const csv=Date.parse(state.ultimoCsvLgAt);
+  return state.contrattiMese.filter(c=>c.categoria_snapshot==='Energia' && inMonthlyScope(c)
+    && operatori.has(state.resolveOperatore(c.operatore_id)) && matchRegola(c,regola)).map(c=> {
+    const stato=String(state.statoPostVendita.energia.get(c.id)??'').trim();
+    const dataInserimento=c.data_contratto || c.created_at;
+    const inserimento=Date.parse(dataInserimento);
+    const vuoto=['','-','—','–'].includes(stato);
+    const esito=vuoto ? (Number.isFinite(csv) && Number.isFinite(inserimento) && inserimento<=csv
+      ? 'Contratto non trovato' : 'Da verificare') : stato;
+    return {contratto:c,esito,dataInserimento,inclusoNelNetto:statoEnergiaNettoValido(stato)};
+  });
+}
 function monthlyRows(state,asOf) {
   const year=state.anno,month=state.mese;
   const validPiva=c=> {
@@ -196,7 +210,7 @@ function monthlyRows(state,asOf) {
     const o=state.obiettivi.find(o=>o.metrica_id===m.id && !o.operatore_id);
     const obiettivo=o?.obiettivo??0;
     const netto=!piva && m.regola?.categoria==='Energia'
-      ? {conteggioNetto:lists.reduce((sum,list)=>sum+list.filter(c=>statoEnergiaNettoValido(state.statoPostVendita.energia.get(c.id))).length,0)} : {};
+      ? {conteggioNetto:dettaglioEnergiaMensile(state,m.regola).filter(c=>c.inclusoNelNetto).length} : {};
     return {id:m.id,nome:m.nome,tabella:m.tabella,conteggi,attuale,punteggio,obiettivo,...progress(punteggio,obiettivo,year,month,asOf),...netto};
   });
 }
@@ -211,5 +225,5 @@ function dailyRows(contracts,rows,profiles) {
     return {nome:r.nome,gruppo:r.gruppo,operatori:operators,totale:Object.values(operators).reduce((a,b)=>a+b,0)};
   }).filter(r=>r.totale>0);
 }
-return {LEGNAGO,CEREA,DAY_OPERATORS,inMonthlyScope,matchRegola,pesoContratto,calcolaCompenso,valutaGara,easter,isWorkday,workingDays,progress,monthlyRows,dailyRows};
+return {LEGNAGO,CEREA,DAY_OPERATORS,inMonthlyScope,matchRegola,pesoContratto,calcolaCompenso,valutaGara,easter,isWorkday,workingDays,progress,dettaglioEnergiaMensile,monthlyRows,dailyRows};
 }));

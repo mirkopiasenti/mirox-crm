@@ -3,11 +3,11 @@
 Aggiornato: 2026-10-26. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## Conteggio Netto Luce & Gas: pronto locale26/10
+## Conteggio Netto Luce & Gas: dettaglio esiti pronto26/10
 
-- Aggiunta annotazione dopo Eccedenza sulla riga Standard Luce & Gas: testo nero normale Conteggio Netto:N e Ultimo CSV:data/ora Europe/Rome. Un pezzo per contratto del meseUTC/Legnago/Consumer+Business/operatore attivo, no reinserimenti; stato obbligatorio, esclusi vuoti/trattini/Annullato/Rifiutato con trim/case-insensitive. Valido anche esito manuale. Metriche ordinarie/PIVA/Target invariate; annotazione inclusa nel PNG pagina.
-- Data da max globale ultimo_csv_upload_at: ultimo CSV che ha aggiornato almeno una riga, anche fuori mese/stati esclusi; nessun fallback updated_at, assenza esplicita/errori bloccanti. Solo letture DB, nessuna migration o nuovo obiettivo. Dati reali26/10:58L&G,34netti,2annullati/22senza stato, ultimo CSV22/10 17:37 ora italiana.
-- Build312/312test locali OK (311versionati+1backup): stati/alias/scope/pezzi non pesati, loader CSV globale/fallback/errori, fusi estate-inverno, rendering dopo Eccedenza/export. Anteprima locale da aggregati reali, nero rgb0/font400 e larghezza export verificati; screenshot `/private/tmp/mirox-lg-netto-anteprima.png`. README/AGENTS/CLAUDE/databaseREADME aggiornati. Commit locale pronto, nessun push/deploy; prossimo passo pubblicazione su richiesta esplicita. Backup/Guardian preesistenti preservati.
+- Base1e24733 online/CI40375333943/Netlify6adf9785970c5a6a04fb1195 verificata. Annotazione Standard dopo Eccedenza con netto e ultimo CSV globale in Europe/Rome; no cambi valori ordinari/PIVA/Target o scritture DB. Netto un pezzo/contratto nel meseUTC/Legnago/Consumer+Business/operatore attivo/no reinserimenti con stato non vuoto/trattino/Annullato/Rifiutato. Data max ultimo_csv_upload_at, senza fallback updated_at.
+- Feedback applicato: zona extra bianca senza bordi/righe/striscia grigia, linea titolo limitata alle colonne originarie. Bottone info apre MiroxUI con tutti i contratti raggruppati per esito, inclusi esclusi dal netto; ragione sociale, offerta, PC/POD, operatore, data inserimento. Dati escaped, niente CF/contatti. Stato vuoto: data_contratto come Data Inserimento ControlloLG (fallback created_at) dopoCSV=Da verificare, prima/uguale=Contratto non trovato; nessuna data/CSV=Da verificare. Solo etichette UI, nessun UPDATE esiti.
+- Build314/314test locali OK (313versionati+1backup), regressioni date/fusi/uguaglianza/fallback/scope/immutabilità/riepilogo/XSS. Browser locale con clienti sintetici: apertura/scroll/chiusura, gruppi, modal entro viewport, bianco e bordi0/title904px verificati; screenshot `/private/tmp/mirox-lg-esiti-riga.png` e `mirox-lg-esiti-popup.png`. Query reali26/10:58contratti/34netti,2annullati/3attivati/27inattivazione/4inlavorazione/21daverificare/1nontrovato; ultimoCSV22/10 17:37:52. Guide README/AGENTS/CLAUDE/databaseREADME aggiornate. Correzioni locali pronte per pubblicazione; backup/Guardian preesistenti preservati.
 
 ## Extra Gara P.IVA: esclusione Annullato pronta22/10
 

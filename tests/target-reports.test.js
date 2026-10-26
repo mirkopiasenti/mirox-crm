@@ -188,6 +188,47 @@ test('Netto Luce & Gas: solo stati valorizzati validi nel perimetro mensile, dat
   await assert.rejects(vm.runInContext('caricaDatiMensili()',ctx),e=>e.code==='synthetic_error');
   assert.equal(state.loadedMonthKey,null);
 });
+test('dettaglio L&G: senza stato prima/uguale al CSV non trovato, dopo da verificare; date con fuso, fallback e nessuna scrittura',()=> {
+  const cases=[
+    ['prima','2026-10-22T15:37:51Z',null,'Contratto non trovato'],
+    ['uguale','2026-10-22T17:37:52+02:00','—','Contratto non trovato'],
+    ['dopo','2026-10-22T15:37:53Z','  -  ','Da verificare'],
+    ['fallback',null,'','Contratto non trovato'],
+    ['data-ignota','non valida',null,'Da verificare'],
+    ['valido','2026-10-25T10:00:00Z','In attivazione','In attivazione'],
+    ['ko','2026-10-25T10:00:00Z','Rifiutato','Rifiutato']
+  ];
+  const contracts=cases.map(([id,data_contratto])=>contract(id,'Energia',{data_contratto,created_at:'2026-10-05T10:00:00Z'}));
+  const state={contrattiMese:[...contracts,contract('reinsert','Energia',{stato_inserimento:'reinserimento'}),contract('cerea','Energia',{codice_rivenditore:core.CEREA}),contract('inactive','Energia',{operatore_id:'inactive'}),contract('mobile','Mobile')],
+    operatoriAttiviMese:[{id:'op'}],resolveOperatore:id=>id,ultimoCsvLgAt:'2026-10-22T15:37:52Z',statoPostVendita:{energia:new Map(cases.map(([id,date,stato])=>[id,stato]))}};
+  const before=JSON.stringify(state.contrattiMese);
+  const result=core.dettaglioEnergiaMensile(state,{categoria:'Energia'});
+  assert.deepEqual(result.map(r=>[r.contratto.id,r.esito]),cases.map(([id,date,stato,esito])=>[id,esito]));
+  assert.equal(result.filter(r=>r.inclusoNelNetto).length,1);
+  assert.equal(JSON.stringify(state.contrattiMese),before);
+  assert.ok(core.dettaglioEnergiaMensile({...state,ultimoCsvLgAt:null},{categoria:'Energia'}).filter(r=>!['valido','ko'].includes(r.contratto.id)).every(r=>r.esito==='Da verificare'));
+  assert.ok(core.dettaglioEnergiaMensile(state,{categoria:'Energia',cluster:'Business'}).length===0);
+});
+test('popup L&G: elenco per esito riconciliato con il netto, identificazione contratti e dati non fidati escaped',async()=> {
+  const cases=[['valido','Attivato'],['annullato','Annullato'],['rifiutato','Rifiutato'],['prima',null],['dopo','—']];
+  const contracts=cases.map(([id])=>contract(id,'Energia',{data_contratto:id==='dopo'?'2026-10-23T08:00:00Z':'2026-10-05T08:00:00Z',anagrafica:{ragione_sociale:'<img src=x onerror=alert(1)>'},nome_offerta_snapshot:'Offerta & test',numero_contratto_energia:'PC-TEST',pod_pdr:'POD-TEST'}));
+  const html=fs.readFileSync(require('node:path').join(__dirname,'../moduli/dashboard_pezzi.html'),'utf8');
+  const script=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(s=>s.includes('const sb'));
+  const safeWindow={};
+  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../js/mirox-safe.js'),'utf8'),{window:safeWindow});
+  let popup;
+  const ctx=vm.createContext({db:{},MiroxDashboardReport:core,MiroxSafe:safeWindow.MiroxSafe,MiroxUI:{_build:options=>{popup={body:options.bodyHtml,options};return {foot:{querySelector:()=>({addEventListener:()=>{}})},close:()=>{}};}}});
+  vm.runInContext(script.split('(function init()')[0],ctx);
+  Object.assign(vm.runInContext('DPState',ctx),{contrattiMese:contracts,metricheGara:[{id:3,tabella:'avanzamento_standard',regola:{categoria:'Energia'}}],operatoriAttiviMese:[{id:'op'}],resolveOperatore:id=>id,profiliMap:new Map([['op',{nome:'Operatore & test'}]]),ultimoCsvLgAt:'2026-10-22T15:37:52Z',statoPostVendita:{energia:new Map(cases)}});
+  await ctx.apriDettaglioLgNetto(3);
+  assert.equal(popup.options.large,true);assert.match(popup.options.footerHtml,/Chiudi/);
+  assert.match(popup.body,/Totale contratti: 5 - Conteggio Netto: 1/);
+  for(const label of ['Attivato','Annullato','Rifiutato','Da verificare','Contratto non trovato'])assert.ok(popup.body.includes(label+' (1)'));
+  assert.match(popup.body,/PC-TEST/);assert.match(popup.body,/POD-TEST/);
+  assert.match(popup.body,/22\/10\/2026, 17:37:52/);
+  assert.match(popup.body,/&lt;img/);assert.doesNotMatch(popup.body,/<img/);
+  assert.match(popup.body,/Offerta &amp; test/);assert.match(popup.body,/Operatore &amp; test/);
+});
 test('FISSI Standard: Cerea e pendenti anche prima della verifica, KO/reinserimenti esclusi, pagina e Target coerenti',async()=> {
   const f=fixture();
   f.gara_obiettivi_mensili.push({id:2,anno:2026,mese:10,metrica_id:2,operatore_id:null,obiettivo:13});

@@ -49,6 +49,13 @@ Data/ora accanto: massimo globale del campo esistente `ultimo_csv_upload_at`
 `updated_at` o il solo mese corrente; timestamp mostrato in Europe/Rome,
 assenza esplicita. Errori query bloccanti. Catalogo/obiettivi invariati.
 
+Dettaglio info: lettura ragione_sociale via FK anagrafica_id, PC/POD e date del
+contratto, nessuna modifica schema/RLS/dati. Stati assenti classificati per
+Data Inserimento del Controllo L&G (data_contratto, fallback created_at):
+dopo ultimo_csv_upload_at globale = Da verificare, prima/uguale = Contratto
+non trovato; senza date affidabili = Da verificare. Etichette calcolate,
+mai salvate come stati effettivi.
+
 ## Luce & Gas P.IVA: esclusione annullati (22/10/2026)
 
 Solo regola applicativa nel motore condiviso: LUCE & GAS P.IVA ed EXTRA GARA
