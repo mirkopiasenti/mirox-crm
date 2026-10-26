@@ -38,6 +38,17 @@ Copia precedente privata in `.backup-private/gare-2026-10/prima.json`.
 Su dati reali ottobre: 2 Assicurazioni = 1 punto complessivo squadra, bonus 0
 per ciascuno fino al raggiungimento di 10 punti.
 
+## Conteggio Netto Luce & Gas (26/10/2026)
+
+Solo calcolo applicativo, nessuna migration/scrittura DB. Il netto Standard
+richiede stato controllo valorizzato: esclusi vuoti, trattini, Annullato e
+Rifiutato (trim/case-insensitive), ammessi gli altri stati anche manuali.
+Periodo e perimetro della riga Standard, un pezzo per contratto.
+Data/ora accanto: massimo globale del campo esistente `ultimo_csv_upload_at`
+(migration020), cioe' ultimo CSV che ha aggiornato almeno una riga. Non usare
+`updated_at` o il solo mese corrente; timestamp mostrato in Europe/Rome,
+assenza esplicita. Errori query bloccanti. Catalogo/obiettivi invariati.
+
 ## Luce & Gas P.IVA: esclusione annullati (22/10/2026)
 
 Solo regola applicativa nel motore condiviso: LUCE & GAS P.IVA ed EXTRA GARA

@@ -45,6 +45,10 @@ La riga FISSI include Consumer e Business di Legnago e Cerea, escludendo reinser
 
 Le righe LUCE & GAS P.IVA ed EXTRA GARA P.IVA escludono Energia sia in stato `Rifiutato` sia `Annullato`. Gli altri stati e l’assenza del controllo post-vendita continuano a contare. Il motore condiviso applica il filtro a pezzi e punti in Dashboard, PNG e Target. La riga Luce & Gas Standard conserva il filtro preesistente (solo `Rifiutato` escluso). Nessuna modifica DB, al catalogo o agli obiettivi.
 
+### Conteggio Netto Luce & Gas (26/10/2026)
+
+Nell’Avanzamento Standard, la riga Luce & Gas aggiunge dopo Eccedenza il testo nero normale `Conteggio Netto: N` e la data/ora Europe/Rome dell’ultimo aggiornamento CSV registrato. Il netto conta un pezzo per contratto Energia del mese di firma UTC, Consumer/Business di Legnago, senza reinserimenti e con operatore canonico attivo: serve uno stato post-vendita non vuoto, diverso da trattino/`—`/`Annullato`/`Rifiutato` (trim e confronto senza distinzione maiuscole). Gli altri stati, anche manuali, sono ammessi. Il valore è calcolato dal motore condiviso; annotazione solo Dashboard e relativo PNG, senza alterare pezzi/punteggio/obiettivo/andamento esistenti o Avanzamento P.IVA. La data è il massimo globale di `post_vendita_controllo_lg.ultimo_csv_upload_at`, anche se riguarda un altro mese o stato escluso; nessun fallback su `updated_at`. Senza CSV mostra `non disponibile`. Errori di lettura bloccanti. Nessuna nuova metrica, obiettivo o modifica DB.
+
 ### Self-check di fine task
 
 Prima di dichiarare un task concluso:

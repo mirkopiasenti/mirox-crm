@@ -162,6 +162,9 @@ function progress(score,goal,year,month,asOf) {
   const excess=Math.ceil(Math.abs(delta))*(delta<0?-1:1);
   return {andamento:delta>=0?'IN LINEA':'IN RITARDO',eccedenza:excess,andCls:delta>=0?'in-linea':'in-ritardo',eccCls:excess>0?'pos':excess<0?'neg':''};
 }
+function statoEnergiaNettoValido(stato) {
+  return !['','-','—','–','annullato','rifiutato'].includes(String(stato??'').trim().toLowerCase());
+}
 function monthlyRows(state,asOf) {
   const year=state.anno,month=state.mese;
   const validPiva=c=> {
@@ -192,7 +195,9 @@ function monthlyRows(state,asOf) {
     const punteggio=field?lists.reduce((sum,list)=>sum+list.reduce((a,c)=>a+Number(c[field]||0),0),0):attuale;
     const o=state.obiettivi.find(o=>o.metrica_id===m.id && !o.operatore_id);
     const obiettivo=o?.obiettivo??0;
-    return {id:m.id,nome:m.nome,tabella:m.tabella,conteggi,attuale,punteggio,obiettivo,...progress(punteggio,obiettivo,year,month,asOf)};
+    const netto=!piva && m.regola?.categoria==='Energia'
+      ? {conteggioNetto:lists.reduce((sum,list)=>sum+list.filter(c=>statoEnergiaNettoValido(state.statoPostVendita.energia.get(c.id))).length,0)} : {};
+    return {id:m.id,nome:m.nome,tabella:m.tabella,conteggi,attuale,punteggio,obiettivo,...progress(punteggio,obiettivo,year,month,asOf),...netto};
   });
 }
 function dailyRows(contracts,rows,profiles) {

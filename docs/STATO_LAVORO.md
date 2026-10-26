@@ -1,7 +1,13 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato: 2026-10-22. Promemoria di ripresa, non autorizza interventi o deploy;
+Aggiornato: 2026-10-26. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
+
+## Conteggio Netto Luce & Gas: pronto locale26/10
+
+- Aggiunta annotazione dopo Eccedenza sulla riga Standard Luce & Gas: testo nero normale Conteggio Netto:N e Ultimo CSV:data/ora Europe/Rome. Un pezzo per contratto del meseUTC/Legnago/Consumer+Business/operatore attivo, no reinserimenti; stato obbligatorio, esclusi vuoti/trattini/Annullato/Rifiutato con trim/case-insensitive. Valido anche esito manuale. Metriche ordinarie/PIVA/Target invariate; annotazione inclusa nel PNG pagina.
+- Data da max globale ultimo_csv_upload_at: ultimo CSV che ha aggiornato almeno una riga, anche fuori mese/stati esclusi; nessun fallback updated_at, assenza esplicita/errori bloccanti. Solo letture DB, nessuna migration o nuovo obiettivo. Dati reali26/10:58L&G,34netti,2annullati/22senza stato, ultimo CSV22/10 17:37 ora italiana.
+- Build312/312test locali OK (311versionati+1backup): stati/alias/scope/pezzi non pesati, loader CSV globale/fallback/errori, fusi estate-inverno, rendering dopo Eccedenza/export. Anteprima locale da aggregati reali, nero rgb0/font400 e larghezza export verificati; screenshot `/private/tmp/mirox-lg-netto-anteprima.png`. README/AGENTS/CLAUDE/databaseREADME aggiornati. Commit locale pronto, nessun push/deploy; prossimo passo pubblicazione su richiesta esplicita. Backup/Guardian preesistenti preservati.
 
 ## Extra Gara P.IVA: esclusione Annullato pronta22/10
 

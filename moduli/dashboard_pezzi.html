@@ -257,6 +257,12 @@ table.avanz tbody tr.subheader td {
 }
 table.avanz tbody td.empty-obanec { background: #ffffff !important; border: none !important; }
 table.avanz thead th.empty-obanec { background: #ffffff !important; border: none !important; }
+table.avanz td.lg-netto, table.avanz th.lg-netto-empty, table.avanz td.lg-netto-empty {
+  background: #fff; border: none;
+}
+table.avanz td.lg-netto, table.avanz td.lg-netto span { color: #000 !important; font-weight: 400 !important; }
+table.avanz td.lg-netto { text-align: left; white-space: nowrap; }
+table.avanz td.lg-netto span + span { margin-left: 16px; }
 
 .empty-state { padding: 40px 20px; text-align: center; color: var(--text-secondary); }
 .empty-state .empty-icon { font-size: 36px; margin-bottom: 8px; opacity: 0.45; }
@@ -348,6 +354,7 @@ const DPState = {
   obiettivi: [],                // gara_obiettivi_mensili del mese/anno
   contrattiMese: [],
   profiliMap: new Map(),
+  ultimoCsvLgAt: null,
   loadedMonthKey: null          // 'YYYY-MM' per invalidare cache
 };
 
@@ -367,6 +374,12 @@ function fmtDataLabel(iso) {
   return d.getDate() + ' ' + mesi[d.getMonth()];
 }
 function fmtEur(n) { if (n === null || n === undefined || isNaN(n)) return '-'; return '€ ' + Number(n).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+function fmtUltimoCsvLg(value) {
+  const date = value ? new Date(value) : null;
+  return date && Number.isFinite(date.getTime())
+    ? date.toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : 'non disponibile';
+}
 
 function nomeFilePng(prefisso, dettaglio) {
   const parte = String(dettaglio || '')
@@ -656,7 +669,7 @@ async function caricaDatiMensili() {
   const annoPost = DPState.mese === 12 ? DPState.anno + 1 : DPState.anno;
   const end = `${annoPost}-${String(mesePost).padStart(2,'0')}-01T00:00:00.000Z`;
 
-  const [rContratti, rMetriche, rObiettivi, rProfili] = await Promise.all([
+  const [rContratti, rMetriche, rObiettivi, rProfili, rUltimoCsvLg] = await Promise.all([
     sb.from('vendita_contratti').select(`
         id, operatore_id, cluster_cliente,
         categoria_snapshot, nome_offerta_snapshot, nome_opzione_snapshot, nome_reload_snapshot,
@@ -670,12 +683,16 @@ async function caricaDatiMensili() {
       `).gte('data_contratto', start).lt('data_contratto', end),
     sb.from('gara_metriche').select('*').eq('attiva', true).order('tabella').order('ordine'),
     sb.from('gara_obiettivi_mensili').select('*').eq('anno', DPState.anno).eq('mese', DPState.mese),
-    sb.from('profili').select('id, nome, in_gara, alias_di, ordine_gara').eq('attivo', true).order('ordine_gara', { ascending: true, nullsFirst: false }).order('nome')
+    sb.from('profili').select('id, nome, in_gara, alias_di, ordine_gara').eq('attivo', true).order('ordine_gara', { ascending: true, nullsFirst: false }).order('nome'),
+    sb.from('post_vendita_controllo_lg').select('ultimo_csv_upload_at')
+      .not('ultimo_csv_upload_at', 'is', null).order('ultimo_csv_upload_at', { ascending: false }).limit(1)
   ]);
   if (rContratti.error) throw rContratti.error;
   if (rMetriche.error) throw rMetriche.error;
   if (rObiettivi.error) throw rObiettivi.error;
   if (rProfili.error) throw rProfili.error;
+  if (rUltimoCsvLg.error) throw rUltimoCsvLg.error;
+  DPState.ultimoCsvLgAt = rUltimoCsvLg.data?.[0]?.ultimo_csv_upload_at || null;
 
   DPState.contrattiMese = (rContratti.data || []).filter(c => c.stato_inserimento !== 'reinserimento');
 
@@ -942,7 +959,8 @@ function renderAvanzamento() {
     if (!metriche.length) return;
     html += `<div class="av-section"><h3>${escapeHtml(sez.titolo)}</h3>`;
     const opHeaders = operatori.map(op => `<th class="gr-pezzi" style="width:88px">${escapeHtml(op.nome)}</th>`).join('');
-    const totalWidth = 220 + (88 * operatori.length) + 420; // metrica + ops + (120+100+100+100)
+    const hasNetto = sez.key === 'standard' && metriche.some(m => m.regola?.categoria === 'Energia');
+    const totalWidth = 220 + (88 * operatori.length) + 420 + (hasNetto ? 450 : 0);
     // Nella sezione P.IVA le intestazioni Obiettivo/Andamento/Eccedenza vengono
     // spostate in una sotto-intestazione posizionata subito sopra la prima riga
     // di tipo "avanzamento_extra_piva" (unica riga che le utilizza).
@@ -955,6 +973,7 @@ function renderAvanzamento() {
       ${opHeaders}
       <th style="width:120px">Punteggio</th>
       ${headerObAnEc}
+      ${hasNetto ? '<th class="lg-netto-empty" style="width:450px" aria-label="Conteggio netto Luce e Gas"></th>' : ''}
     </tr></thead><tbody>`;
     let subheaderExtraInserted = false;
     metriche.forEach(m => {
@@ -988,6 +1007,9 @@ function renderAvanzamento() {
           : `<td>${obiettivo || '-'}</td>
              <td class="andamento ${andCls}">${andTxt}</td>
              <td class="eccedenza ${eccCls}">${eccTxt}</td>`}
+        ${hasNetto ? (m.regola?.categoria === 'Energia'
+          ? `<td class="lg-netto"><span>Conteggio Netto: ${row.conteggioNetto.toLocaleString('it-IT')}</span> <span>Ultimo CSV: ${escapeHtml(fmtUltimoCsvLg(DPState.ultimoCsvLgAt))}</span></td>`
+          : '<td class="lg-netto-empty"></td>') : ''}
       </tr>`;
     });
     html += '</tbody></table></div>';

@@ -20,7 +20,7 @@ function fakeDb(initial={}) {
   const db={tables,log,fail:null,from(table){
     tables[table]||=[];
     let action='read',fields='',values,filters=[],orders=[],range=null,limit=null,single=false;
-    const q={select(f){fields=f;return q;},eq(k,v){filters.push(r=>r[k]===v);return q;},in(k,v){filters.push(r=>v.includes(r[k]));return q;},gte(k,v){filters.push(r=>r[k]>=v);return q;},lte(k,v){filters.push(r=>r[k]<=v);return q;},lt(k,v){filters.push(r=>r[k]<v);return q;},or(text){const [a,b]=text.split(',');const key=a.split('.')[0],date=b.split('.lt.')[1];filters.push(r=>r[key]==null||r[key]<date);return q;},order(k,opts={}){orders.push([k,opts.ascending!==false]);return q;},range(a,b){range=[a,b];return q;},limit(n){limit=n;return q;},maybeSingle(){single=true;return q;},single(){single=true;return q;},insert(v){action='insert';values=v;return q;},upsert(v){action='upsert';values=v;return q;},update(v){action='update';values=v;return q;},delete(){action='delete';return q;},then(resolve,reject){
+    const q={select(f){fields=f;return q;},eq(k,v){filters.push(r=>r[k]===v);return q;},not(k,op,v){assert.equal(op,'is');assert.equal(v,null);filters.push(r=>r[k]!=null);return q;},in(k,v){filters.push(r=>v.includes(r[k]));return q;},gte(k,v){filters.push(r=>r[k]>=v);return q;},lte(k,v){filters.push(r=>r[k]<=v);return q;},lt(k,v){filters.push(r=>r[k]<v);return q;},or(text){const [a,b]=text.split(',');const key=a.split('.')[0],date=b.split('.lt.')[1];filters.push(r=>r[key]==null||r[key]<date);return q;},order(k,opts={}){orders.push([k,opts.ascending!==false]);return q;},range(a,b){range=[a,b];return q;},limit(n){limit=n;return q;},maybeSingle(){single=true;return q;},single(){single=true;return q;},insert(v){action='insert';values=v;return q;},upsert(v){action='upsert';values=v;return q;},update(v){action='update';values=v;return q;},delete(){action='delete';return q;},then(resolve,reject){
       try {
         log.push({table,action,fields,values});
         if(db.fail?.({table,action,fields,values})) return Promise.resolve({data:null,error:{code:'synthetic_error'}}).then(resolve,reject);
@@ -119,6 +119,7 @@ test('Luce & Gas P.IVA ed Extra escludono Annullato e Rifiutato da pezzi e punti
   }
   assert.equal(rows.find(r=>r.nome==='Energia').attuale,6);
   assert.equal(rows.find(r=>r.nome==='Energia').punteggio,6);
+  assert.equal(rows.find(r=>r.nome==='Energia').conteggioNetto,3);
   const html=fs.readFileSync(require('node:path').join(__dirname,'../moduli/dashboard_pezzi.html'),'utf8');
   const script=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(s=>s.includes('const sb'));
   const ctx=vm.createContext({db:{},MiroxDashboardReport:core});
@@ -127,6 +128,65 @@ test('Luce & Gas P.IVA ed Extra escludono Annullato e Rifiutato da pezzi e punti
   for(const [id,stato] of cases) {
     assert.equal(ctx.isContrattoValidoAvanzamentoPiva({id,categoria_snapshot:'Energia'}),!['Annullato','Rifiutato'].includes(stato));
   }
+});
+test('Netto Luce & Gas: solo stati valorizzati validi nel perimetro mensile, data CSV globale e resa dopo Eccedenza',async()=> {
+  const f=fixture();
+  f.profili.push({id:'inactive',nome:'Inattivo',attivo:false});
+  const cases=[
+    ['attivato','Attivato'],['attivazione','In attivazione',{cluster_cliente:'Business',operatore_id:'alias'}],
+    ['lavorazione','In lavorazione'],['nuovo','Nuovo'],['manuale','NON TROVATO'],
+    ['nullo',null],['vuoto',''],['spazi','   '],['trattino','—'],['breve','-'],['medio','–'],
+    ['annullato',' Annullato '],['rifiutato','Rifiutato'],['rifiutato-maiuscolo',' RIFIUTATO '],['assente',undefined],
+    ['cerea','Attivato',{codice_rivenditore:core.CEREA}],
+    ['reinserito','Attivato',{stato_inserimento:'reinserimento'}],
+    ['inattivo','Attivato',{operatore_id:'inactive'}],
+    ['altro-mese','Attivato',{data_contratto:'2026-09-05T12:00:00Z'}]
+  ];
+  cases.forEach(([id,stato,patch])=> {
+    f.vendita_contratti.push(contract(id,'Energia',patch));
+    if(stato!==undefined) f.post_vendita_controllo_lg.push({id:'lg-'+id,contratto_id:id,stato,
+      ultimo_csv_upload_at:id==='attivato'?'2026-10-20T12:00:00Z':null,
+      updated_at:'2026-10-26T18:00:00Z'});
+  });
+  // L'ultimo CSV va cercato nell'intero controllo, anche fuori dal mese mostrato.
+  f.post_vendita_controllo_lg.find(r=>r.contratto_id==='altro-mese').ultimo_csv_upload_at='2026-10-22T15:37:52.487Z';
+  const db=fakeDb(f);
+  const html=fs.readFileSync(require('node:path').join(__dirname,'../moduli/dashboard_pezzi.html'),'utf8');
+  const script=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(s=>s.includes('const sb'));
+  const nodes=new Map();
+  const document={getElementById(id){if(!nodes.has(id))nodes.set(id,{innerHTML:'',textContent:''});return nodes.get(id);}};
+  const ctx=vm.createContext({db,document,MiroxDashboardReport:core,MiroxSafe:{escapeHtml:v=>String(v??'')}});
+  vm.runInContext(script.split('(function init()')[0],ctx);
+  vm.runInContext('DPState.anno=2026; DPState.mese=10;',ctx);
+  await vm.runInContext('caricaDatiMensili()',ctx);
+  const state=vm.runInContext('DPState',ctx);
+  const rows=core.monthlyRows(state,'2026-10-26');
+  const energy=rows.find(r=>r.nome==='Energia');
+  assert.equal(energy.conteggioNetto,5);
+  assert.equal(energy.attuale,14);assert.equal(energy.punteggio,14);
+  assert.ok(rows.filter(r=>r.nome!=='Energia').every(r=>!('conteggioNetto' in r)));
+  assert.equal(state.ultimoCsvLgAt,'2026-10-22T15:37:52.487Z');
+  vm.runInContext('renderAvanzamento()',ctx);
+  let output=nodes.get('tabContentAvanzamento').innerHTML;
+  const row=output.match(/<tr>\s*<td class="metrica"[^>]*>Energia<\/td>[\s\S]*?<\/tr>/)[0];
+  assert.match(row,/<td class="eccedenza[^\"]*">[^<]*<\/td>\s*<td class="lg-netto">/);
+  assert.match(row,/Conteggio Netto: 5/);
+  assert.match(row,/Ultimo CSV: 22\/10\/2026, 17:37/);
+  assert.equal((output.match(/Conteggio Netto:/g)||[]).length,1);
+  assert.match(ctx.fmtUltimoCsvLg('2026-10-26T15:37:00Z'),/26\/10\/2026, 16:37/);
+  assert.equal(ctx.fmtUltimoCsvLg('valore non valido'),'non disponibile');
+  // Nessun fallback su updated_at e nessuna data precedente rimasta in cache.
+  db.tables.post_vendita_controllo_lg.forEach(r=>{r.ultimo_csv_upload_at=null;});
+  vm.runInContext('DPState.loadedMonthKey=null;',ctx);
+  await vm.runInContext('caricaDatiMensili()',ctx);
+  vm.runInContext('renderAvanzamento()',ctx);
+  output=nodes.get('tabContentAvanzamento').innerHTML;
+  assert.match(output,/Ultimo CSV: non disponibile/);
+  assert.equal(state.ultimoCsvLgAt,null);
+  db.fail=q=>q.table==='post_vendita_controllo_lg'&&q.fields==='ultimo_csv_upload_at';
+  vm.runInContext('DPState.loadedMonthKey=null;',ctx);
+  await assert.rejects(vm.runInContext('caricaDatiMensili()',ctx),e=>e.code==='synthetic_error');
+  assert.equal(state.loadedMonthKey,null);
 });
 test('FISSI Standard: Cerea e pendenti anche prima della verifica, KO/reinserimenti esclusi, pagina e Target coerenti',async()=> {
   const f=fixture();
