@@ -43,6 +43,33 @@ SQL isolato riconferma grant/claim/CAS/rollback e assenza effetti del collaudo.
 Letture live SQL/REST successive al primo collaudo in timeout: configurazione
 attuale non riconfermata, ultima letta collaudo; nessun tentativo di attivazione.
 
+## Codici cliente WindTre anagrafici (27/10/2026, migration applicata)
+
+Codici cliente WindTre anagrafici (27/10): una anagrafica puo' avere piu' codici,
+conservati tutti senza sostituzione. Da PDA Mobile/Fisso/Customer Base si legge
+"Codice Cliente", distinto dal codice contratto; testo con prefissi e zeri
+iniziali, nessuna conversione numerica. Nuovo campo anagrafico nel wizard;
+manuale obbligatorio dopo il controllo duplicati e prima dello staging. AI lo
+compila dalla PDA; se assente/illeggibile/discordante chiede input, senza
+riutilizzare il codice di un'altra PDA. Ogni contratto del carrello conserva il
+proprio valore, anche in bozza; OTP e anti-duplicati contratto restano invariati.
+Altri reparti non acquisiscono nuovi codici. Nuovi valori si aggiungono anche su
+cliente esistente; assenza non cancella quelli registrati. Consultabili nella
+scheda Anagrafiche e nell'export XLSX (celle testuali). Nessun backfill storico o
+sincronizzazione automatica del vecchio codice cliente del Controllo Fissi.
+
+Registro `anagrafica_codici_cliente_windtre` (PK anagrafica_id/codice_cliente,
+FK indicizzata dal prefisso PK, created_at): RLS ON, niente grant anon/authenticated,
+service_role solo SELECT/INSERT; upsert ignoreDuplicates senza UPDATE/DELETE.
+Migration `20261027220802_anagrafica_codici_cliente_windtre.sql` applicata e riletta:
+registro vuoto al rilascio, nessuna modifica a schema/RPC/RLS anagrafica/CC o
+colonne contratto. `_lib/windtre-customer-codes.js` riusato da garantisci-anagrafica
+e crea-vendita-pratica-carrello; search-anagrafica e gestisci-anagrafiche espongono
+la relazione in left join dal backend. Core PDA separa normalizzazione codici
+cliente/contratto. Chiamanti legacy senza nuovo campo restano compatibili; nuovo
+wizard richiede sempre il codice cliente della PDA. Test esclusivamente interni/
+HTTP, nessun browser. Verifica PostgreSQL isolata: `scripts/verifica-codici-cliente-sql.js`.
+
 ## Identificazione PDA e dati Mobile (27/10/2026, migration applicata)
 
 `20261027110402_vendita_codice_pda_mobile.sql` applicata in produzione27/10

@@ -260,6 +260,7 @@
       detailField('Nome referente', row.nome_referente, true),
       detailField('Numero di contatto', row.cellulare),
       detailField('Email', row.email),
+      detailField('Codici cliente WindTre', (row.codici_cliente_windtre || []).map(c => c.codice_cliente).join(', '), true),
       detailField('Provincia', row.provincia),
       detailField('Comune', row.comune),
       detailField('Via', row.via, true),

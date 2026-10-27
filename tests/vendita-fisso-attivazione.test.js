@@ -72,7 +72,7 @@ test('cambi tardivi o ripetuti non si applicano a nuova PDA/offerta/contratto',a
 });
 test('stato automatico e manuale conservati al restore, vecchie scelte preservate, nuova PDA pulita',()=>{
   const a=source.indexOf(' function renderPdaFields(data)'),b=source.indexOf(' async function checkPendingCode()',a),root={dataset:{},addEventListener(){}};
-  const ctx={document:{getElementById:()=>root},getCategoriaName:()=> 'Fisso',queueDraftSave(){},window:{MiroxPda:Pda,MiroxPdaUI:{formHtml:()=>'',bindForm(){},readForm:()=>({})}}};
+  const ctx={refs:{},document:{getElementById:()=>root},getCategoriaName:()=> 'Fisso',queueDraftSave(){},window:{MiroxPda:Pda,MiroxPdaUI:{formHtml:()=>'',bindForm(){},readForm:()=>({})}}};
   vm.runInNewContext(source.slice(a,b)+';this.render=renderPdaFields;this.read=readPdaFields;',ctx);
   ctx.render({pda_tipo_attivazione_auto:'Portabilita',pda_tipo_attivazione_manuale:false});
   const draft=JSON.parse(JSON.stringify(ctx.read()));ctx.render(draft);assert.equal(ctx.read().pda_tipo_attivazione_auto,'Portabilita');

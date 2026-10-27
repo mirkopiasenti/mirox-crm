@@ -11,6 +11,21 @@
     const s = value.replace(/\s/g, '').toUpperCase();
     return /^[A-Z0-9][A-Z0-9/-]{0,79}$/.test(s) ? s : null;
   }
+  // Codice cliente e codice contratto sono identificativi distinti, entrambi testuali.
+  function customerCode(value, required = false) {
+    const normalized = code(value);
+    const parsed = normalized && /\d/.test(normalized) ? normalized : null;
+    if (required && !parsed) throw new Error('Codice cliente WindTre obbligatorio o non valido: compilalo nei dati anagrafici');
+    return parsed;
+  }
+  function customerCodes(values = []) {
+    if (!Array.isArray(values) || values.length > 100) throw new Error('Elenco codici cliente non valido');
+    return [...new Set(values.map(value => {
+      const parsed = customerCode(value);
+      if (!parsed) throw new Error('Codice cliente WindTre non valido');
+      return parsed;
+    }))];
+  }
   function phone(value) {
     if (typeof value !== 'string') return null;
     let s = value.replace(/[\s().-]/g, '').replace(/^(?:\+39|0039)/, '');
@@ -107,5 +122,5 @@
     }
     return out;
   }
-  return { FIELDS, code, phone, money, isPda, normalize, hasMobileData, mobileOptionId, validateMobileNumbers, validate };
+  return { FIELDS, code, customerCode, customerCodes, phone, money, isPda, normalize, hasMobileData, mobileOptionId, validateMobileNumbers, validate };
 });

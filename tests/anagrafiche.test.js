@@ -73,6 +73,7 @@ test('il generatore produce un vero workbook xlsx filtrabile e neutralizza formu
     creato_da: '22222222-2222-4222-8222-222222222222',
     creatore: { nome: 'Operatore Test' },
     created_at: '2026-08-26T10:00:00.000Z',
+    codici_cliente_windtre: [{codice_cliente:'P00001'},{codice_cliente:'00002'}],
     updated_at: '2026-08-26T10:30:00.000Z'
   }]);
 
@@ -83,10 +84,11 @@ test('il generatore produce un vero workbook xlsx filtrabile e neutralizza formu
   assert.ok(files['xl/worksheets/sheet1.xml']);
 
   const sheet = strFromU8(files['xl/worksheets/sheet1.xml']);
-  assert.match(sheet, /<autoFilter ref="A1:O2"\/>/);
+  assert.match(sheet, /<autoFilter ref="A1:P2"\/>/);
   assert.match(sheet, /<pane ySplit="1"/);
   assert.match(sheet, /=HYPERLINK\(&quot;https:\/\/example\.com&quot;\)/);
   assert.doesNotMatch(sheet, /<f>/);
+  assert.match(sheet, /P00001, 00002/);
   assert.match(sheet, /Mario &amp; Rossi/);
   assert.match(sheet, /Via Roma &lt;centro&gt;/);
 });

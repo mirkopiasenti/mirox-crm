@@ -1149,6 +1149,10 @@ Dati pre-compilati dall'AI sulla base del PDA caricato. Verifica e correggi prim
 </div> <div class="field">
 <label for="nome_referente">Nome Referente *</label>
 <input id="nome_referente" autocomplete="off">
+</div> <div id="fieldCodiceCliente" class="field hidden">
+<label for="codice_cliente_windtre">Codice cliente WindTre *</label>
+<input id="codice_cliente_windtre" autocomplete="off" maxlength="80">
+<p class="hint">Il codice viene aggiunto all'anagrafica, conservando gli altri codici del cliente.</p>
 </div> <div class="field">
 <label for="cellulare">Cellulare *</label>
 <input id="cellulare" autocomplete="off" placeholder="es. 3331234567">
@@ -1585,6 +1589,8 @@ Reload Forever
 
  cluster: document.getElementById('cluster_cliente'),
  cfPiva: document.getElementById('cf_piva'),
+ codiceCliente: document.getElementById('codice_cliente_windtre'),
+ fieldCodiceCliente: document.getElementById('fieldCodiceCliente'),
  ragioneSociale: document.getElementById('ragione_sociale'),
  nomeReferente: document.getElementById('nome_referente'),
  cellulare: document.getElementById('cellulare'),
@@ -3196,6 +3202,8 @@ Reload Forever
  const category = getCategoriaName();
  if (data === undefined && root.dataset.category === category) return;
  root.dataset.category = category;
+ root.dataset.pdaCustomerCode = window.MiroxPda.customerCode(data?.codice_cliente) || '';
+ if (refs.codiceCliente) refs.codiceCliente.value = root.dataset.pdaCustomerCode;
  root.dataset.pdaReading = data?.pda_lettura === 'ai' ? 'ai' : 'manuale';
  root.dataset.pdaOptionManual = (data?.pda_opzione_manuale === true
  || (data?.pda_opzione_manuale === undefined && Boolean(data?.opzione_id))) ? 'true' : 'false';
@@ -3222,6 +3230,7 @@ Reload Forever
  function readPdaFields() {
  const root = document.getElementById('pdaContractFields');
  return { ...window.MiroxPdaUI.readForm(root), pda_lettura: root.dataset.pdaReading || 'manuale',
+ codice_cliente: window.MiroxPda.customerCode(refs.codiceCliente?.value ?? root.dataset.pdaCustomerCode),
  pda_opzione_manuale: root.dataset.pdaOptionManual === 'true',
  pda_dispositivo_auto: root.dataset.pdaDeviceAuto === 'true' ? true : root.dataset.pdaDeviceAuto === 'false' ? false : null,
  pda_dispositivo_manuale: root.dataset.pdaDeviceManual === 'true',
@@ -3373,6 +3382,8 @@ Reload Forever
  maybeSelectMobileOption();
  maybeSelectFixedActivation();
  const categoriaNome = getCategoriaName();
+ if (refs.fieldCodiceCliente) refs.fieldCodiceCliente.classList.toggle('hidden', !window.MiroxPda.isPda(categoriaNome));
+ if (refs.codiceCliente) refs.codiceCliente.required = window.MiroxPda.isPda(categoriaNome);
  const offertaNome = getOffertaName();
  const opzioniDisponibili = filteredOpzioni();
  // Migration 035: catalogo Reload dismesso, niente render dropdown ne' calcolo visibility
@@ -3522,6 +3533,10 @@ Reload Forever
  const turista = isTuristaCluster(normalizedCluster);
  refs.cfPiva.value = normalizedCfPiva;
  return {
+ codici_cliente_windtre: window.MiroxPda.customerCodes([
+ ...(state.cart.contratti || []).filter(item => window.MiroxPda.isPda(item.categoria_nome || item.categoria_snapshot || item.snapshot?.categoria)).map(item => item.codice_cliente).filter(Boolean),
+ ...(window.MiroxPda.isPda(getCategoriaName()) && readPdaFields().codice_cliente ? [readPdaFields().codice_cliente] : [])
+ ]),
  cf_piva: normalizedCfPiva,
  cluster: normalizedCluster,
  ragione_sociale: refs.ragioneSociale.value.trim(),
@@ -3598,6 +3613,9 @@ Reload Forever
  const opzioneNome = opzione?.nome_opzione || '';
  const isFisso = isCategory(categoriaNome, 'Fisso');
  const isAllarmi = isCategory(categoriaNome, 'Allarmi');
+ if (window.MiroxPda.isPda(categoriaNome) && !readPdaFields().codice_cliente) {
+ throw new Error('Codice cliente WindTre obbligatorio o non valido: compilalo nei dati anagrafici');
+ }
  // BUG FIX: non usare isFieldVisible(...) perché in step 3 (upload PDF) la
  // step2Section e la deviceSection vengono nascoste, restituendo false anche
  // per campi che in step 2 erano stati compilati. Usiamo la stessa LOGICA
@@ -3760,6 +3778,7 @@ Reload Forever
 
  return {
  ...window.MiroxPda.validate(readPdaFields(), categoriaNome),
+ codice_cliente: readPdaFields().codice_cliente,
  pda_lettura: readPdaFields().pda_lettura,
  pda_opzione_manuale: readPdaFields().pda_opzione_manuale,
  pda_dispositivo_auto: readPdaFields().pda_dispositivo_auto,
@@ -4682,6 +4701,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
 
  return {
  ...window.MiroxPda.validate(item, item.categoria_nome || item.categoria_snapshot || item.snapshot?.categoria),
+ codice_cliente: window.MiroxPda.isPda(item.categoria_nome || item.categoria_snapshot || item.snapshot?.categoria) ? window.MiroxPda.customerCode(item.codice_cliente, true) : null,
  temp_id: item.temp_id,
  categoria_id: item.categoria_id,
  offerta_id: item.offerta_id,
@@ -6078,6 +6098,9 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  if (!await window.MiroxPdaUI.checkCode(code, state.cart.contratti, runtimeState.editingTempId)) return;
  if (!stillCurrent()) return;
  data.codice_contratto = code;
+ data.codice_cliente = window.MiroxPda.customerCode(data.codice_cliente)
+ || await window.MiroxPdaUI.askCustomerCode('');
+ if (!data.codice_cliente || !stillCurrent()) return;
  // Il contatto della prima PDA resta quello della pratica; non usare mai SIM/MNP come fallback.
  if (!runtimeState.anagraficaCompleted) {
  data.cellulare = window.MiroxPda.phone(data.cellulare) || await window.MiroxPdaUI.askContact();
@@ -6095,6 +6118,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  // Gli altri contratti aggiornano soltanto i dati contratto/dispositivo, mai il contatto OTP.
  if (refs.codiceRivenditore) refs.codiceRivenditore.value = CODICE_RIVENDITORE_DEFAULT;
  renderPdaFields({ ...window.MiroxPda.normalize(data), pda_lettura: data.pda_lettura,
+ codice_cliente: data.codice_cliente,
  pda_dispositivo_auto: data.dispositivo_presente, pda_dispositivo_manuale: false,
  pda_tipo_attivazione_auto: data.tipo_attivazione_fisso, pda_tipo_attivazione_manuale: false });
  goToStep(runtimeState.anagraficaCompleted ? 3 : 2);
@@ -6305,6 +6329,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
 
  [
  refs.cluster,
+ refs.codiceCliente,
  refs.ragioneSociale,
  refs.nomeReferente,
  refs.cellulare,

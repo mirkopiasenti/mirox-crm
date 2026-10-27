@@ -146,18 +146,19 @@ test('editor PDA respinge collisione concorrente tramite vincolo DB senza succes
   assert.equal(response.statusCode,409);assert.equal(JSON.parse(response.body).error_code,'contratto_duplicato');
 });
 
-function pdaWizardFixture({ completed = false, duplicate = false, manual = false, stale = false, differentClient = false, incomplete = false, ocrFailure = false, missingCode = false } = {}) {
+function pdaWizardFixture({ completed = false, duplicate = false, manual = false, stale = false, differentClient = false, incomplete = false, ocrFailure = false, missingCode = false, customerCode = null, cancelCustomer = false, staleCustomer = false } = {}) {
   const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
   const start=source.indexOf(' async function processPda(useAi)');
   const end=source.indexOf(" refs.btnPdaAnalyzeAi.addEventListener",start);
   const runtimeState={anagraficaCompleted:completed,pdaRevision:1,processingPda:false,editingTempId:null};
   const calls=[]; let contact='3350000000', form;
   const refs={filePda:{files:[{}]},btnPdaAnalyzeAi:{},btnPdaSkipAi:{},codiceRivenditore:{},cfPiva:{value:'RSSMRA80A01H501U'}};
-  const response={...mobile,cellulare:'3359999999',codice_contratto:'NEW',cf_piva:differentClient?'VRDLGI80A01H501U':null,codice_rivenditore:'9000822241'};
+  const response={...mobile,cellulare:'3359999999',codice_contratto:'NEW',cf_piva:differentClient?'VRDLGI80A01H501U':null,codice_rivenditore:'9000822241',codice_cliente:customerCode};
   if(incomplete)response.numero_telefono=null;
   if(missingCode)response.codice_contratto=null;
   const ctx={runtimeState,refs,window:{MiroxPda:Pda,MiroxPdaUI:{
     async askCode(){calls.push('ask-code');return 'MANUAL';},
+    async askCustomerCode(){calls.push('ask-customer-code');if(staleCustomer)runtimeState.pdaRevision++;return cancelCustomer?null:'P0001234567';},
     async askContact(){calls.push('ask-contact');return '3351234567';},
     async checkCode(code){calls.push('check:'+code);return !duplicate;}
   },MiroxUI:{async alert(){calls.push('alert');}}},state:{cart:{contratti:[]}},CODICE_RIVENDITORE_DEFAULT:'9001415852',
@@ -177,7 +178,7 @@ test('wizard multi-contratto analizza ogni PDA preservando il contatto della pri
 });
 test('wizard manuale chiede codice e controlla duplicati prima di contatto e upload',async()=>{
   const ui=pdaWizardFixture({manual:true});await ui.run();
-  assert.deepEqual(ui.calls,['ask-code','check:MANUAL','ask-contact','upload','anagrafica','step:2']);assert.equal(ui.form.pda_lettura,'manuale');
+  assert.deepEqual(ui.calls,['ask-code','check:MANUAL','ask-customer-code','ask-contact','upload','anagrafica','step:2']);assert.equal(ui.form.pda_lettura,'manuale');
   const duplicate=pdaWizardFixture({manual:true,duplicate:true});await duplicate.run();
   assert.deepEqual(duplicate.calls,['ask-code','check:MANUAL']);assert.equal(duplicate.runtimeState.pendingPda,undefined);
 });
@@ -383,7 +384,7 @@ test('lettura AI/manuale e valori nascosti sopravvivono al restore e al reset de
   const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
   const a=source.indexOf(' function renderPdaFields(data)'),b=source.indexOf(' async function checkPendingCode()',a);
   const root={dataset:{},addEventListener(){}};let last;
-  const ctx={document:{getElementById:()=>root},getCategoriaName:()=> 'Mobile',queueDraftSave(){},window:{MiroxPda:Pda,
+  const ctx={refs:{},document:{getElementById:()=>root},getCategoriaName:()=> 'Mobile',queueDraftSave(){},window:{MiroxPda:Pda,
     MiroxPdaUI:{formHtml(data,cat,options){last={data,options};return 'form';},bindForm(){},readForm(){return last.data;}}}};
   vm.runInNewContext(source.slice(a,b)+';this.render=renderPdaFields;this.read=readPdaFields;',ctx);
   ctx.render({...mobile,pda_lettura:'ai'});assert.equal(last.options.reading,'ai');assert.equal(ctx.read().costo_offerta_mensile,9.99);
@@ -396,7 +397,7 @@ test('payload server conserva i valori PDA nascosti senza inviare metadati UI',(
   const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
   const a=source.indexOf(' function buildInvioPayload()'),b=source.indexOf(' async function inviaPratica()',a);
   const item={...Pda.validate({...mobile,portabilita:true,numero_telefono:'3491234567',numero_mnp:'3491234567',numero_provvisorio:'3931234567',operatore_provenienza:'Vodafone'},'Mobile'),
-    pda_lettura:'ai',pda_dispositivo_auto:false,pda_dispositivo_manuale:true,pda_tipo_attivazione_auto:'Portabilita',pda_tipo_attivazione_manuale:true,categoria_nome:'Mobile',categoria_id:'cat',offerta_id:'offer',flags:{},files:{},codice_rivenditore:'9000822241'};
+    codice_cliente:'P0001234567',pda_lettura:'ai',pda_dispositivo_auto:false,pda_dispositivo_manuale:true,pda_tipo_attivazione_auto:'Portabilita',pda_tipo_attivazione_manuale:true,categoria_nome:'Mobile',categoria_id:'cat',offerta_id:'offer',flags:{},files:{},codice_rivenditore:'9000822241'};
   const state={cart:{contratti:[item]}},cliente={cf_piva:'RSSMRA80A01H501U'};
   const ctx={window:{MiroxPda:Pda},state,getClienteFormData:()=>cliente,validateClienteData(){},
     praticaFiles:{documento_identita:[{}]},runtimeState:{},refs:{originePratica:{value:'spontaneo'},operatoreId:{value:'operator'}},
@@ -405,4 +406,17 @@ test('payload server conserva i valori PDA nascosti senza inviare metadati UI',(
   const saved=ctx.payload().contratti[0];
   for(const key of Pda.FIELDS)assert.equal(saved[key],item[key],key);
   assert.equal(saved.pda_lettura,undefined);assert.equal(saved.pda_dispositivo_auto,undefined);assert.equal(saved.pda_dispositivo_manuale,undefined);assert.equal(saved.pda_tipo_attivazione_auto,undefined);assert.equal(saved.pda_tipo_attivazione_manuale,undefined);assert.equal(saved.codice_rivenditore,'9001415852');
+});
+
+test('codice cliente AI acquisito da ogni PDA, senza modificare OTP della prima pratica',async()=>{
+ for(const completed of [false,true]){
+  const ui=pdaWizardFixture({completed,customerCode:'P 0001234567'});await ui.run();
+  assert.equal(ui.form.codice_cliente,'P0001234567');assert.ok(!ui.calls.includes('ask-customer-code'));
+  if(completed)assert.equal(ui.contact,'3350000000');
+ }
+});
+test('codice cliente manuale annullato o risposta tardiva fermano lo staging',async()=>{
+ for(const opts of [{cancelCustomer:true},{staleCustomer:true}]){
+  const ui=pdaWizardFixture({manual:true,...opts});await ui.run();assert.ok(ui.calls.includes('ask-customer-code'));assert.ok(!ui.calls.includes('upload'));
+ }
 });

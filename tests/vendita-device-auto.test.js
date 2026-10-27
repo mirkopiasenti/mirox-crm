@@ -76,7 +76,7 @@ test('scelta incerta o gia manuale resta modificabile; dispositivo obbligatorio 
 
 test('metadati dispositivo conservano automatismo e override nel restore, nuovo PDA li azzera',()=>{
   const a=source.indexOf(' function renderPdaFields(data)'),b=source.indexOf(' async function checkPendingCode()',a),root={dataset:{},addEventListener(){}};
-  const ctx={document:{getElementById:()=>root},getCategoriaName:()=> 'Mobile',queueDraftSave(){},window:{MiroxPda:Pda,
+  const ctx={refs:{},document:{getElementById:()=>root},getCategoriaName:()=> 'Mobile',queueDraftSave(){},window:{MiroxPda:Pda,
     MiroxPdaUI:{formHtml:()=>'',bindForm(){},readForm:()=>({})}}};
   vm.runInNewContext(source.slice(a,b)+';this.render=renderPdaFields;this.read=readPdaFields;',ctx);
   ctx.render({pda_dispositivo_auto:false,pda_dispositivo_manuale:false,dispositivo_associato:'false'});

@@ -37,6 +37,17 @@ function fixedActivationFields(text) {
   return { tipo_attivazione_fisso: unique.size === 1 ? values[0] : null };
 }
 
+function customerCodeFields(text) {
+  // Etichetta esplicita, mai Codice Contratto/POS. La riga puo' contenere anche altri campi.
+  const matches = Array.from(text.matchAll(/\bCodice\s+Cliente\s*:[ \t]*([^\n]*)/gi));
+  if (!matches.length || matches.every(m => !m[1].trim())) return {};
+  const values = matches.map(m => {
+    const raw = m[1].split(/\b(?:Codice|Numero|Data|Pagina|Offerta)\b/i)[0].trim();
+    return Pda.customerCode(raw);
+  });
+  return { codice_cliente: values.every(v => v && v === values[0]) ? values[0] : null };
+}
+
 function sectionFields(text, completeText = true) {
   const normalized = String(text || '').normalize('NFKC').replace(/[\u00ad\u200b]/g, '').replace(/\r/g, '');
   const simHeader = /^[ \t]*DATI\s+DELLA\s+SIM\s+WINDTRE[ \t]*$/gim;
@@ -48,7 +59,7 @@ function sectionFields(text, completeText = true) {
     return end < 0 ? rest : rest.slice(0, end);
   });
   const sims = sections(simHeader), mnps = sections(mnpHeader);
-  const fixed = fixedActivationFields(normalized);
+  const fixed = { ...fixedActivationFields(normalized), ...customerCodeFields(normalized) };
   if (!sims.length && !mnps.length) return fixed;
   const unique = (blocks, pattern, normalize) => {
     const values = blocks.flatMap(block => Array.from(block.matchAll(pattern), m => normalize(m[1])));
@@ -101,4 +112,4 @@ async function readPdfFields(buffer) {
   }
 }
 
-module.exports = { layoutText, sectionFields, fixedActivationFields, readPdfFields };
+module.exports = { layoutText, sectionFields, fixedActivationFields, customerCodeFields, readPdfFields };

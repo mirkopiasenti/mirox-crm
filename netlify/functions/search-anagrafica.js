@@ -70,7 +70,7 @@ exports.handler = async (event) => {
 
     const { data, error } = await supabase
       .from('anagrafica')
-      .select('id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, email, provincia, comune, via, civico, created_at, updated_at')
+      .select('id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, email, provincia, comune, via, civico, created_at, updated_at, codici_cliente_windtre:anagrafica_codici_cliente_windtre(codice_cliente)')
       .ilike('cf_piva', normalizedCfPiva)
       .limit(1);
 

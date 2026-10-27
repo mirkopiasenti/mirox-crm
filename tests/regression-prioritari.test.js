@@ -28,6 +28,7 @@ function loadCommonJs(relativePath, stubs = {}) {
     module,
     process: { env: {} },
     require(id) {
+      if (id === './_lib/windtre-customer-codes') return require('../netlify/functions/_lib/windtre-customer-codes');
       if (id === './_lib/pda-contract') return require('../netlify/functions/_lib/pda-contract');
       if (id === '../../js/customer-base-device') return require('../js/customer-base-device');
       if (Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];

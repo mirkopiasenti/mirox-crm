@@ -301,3 +301,44 @@ letti localmente: tutti nuova linea, incluso contratto_fisso (3).pdf allegato;
 nessuna portabilita reale disponibile, ramo coperto da PDF sintetico. Nessun
 upload reale/OTP/scrittura anagrafica o browser. Guide aggiornate; rilascio e
 verifiche production nel promemoria.
+
+## Codici cliente WindTre anagrafici
+
+Codici cliente WindTre anagrafici (27/10): una anagrafica puo' avere piu' codici,
+conservati tutti senza sostituzione. Da PDA Mobile/Fisso/Customer Base si legge
+"Codice Cliente", distinto dal codice contratto; testo con prefissi e zeri
+iniziali, nessuna conversione numerica. Nuovo campo anagrafico nel wizard;
+manuale obbligatorio dopo il controllo duplicati e prima dello staging. AI lo
+compila dalla PDA; se assente/illeggibile/discordante chiede input, senza
+riutilizzare il codice di un'altra PDA. Ogni contratto del carrello conserva il
+proprio valore, anche in bozza; OTP e anti-duplicati contratto restano invariati.
+Altri reparti non acquisiscono nuovi codici. Nuovi valori si aggiungono anche su
+cliente esistente; assenza non cancella quelli registrati. Consultabili nella
+scheda Anagrafiche e nell'export XLSX (celle testuali). Nessun backfill storico o
+sincronizzazione automatica del vecchio codice cliente del Controllo Fissi.
+
+Registro `anagrafica_codici_cliente_windtre` (PK anagrafica_id/codice_cliente,
+FK indicizzata dal prefisso PK, created_at): RLS ON, niente grant anon/authenticated,
+service_role solo SELECT/INSERT; upsert ignoreDuplicates senza UPDATE/DELETE.
+Migration `20261027220802_anagrafica_codici_cliente_windtre.sql` applicata e riletta:
+registro vuoto al rilascio, nessuna modifica a schema/RPC/RLS anagrafica/CC o
+colonne contratto. `_lib/windtre-customer-codes.js` riusato da garantisci-anagrafica
+e crea-vendita-pratica-carrello; search-anagrafica e gestisci-anagrafiche espongono
+la relazione in left join dal backend. Core PDA separa normalizzazione codici
+cliente/contratto. Chiamanti legacy senza nuovo campo restano compatibili; nuovo
+wizard richiede sempre il codice cliente della PDA. Test esclusivamente interni/
+HTTP, nessun browser. Verifica PostgreSQL isolata: `scripts/verifica-codici-cliente-sql.js`.
+
+Conferme proprietario: conservare piu codici sulla stessa anagrafica; input
+manuale obbligatorio.440/440test locali (439versionati+1backup preesistente),
+build OK;14nuove regressioni incluse lettura PDF, ambiguita, clienti nuovi/esistenti,
+append concorrente/idempotente, input assente/invalido/categoria non ammessa,
+annullamento e risposta tardiva prima upload, restore e serializer multi-PDA.
+Workbook con codici multipli e zeri verificato; PostgreSQL isolato PGlite0.5.12
+fuori dalle dipendenze del CRM conferma PK/FK/CHECK/grant e anagrafica invariata.
+Una PDA reale gia disponibile in area privata riconosciuta localmente; i PDF
+precedenti di Downloads non piu presenti, gli altri rami coperti sinteticamente.
+Nessun PDF reale inviato all'AI, nessuna pratica/OTP creati. Advisory prima/dopo:
+solo INFO atteso RLS senza policy sul registro server-only, rilievi preesistenti
+invariati. Migration generata con CLI e allineata alla versione MCP applicata.
+Rilascio frontend/backend e verifica SHA/CI nel promemoria.

@@ -1,5 +1,6 @@
 const Pda = require('./_lib/pda-contract');
 const {validateCombination}=require('../../js/customer-base-device');
+const { saveCodes } = require('./_lib/windtre-customer-codes');
 const { createClient } = require('@supabase/supabase-js');
 const { requireAuth } = require('./_lib/require-auth');
 const { INFORMATIVE_VERSIONI_CORRENTI } = require('./_lib/privacy-config');
@@ -879,6 +880,7 @@ exports.handler = async (event) => {
       .from('vendita_categorie').select('id, nome').in('id', [...new Set(normalizedContracts.map(c => c.categoria_id))]);
     if (pdaCategoryError) throw pdaCategoryError;
     const seenPdaCodes = new Set();
+    const customerCodes = [];
     for (let i = 0; i < normalizedContracts.length; i++) {
       const contract = normalizedContracts[i];
       const category = (pdaCategories || []).find(c => c.id === contract.categoria_id);
@@ -886,6 +888,14 @@ exports.handler = async (event) => {
       // Validate raw values too: malformed input must not silently become null.
       try { Object.assign(contract, Pda.validate(contrattiRaw[i], category.nome)); }
       catch (error) { error.statusCode = 400; throw error; }
+      const customerCode = Pda.customerCode(contrattiRaw[i].codice_cliente);
+      if (contrattiRaw[i].codice_cliente && (!customerCode || !Pda.isPda(category.nome))) {
+        throw Object.assign(new Error('Codice cliente WindTre non valido per questa categoria'), { statusCode: 400 });
+      }
+      if (Pda.isPda(category.nome) && Object.prototype.hasOwnProperty.call(contrattiRaw[i], 'codice_cliente') && !customerCode) {
+        throw Object.assign(new Error('Codice cliente WindTre obbligatorio nel caricamento manuale'), { statusCode: 400 });
+      }
+      if (customerCode) customerCodes.push(customerCode);
       if (contract.codice_contratto) {
         if (seenPdaCodes.has(contract.codice_contratto)) throw Pda.duplicateError();
         seenPdaCodes.add(contract.codice_contratto);
@@ -969,6 +979,8 @@ exports.handler = async (event) => {
 
       anagraficaId = anagraficaNuova.id;
     }
+
+    await saveCodes(supabase, anagraficaId, customerCodes);
 
     // ----------------------------------------------------------------
     // GUARD CONSENSO PRIVACY (migration 034).

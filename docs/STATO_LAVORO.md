@@ -3,6 +3,11 @@
 Aggiornato: 2026-10-27. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
+## Codici cliente WindTre: sviluppo e rilascio27/10
+
+- Proprietario conferma piu codici per anagrafica e input manuale obbligatorio. Estrazione da sole PDA Mobile/Fisso/Customer Base, distinta da codice contratto; input prima staging dopo duplicati, AI mancante chiede manuale. Campo anagrafico, draft/carrello preservati, scheda Anagrafiche/XLSX con tutti i codici, OTP invariato. Nuovi valori si aggiungono; nessun backfill o sincronizzazione vecchio Controllo Fissi.
+- Migration20261027220802 applicata/riletta: registro anagrafica_codici_cliente_windtre con PK composita/FK/created_at/CHECK/RLS ON, service_role SELECT/INSERT soltanto, anon/authenticated senza accesso;0righe. Schema anagrafica14colonne/CC/RPC/RLS esistenti invariati. Helper condiviso append idempotente, API cliente create/garantisci, ricerca e Anagrafiche.440test locali (439versionati+Backup)/build e PostgreSQL isolato OK;14regressioni nuove, nessun browser/upload reale/OTP. Una PDA privata locale letta, PDF Downloads precedenti assenti; prove mancanti sintetiche. Security advisor solo nuova INFO attesa server-only, rilievi precedenti invariati. Guide aggiornate; pubblicazione e verifica SHA/CI in corso.
+
 ## Verifica contratti: preparazione collaudo diurno28/10
 
 - Nuova indicazione: il proprietario verifica manualmente tutti i contratti attuali; domani28/10 prove assistite sui nuovi inserimenti durante il giorno, uno alla volta. Nessun nuovo collaudo storico/approvazione/email avviato. Ultima modalità confermata collaudo, nessuna attivazione richiesta.

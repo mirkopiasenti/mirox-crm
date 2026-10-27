@@ -54,7 +54,7 @@ test('override Mobile si ripristina, vecchie scelte si conservano e un nuovo PDA
   const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
   const a=source.indexOf(' function renderPdaFields(data)'),b=source.indexOf(' async function checkPendingCode()',a);
   const root={dataset:{},addEventListener(){}};
-  const ctx={document:{getElementById:()=>root},getCategoriaName:()=> 'Mobile',queueDraftSave(){},window:{MiroxPda:Pda,
+  const ctx={refs:{},document:{getElementById:()=>root},getCategoriaName:()=> 'Mobile',queueDraftSave(){},window:{MiroxPda:Pda,
     MiroxPdaUI:{formHtml:()=>'',bindForm(){},readForm:()=>({})}}};
   vm.runInNewContext(source.slice(a,b)+';this.render=renderPdaFields;this.read=readPdaFields;',ctx);
   ctx.render({pda_lettura:'ai',pda_opzione_manuale:true,opzione_id:'standard'});
@@ -69,7 +69,7 @@ function confirmationFixture(){
   const a=source.indexOf(' async function confirmMobileOptionChange()'),b=source.indexOf(' function renderReload(',a);
   const root={dataset:{pdaAutoOption:'promo',pdaOptionManual:'false'}},refs={opzione:{value:'standard'},offerta:{value:'offer'}};
   const runtimeState={pdaRevision:1,editingTempId:null};let decide,renders=0,saves=0,questions=0,message;
-  const ctx={document:{getElementById:()=>root},refs,runtimeState,isCategory:(a,b)=>a===b,getCategoriaName:()=> 'Mobile',
+  const ctx={refs:{},document:{getElementById:()=>root},refs,runtimeState,isCategory:(a,b)=>a===b,getCategoriaName:()=> 'Mobile',
     filteredOpzioni:()=>options,window:{MiroxUI:{confirm(text,opts){questions++;message={text,opts};return new Promise(resolve=>{decide=resolve;});}}},
     renderDynamicSections(){renders++;},queueDraftSave(){saves++;}};
   vm.runInNewContext(source.slice(a,b)+';this.change=confirmMobileOptionChange;',ctx);

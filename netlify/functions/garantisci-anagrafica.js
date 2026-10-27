@@ -30,6 +30,9 @@
 const { createClient } = require('@supabase/supabase-js');
 const { requireAuth } = require('./_lib/require-auth');
 
+const Pda = require('../../js/vendita-pda-core');
+const { saveCodes } = require('./_lib/windtre-customer-codes');
+
 const CLUSTER_AMMESSI = new Set(['Consumer', 'Business', 'Turista']);
 
 const CORS_HEADERS = {
@@ -87,6 +90,9 @@ exports.handler = async (event) => {
 
     const cliente = payload.cliente || {};
 
+    let customerCodes;
+    try { customerCodes = Pda.customerCodes(cliente.codici_cliente_windtre || []); }
+    catch (e) { return response(400, { success: false, error: e.message }); }
     const cfPiva = normalizeCfPiva(cliente.cf_piva);
     const ragioneSociale = cleanString(cliente.ragione_sociale);
     const nomeReferente = cleanString(cliente.nome_referente);
@@ -150,6 +156,7 @@ exports.handler = async (event) => {
                     .eq('id', esistente.id);
                 if (updErr) return response(500, { success: false, error: 'Errore update anagrafica: ' + updErr.message });
             }
+            await saveCodes(supabase, esistente.id, customerCodes);
             return response(200, { success: true, anagrafica_id: esistente.id, created: false });
         }
 
@@ -172,6 +179,7 @@ exports.handler = async (event) => {
         if (insertErr) {
             return response(500, { success: false, error: 'Errore creazione anagrafica: ' + insertErr.message });
         }
+        await saveCodes(supabase, nuova.id, customerCodes);
         return response(200, { success: true, anagrafica_id: nuova.id, created: true });
     } catch (e) {
         return response(500, { success: false, error: 'Errore inatteso: ' + (e?.message || String(e)) });

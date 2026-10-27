@@ -91,6 +91,8 @@ successivo letture live SQL/REST in timeout, configurazione non riconfermata.
 | `netlify.toml` | Config Netlify, header di sicurezza (CSP/HSTS/Permissions-Policy) e cron |
 | `js/verifica-contratti-core.js`, `js/verifica-contratti-automatica.js`, `css/verifica-contratti-automatica.css` | Regole documentali pure e pannello Verifica Contratti con CSV, esiti e collaudo assistito |
 | `scripts/verifica-automatica-sql.js` | Collaudo PostgreSQL isolato della nuova coda, commit atomico e grant |
+| `netlify/functions/_lib/windtre-customer-codes.js` | Registro anagrafico dei codici cliente WindTre, append idempotente |
+| `scripts/verifica-codici-cliente-sql.js` | Collaudo isolato di schema, RLS e permessi dei codici cliente |
 | `package.json` | Dipendenze Node delle functions |
 | `CLAUDE.md` | Mappa completa per AI assistants (architettura, schema, regole di business, convenzioni) |
 
@@ -263,6 +265,31 @@ conservati in draft/carrello con pda_tipo_attivazione_auto e
 pda_tipo_attivazione_manuale, esclusi dal payload DB; nuova PDA azzera lo stato,
 bozze legacy conservano la scelta. Si usa la colonna tipo_attivazione esistente,
 nessuna migration o riscrittura storica. Solo test interni/HTTP, senza browser.
+
+Codici cliente WindTre anagrafici (27/10): una anagrafica puo' avere piu' codici,
+conservati tutti senza sostituzione. Da PDA Mobile/Fisso/Customer Base si legge
+"Codice Cliente", distinto dal codice contratto; testo con prefissi e zeri
+iniziali, nessuna conversione numerica. Nuovo campo anagrafico nel wizard;
+manuale obbligatorio dopo il controllo duplicati e prima dello staging. AI lo
+compila dalla PDA; se assente/illeggibile/discordante chiede input, senza
+riutilizzare il codice di un'altra PDA. Ogni contratto del carrello conserva il
+proprio valore, anche in bozza; OTP e anti-duplicati contratto restano invariati.
+Altri reparti non acquisiscono nuovi codici. Nuovi valori si aggiungono anche su
+cliente esistente; assenza non cancella quelli registrati. Consultabili nella
+scheda Anagrafiche e nell'export XLSX (celle testuali). Nessun backfill storico o
+sincronizzazione automatica del vecchio codice cliente del Controllo Fissi.
+
+Registro `anagrafica_codici_cliente_windtre` (PK anagrafica_id/codice_cliente,
+FK indicizzata dal prefisso PK, created_at): RLS ON, niente grant anon/authenticated,
+service_role solo SELECT/INSERT; upsert ignoreDuplicates senza UPDATE/DELETE.
+Migration `20261027220802_anagrafica_codici_cliente_windtre.sql` applicata e riletta:
+registro vuoto al rilascio, nessuna modifica a schema/RPC/RLS anagrafica/CC o
+colonne contratto. `_lib/windtre-customer-codes.js` riusato da garantisci-anagrafica
+e crea-vendita-pratica-carrello; search-anagrafica e gestisci-anagrafiche espongono
+la relazione in left join dal backend. Core PDA separa normalizzazione codici
+cliente/contratto. Chiamanti legacy senza nuovo campo restano compatibili; nuovo
+wizard richiede sempre il codice cliente della PDA. Test esclusivamente interni/
+HTTP, nessun browser. Verifica PostgreSQL isolata: `scripts/verifica-codici-cliente-sql.js`.
 
 ### Documento identita per contratto
 

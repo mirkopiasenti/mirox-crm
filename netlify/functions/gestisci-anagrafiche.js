@@ -25,7 +25,8 @@ const SELECT_FIELDS = [
   'created_at',
   'updated_at',
   'creato_da',
-  'creatore:profili!anagrafica_creato_da_fkey(nome)'
+  'creatore:profili!anagrafica_creato_da_fkey(nome)',
+  'codici_cliente_windtre:anagrafica_codici_cliente_windtre(codice_cliente)'
 ].join(',');
 
 const CLUSTERS = new Set(['Consumer', 'Business']);
@@ -447,7 +448,8 @@ const EXPORT_COLUMNS = [
   ['Creato da', creatorName],
   ['ID creatore', (row) => row.creato_da],
   ['Creato il', (row) => formatDateTime(row.created_at)],
-  ['Aggiornato il', (row) => formatDateTime(row.updated_at)]
+  ['Aggiornato il', (row) => formatDateTime(row.updated_at)],
+  ['Codici cliente WindTre', (row) => (row.codici_cliente_windtre || []).map(c => c.codice_cliente).join(', ')]
 ];
 
 function inlineStringCell(reference, value, styleId = 0) {
@@ -466,7 +468,7 @@ function buildSheetXml(rows) {
     )).join('');
     return `<row r="${excelRow}">${cells}</row>`;
   }).join('');
-  const widths = [38, 13, 32, 26, 24, 20, 30, 12, 22, 28, 10, 22, 38, 19, 19]
+  const widths = [38, 13, 32, 26, 24, 20, 30, 12, 22, 28, 10, 22, 38, 19, 19, 32]
     .map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`)
     .join('');
 
