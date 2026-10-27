@@ -1,3 +1,4 @@
+const Pda = require('./_lib/pda-contract');
 const { requireAuth, getAdminClient } = require('./_lib/require-auth');
 const {
   assertPersistedContractScores,
@@ -7,6 +8,7 @@ const {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONTRACT_FIELDS = new Set([
+  ...Pda.FIELDS,
   'data_contratto',
   'operatore_id',
   'categoria_id',
@@ -184,7 +186,8 @@ async function updateContract({ supabase, auth, body }) {
     .select(`
       id, anagrafica_id, pratica_id, stato_controllo,
       categoria_id, categoria_snapshot, offerta_id, opzione_id, reload_id,
-      ricorrenza_assicurazione,
+      ricorrenza_assicurazione, codice_contratto, costo_offerta_mensile, portabilita,
+      numero_telefono, numero_provvisorio, numero_mnp, operatore_provenienza,
       punteggio_gara_offerta, punteggio_gara_opzione,
       punteggio_extra_gara_offerta, punteggio_extra_gara_opzione
     `)
@@ -203,6 +206,19 @@ async function updateContract({ supabase, auth, body }) {
     };
   } else {
     patch = pickAllowed(body.contratto, CONTRACT_FIELDS);
+    try {
+      const finalCategory = patch.categoria_id && patch.categoria_id !== current.categoria_id
+        ? (await loadCatalogRow(supabase, 'vendita_categorie', patch.categoria_id, 'id, nome')).nome
+        : current.categoria_snapshot;
+      const pdaPatch = Pda.validate({ ...current, ...patch }, finalCategory,
+        { requireCode: Boolean(current.codice_contratto), allowLegacy: !Pda.hasMobileData(current) });
+      Object.assign(patch, pdaPatch);
+      if (pdaPatch.codice_contratto) await Pda.assertAvailable(supabase, pdaPatch.codice_contratto, current.id);
+    } catch (error) {
+      if (error.statusCode === 409) throw error;
+      if (/obbligatorio|non valido|coerente|Seleziona|ammesso/.test(error.message)) error.statusCode = 400;
+      throw error;
+    }
     snapshotPatch = await deriveCatalogSnapshots(supabase, current, patch);
     patch = { ...patch, ...snapshotPatch };
 
@@ -264,6 +280,31 @@ async function updateContract({ supabase, auth, body }) {
     }
   });
 
+  return response(200, { success: true, contratto });
+}
+
+async function updatePda({ supabase, auth, body }) {
+  if (!isUuid(body.contratto_id)) return response(400, { success: false, error: 'contratto_id non valido' });
+  const { data: current, error } = await supabase.from('vendita_contratti')
+    .select('*').eq('id', body.contratto_id).maybeSingle();
+  if (error) throw error;
+  if (!current) return response(404, { success: false, error: 'Contratto non trovato' });
+  if (!Pda.isPda(current.categoria_snapshot)) return response(400, { success: false, error: 'Categoria senza PDA' });
+  if (current.updated_at && body.expected_updated_at !== current.updated_at) {
+    return response(409, { success: false, error: 'Dati modificati da un altro operatore. Riapri il contratto e riprova.' });
+  }
+  let patch;
+  try {
+    patch = Pda.validate({ ...current, ...pickAllowed(body.contratto, new Set(Pda.FIELDS)) },
+      current.categoria_snapshot, { requireCode: Boolean(current.codice_contratto), allowLegacy: !Pda.hasMobileData(current) });
+  } catch (e) { return response(400, { success: false, error: e.message }); }
+  if (patch.codice_contratto) await Pda.assertAvailable(supabase, patch.codice_contratto, current.id);
+  patch.updated_by = canonicalProfileId(auth);
+  let update = supabase.from('vendita_contratti').update(patch).eq('id', current.id);
+  if (current.updated_at) update = update.eq('updated_at', current.updated_at);
+  const { data: contratto, error: updateError } = await update.select('*').maybeSingle();
+  if (updateError) throw updateError;
+  if (!contratto) return response(409, { success: false, error: 'Dati modificati da un altro operatore. Riapri il contratto e riprova.' });
   return response(200, { success: true, contratto });
 }
 
@@ -333,6 +374,11 @@ exports.handler = async (event) => {
   }
 
   try {
+    if (body.action === 'check_codice') {
+      const duplicate = await Pda.findDuplicate(supabase, body.codice_contratto);
+      return response(200, { success: true, duplicate });
+    }
+    if (body.action === 'update_pda') return await updatePda({ supabase, auth, body });
     if (body.action === 'update') {
       return await updateContract({ supabase, auth, body });
     }
@@ -341,7 +387,10 @@ exports.handler = async (event) => {
     }
     return response(400, { success: false, error: 'Action non valida' });
   } catch (error) {
-    return response(500, {
+    if (Pda.isDuplicateViolation(error)) error = Pda.duplicateError();
+    return response(error.statusCode || 500, {
+      error_code: error.error_code || null,
+      duplicate: error.duplicate || null,
       success: false,
       error: error?.message || 'Operazione sul contratto non riuscita'
     });
@@ -349,6 +398,7 @@ exports.handler = async (event) => {
 };
 
 exports._test = {
+  updatePda,
   assertPersistedContractScores,
   canonicalProfileId,
   deriveCatalogSnapshots,

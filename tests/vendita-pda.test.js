@@ -1,0 +1,291 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const Pda = require('../js/vendita-pda-core');
+const serverPda = require('../netlify/functions/_lib/pda-contract');
+const { normalizeResult } = require('../netlify/functions/ocr-pda')._test;
+const mobile = { codice_contratto: ' 00ab 123 ', costo_offerta_mensile: '9,99',
+  portabilita: false, numero_telefono: '+39 333 1234567' };
+const id = '11111111-1111-4111-8111-111111111111';
+
+test('identificatori PDA: conserva lettere, zeri e separatori; non accetta markup o numeri convertiti', () => {
+  assert.equal(Pda.code(' 00ab 123/4-5 '), '00AB123/4-5');
+  for (const bad of [null, '', 1234, 'a'.repeat(81), '<img>', '123;drop']) assert.equal(Pda.code(bad), null);
+  for (const bad of ['9.999', '-1', '9,99 EUR', '1e2', 'Infinity', '1.000,00']) assert.equal(Pda.money(bad), null);
+  assert.equal(Pda.money('0,00'), 0);
+  assert.equal(Pda.phone('0039 333 123456'), '333123456');
+});
+
+test('Mobile nuovo numero e portabilita mantengono numerazioni distinte dal contatto OTP', () => {
+  assert.deepEqual(Pda.validate(mobile, 'Mobile'), { codice_contratto: '00AB123',
+    costo_offerta_mensile: 9.99, portabilita: false, numero_telefono: '3331234567',
+    numero_provvisorio: null, numero_mnp: null, operatore_provenienza: null });
+  const mnp = { ...mobile, portabilita: true, numero_telefono: '3491234567',
+    numero_mnp: '3491234567', numero_provvisorio: '3931234567', operatore_provenienza: ' Vodafone ' };
+  assert.equal(Pda.validate(mnp, 'Mobile').operatore_provenienza, 'Vodafone');
+  for (const key of ['numero_mnp', 'numero_provvisorio', 'operatore_provenienza', 'costo_offerta_mensile']) {
+    assert.throws(() => Pda.validate({ ...mnp, [key]: null }, 'Mobile'));
+  }
+  assert.throws(() => Pda.validate({ ...mnp, numero_mnp: '3481234567' }, 'Mobile'), /coerente/);
+  assert.throws(() => Pda.validate({ ...mobile, portabilita: null }, 'Mobile'), /Seleziona/);
+});
+
+test('Customer Base e Fisso richiedono solo codice; storico vuoto modificabile senza backfill', () => {
+  for (const category of ['Customer Base', 'Fisso']) {
+    const result = Pda.validate(mobile, category);
+    assert.equal(result.codice_contratto, '00AB123');
+    assert.ok(Pda.FIELDS.slice(1).every(k => result[k] === null));
+    assert.throws(() => Pda.validate({}, category), /Codice/);
+  }
+  assert.equal(Pda.validate({}, 'Mobile', { requireCode: false, allowLegacy: true }).codice_contratto, null);
+  assert.throws(() => Pda.validate({}, 'Mobile', { allowLegacy: true }), /Codice/);
+  assert.equal(Pda.validate({}, 'Energia').codice_contratto, null);
+});
+
+test('OCR mantiene contatto firma, SIM, provvisorio e MNP separati e non inventa costo mancante', () => {
+  const result = normalizeResult({ cellulare: '+393351234567', codice_contratto: '0012 abc',
+    numero_sim: '+393931234567', portabilita: true, numero_mnp: '+393491234567',
+    operatore_provenienza: 'Vodafone', costo_offerta_mensile: '9,99' });
+  assert.equal(result.cellulare, '3351234567');
+  assert.equal(result.numero_telefono, '3491234567');
+  assert.equal(result.numero_provvisorio, '3931234567');
+  assert.equal(result.costo_offerta_mensile, 9.99);
+  const partial = normalizeResult({ numero_sim: '3931234567', portabilita: false });
+  assert.equal(partial.numero_telefono, '3931234567');
+  assert.equal(partial.cellulare, null);
+  assert.equal(partial.numero_mnp, null);
+  assert.equal(partial.costo_offerta_mensile, null);
+  const ambiguous = normalizeResult({ numero_sim: '3931234567', portabilita: true });
+  assert.equal(ambiguous.numero_telefono, null);
+  assert.equal(ambiguous.numero_provvisorio, '3931234567');
+});
+
+function duplicateDb(rows, failure) {
+  return { from(table) {
+    assert.equal(table, 'vendita_contratti');
+    let code, exclude;
+    const q = { select() { return q; }, eq(k,v) { assert.equal(k,'codice_contratto'); code=v; return q; },
+      neq(k,v) { assert.equal(k,'id'); exclude=v; return q; },
+      async limit() { return failure ? { error: new Error('DB non disponibile') }
+        : { data: rows.filter(r => r.codice_contratto === code && r.id !== exclude).slice(0,1) }; } };
+    return q;
+  } };
+}
+test('duplicati globali: KO/storico/altro negozio restano bloccanti, errori DB non significano assenza', async () => {
+  const existing = { id, codice_contratto:'00AB123', stato:'KO', codice_rivenditore:'altro', data_contratto:'2020-01-01' };
+  const db=duplicateDb([existing]);
+  assert.equal((await serverPda.findDuplicate(db,'00ab 123')).id,id);
+  await assert.rejects(serverPda.assertAvailable(db,'00ab123'), e => e.statusCode===409 && e.error_code==='contratto_duplicato');
+  assert.equal(await serverPda.findDuplicate(db,'00ab123',id),null);
+  await assert.rejects(serverPda.findDuplicate(duplicateDb([],true),'ABC'),/DB non disponibile/);
+  assert.equal(serverPda.isDuplicateViolation({code:'23505',message:'index vendita_contratti_codice_pda_unique'}),true);
+  assert.equal(serverPda.isDuplicateViolation({code:'23505',message:'altro indice'}),false);
+});
+
+function loadHandler(file, db) {
+  const module = { exports: {} };
+  const filename=path.join(__dirname,'../netlify/functions/',file);
+  const nativeRequire=require('node:module').createRequire(filename);
+  vm.runInNewContext(fs.readFileSync(filename,'utf8'), { module, exports:module.exports, Buffer, Date, Intl,
+    console:{log(){},warn(){},error(){}},process:{env:{SUPABASE_URL:'https://example.invalid',SUPABASE_SERVICE_ROLE_KEY:'test'}},
+    require(name) {
+      if(name==='@supabase/supabase-js') return {createClient:()=>db};
+      if(name==='./_lib/require-auth') return {requireAuth:async()=>({ok:true,profilo:{id,ruolo:'operatore'}}),getAdminClient:()=>db};
+      return nativeRequire(name);
+    }
+  },{filename});
+  return module.exports;
+}
+function event(body) { return {httpMethod:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}; }
+
+test('create blocca codice mancante/duplicati nel carrello prima di qualsiasi scrittura',async()=>{
+  for(const scenario of ['missing','cart','stored','db-failure']) {
+    let writes=0;
+    const db=duplicateDb(scenario==='stored'?[{id,codice_contratto:'00AB123'}]:[],scenario==='db-failure');
+    const orig=db.from;
+    db.from=table=>{
+      if(table==='vendita_categorie')return {select(){return this;},async in(){return {data:[{id:'cat',nome:'Customer Base'}]};}};
+      if(table==='vendita_contratti')return orig(table);
+      writes++;throw new Error('Scrittura prematura '+table);
+    };
+    const api=loadHandler('crea-vendita-pratica-carrello.js',db);
+    const c={categoria_id:'cat',offerta_id:'offer',codice_contratto:scenario==='missing'?null:'00AB123'};
+    const response=await api.handler(event({cliente:{cf_piva:'RSSMRA80A01H501U',ragione_sociale:'Cliente test',
+      cluster:'Consumer',cellulare:'3331234567',email:'test@example.invalid'},contratti:scenario==='cart'?[c,c]:[c]}));
+    assert.equal(response.statusCode,scenario==='missing'?400:scenario==='db-failure'?500:409,scenario);
+    assert.equal(writes,0);
+  }
+});
+
+test('editor PDA disponibile agli operatori senza alterare punteggi/stato/anagrafica',async()=>{
+  const current={id,categoria_snapshot:'Customer Base',codice_contratto:'OLD',stato_controllo:'controllato',punteggio_gara_totale:12};
+  let patch;
+  const db={from(table){assert.equal(table,'vendita_contratti');let update;
+    const q={select(){return q;},eq(){return q;},neq(){return q;},async limit(){return {data:[]};},
+      async maybeSingle(){return {data:update ? {...current,...update} : current};},update(v){update=v;patch=v;return q;},async single(){return {data:{...current,...update}};}};return q;}};
+  const api=loadHandler('gestisci-vendita-contratto.js',db);
+  const response=await api.handler(event({action:'update_pda',contratto_id:id,contratto:{codice_contratto:' 00new ',stato_controllo:'da_controllare',punteggio_gara_totale:999}}));
+  assert.equal(response.statusCode,200);
+  const data=JSON.parse(response.body).contratto;
+  assert.equal(data.codice_contratto,'00NEW');assert.equal(data.stato_controllo,'controllato');assert.equal(data.punteggio_gara_totale,12);
+  assert.equal(patch.stato_controllo,undefined);assert.equal(patch.punteggio_gara_totale,undefined);
+});
+
+test('editor PDA respinge collisione concorrente tramite vincolo DB senza successo apparente',async()=>{
+  const db={from(){let updating=false;const q={select(){return q;},eq(){return q;},neq(){return q;},async limit(){return {data:[]};},
+    async maybeSingle(){return updating ? {error:{code:'23505',message:'vendita_contratti_codice_pda_unique'}} : {data:{id,categoria_snapshot:'Fisso',codice_contratto:'OLD'}};},update(){updating=true;return q;}};return q;}};
+  const api=loadHandler('gestisci-vendita-contratto.js',db);
+  const response=await api.handler(event({action:'update_pda',contratto_id:id,contratto:{codice_contratto:'NEW'}}));
+  assert.equal(response.statusCode,409);assert.equal(JSON.parse(response.body).error_code,'contratto_duplicato');
+});
+
+function pdaWizardFixture({ completed = false, duplicate = false, manual = false, stale = false, differentClient = false } = {}) {
+  const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
+  const start=source.indexOf(' async function processPda(useAi)');
+  const end=source.indexOf(" refs.btnPdaAnalyzeAi.addEventListener",start);
+  const runtimeState={anagraficaCompleted:completed,pdaRevision:1,processingPda:false,editingTempId:null};
+  const calls=[]; let contact='3350000000', form;
+  const refs={filePda:{files:[{}]},btnPdaAnalyzeAi:{},btnPdaSkipAi:{},codiceRivenditore:{},cfPiva:{value:'RSSMRA80A01H501U'}};
+  const response={...mobile,cellulare:'3359999999',codice_contratto:'NEW',cf_piva:differentClient?'VRDLGI80A01H501U':null};
+  const ctx={runtimeState,refs,window:{MiroxPda:Pda,MiroxPdaUI:{
+    async askCode(){calls.push('ask-code');return 'MANUAL';},
+    async askContact(){calls.push('ask-contact');return '3351234567';},
+    async checkCode(code){calls.push('check:'+code);return !duplicate;}
+  },MiroxUI:{async alert(){calls.push('alert');}}},state:{cart:{contratti:[]}},CODICI_RIVENDITORE:[],
+    normalizeCfPiva:v=>String(v||'').trim().toUpperCase(),getCategoriaName:()=> 'Mobile',showLoadingOverlay(){},hideLoadingOverlay(){},
+    async chiamaOcr(){calls.push('ocr');if(stale)runtimeState.pdaRevision++;return response;},
+    async uploadPdaStaging(){calls.push('upload');return {storage_path:'temp/test.pdf'};},
+    applyOcrToAnagrafica(data){calls.push('anagrafica');contact=data.cellulare;},
+    renderPdaFields(data){form=data;},goToStep(step){calls.push('step:'+step);},queueDraftSave(){},showUserError(msg){throw new Error(msg);}};
+  vm.runInNewContext(source.slice(start,end)+'\nthis.processPda=processPda;',ctx);
+  return {async run(){await ctx.processPda(!manual);},calls,runtimeState,get contact(){return contact;},get form(){return form;}};
+}
+test('wizard multi-contratto analizza ogni PDA preservando il contatto della prima pratica',async()=>{
+  const first=pdaWizardFixture();await first.run();assert.equal(first.contact,'3359999999');assert.ok(first.calls.includes('step:2'));
+  const second=pdaWizardFixture({completed:true});await second.run();assert.equal(second.contact,'3350000000');
+  assert.ok(second.calls.includes('ocr'));assert.ok(second.calls.includes('step:3'));assert.equal(second.form.codice_contratto,'NEW');
+  assert.ok(!second.calls.includes('ask-contact'));assert.ok(!second.calls.includes('anagrafica'));
+});
+test('wizard manuale chiede codice e controlla duplicati prima di contatto e upload',async()=>{
+  const ui=pdaWizardFixture({manual:true});await ui.run();
+  assert.deepEqual(ui.calls,['ask-code','check:MANUAL','ask-contact','upload','anagrafica','step:2']);
+  const duplicate=pdaWizardFixture({manual:true,duplicate:true});await duplicate.run();
+  assert.deepEqual(duplicate.calls,['ask-code','check:MANUAL']);assert.equal(duplicate.runtimeState.pendingPda,undefined);
+});
+test('wizard ignora risposte OCR tardive dopo la sostituzione del documento',async()=>{
+  const ui=pdaWizardFixture({stale:true});await ui.run();
+  assert.deepEqual(ui.calls,['ocr']);assert.equal(ui.form,undefined);assert.equal(ui.contact,'3350000000');
+  assert.equal(ui.runtimeState.processingPda,false);
+});
+
+test('editor PDA rileva dati obsoleti e non sovrascrive le modifiche di un altro operatore',async()=>{
+  let writes=0;
+  const db={from(){const q={select(){return q;},eq(){return q;},async maybeSingle(){return {data:{id,categoria_snapshot:'Fisso',codice_contratto:'CURRENT',updated_at:'2026-10-27T10:00:00Z'}};},update(){writes++;return q;}};return q;}};
+  const api=loadHandler('gestisci-vendita-contratto.js',db);
+  const response=await api.handler(event({action:'update_pda',contratto_id:id,expected_updated_at:'2026-10-26T10:00:00Z',contratto:{codice_contratto:'STALE'}}));
+  assert.equal(response.statusCode,409);assert.equal(writes,0);
+  assert.match(JSON.parse(response.body).error,/altro operatore/);
+});
+
+for (const failRollback of [false,true]) test(`collisione durante INSERT: rollback bozza ${failRollback?'fallito segnalato':'riuscito'}`,async()=>{
+  let inserted=0,deleted=0,savedCode;
+  const db={from(table){let operation='select',payload;
+    function result(single=false){
+      if(table==='vendita_categorie')return {data:[{id:'cat',nome:'Mobile'}]};
+      if(table==='vendita_offerte')return {data:[{id:'offer',categoria_id:'cat',nome_offerta:'SIM prova',cluster_cliente:'Consumer',punteggio_gara:1,punteggio_extra_gara:0}]};
+      if(table==='anagrafica')return {data:single?{id}:[]};
+      if(table==='vendita_consensi_privacy')return {data:single?{id}:[]};
+      if(table==='vendita_pratiche'){
+        if(operation==='insert'){inserted++;return {data:{id,stato_pratica:'bozza'}};}
+        if(operation==='delete'){deleted++;return failRollback?{error:new Error('DB non disponibile durante rollback')}:{data:{id}};}
+        return {data:single?{id}:[]};
+      }
+      if(table==='vendita_contratti' && operation==='insert'){savedCode=payload.codice_contratto;return {error:{code:'23505',message:'vendita_contratti_codice_pda_unique'}};}
+      return {data:[]};
+    }
+    const q={select(){return q;},eq(){return q;},in(){return q;},ilike(){return q;},is(){return q;},gt(){return q;},order(){return q;},limit(){return q;},
+      insert(v){operation='insert';payload=v;return q;},update(v){operation='update';payload=v;return q;},delete(){operation='delete';return q;},
+      async single(){return result(true);},async maybeSingle(){return result(true);},then(resolve,reject){return Promise.resolve(result()).then(resolve,reject);}};
+    return q;
+  }};
+  const api=loadHandler('crea-vendita-pratica-carrello.js',db);
+  const response=await api.handler(event({cliente:{cf_piva:'RSSMRA80A01H501U',ragione_sociale:'Cliente prova',cluster:'Consumer',cellulare:'3350000000',email:'test@example.invalid'},
+    contratti:[{...mobile,categoria_id:'cat',offerta_id:'offer',tipo_firma:'elettronica'}]}));
+  assert.equal(response.statusCode,409,response.body);assert.equal(inserted,1);assert.equal(deleted,1);assert.equal(savedCode,'00AB123');
+  const body=JSON.parse(response.body);assert.equal(body.rollback_failed,failRollback);
+  if(failRollback)assert.match(body.error,/Ripristino.*incompleto/);
+});
+
+test('Turista mostra i nuovi dati PDA senza esporre scelte catalogo o saltare la conferma Mobile',()=>{
+  const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
+  const start=source.indexOf(' function renderWizardLayout()'),end=source.indexOf(' function renderFirmaSelection()',start);
+  const hidden={};
+  const element=name=>({classList:{toggle(k,v){if(k==='hidden')hidden[name]=v;},add(){}},querySelector(){return element('catalogo');}});
+  const refs=new Proxy({cluster:{value:'Turista'}},{get:(o,k)=>o[k] ||= element(k)});
+  const uiState={view:'wizard',step:3};
+  vm.runInNewContext(source.slice(start,end)+'\nrenderWizardLayout();',{refs,uiState,
+    runtimeState:{anagraficaCompleted:true},isTuristaCluster:()=>true,isCurrentCategoriaPda:()=>true,
+    renderDynamicSections(){},applyClusterFieldVisibility(){},renderStepIndicator(){},updateUploadVisibility(){}});
+  assert.equal(uiState.step,3);assert.equal(hidden.sectionContratto,false);assert.equal(hidden.actionsContratto,false);assert.equal(hidden.catalogo,true);
+});
+
+test('un secondo PDA di altro cliente viene fermato prima di upload o cambio anagrafica',async()=>{
+  const ui=pdaWizardFixture({completed:true,differentClient:true});
+  await assert.rejects(ui.run(),/cliente diverso/);
+  assert.deepEqual(ui.calls,['ocr']);assert.equal(ui.contact,'3350000000');
+});
+
+test('editor impedisce di cancellare in blocco i dati Mobile gia registrati',async()=>{
+  let writes=0;
+  const db={from(){const q={select(){return q;},eq(){return q;},async maybeSingle(){return {data:{...Pda.validate(mobile,'Mobile'),id,categoria_snapshot:'Mobile'}};},update(){writes++;return q;}};return q;}};
+  const api=loadHandler('gestisci-vendita-contratto.js',db);
+  const empty=Object.fromEntries(Pda.FIELDS.slice(1).map(k=>[k,null]));
+  const response=await api.handler(event({action:'update_pda',contratto_id:id,contratto:empty}));
+  assert.equal(response.statusCode,400);assert.match(JSON.parse(response.body).error,/Costo mensile/);assert.equal(writes,0);
+});
+
+test('duplicato al submit chiude il loader e non raccoglie consenso o crea bozze',async()=>{
+  const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
+  const start=source.indexOf(' async function inviaPratica()'),end=source.indexOf(" refs.cluster.addEventListener",start);
+  const runtimeState={isSubmitting:false},refs={btnInviaPratica:{},btnAddToCart:{}};
+  let overlay=false,privacy=0;
+  const ctx={runtimeState,refs,state:{cart:{contratti:[{temp_id:'one',codice_contratto:'DUP'}]}},
+    window:{MiroxPdaUI:{async checkCode(){assert.equal(overlay,false);return false;}}},
+    showLoadingOverlay(){overlay=true;},hideLoadingOverlay(){overlay=false;},
+    buildInvioPayload(){return {cliente:{},contratti:[]};},async ensureConsensoPrivacy(){privacy++;}};
+  vm.runInNewContext(source.slice(start,end)+'\nthis.submit=inviaPratica;',ctx);
+  await ctx.submit();assert.equal(overlay,false);assert.equal(privacy,0);
+  assert.equal(runtimeState.isSubmitting,false);assert.equal(refs.btnInviaPratica.disabled,false);
+});
+
+test('editor non permette di annullare un salvataggio mentre la richiesta e in corso',async()=>{
+  const callbacks={},fields=[{dataset:{pdaField:'codice_contratto'},value:'NEW'}];
+  let resolveHttp,closed=false,options;
+  const cancel={disabled:false,addEventListener(type,fn){callbacks.cancel=fn;}},save={disabled:false,addEventListener(type,fn){callbacks.save=fn;}};
+  const http=new Promise(resolve=>{resolveHttp=resolve;});
+  const modal={body:{querySelectorAll(){return fields;},querySelector(){return null;}},
+    foot:{querySelector(selector){return selector.includes('cancel')?cancel:save;}},close(){closed=true;options.onClose();}};
+  const window={MiroxPda:Pda,MiroxSafe:{escapeHtml:v=>v,isUuid:()=>true},MiroxApi:{fetch:()=>http},
+    MiroxUI:{_build(opts){options=opts;return modal;}}};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../js/vendita-pda-ui.js'),'utf8'),{window});
+  const result=window.MiroxPdaUI.edit({id,categoria_snapshot:'Fisso',codice_contratto:'OLD'});
+  const saving=callbacks.save();
+  assert.equal(options.closable,false);assert.equal(save.disabled,true);assert.equal(cancel.disabled,true);assert.equal(closed,false);
+  resolveHttp({ok:true,json:async()=>({success:true,contratto:{id,codice_contratto:'NEW'}})});
+  await saving;assert.equal((await result).codice_contratto,'NEW');assert.equal(closed,true);
+});
+
+for(const [file,endMarker] of [['verifica_contratti.html','  // Trick:'],['controllo_fissi.html','  // FIX scroll:']])
+test(`aprire dati PDA da ${file} non scarta le altre modifiche non salvate`,async()=>{
+  const source=fs.readFileSync(path.join(__dirname,'../moduli',file),'utf8');
+  const start=source.indexOf('  let pdaOtherFieldsDirty = false;'),end=source.indexOf(endMarker,start);
+  assert.ok(start>=0&&end>start);
+  const events={};let edit,closed=false,toasts=0;
+  const m={body:{addEventListener(name,fn){events[name]=fn;},querySelector(){return {addEventListener(name,fn){edit=fn;}};}},close(){closed=true;}};
+  const ui={toast(){toasts++;}};
+  vm.runInNewContext(source.slice(start,end),{m,window:{MiroxUI:ui},MiroxUI:ui});
+  events.input();await edit();assert.equal(closed,false);assert.equal(toasts,1);
+});

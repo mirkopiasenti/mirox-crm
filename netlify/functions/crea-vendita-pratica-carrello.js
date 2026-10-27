@@ -1,3 +1,4 @@
+const Pda = require('./_lib/pda-contract');
 const {validateCombination}=require('../../js/customer-base-device');
 const { createClient } = require('@supabase/supabase-js');
 const { requireAuth } = require('./_lib/require-auth');
@@ -205,6 +206,7 @@ function normalizeContractInput(contract, index) {
   const finanziaria = cleanString(contract?.finanziaria);
 
   return {
+    ...Pda.normalize(contract),
     temp_id: tempId,
     categoria_id: categoriaId,
     offerta_id: offertaId,
@@ -882,6 +884,23 @@ exports.handler = async (event) => {
   let createdPraticaId = null;
 
   try {
+    const { data: pdaCategories, error: pdaCategoryError } = await supabase
+      .from('vendita_categorie').select('id, nome').in('id', [...new Set(normalizedContracts.map(c => c.categoria_id))]);
+    if (pdaCategoryError) throw pdaCategoryError;
+    const seenPdaCodes = new Set();
+    for (let i = 0; i < normalizedContracts.length; i++) {
+      const contract = normalizedContracts[i];
+      const category = (pdaCategories || []).find(c => c.id === contract.categoria_id);
+      if (!category) throw new Error('Categoria non trovata');
+      // Validate raw values too: malformed input must not silently become null.
+      try { Object.assign(contract, Pda.validate(contrattiRaw[i], category.nome)); }
+      catch (error) { error.statusCode = 400; throw error; }
+      if (contract.codice_contratto) {
+        if (seenPdaCodes.has(contract.codice_contratto)) throw Pda.duplicateError();
+        seenPdaCodes.add(contract.codice_contratto);
+        await Pda.assertAvailable(supabase, contract.codice_contratto);
+      }
+    }
     let anagraficaId;
 
     const { data: anagraficaRows, error: anagraficaLookupError } = await supabase
@@ -1391,6 +1410,7 @@ exports.handler = async (event) => {
 
         // Campi extra Mirox (vedi migration 012_contratti_extra_fields.sql)
         pod_pdr: item.pod_pdr,
+        ...Object.fromEntries(Pda.FIELDS.map(k => [k, item[k]])),
         numero_contratto_energia: item.numero_contratto_energia,
         prezzo_fisso: item.prezzo_fisso,
         reload_exchange: item.reload_exchange,
@@ -1457,7 +1477,7 @@ exports.handler = async (event) => {
       }
 
       if (contractInsertError) {
-        throw new Error(readableError(contractInsertError, `Errore creazione contratto indice ${index}`));
+        throw Pda.isDuplicateViolation(contractInsertError) ? Pda.duplicateError() : new Error(readableError(contractInsertError, `Errore creazione contratto indice ${index}`));
       }
 
       // Il backend non si limita a calcolare correttamente il payload: verifica
@@ -1526,10 +1546,12 @@ exports.handler = async (event) => {
       requires_finalization: true
     });
   } catch (error) {
+    let rollbackFailed = false;
     if (createdPraticaId) {
       try {
         await rollbackPractice({ supabase, praticaId: createdPraticaId });
       } catch (rollbackError) {
+        rollbackFailed = true;
         console.error('[CARRELLO][ROLLBACK] rollback interno fallito', {
           debugTraceId,
           praticaId: createdPraticaId,
@@ -1538,8 +1560,12 @@ exports.handler = async (event) => {
       }
     }
 
+    if (Pda.isDuplicateViolation(error)) error = Pda.duplicateError();
+    if (error.statusCode === 409) return response(409, { success: false,
+      error: rollbackFailed ? error.message + ' Ripristino della bozza incompleto: contattare assistenza prima di riprovare.' : error.message,
+      error_code: error.error_code, duplicate: error.duplicate, rollback_failed: rollbackFailed });
     const message = readableError(error);
-    const statusCode = /obbligatorio|non valido|coerente|ammesso|trovata|trovato|inserire|mese solare|stato post-vendita|non ammette/i.test(message) ? 400 : 500;
+    const statusCode = error.statusCode || (/obbligatorio|non valido|coerente|ammesso|trovata|trovato|inserire|mese solare|stato post-vendita|non ammette/i.test(message) ? 400 : 500);
 
     return response(statusCode, {
       success: false,

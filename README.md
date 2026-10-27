@@ -31,7 +31,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `admin-kpi-call-center.html` | KPI **Call Center**. Chiamate Consumer e lead Business outbound, nuovi appuntamenti e rischedulati, vinti, persi, da esitare, non presentati e annullati reali; viste giornaliera, settimane del mese e mensile con confronto operatrici. Solo admin |
 | `moduli/` | 20 pagine funzionali Vendita / Post-Vendita / Applicazioni / KONA AI (`anagrafiche`, `apri_chiudi`, `switch_sim`, `ordini_smartphone`, `dispositivi_comodato`, `gestione_rimborsi`, `segnalazioni`, `simulatore_protecta`, `storico_cliente`, `ticket`, `verifica_contratti`, `controllo_fissi`, `controllo_lg`, `controllo_assicurazioni`, `controllo_allarmi`, `dashboard_pezzi` (3 tab: Day by Day + Gare Individuali + Avanzamento Mensile, con export PNG), `upload-contratti-vendita`, `compilatore_disdette`, `compilatore_subentri`, `segnala-problema`). `anagrafiche.html` è una card del tab Post-Vendita e offre elenco clienti, filtro cluster, selezione multipla dei comuni, ricerca nominativo, dettaglio, modifica confermata ed export Excel completo; nel popup di modifica il Comune usa autocomplete ISTAT e compila automaticamente la provincia. L'eliminazione è riservata agli admin e alle sole anagrafiche prive di collegamenti CRM |
 | `moduli/call-center/` | **Modulo Call Center integrato** — 11 pagine autenticate (`registra-chiamata`, `elenco-chiamate`, `rilavorazione`, `appuntamenti`, `appuntamenti-oggi`, `prenota-interno`, `esiti-appuntamenti`, `blacklist`, `call-center-lead-outbound`, `prenota-interno-outbound`, `registra-chiamata-outbound`) + `prenota.html` (form pubblico). `configurazione` è sotto Admin Mirox (`admin-call-center-config.html`) |
-| `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-safe` (escape HTML, URL/ID/colori sicuri), `mirox-storage`, `mirox-storage-upload`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `anagrafica-helper`, `vendita-storage-helper`, `admin-shell`, `subentri-core` (regole pure condivise browser/server del Compilatore Subentri), `dashboard-report-core` (motore puro Day/Mensile condiviso con Target, netto/dettaglio Luce & Gas e calcolo gare/compensi condiviso con Admin); logica pagina Subentri in `compilatore-subentri.js`, Anagrafiche in `anagrafiche.js` e KPI in `admin-kpi-vendita-consumer.js` / `admin-kpi-call-center.js`. Il vecchio `mirox-error-reporter` email e' stato rimosso |
+| `js/` | Librerie condivise: `config`, `auth`, `mirox-ui`, `mirox-safe` (escape HTML, URL/ID/colori sicuri), `mirox-storage`, `mirox-storage-upload`, `mirox-api`, `mirox-upload`, `mirox-folder`, `mirox-mailer`, `anagrafica-helper`, `vendita-storage-helper`, `vendita-pda-core` (codici/dati Mobile browser-server), `vendita-pda-ui` (popup/editor PDA), `admin-shell`, `subentri-core` (regole pure condivise browser/server del Compilatore Subentri), `dashboard-report-core` (motore puro Day/Mensile condiviso con Target, netto/dettaglio Luce & Gas e calcolo gare/compensi condiviso con Admin); logica pagina Subentri in `compilatore-subentri.js`, Anagrafiche in `anagrafiche.js` e KPI in `admin-kpi-vendita-consumer.js` / `admin-kpi-call-center.js`. Il vecchio `mirox-error-reporter` email e' stato rimosso |
 | `css/` | `style.css`, `mirox-modules.css`, `admin-shell.css`, `admin-kpi.css`, `compilatore-subentri.css` |
 | `assets/` | Logo, favicon e mascotte trasparente `kona-guardian-robot.png` |
 | `scripts/build-static.js` | Build Netlify: copia in `dist/` soltanto i file pubblici, genera `dist/js/config.js` con ambiente/release e inietta la telemetria nelle pagine autenticate |
@@ -69,17 +69,17 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `admin-vendita-config` | GET / POST | **admin** | CRUD admin del catalogo |
 | `admin-kpi-vendita-consumer` | GET | **admin** | Aggrega i KPI Consumer o Business, selezionati tramite parametro `cluster`, per Mobile, Fisso, Customer Base, Luce & Gas, Allarmi e Assicurazioni; la scheda Customer Base è mostrata soltanto nel Consumer |
 | `admin-kpi-call-center` | GET | **admin** | Aggrega per giorno e operatrice chiamate Consumer e lead Business outbound, distingue nuovi appuntamenti e rischedulati, riclassifica le conversioni anticipate come vinte ed espone esiti, arretrato e presenze |
-| `crea-vendita-pratica-carrello` | POST | authenticated | Crea pratica + N contratti in stato provvisorio `bozza`, promuove i PDA e supporta le action idempotenti `finalize` / `rollback_upload_failure`. L'operatore viene sempre ricavato dal JWT. Per cluster `Turista` salva `cluster_cliente='Turista'` sui contratti, usa `Consumer` su `anagrafica` e non richiede email |
+| `crea-vendita-pratica-carrello` | POST | authenticated | Crea pratica + N contratti in stato provvisorio `bozza`, promuove i PDA e supporta le action idempotenti `finalize` / `rollback_upload_failure`. L'operatore viene sempre ricavato dal JWT. Per cluster `Turista` salva `cluster_cliente='Turista'` sui contratti, usa `Consumer` su `anagrafica` e non richiede email. Valida codice/dati Mobile e duplicati prima delle scritture; collisioni UNIQUE restituiscono 409 dopo rollback della bozza. |
 | `upload-vendita-documento` | POST multipart | authenticated | Upload di PDF reali su `contratti-vendita` (anche staging `temp/<sess>/`). Verifica proprietà operatore/admin sulle bozze; sulle pratiche inviate consente la gestione da Verifica Contratti. Valida coerenza pratica/anagrafica/contratto, deriva il path dalla pratica e attribuisce l'upload all'utente autenticato |
 | `upload-documento-modulo` | POST multipart | authenticated | Upload server-side per i bucket operativi Apri/Chiudi, Switch SIM, Comodato, Rimborsi, Protecta e Segnalazioni. Accetta PDF reali; nel bucket Segnalazioni anche immagini JPG/JPEG, PNG, GIF, WEBP, BMP, TIFF, HEIC/HEIF e AVIF. Verifica firma e MIME, limita i file a 20 MB e registra l'operatore JWT nei metadati Storage |
-| `gestisci-vendita-contratto` | POST | authenticated | Aggiornamento/verifica/riapertura dei contratti e rimozione allegati. Accetta soltanto campi consentiti, deriva snapshot e punteggi dal catalogo e usa l'identità JWT per `controllato_da` |
+| `gestisci-vendita-contratto` | POST | authenticated | Aggiornamento/verifica/riapertura dei contratti e rimozione allegati. Accetta soltanto campi consentiti, deriva snapshot e punteggi dal catalogo e usa l'identità JWT per `controllato_da`. Nuove action `check_codice` e `update_pda` per controllo globale/editor dei dati PDA, con gestione collisioni e concorrenza. |
 | `gestisci-controllo-fissi` | POST | **admin** | Corregge un esito Fisso inserito per errore riportando una pratica da `Attivo` o `KO` a `In Attivazione`, azzerando i campi di esito e registrando l'admin nell'audit. Il pulsante appare accanto allo stato e la pagina chiede conferma prima del ripristino |
 | `gestisci-controllo-lg` | POST | authenticated / **admin** per esiti manuali | Applica in batch gli esiti CSV rispettando i blocchi manuali; consente agli admin di impostare un esito motivato e protetto oppure di riattivare esplicitamente gli aggiornamenti CSV |
 | `gestisci-operazioni-post-vendita` | POST | authenticated / **admin** per rimborso manuale | Gestisce tutte le scritture dei rimborsi e l'esito Apri/Chiudi: `create_rimborso_manuale` richiede `ruolo='admin'`, mentre creazione/completamento ordinari e `mark_apri_chiudi_ko` sono disponibili agli account autenticati attivi |
 | `gestisci-subentri` | GET / POST JSON o multipart | authenticated | Due ricerche CRM, bozze idempotenti per operatore, upload PDF/JPEG/PNG (4 MiB/file), verifica allegati, generazione PDF multipagina, storico globale, duplicazione dati e signed URL di 5 minuti per PDF e allegati |
 | `gestisci-disdette` | GET / POST | authenticated | Genera i quattro PDF di recesso sui moduli WindTre originali, salva il PDF nel bucket privato `disdette-files`, registra lo storico, duplica i dati tra SIM/Fisso dello stesso cluster e cerca anagrafiche CRM per nome, cognome o CF/P.IVA |
 | `elimina-vendita-contratto` | POST | **admin** | Eliminazione definitiva da Verifica Contratti: cancella il contratto, i record collegati, gli allegati Storage e la pratica se resta vuota |
-| `ocr-pda` | POST multipart | authenticated | OCR del PDA (Pratica di Adesione PDF) via Claude API — pre-compila l'anagrafica. In caso di errore Anthropic ritorna `error_code` strutturato (`ocr_credit_exhausted`, `ocr_rate_limited`, `ocr_unavailable`, `ocr_auth_error`, `ocr_generic_error`) per popup mirato lato client |
+| `ocr-pda` | POST multipart | authenticated | OCR del PDA (Pratica di Adesione PDF) via Claude API — pre-compila anagrafica, codice contratto e dati Mobile; contatto dalla firma elettronica. In caso di errore Anthropic ritorna `error_code` strutturato (`ocr_credit_exhausted`, `ocr_rate_limited`, `ocr_unavailable`, `ocr_auth_error`, `ocr_generic_error`) per popup mirato lato client |
 | `search-anagrafica` | GET | authenticated | Ricerca cliente per CF/PIVA |
 | `gestisci-anagrafiche` | GET / POST | authenticated / **admin** per eliminazione | Elenco paginato e filtrato delle anagrafiche per il reparto Post-Vendita; `action=comuni` restituisce le scelte presenti a DB, `action=comuni_istat` cerca nel catalogo ufficiale server-only e `action=export` genera un file `.xlsx` completo con gli stessi filtri multipli. `update` usa allowlist, controllo di concorrenza e validazione Comune/Provincia ISTAT; `delete` elimina solo anagrafiche senza collegamenti CRM |
 | `mirox-send-email` | POST | authenticated | Invio email con template DB |
@@ -98,6 +98,38 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `verifica-otp-privacy` | POST | authenticated | Verifica OTP (max 3 tentativi), impedisce aggiornamenti concorrenti e recupera un timeout Storage con verifica SHA256, genera il PDF informativa/dichiarazione con scelta marketing ed evidenze probatorie, lo archivia e imposta `valido_fino_al = now()+24 mesi` |
 | `genera-pdf-consenso-cartaceo` | GET | authenticated | Stream del modulo cartaceo v6 precompilato: una pagina A4, monocromatico, corpo 10 pt, scelta marketing già marcata e riga firma |
 | `upload-consenso-cartaceo` | POST multipart | authenticated | Upload scansione firmata (max 20 MB, PDF); richiede l'esito ACCONSENTO/NON ACCONSENTO e crea il record `'cartaceo'` confermato |
+
+### Upload PDA: codice contratto e dati Mobile (rilascio 27/10/2026)
+
+Codice obbligatorio per Mobile, Fisso e Customer Base: il percorso manuale lo
+chiede prima dell'upload, quello AI lo legge da ogni PDA. I duplicati sono bloccati
+fra tutti gli operatori, negozi, mesi e stati, anche nelle bozze e nel carrello.
+Un reinserimento richiede un nuovo codice. Il controllo lato database protegge
+anche dai caricamenti contemporanei; un errore di verifica ferma il flusso.
+
+Solo Mobile aggiunge costo mensile base dell'offerta (con popup sempre da
+confermare), numero del contratto, portabilita, provvisorio/MNP e gestore di
+provenienza. Nessuna somma di accessori o rate del dispositivo; costo assente da
+compilare. Turista mantiene categoria/offerta automatiche e dati anagrafici ridotti,
+con step contratto limitato ai nuovi dati PDA. Customer Base aggiunge solo il codice.
+Il contatto per OTP arriva da DATI FIRMA ELETTRONICA della prima pratica,
+con input manuale se assente e aggiornamento automatico dell'anagrafica esistente;
+le PDA successive conservano il contatto iniziale. Riuso privacy e modifica OTP
+restano disponibili.
+
+Consultazione e correzione per tutti gli utenti attivi: Verifica Contratti (anche
+verificati), Storico Cliente e, per il codice Fisso, Controllo Fissi. L'editor
+protegge le modifiche concorrenti e mantiene allineati i due codici Fisso.
+`js/vendita-pda-core.js` condivide validazione browser/server;
+`js/vendita-pda-ui.js` condivide popup e editor. Nessuna nuova dipendenza npm CRM.
+
+**Rilascio autorizzato in corso.** Migration additiva
+`database/20261027110402_vendita_codice_pda_mobile.sql` applicata e riletta in
+produzione; test transazionali con rollback su unicita/coerenza MNP/sincronizzazione
+Fisso riusciti, nessuna riga di collaudo conservata o bonifica dello storico.
+Suite locale335/335 e SQL isolato OK. Convalida OCR reale delle nove PDA e verifica
+del deploy previste dopo la pubblicazione. Prima del primo utilizzo ricaricare il wizard.
+
 
 ### Documento identita per contratto
 

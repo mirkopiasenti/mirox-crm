@@ -1,0 +1,48 @@
+'use strict';
+// Collaudo PostgreSQL esclusivamente in memoria; nessuna connessione a Supabase.
+// Dipendenza di collaudo esterna al progetto: @electric-sql/pglite@0.5.12.
+const {PGlite}=require(process.env.MIROX_PGLITE_MODULE || '@electric-sql/pglite');
+const fs=require('node:fs'),assert=require('node:assert/strict'),path=require('node:path');
+(async()=>{
+ const db=new PGlite();
+ await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
+ CREATE TABLE public.vendita_contratti(id uuid PRIMARY KEY, categoria_snapshot text);
+ CREATE TABLE public.post_vendita_controllo_fissi(id uuid PRIMARY KEY, contratto_id uuid REFERENCES public.vendita_contratti(id), cod_contratto text);
+ ALTER TABLE public.vendita_contratti ENABLE ROW LEVEL SECURITY;
+ CREATE POLICY contract_select ON public.vendita_contratti FOR SELECT TO authenticated USING(true);
+ ALTER TABLE public.post_vendita_controllo_fissi ENABLE ROW LEVEL SECURITY;
+ CREATE POLICY controllo_all ON public.post_vendita_controllo_fissi FOR ALL TO authenticated USING(true) WITH CHECK(true);
+ GRANT USAGE ON SCHEMA public TO authenticated;GRANT SELECT,UPDATE ON public.vendita_contratti TO authenticated;
+ GRANT ALL ON public.post_vendita_controllo_fissi TO authenticated;
+ INSERT INTO public.vendita_contratti VALUES ('00000000-0000-4000-8000-000000000001','Fisso'),('00000000-0000-4000-8000-000000000002','Fisso');
+ INSERT INTO public.post_vendita_controllo_fissi VALUES ('10000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','LEGACY');`);
+ await db.exec(fs.readFileSync(path.join(__dirname,'../database/20261027110402_vendita_codice_pda_mobile.sql'),'utf8'));
+ const q=async sql=>(await db.query(sql)).rows;
+ assert.deepEqual(await q('SELECT codice_contratto FROM public.vendita_contratti'),[{codice_contratto:null},{codice_contratto:null}]);
+ assert.equal((await q('SELECT cod_contratto FROM public.post_vendita_controllo_fissi'))[0].cod_contratto,'LEGACY');
+ console.log('OK migration additiva e storico invariato');
+ await db.exec(`UPDATE public.vendita_contratti SET codice_contratto='TEST2' WHERE id='00000000-0000-4000-8000-000000000002';
+ INSERT INTO public.post_vendita_controllo_fissi VALUES ('10000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000002',NULL);`);
+ assert.equal((await q("SELECT cod_contratto FROM public.post_vendita_controllo_fissi WHERE id='10000000-0000-4000-8000-000000000002'"))[0].cod_contratto,'TEST2');
+ await db.exec("UPDATE public.vendita_contratti SET codice_contratto='TEST3' WHERE codice_contratto='TEST2'");
+ assert.equal((await q("SELECT cod_contratto FROM public.post_vendita_controllo_fissi WHERE id='10000000-0000-4000-8000-000000000002'"))[0].cod_contratto,'TEST3');
+ await db.exec("UPDATE public.post_vendita_controllo_fissi SET cod_contratto=' test4 ' WHERE cod_contratto='TEST3'");
+ assert.equal((await q("SELECT codice_contratto FROM public.vendita_contratti WHERE id='00000000-0000-4000-8000-000000000002'"))[0].codice_contratto,'TEST4');
+ console.log('OK sincronizzazione Fisso in entrambe le direzioni e normalizzazione');
+ await assert.rejects(db.exec("UPDATE public.vendita_contratti SET codice_contratto='TEST4' WHERE id='00000000-0000-4000-8000-000000000001'"),e=>e.code==='23505');
+ await db.exec('SET ROLE authenticated');
+ await db.exec("UPDATE public.post_vendita_controllo_fissi SET cod_contratto='TEST4' WHERE cod_contratto='TEST4'");
+ await assert.rejects(db.exec("UPDATE public.post_vendita_controllo_fissi SET cod_contratto='BYPASS' WHERE cod_contratto='TEST4'"),e=>e.code==='42501');
+ await db.exec('RESET ROLE');
+ assert.equal((await q("SELECT codice_contratto FROM public.vendita_contratti WHERE id='00000000-0000-4000-8000-000000000002'"))[0].codice_contratto,'TEST4');
+ console.log('OK unicita e coerenza con RLS del client legacy, nessun successo apparente');
+ await db.exec(`UPDATE public.vendita_contratti SET codice_contratto='MOBILE1', categoria_snapshot='Mobile', costo_offerta_mensile=9.99, portabilita=true, numero_telefono='3491234567',numero_mnp='3491234567',numero_provvisorio='3931234567',operatore_provenienza='Vodafone' WHERE id='00000000-0000-4000-8000-000000000001'`);
+ await assert.rejects(db.exec("UPDATE public.vendita_contratti SET numero_mnp='3481234567' WHERE codice_contratto='MOBILE1'"),e=>e.code==='23514');
+ await assert.rejects(db.exec("UPDATE public.vendita_contratti SET costo_offerta_mensile=-1 WHERE codice_contratto='MOBILE1'"),e=>e.code==='23514');
+ await assert.rejects(db.exec("UPDATE public.vendita_contratti SET operatore_provenienza=NULL WHERE codice_contratto='MOBILE1'"),e=>e.code==='23514');
+ const attempts=await Promise.allSettled([1,2].map(i=>db.exec(`INSERT INTO public.vendita_contratti(id,codice_contratto) VALUES('20000000-0000-4000-8000-00000000000${i}','CONCURRENT')`)));
+ assert.equal(attempts.filter(x=>x.status==='fulfilled').length,1);
+ assert.equal(attempts.filter(x=>x.status==='rejected'&&x.reason.code==='23505').length,1);
+ console.log('OK vincoli Mobile, due tentativi concorrenti producono una sola riga');
+ await db.close();
+})().catch(e=>{console.error(e);process.exitCode=1});

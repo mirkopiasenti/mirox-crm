@@ -1,3 +1,4 @@
+const Pda = require('../../js/vendita-pda-core');
 /**
  * OCR PDA — estrazione campi anagrafici da PDF contratto via Claude API
  *
@@ -104,7 +105,7 @@ Null se mancante o non sicuro, NON inventare.
 cf_piva: CF(16) o PIVA(11), solo valore
 ragione_sociale: nome+cognome (privato) o ragione azienda
 nome_referente: SOLO il nome di battesimo (es. "Mario" da "Mario Rossi"). Per persona fisica: nome del titolare. Per azienda: nome del referente. Mai cognome.
-cellulare: 9 o 10 cifre, prefisso 3xx, solo numero; accetta anche numerazioni legacy di 9 cifre
+cellulare: ESCLUSIVAMENTE il Numero di telefono nella sezione DATI FIRMA ELETTRONICA. Mai il numero SIM o MNP, mai numeri di altre sezioni. Se sezione o valore assente/ambiguo -> null. 9 o 10 cifre, prefisso 3xx; rimuovi +39/0039, accetta anche numerazioni legacy di 9 cifre
 email: lowercase
 provincia: sigla 2 lettere maiuscole (VR,MI,RM)
 comune: nome
@@ -134,20 +135,32 @@ codice_rivenditore: codice numerico del punto vendita che ha emesso il PDA WindT
   - Riquadro del rivenditore autorizzato in fondo al PDA
   Valori ammessi (solo questi due): "9001415852" oppure "9000822241". Se il codice trovato NON e' uno di questi due valori esatti -> null. Se non trovato -> null.
 
+=== IDENTIFICAZIONE DEL CONTRATTO ===
+codice_contratto: stringa esatta in ALTO A DESTRA della PDA. Fisso: "Numero Contratto"; Mobile/Customer Base: "Codice Contratto:". NON codice cliente, codice POS o numero telefono. Conserva lettere e zeri iniziali. Se valori discordanti o illeggibili -> null. Una PDA contiene un solo contratto.
+
+=== OFFERTA E NUMERAZIONI MOBILE ===
+Leggi ogni sezione separatamente, non confondere numeri del contratto con il contatto firma elettronica.
+costo_offerta_mensile: SOLO il primo costo mensile BASE dell'offerta nella sezione DATI DELLA SIM WINDTRE. Es: "Costo mensile: 9,99 euro - ... Piu Sicuri ... 0,99 euro/mese" -> "9.99". NON sommare accessori, assicurazioni, attivazione, rate dispositivo. Non dedurre il costo dal nome dell'offerta, catalogo o valori zero di promo/accessori. Se costo base non esplicitato -> null.
+numero_sim: Numero di telefono ESCLUSIVAMENTE in DATI DELLA SIM WINDTRE, non il seriale ICCID.
+portabilita: true se esiste la sezione DATI PER LA RICHIESTA DEL SERVIZIO PASSA A WINDTRE; false se la SIM e' presente e questa sezione assente; null se non determinabile.
+numero_mnp: solo Numero di telefono da portare dalla sezione PASSA A WINDTRE; null se assente/illeggibile.
+operatore_provenienza: solo "Operatore attuale:" nella sezione PASSA A WINDTRE; null se assente.
+Numeri italiani come stringhe di 9 o 10 cifre senza +39/0039. Non inventare valori mancanti.
+
 === OUTPUT ===
-DEVI sempre includere TUTTI e 15 i campi nel JSON, anche quelli null. NON omettere mai un campo. NON usare "..." come placeholder.
+DEVI sempre includere TUTTI i campi richiesti nel JSON, anche quelli null. NON omettere mai un campo. NON usare "..." come placeholder.
 
 Esempio privato Mobile con device finanziato e smartphone reload SI, punto vendita Legnago:
-{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3331234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":true,"tipo_acquisto":"Finanziamento","imei":"356178252707751","prezzo_device":"399.9","smartphone_reload":true,"codice_rivenditore":"9001415852"}
+{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3331234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":true,"tipo_acquisto":"Finanziamento","imei":"356178252707751","prezzo_device":"399.9","smartphone_reload":true,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null}
 
 Esempio azienda Mobile con device VAR e smartphone reload NO, punto vendita Cerea:
-{"cf_piva":"04971220233","ragione_sociale":"Lucchiari Auto Srl","nome_referente":"Maicol","cellulare":"3520696271","email":"info@lucchiari.it","provincia":"VR","comune":"Sanguinetto","via":"Via Masaglie","civico":"96","dispositivo_presente":true,"tipo_acquisto":"VAR","imei":"355297179899755","prezzo_device":"1509.9","smartphone_reload":false,"codice_rivenditore":"9000822241"}
+{"cf_piva":"04971220233","ragione_sociale":"Lucchiari Auto Srl","nome_referente":"Maicol","cellulare":"3520696271","email":"info@lucchiari.it","provincia":"VR","comune":"Sanguinetto","via":"Via Masaglie","civico":"96","dispositivo_presente":true,"tipo_acquisto":"VAR","imei":"355297179899755","prezzo_device":"1509.9","smartphone_reload":false,"codice_rivenditore":"9000822241","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null}
 
 Esempio SIM solo (senza device):
-{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3331234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":false,"tipo_acquisto":null,"imei":null,"prezzo_device":null,"smartphone_reload":null,"codice_rivenditore":"9001415852"}
+{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3331234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":false,"tipo_acquisto":null,"imei":null,"prezzo_device":null,"smartphone_reload":null,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null}
 
 Esempio Fisso FWA Indoor con modem (tipo_acquisto e smartphone_reload null perche' non applicabili al Fisso):
-{"cf_piva":"CMRGZN48P07A837N","ragione_sociale":"Graziano Camera","nome_referente":"Graziano","cellulare":"3453923639","email":"camera.gra@gmail.com","provincia":"VR","comune":"Bevilacqua","via":"Piazza Marega","civico":"1050","dispositivo_presente":true,"tipo_acquisto":null,"imei":"352941750260290","prezzo_device":"287.52","smartphone_reload":null,"codice_rivenditore":"9001415852"}`;
+{"cf_piva":"CMRGZN48P07A837N","ragione_sociale":"Graziano Camera","nome_referente":"Graziano","cellulare":"3453923639","email":"camera.gra@gmail.com","provincia":"VR","comune":"Bevilacqua","via":"Piazza Marega","civico":"1050","dispositivo_presente":true,"tipo_acquisto":null,"imei":"352941750260290","prezzo_device":"287.52","smartphone_reload":null,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null}`;
 
 const EXPECTED_KEYS = [
   'cf_piva', 'ragione_sociale', 'nome_referente', 'cellulare', 'email',
@@ -156,9 +169,10 @@ const EXPECTED_KEYS = [
   // Smartphone Reload (migration 035): true se SI[X], false se NO[X], null altrimenti
   'smartphone_reload',
   // Codice Rivenditore (migration 050): '9001415852' (Legnago) o '9000822241' (Cerea), null altrimenti
-  'codice_rivenditore'
+  'codice_rivenditore', 'codice_contratto', 'costo_offerta_mensile',
+  'numero_sim', 'portabilita', 'numero_mnp', 'operatore_provenienza'
 ];
-const BOOLEAN_KEYS = new Set(['dispositivo_presente', 'smartphone_reload']);
+const BOOLEAN_KEYS = new Set(['dispositivo_presente', 'smartphone_reload', 'portabilita']);
 const CODICI_RIVENDITORE_ALLOWED = new Set(['9001415852', '9000822241']);
 
 function emptyResult() {
@@ -207,6 +221,15 @@ function normalizeResult(raw) {
     const normalized = String(out.codice_rivenditore).replace(/\D/g, '');
     out.codice_rivenditore = CODICI_RIVENDITORE_ALLOWED.has(normalized) ? normalized : null;
   }
+  out.cellulare = Pda.phone(out.cellulare);
+  out.codice_contratto = Pda.code(out.codice_contratto);
+  out.costo_offerta_mensile = Pda.money(out.costo_offerta_mensile);
+  out.numero_sim = Pda.phone(out.numero_sim);
+  out.numero_mnp = out.portabilita === true ? Pda.phone(out.numero_mnp) : null;
+  out.numero_provvisorio = out.portabilita === true ? out.numero_sim : null;
+  out.numero_telefono = out.portabilita === true ? out.numero_mnp
+    : out.portabilita === false ? out.numero_sim : null;
+  if (out.portabilita !== true) out.operatore_provenienza = null;
   return out;
 }
 
@@ -284,7 +307,7 @@ exports.handler = async (event) => {
 
     const completion = await client.messages.create({
       model: MODEL,
-      max_tokens: 600, // output ~250-300 token con i campi device, 600 e' cap conservativo
+      max_tokens: 1200, // Include identificazione PDA, numerazioni e costo oltre ai campi cliente/device.
       system: SYSTEM_PROMPT,
       messages: [
         {
@@ -294,7 +317,7 @@ exports.handler = async (event) => {
               type: 'document',
               source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 }
             },
-            { type: 'text', text: 'Estrai dati cliente e dispositivo. Solo JSON.' }
+            { type: 'text', text: 'Estrai tutti i campi richiesti: cliente, codice contratto, offerta Mobile, numerazioni e dispositivo. Solo JSON.' }
           ]
         }
       ]
@@ -326,3 +349,5 @@ exports.handler = async (event) => {
     });
   }
 };
+
+exports._test = { normalizeResult, SYSTEM_PROMPT };

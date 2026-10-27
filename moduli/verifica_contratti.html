@@ -210,6 +210,8 @@ body {
 <script src="../js/auth.js"></script>
 <script src="../js/mirox-ui.js"></script>
 <script src="../js/mirox-api.js"></script>
+<script src="../js/vendita-pda-core.js"></script>
+<script src="../js/vendita-pda-ui.js"></script>
 
 <script src="../js/mirox-storage.js"></script>
 <script src="../js/mirox-folder.js"></script>
@@ -465,6 +467,7 @@ async function caricaContratti(statoControllo) {
         dispositivo_associato, imei, fascia_prezzo, tipo_acquisto, finanziaria, kolme,
         smartphone_reload, smartphone_reload_modalita,
         pod_pdr, numero_contratto_energia, ex_fornitore, prezzo_fisso, convergenza, reload_exchange, reload_forever,
+        codice_contratto, costo_offerta_mensile, portabilita, numero_telefono, numero_provvisorio, numero_mnp, operatore_provenienza,
         codice_rivenditore,
         punteggio_offerta, punteggio_opzione, punteggio_extra, punteggio_totale,
         stato_controllo, controllato_da, controllato_at, note_controllo,
@@ -716,7 +719,10 @@ function apriPopupDettaglio(c, opts) {
     `<option value="${escapeHtml(v)}" ${c.convergenza === v ? 'selected' : ''}>${escapeHtml(v)}</option>`
   ).join('');
 
-  const bodyHtml = `
+  const pdaHtml = window.MiroxPda.isPda(c.categoria_snapshot)
+    ? '<div class="det-section"><h4>Dati PDA</h4>' + window.MiroxPdaUI.summary(c)
+      + '<button type="button" class="mx-btn mx-btn-secondary" data-edit-pda>Modifica dati PDA</button></div>' : '';
+  const bodyHtml = `${pdaHtml}
     <div class="det-section">
       <h4>Dati cliente <small style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;font-size:11px;">(modifiche su tabella anagrafica condivisa)</small></h4>
       <div class="det-grid">
@@ -947,6 +953,20 @@ function apriPopupDettaglio(c, opts) {
 
   const titolo = `Contratto · ${escapeHtml(ana.ragione_sociale || c.id)}`;
   const m = window.MiroxUI._build({ title: titolo, bodyHtml, footerHtml, large: true });
+  let pdaOtherFieldsDirty = false;
+  m.body.addEventListener('input', () => { pdaOtherFieldsDirty = true; });
+  m.body.addEventListener('change', () => { pdaOtherFieldsDirty = true; });
+  m.body.querySelector('[data-edit-pda]')?.addEventListener('click', async () => {
+    if (pdaOtherFieldsDirty) {
+      window.MiroxUI.toast('Salva le altre modifiche prima di aprire i dati PDA.', 'warning');
+      return;
+    }
+    m.close();
+    await window.MiroxPdaUI.edit(c);
+    await Promise.all([caricaContratti('da_controllare'), caricaContratti('controllato')]);
+    const fresh = VCState.daVerificare.concat(VCState.verificati).find(row => row.id === c.id);
+    if (fresh) await apriDettaglioContratto(c.id, fresh.stato_controllo === 'controllato' ? 'verificati' : 'daVerificare');
+  });
   // Trick: rendere il modal extra large
   m.modal.style.maxWidth = '980px';
   m.body.style.maxHeight = '70vh';

@@ -28,6 +28,7 @@ function loadCommonJs(relativePath, stubs = {}) {
     module,
     process: { env: {} },
     require(id) {
+      if (id === './_lib/pda-contract') return require('../netlify/functions/_lib/pda-contract');
       if (id === '../../js/customer-base-device') return require('../js/customer-base-device');
       if (Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];
       throw new Error(`Dipendenza non prevista nel test: ${id}`);
@@ -117,7 +118,7 @@ test('i moduli CRM con controllo rigido accettano telefoni di 9 o 10 cifre', () 
   assert.match(apriChiudi, /const regex = \/\^3\\d\{8,9\}\$\//);
   assert.match(switchSim, /if \(!\/\^\\d\{9,10\}\$\/\.test\(numero\)\)/);
   assert.match(segnalazioni, /pattern="\[0-9\]\{9,10\}"/);
-  assert.match(ocrPda, /cellulare: 9 o 10 cifre, prefisso 3xx/);
+  assert.match(ocrPda, /cellulare: ESCLUSIVAMENTE[\s\S]*9 o 10 cifre, prefisso 3xx/);
 });
 
 test('Protecta non salva preventivi senza PDF archiviato', () => {

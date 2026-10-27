@@ -1047,6 +1047,8 @@
 <script src="../js/auth.js"></script>
 <script src="../js/mirox-ui.js"></script>
 <script src="../js/mirox-api.js"></script>
+<script src="../js/vendita-pda-core.js"></script>
+<script src="../js/vendita-pda-ui.js"></script>
 <script src="../js/mirox-upload.js"></script>
 <script src="../js/customer-base-device.js"></script>
 <script> // Auth guard: blocca rendering se non loggato
@@ -1185,6 +1187,7 @@ Dati pre-compilati dall'AI sulla base del PDA caricato. Verifica e correggi prim
 </div>
 </section> <section id="stepContrattoSection" class="card panel hidden">
 <h2>Dati Contratto</h2>
+<div id="pdaContractFields"></div>
 <div class="grid">
 <div class="field">
 <label id="labelOfferta" for="offerta_id">Offerta</label>
@@ -1554,6 +1557,9 @@ Reload Forever
  // e la deviceSection diventa visibile (offerta con abilita_dispositivo), maybeApplyOcrDevice
  // pre-compila toggle/IMEI/tipo_acquisto/prezzo. Il flag impedisce di riapplicare sullo stesso
  // contratto (resettato in resetContractFields e quando si edita un contratto del carrello).
+ pdaRevision: 0,
+ processingPda: false,
+ addingContract: false,
  ocrDeviceApplied: false
  };
  const DOC_TYPES = {
@@ -2708,13 +2714,10 @@ Reload Forever
  function renderWizardLayout() {
  const inWizard = uiState.view === 'wizard';
  // Step max 5. Step 4 (Firma) attivo solo per categorie PDA.
- // Per Turista lo step 3 (dati contratto) e' saltato: defaults applicati.
+ // Turista mantiene i defaults catalogo; step 3 raccoglie soltanto i nuovi dati PDA.
  let step = Math.max(1, Math.min(5, Number(uiState.step) || 1));
  const turista = isTuristaCluster(refs.cluster.value);
  const firmaApplica = isCurrentCategoriaPda();
- if (turista && step === 3) {
- step = firmaApplica ? 4 : 5;
- }
  // Categorie senza PDA: salta step 4 (Firma).
  if (!firmaApplica && step === 4) {
  step = 5;
@@ -2722,7 +2725,6 @@ Reload Forever
  // Multi-contratto: se l'anagrafica e' gia' completata in questa pratica, salta lo step 2.
  if (runtimeState.anagraficaCompleted && step === 2) {
  step = 3;
- if (turista) step = firmaApplica ? 4 : 5;
  }
  uiState.step = step;
 
@@ -2730,14 +2732,15 @@ Reload Forever
 
  refs.sectionCategoria.classList.toggle('hidden', !inWizard || step !== 1);
  refs.sectionAnagrafica.classList.toggle('hidden', !inWizard || step !== 2);
- refs.sectionContratto.classList.toggle('hidden', !inWizard || step !== 3 || turista);
+ refs.sectionContratto.classList.toggle('hidden', !inWizard || step !== 3);
+ refs.sectionContratto.querySelector('.grid').classList.toggle('hidden', turista);
  refs.sectionFirma.classList.toggle('hidden', !inWizard || step !== 4 || !firmaApplica);
  refs.sectionDocumenti.classList.toggle('hidden', !inWizard || step !== 5);
 
  refs.wizardActions.classList.toggle('hidden', !inWizard);
  refs.actionsCategoria.classList.toggle('hidden', !inWizard || step !== 1);
  refs.actionsAnagrafica.classList.toggle('hidden', !inWizard || step !== 2);
- refs.actionsContratto.classList.toggle('hidden', !inWizard || step !== 3 || turista);
+ refs.actionsContratto.classList.toggle('hidden', !inWizard || step !== 3);
  refs.actionsFirma.classList.toggle('hidden', !inWizard || step !== 4 || !firmaApplica);
  refs.actionsDocumenti.classList.toggle('hidden', !inWizard || step !== 5);
 
@@ -2804,13 +2807,10 @@ Reload Forever
  function goToStep(step) {
  uiState.view = 'wizard';
  let nextStep = Math.max(1, Math.min(5, Number(step) || 1));
- const turista = isTuristaCluster(refs.cluster.value);
  const firmaApplica = isCurrentCategoriaPda();
- if (turista && nextStep === 3) nextStep = firmaApplica ? 4 : 5;
  if (!firmaApplica && nextStep === 4) nextStep = 5;
  if (runtimeState.anagraficaCompleted && nextStep === 2) {
  nextStep = 3;
- if (turista) nextStep = firmaApplica ? 4 : 5;
  }
  uiState.step = nextStep;
  renderDynamicSections();
@@ -3146,7 +3146,30 @@ Reload Forever
  // clearInputFile pulisce sia l'input nativo sia runtimeState.fileFallback;
  // l'aggiornamento esplicito della drop-zone evita che nome e stato verde del
  // PDF precedente restino visibili quando si avvia il contratto successivo.
+ function renderPdaFields(data) {
+ const root = document.getElementById('pdaContractFields');
+ const category = getCategoriaName();
+ if (data === undefined && root.dataset.category === category) return;
+ root.dataset.category = category;
+ root.innerHTML = window.MiroxPdaUI.formHtml(window.MiroxPda.normalize(data || {}), category, { wizard: true });
+ window.MiroxPdaUI.bindForm(root);
+ if (!root.dataset.autosaveBound) {
+ root.addEventListener('input', queueDraftSave);
+ root.addEventListener('change', queueDraftSave);
+ root.dataset.autosaveBound = 'true';
+ }
+ }
+ function readPdaFields() {
+ return window.MiroxPdaUI.readForm(document.getElementById('pdaContractFields'));
+ }
+ async function checkPendingCode() {
+ return window.MiroxPdaUI.checkCode(readPdaFields().codice_contratto,
+ state.cart.contratti, runtimeState.editingTempId);
+ }
+
  function resetPendingPdaSelection() {
+ runtimeState.pdaRevision++;
+ renderPdaFields({});
  runtimeState.pendingPda = null;
  runtimeState.pendingTipoFirma = null;
  if (refs.filePda) clearInputFile(refs.filePda);
@@ -3170,6 +3193,7 @@ Reload Forever
  }
 
  function resetContractFields() {
+ renderPdaFields({});
  refs.offerta.value = '';
  refs.opzione.value = '';
  refs.reload.value = '';
@@ -3279,6 +3303,7 @@ Reload Forever
  }
 
  function renderDynamicSections() {
+ renderPdaFields();
  const categoriaNome = getCategoriaName();
  const offertaNome = getOffertaName();
  const opzioniDisponibili = filteredOpzioni();
@@ -3664,6 +3689,7 @@ Reload Forever
  const punteggioExtra = getPuntiExtraPiva(offerta) + getPuntiExtraPiva(opzione);
 
  return {
+ ...window.MiroxPda.validate(readPdaFields(), categoriaNome),
  temp_id: options.tempId || `temp_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
  categoria_id: categoria.id,
  offerta_id: offerta.id,
@@ -3843,6 +3869,7 @@ Reload Forever
 </div> ${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}
 <div class="details">
 <div><b>Offerta:</b> ${escapeHtml(item.offerta_nome || item.snapshot.offerta || '-')}</div>
+${window.MiroxPdaUI.summary(item)}
 <div><b>Opzione:</b> ${escapeHtml(item.opzione_nome || item.snapshot.opzione || '-')}</div>
 <div><b>Reload:</b> ${escapeHtml(item.reload_nome || item.snapshot.reload || '-')}</div>
 <div><b>Switch SIM:</b> ${escapeHtml(item.switch_sim || '-')}</div>
@@ -3907,6 +3934,8 @@ Reload Forever
  if (!response.ok || !data?.success) {
  const err = createTechnicalError(data?.error || fallbackMessage);
  err.serverErrorCode = data?.error_code || null;
+ err.duplicate = data?.duplicate || null;
+ err.rollbackFailed = data?.rollback_failed === true;
  err.httpStatus = response.status;
  err.providerStatus = data?.provider_status || null;
  err.providerMessage = data?.provider_message || null;
@@ -4227,7 +4256,7 @@ Reload Forever
  }
  refs.ragioneSociale.value = found.ragione_sociale || refs.ragioneSociale.value;
  refs.nomeReferente.value = found.nome_referente || refs.nomeReferente.value;
- refs.cellulare.value = found.cellulare || refs.cellulare.value;
+ if (!runtimeState.anagraficaCompleted) refs.cellulare.value = found.cellulare || refs.cellulare.value;
  if (refs.email) refs.email.value = found.email || refs.email.value;
  refs.provincia.value = found.provincia || refs.provincia.value;
  refs.comune.value = found.comune || refs.comune.value;
@@ -4237,7 +4266,7 @@ Reload Forever
 
  // Se l'OCR ha estratto dati per questo cliente, riapplicalo per sovrascrivere
  // i valori DB con quelli piu' aggiornati estratti dal PDA appena caricato.
- if (runtimeState.lastOcrData) {
+ if (runtimeState.lastOcrData && !runtimeState.anagraficaCompleted) {
  applyOcrToAnagrafica(runtimeState.lastOcrData);
  }
 
@@ -4280,6 +4309,9 @@ Reload Forever
  }
 
  async function addContrattoToCart(options = {}) {
+ if (runtimeState.addingContract) return;
+ runtimeState.addingContract = true;
+ const pdaRevision = runtimeState.pdaRevision;
  const goToCart = Boolean(options.goToCart);
  try {
  const cliente = getClienteFormData();
@@ -4331,6 +4363,8 @@ Reload Forever
  tempId: runtimeState.editingTempId || null
  });
 
+ if (isCurrentCategoriaPda() && !await checkPendingCode()) return;
+ if (pdaRevision !== runtimeState.pdaRevision) return;
  if (selectedDocumentoIdentita.length> 0) {
  praticaFiles.documento_identita = selectedDocumentoIdentita;
  runtimeState.restoreNeedsFileReselection = false;
@@ -4379,7 +4413,7 @@ Reload Forever
  }
  } catch (error) {
  showUserError(error.message, 'Verifica contratto');
- }
+ } finally { runtimeState.addingContract = false; }
  }
 
  function loadCartContractInForm(item) {
@@ -4387,6 +4421,7 @@ Reload Forever
  // le scelte dell'operatore (anche se lastOcrData e' ancora in runtimeState).
  if (typeof runtimeState !== 'undefined') runtimeState.ocrDeviceApplied = true;
  refs.categoria.value = item.categoria_id || refs.categoria.value;
+ renderPdaFields(item);
  renderOfferte();
  refs.offerta.value = item.offerta_id || '';
  renderOpzioni();
@@ -4573,6 +4608,7 @@ Reload Forever
  }
 
  return {
+ ...window.MiroxPda.validate(item, item.categoria_nome || item.categoria_snapshot || item.snapshot?.categoria),
  temp_id: item.temp_id,
  categoria_id: item.categoria_id,
  offerta_id: item.offerta_id,
@@ -4665,8 +4701,13 @@ Reload Forever
 
  try {
  payload = buildInvioPayload();
+ hideLoadingOverlay();
+ for (const item of state.cart.contratti) {
+ if (!item.codice_contratto) continue;
+ if (!await window.MiroxPdaUI.checkCode(item.codice_contratto, state.cart.contratti, item.temp_id)) return;
+ }
  setMessage('Creazione pratica e contratti in corso...', 'info');
- updateLoadingOverlay('Caricamento in corso', 'Creazione pratica e contratti...');
+ showLoadingOverlay('Caricamento in corso', 'Creazione pratica e contratti...');
  markTechnicalChecking('Verifica...');
 
  // Pre-step: informativa privacy GDPR (migration 034). Garantisce
@@ -4991,6 +5032,11 @@ Reload Forever
  uploadResults,
  uploadDebug
  });
+ if (error.serverErrorCode === 'contratto_duplicato' && !rollbackError && !error.rollbackFailed) {
+ hideLoadingOverlay();
+ await window.MiroxPdaUI.duplicateNotice(error.duplicate);
+ return;
+ }
  // Submit pratica e' il punto piu' critico: ogni errore va mandato
  // via mail al proprietario con livello ERROR (anche se "logico"
  // come validation lato server, perche' indica una desync UI/BE).
@@ -5156,6 +5202,7 @@ Reload Forever
 
  function getContractFormDraft() {
  return {
+ ...readPdaFields(),
  categoria_id: refs.categoria.value || '',
  offerta_id: refs.offerta.value || '',
  opzione_id: refs.opzione.value || '',
@@ -5326,6 +5373,7 @@ Reload Forever
      : CODICE_RIVENDITORE_DEFAULT;
  }
  renderDynamicSections();
+ renderPdaFields(contractForm);
  }
 
  function restoreDraftState(draft) {
@@ -5761,6 +5809,11 @@ Reload Forever
  // STEP 1: Categoria + PDA (file change listener)
  if (refs.filePda) {
  refs.filePda.addEventListener('change', () => {
+ runtimeState.pdaRevision++;
+ runtimeState.pendingPda = null;
+ runtimeState.lastOcrData = null;
+ runtimeState.ocrDeviceApplied = false;
+ renderPdaFields({});
  renderCategoriaActions();
  updatePdaDropZoneVisual();
  });
@@ -5830,185 +5883,74 @@ Reload Forever
  }
  });
 
- // Step 1 (categoria CON PDA): "Analizza con AI"
- refs.btnPdaAnalyzeAi.addEventListener('click', async () => {
- const file = refs.filePda && refs.filePda.files ? refs.filePda.files[0] : null;
- if (!file) {
- showUserError('Carica il PDF del PDA prima di proseguire', 'Step 1 - PDA');
- return;
- }
- // Multi-contratto: dal 2 contratto in poi l'anagrafica e' gia' nota,
- // quindi salta l'OCR (che sarebbe inutile) e si comporta come "Continua senza AI":
- // upload PDA in staging + vai direttamente allo step 3 (dati contratto).
- if (runtimeState.anagraficaCompleted) {
+ // Ogni PDA viene analizzata, anche nel carrello multi-contratto.
+ async function processPda(useAi) {
+ if (runtimeState.processingPda) return;
+ const file = refs.filePda?.files?.[0];
+ if (!file) { showUserError('Carica il PDF del PDA prima di proseguire', 'Step 1 - PDA'); return; }
+ runtimeState.processingPda = true;
+ refs.btnPdaAnalyzeAi.disabled = true;
+ refs.btnPdaSkipAi.disabled = true;
+ const revision = runtimeState.pdaRevision;
+ const category = getCategoriaName();
+ const stillCurrent = () => revision === runtimeState.pdaRevision && category === getCategoriaName();
  try {
- showLoadingOverlay('Upload PDA in corso', 'Caricamento del PDA in staging...');
- const uploadInfo = await uploadPdaStaging(file);
- runtimeState.pendingPda = uploadInfo;
+ let data = {};
+ if (useAi) {
+ showLoadingOverlay('Analisi AI in corso', 'Lettura del codice contratto e dei dati PDA...');
+ try { data = await chiamaOcr(file) || {}; }
+ catch (error) {
  hideLoadingOverlay();
- goToStep(3);
- queueDraftSave();
- } catch (error) {
- hideLoadingOverlay();
- if (isTechnicalError(error)) {
- showErrorOverlay(
- 'Errore upload PDA',
- error.message || 'Errore upload PDA',
- error.technicalDetails || '',
- {
- level: 'error',
- errorCode: error.serverErrorCode || 'pda_staging_upload_failed',
- context: {
- step: 'step_1_pda_upload_multi_contratto',
- http_status: error.httpStatus || null,
- request_url: error.requestUrl || null
- }
- }
- );
- } else {
- showUserError(error.message || 'Errore upload PDA', 'Step 1 - PDA');
- }
- }
- return;
- }
- try {
- showLoadingOverlay('Analisi AI in corso', 'Estrazione dati anagrafici dal PDA...');
- // 1) Upload PDA in staging
- const uploadInfo = await uploadPdaStaging(file);
- runtimeState.pendingPda = uploadInfo;
- // 2) OCR (best-effort: in caso di errore proseguo comunque a step 2).
- // Il backend ocr-pda.js classifica l'errore Anthropic in error_code
- // strutturato che la fetchJsonOrTechnicalError propaga su err.serverErrorCode.
- // - ocr_credit_exhausted -> popup esplicito "credito esaurito", mail CRITICAL
- // - ocr_rate_limited / ocr_unavailable / ocr_auth_error -> popup "OCR temp non disponibile", mail ERROR
- // - altrimenti -> popup neutro, mail WARNING
- let ocrData = null;
- try {
- ocrData = await chiamaOcr(file);
- } catch (ocrErr) {
- hideLoadingOverlay();
- const errCode = ocrErr?.serverErrorCode || '';
- const isCreditExhausted = errCode === 'ocr_credit_exhausted';
- const isUnavailable = ['ocr_rate_limited', 'ocr_unavailable', 'ocr_auth_error'].includes(errCode);
- let popupTitle, popupText, popupBtn, mailLevel;
- if (isCreditExhausted) {
- popupTitle = 'OCR non disponibile — Credito API esaurito';
- popupText = 'Il servizio OCR e\' temporaneamente non disponibile perche\' il credito API Anthropic e\' esaurito. '
- + 'Procedi con l\'inserimento manuale dei dati anagrafici: e\' stato gia\' inviato un avviso via email per ricaricare il credito.';
- popupBtn = 'Continua manualmente';
- mailLevel = 'critical';
- } else if (isUnavailable) {
- popupTitle = 'OCR temporaneamente non disponibile';
- popupText = 'Il servizio OCR ha risposto con un errore di servizio. Procedi con l\'inserimento manuale dei dati anagrafici. '
- + 'Una notifica e\' stata inviata via email.';
- popupBtn = 'Continua manualmente';
- mailLevel = 'error';
- } else {
- popupTitle = 'Estrazione AI non riuscita';
- popupText = 'Non sono riuscito a leggere i dati dal PDA. Procedo allo step Anagrafica senza pre-compilazione: '
- + 'compila manualmente i dati. Una notifica e\' stata inviata via email.';
- popupBtn = 'Continua';
- mailLevel = 'warning';
- }
- await new Promise((res) => {
- showErrorOverlay(
- popupTitle,
- popupText,
- String(ocrErr?.message || ocrErr || ''),
- {
- level: mailLevel,
- errorCode: errCode || 'ocr_unknown',
- context: {
- step: 'step_1_pda_ocr',
- file_name: file && file.name,
- file_size: file && file.size,
- http_status: ocrErr?.httpStatus || null,
- provider_status: ocrErr?.providerStatus || null,
- provider_message: ocrErr?.providerMessage || null
- }
- }
- );
- setOverlayActions({ primary: { label: popupBtn, onClick: () => { hideLoadingOverlay(); res(); } } });
- });
- if (runtimeState.anagraficaCompleted) {
- goToStep(3);
- } else {
- goToStep(2);
- }
- return;
+ if (!stillCurrent()) return;
+ await window.MiroxUI.alert(error.message || 'Lettura AI non riuscita. Compila manualmente i dati richiesti.',
+ { title: error.serverErrorCode === 'ocr_credit_exhausted' ? 'Credito OCR esaurito'
+ : error.serverErrorCode === 'ocr_rate_limited' ? 'OCR temporaneamente occupato' : 'Lettura PDA non disponibile', type: 'warning' });
  }
  hideLoadingOverlay();
- // 3) Applica OCR all'anagrafica (solo se non gia' completata)
+ }
+ if (!stillCurrent()) return;
+ if (runtimeState.anagraficaCompleted && data.cf_piva) {
+ const expectedCf = normalizeCfPiva(state.cart.cliente?.cf_piva || refs.cfPiva.value).replace(/\s/g, '');
+ const extractedCf = normalizeCfPiva(data.cf_piva).replace(/\s/g, '');
+ if (expectedCf && extractedCf && expectedCf !== extractedCf) {
+ throw new Error('Il PDA appartiene a un cliente diverso da quello della pratica. Avvia una nuova pratica per questo contratto.');
+ }
+ }
+ let code = window.MiroxPda.code(data.codice_contratto);
+ if (!code) code = await window.MiroxPdaUI.askCode('');
+ if (!code || !stillCurrent()) return;
+ if (!await window.MiroxPdaUI.checkCode(code, state.cart.contratti, runtimeState.editingTempId)) return;
+ if (!stillCurrent()) return;
+ data.codice_contratto = code;
+ // Il contatto della prima PDA resta quello della pratica; non usare mai SIM/MNP come fallback.
  if (!runtimeState.anagraficaCompleted) {
- applyOcrToAnagrafica(ocrData || {});
- goToStep(2);
- } else {
- goToStep(3);
+ data.cellulare = window.MiroxPda.phone(data.cellulare) || await window.MiroxPdaUI.askContact();
+ if (!data.cellulare || !stillCurrent()) return;
  }
- queueDraftSave();
- } catch (error) {
- hideLoadingOverlay();
- if (isTechnicalError(error)) {
- showErrorOverlay(
- 'Errore upload PDA',
- error.message || 'Errore upload PDA',
- error.technicalDetails || '',
- {
- level: 'error',
- errorCode: error.serverErrorCode || 'pda_staging_upload_failed',
- context: {
- step: 'step_1_pda_upload_with_ai',
- http_status: error.httpStatus || null,
- request_url: error.requestUrl || null
- }
- }
- );
- } else {
- showUserError(error.message || 'Errore upload PDA', 'Step 1 - PDA');
- }
- }
- });
-
- // Step 1 (categoria CON PDA): "Continua senza AI"
- refs.btnPdaSkipAi.addEventListener('click', async () => {
- const file = refs.filePda && refs.filePda.files ? refs.filePda.files[0] : null;
- if (!file) {
- showUserError('Carica il PDF del PDA prima di proseguire', 'Step 1 - PDA');
- return;
- }
- try {
- showLoadingOverlay('Upload PDA in corso', 'Caricamento del PDA in staging...');
+ showLoadingOverlay('Upload PDA in corso', 'Caricamento del contratto verificato...');
  const uploadInfo = await uploadPdaStaging(file);
- runtimeState.pendingPda = uploadInfo;
  hideLoadingOverlay();
- if (runtimeState.anagraficaCompleted) {
- goToStep(3);
- } else {
- goToStep(2);
- }
+ if (!stillCurrent()) return;
+ runtimeState.pendingPda = uploadInfo;
+ runtimeState.lastOcrData = data;
+ runtimeState.ocrDeviceApplied = false;
+ if (!runtimeState.anagraficaCompleted) applyOcrToAnagrafica(data);
+ // Gli altri contratti aggiornano soltanto i dati contratto/dispositivo, mai il contatto OTP.
+ if (refs.codiceRivenditore && CODICI_RIVENDITORE.includes(data.codice_rivenditore)) refs.codiceRivenditore.value = data.codice_rivenditore;
+ renderPdaFields(window.MiroxPda.normalize(data));
+ goToStep(runtimeState.anagraficaCompleted ? 3 : 2);
  queueDraftSave();
  } catch (error) {
  hideLoadingOverlay();
- if (isTechnicalError(error)) {
- showErrorOverlay(
- 'Errore upload PDA',
- error.message || 'Errore upload PDA',
- error.technicalDetails || '',
- {
- level: 'error',
- errorCode: error.serverErrorCode || 'pda_staging_upload_failed',
- context: {
- step: 'step_1_pda_upload_no_ai',
- http_status: error.httpStatus || null,
- request_url: error.requestUrl || null
+ if (stillCurrent()) showUserError(error.message || 'Impossibile verificare il contratto', 'Verifica PDA');
+ } finally {
+ runtimeState.processingPda = false;
+ refs.btnPdaAnalyzeAi.disabled = false;
+ refs.btnPdaSkipAi.disabled = false;
  }
  }
- );
- } else {
- showUserError(error.message || 'Errore upload PDA', 'Step 1 - PDA');
- }
- }
- });
+ refs.btnPdaAnalyzeAi.addEventListener('click', () => processPda(true));
+ refs.btnPdaSkipAi.addEventListener('click', () => processPda(false));
 
  // STEP 2: Anagrafica - back / next
  refs.btnAnagraficaBack.addEventListener('click', () => {
@@ -6024,7 +5966,7 @@ Reload Forever
  }
  updateCartClienteSnapshot();
  runtimeState.anagraficaCompleted = true;
- goToStep(isTuristaCluster(cliente.cluster) ? 4 : 3);
+ goToStep(3);
  } catch (error) {
  showUserError(error.message, 'Verifica anagrafica');
  }
@@ -6037,7 +5979,18 @@ Reload Forever
  });
 
  refs.btnContrattoNext.addEventListener('click', async () => {
+ if (refs.btnContrattoNext.disabled) return;
+ refs.btnContrattoNext.disabled = true;
+ const revision = runtimeState.pdaRevision;
+ const category = getCategoriaName();
  try {
+ if (isCurrentCategoriaPda() && !await checkPendingCode()) return;
+ if (revision !== runtimeState.pdaRevision || category !== getCategoriaName()) return;
+ if (isCategory(getCategoriaName(), 'Mobile')) {
+ const cost = await window.MiroxPdaUI.askCost(readPdaFields().costo_offerta_mensile);
+ if (cost === null || revision !== runtimeState.pdaRevision || category !== getCategoriaName()) return;
+ document.querySelector('#pdaContractFields [data-pda-field="costo_offerta_mensile"]').value = cost;
+ }
  collectContractDraft({}, { skipFileValidation: true });
  const categoriaNome = getCategoriaName();
  if (isCategory(categoriaNome, 'Fisso')) {
@@ -6068,7 +6021,7 @@ Reload Forever
  goToStep(4);
  } catch (error) {
  showUserError(error.message, 'Verifica contratto');
- }
+ } finally { refs.btnContrattoNext.disabled = false; }
  });
 
  // Popup custom per contratti Fisso: prezzo di vendita + convergenza (dropdown).

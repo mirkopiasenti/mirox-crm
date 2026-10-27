@@ -320,6 +320,8 @@ body {
 <script src="../js/anagrafica-helper.js"></script>
 <script src="../js/mirox-ui.js"></script>
 <script src="../js/mirox-api.js"></script>
+<script src="../js/vendita-pda-core.js"></script>
+<script src="../js/vendita-pda-ui.js"></script>
 
 <script src="../js/mirox-storage.js"></script>
 <script src="../js/mirox-folder.js"></script>
@@ -827,8 +829,15 @@ async function apriDettaglioOperazione(idx) {
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:10px;">${rows || '<div style="color:#94a3b8;font-size:13px;">Nessun campo disponibile.</div>'}</div>
     `;
-    const footer = `<button type="button" class="mx-btn mx-btn-secondary" data-mx-close>Chiudi</button>`;
+    const canEditPda = op.tipo === 'contratto_vendita' && window.MiroxPda.isPda(rec.categoria_snapshot);
+    const footer = (canEditPda ? '<button type="button" class="mx-btn mx-btn-primary" data-edit-pda>Modifica dati PDA</button>' : '')
+      + `<button type="button" class="mx-btn mx-btn-secondary" data-mx-close>Chiudi</button>`;
     const m = window.MiroxUI._build({ title: cfg.label + (op.riferimento ? ' — ' + op.riferimento : ''), bodyHtml: html, footerHtml: footer, large: true });
+    m.foot.querySelector('[data-edit-pda]')?.addEventListener('click', async () => {
+      m.close();
+      await window.MiroxPdaUI.edit(rec);
+      await apriDettaglioOperazione(idx);
+    });
     m.foot.querySelector('[data-mx-close]').addEventListener('click', m.close);
   } catch (e) {
     loader.error('Errore caricamento');

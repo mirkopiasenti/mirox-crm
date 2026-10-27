@@ -2,6 +2,43 @@
 
 I file `.sql` nella root di questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via CLI) durante lo sviluppo. `staging/` contiene invece bootstrap one-shot destinati esclusivamente a database staging nuovi e vuoti.
 
+## Identificazione PDA e dati Mobile (27/10/2026, migration applicata)
+
+`20261027110402_vendita_codice_pda_mobile.sql` applicata in produzione27/10
+(versione MCP20261027110402), riletti7campi/indice/trigger INVOKER con search_path
+vuoto. Nessuna segnalazione advisor sulle nuove funzioni. Prova INSERT su bozza,
+unicita, coerenza MNP e sync Fisso bidirezionale eseguita con ROLLBACK; zero righe
+di collaudo conservate, tutti i codici storici restano NULL.
+Aggiunge a `vendita_contratti` sette colonne nullable: `codice_contratto` text,
+`costo_offerta_mensile` numeric(7,2), `portabilita` boolean e i text
+`numero_telefono`, `numero_provvisorio`, `numero_mnp`, `operatore_provenienza`.
+Codice canonico maiuscolo senza spazi (zeri preservati), indice UNIQUE parziale
+`vendita_contratti_codice_pda_unique` su tutti i valori non NULL, nessun filtro per
+categoria/negozio/mese/stato/pratica. CHECK formato/importo/numerazioni e coerenza
+nuovo numero oppure MNP; le righe legacy con tutti i campi NULL restano valide.
+Il backend richiede il codice sui nuovi PDA e dati completi solo per Mobile;
+Customer Base/Fisso solo codice. Nessuna estrazione o riscrittura dello storico.
+
+Due nuove funzioni/trigger INVOKER con search_path vuoto, nessun SECURITY DEFINER:
+all'INSERT del controllo Fisso si copia il codice tracciato; le correzioni si
+propagano nelle due direzioni senza ricorsione, sotto lo stesso vincolo UNIQUE.
+Gli storici senza codice tracciato non vengono cambiati. Il client mantiene le
+RLS esistenti: modifiche del codice tracciato tramite Function autenticata; un
+client legacy senza UPDATE sul contratto riceve errore anziche' lasciare divergenze.
+Nessuna modifica a tabelle/RPC/trigger/policy CC o schema anagrafica; il contatto
+viene aggiornato dai normali upsert applicativi gia' esistenti.
+
+Collaudo offline con `scripts/verifica-vendita-pda-sql.js`, PostgreSQL in memoria
+PGlite0.5.12 installato soltanto nello scratchpad esterno (nessuna dipendenza CRM):
+`MIROX_PGLITE_MODULE=/percorso/assoluto/node_modules/@electric-sql/pglite node scripts/verifica-vendita-pda-sql.js`.
+Verificati compatibilita storico, CHECK, UNIQUE, due tentativi concorrenti,
+sincronizzazione bidirezionale e comportamento RLS con client legacy.
+CLI migration new tentata ma indisponibile per il profilo locale senza formato;
+nome UTC generato localmente, nessuna modifica delle credenziali/config CLI.
+Migration applicata; pubblicazione autorizzata in corso:
+far ricaricare i client e collaudare la nuova estrazione con Claude API.
+
+
 ## ⚠️ Stato del DB
 
 Fino alla `069_baseline_allineamento.sql` (2026-08-22) i file riflettono lo stato di produzione: la 069 recupera il drift accumulato dalle modifiche fatte a caldo prima del tracciamento. Le categorie di drift recuperate erano:

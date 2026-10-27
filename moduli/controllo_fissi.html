@@ -213,6 +213,8 @@ body {
 <script src="../js/auth.js"></script>
 <script src="../js/mirox-ui.js"></script>
 <script src="../js/mirox-api.js"></script>
+<script src="../js/vendita-pda-core.js"></script>
+<script src="../js/vendita-pda-ui.js"></script>
 
 <script>
 window.__profiloPromise = Auth.richiediAuth().then(profilo => {
@@ -413,8 +415,8 @@ async function loadAll() {
         contratto:contratto_id (
           id, categoria_id, offerta_id, opzione_id, operatore_id,
           categoria_snapshot, nome_offerta_snapshot, nome_opzione_snapshot,
-          apri_chiudi, intestatario, convergenza, prezzo_fisso, tipo_attivazione,
-          data_contratto, created_at
+          apri_chiudi, intestatario, convergenza, prezzo_fisso, tipo_attivazione, codice_contratto,
+          data_contratto, created_at, updated_at
         )
       `)
       .order('created_at', { ascending: false });
@@ -688,7 +690,8 @@ async function openDettaglio(id) {
         </div>
         <div class="det-field">
           <label>Cod. Contratto ${stato === 'Da completare' ? '<span class="required">*</span>' : ''}</label>
-          <input type="text" id="cfCodContratto" value="${escapeHtml(r.cod_contratto || '')}" placeholder="Codice contratto">
+          <input type="text" id="cfCodContratto" value="${escapeHtml(c.codice_contratto || r.cod_contratto || '')}" placeholder="Codice contratto" ${c.codice_contratto ? 'readonly' : ''}>
+          ${c.codice_contratto ? '<button type="button" class="mx-btn mx-btn-secondary" data-edit-pda>Modifica codice PDA</button>' : ''}
         </div>
         <div class="det-field">
           <label>Cod. POS ${stato === 'Da completare' ? '<span class="required">*</span>' : ''}</label>
@@ -787,6 +790,19 @@ async function openDettaglio(id) {
     footerHtml: footer,
     large: true,
     onClose: () => { CFState.editingId = null; }
+  });
+  let pdaOtherFieldsDirty = false;
+  m.body.addEventListener('input', () => { pdaOtherFieldsDirty = true; });
+  m.body.addEventListener('change', () => { pdaOtherFieldsDirty = true; });
+  m.body.querySelector('[data-edit-pda]')?.addEventListener('click', async () => {
+    if (pdaOtherFieldsDirty) {
+      MiroxUI.toast('Salva le altre modifiche prima di aprire il codice PDA.', 'warning');
+      return;
+    }
+    m.close();
+    await window.MiroxPdaUI.edit(c);
+    await loadAll();
+    await openDettaglio(id);
   });
   // FIX scroll: il MiroxUI overlay non scrolla se il modal supera l'altezza viewport.
   // Lo rendiamo scrollabile e ancorato in alto come fa segnalazioni.html.
