@@ -3067,6 +3067,39 @@ Reload Forever
  const root = document.getElementById('pdaContractFields');
  if (root.dataset.pdaOptionManual === 'true') return;
  refs.opzione.value = window.MiroxPda.mobileOptionId(readPdaFields(), filteredOpzioni(), state.opzioni) || '';
+ root.dataset.pdaAutoOption = refs.opzione.value;
+ }
+
+ async function confirmMobileOptionChange() {
+ const root = document.getElementById('pdaContractFields');
+ const selected = refs.opzione.value;
+ const automatic = root.dataset.pdaAutoOption || '';
+ if (root.dataset.pdaOptionPending) { refs.opzione.value = automatic; return; }
+ if (isCategory(getCategoriaName(), 'Mobile') && root.dataset.pdaOptionManual !== 'true' && automatic) {
+ if (selected === automatic) return;
+ // Mantieni punteggi, documenti e bozza sulla scelta originale fino alla conferma.
+ refs.opzione.value = automatic;
+ const revision = runtimeState.pdaRevision;
+ const editingId = runtimeState.editingTempId;
+ const offerId = refs.offerta.value;
+ const token = String(runtimeState.optionConfirmSequence = (runtimeState.optionConfirmSequence || 0) + 1);
+ root.dataset.pdaOptionPending = token;
+ const label = id => filteredOpzioni().find(o => o.id === id)?.nome_opzione || 'Nessuna selezione';
+ try {
+ const confirmed = await window.MiroxUI.confirm(
+ 'La scelta automatica è "' + label(automatic) + '". Vuoi sostituirla con "' + label(selected) + '"?',
+ { title: 'Conferma modifica opzione', okText: 'Conferma modifica', cancelText: 'Mantieni scelta automatica' }
+ );
+ if (!confirmed || root.dataset.pdaOptionPending !== token || runtimeState.pdaRevision !== revision
+ || runtimeState.editingTempId !== editingId || refs.offerta.value !== offerId) return;
+ refs.opzione.value = selected;
+ } finally {
+ if (root.dataset.pdaOptionPending === token) delete root.dataset.pdaOptionPending;
+ }
+ }
+ root.dataset.pdaOptionManual = 'true';
+ renderDynamicSections();
+ queueDraftSave();
  }
 
  function renderReload(options = {}) {
@@ -3166,6 +3199,8 @@ Reload Forever
  root.dataset.pdaReading = data?.pda_lettura === 'ai' ? 'ai' : 'manuale';
  root.dataset.pdaOptionManual = (data?.pda_opzione_manuale === true
  || (data?.pda_opzione_manuale === undefined && Boolean(data?.opzione_id))) ? 'true' : 'false';
+ root.dataset.pdaAutoOption = '';
+ delete root.dataset.pdaOptionPending;
  root.innerHTML = window.MiroxPdaUI.formHtml(window.MiroxPda.normalize(data || {}), category, { wizard: true, reading: root.dataset.pdaReading });
  window.MiroxPdaUI.bindForm(root);
  if (!root.dataset.autosaveBound) {
@@ -5127,11 +5162,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  renderDynamicSections();
  });
 
- refs.opzione.addEventListener('change', () => {
- document.getElementById('pdaContractFields').dataset.pdaOptionManual = 'true';
- renderDynamicSections();
- queueDraftSave();
- });
+ refs.opzione.addEventListener('change', confirmMobileOptionChange);
  refs.apriChiudi.addEventListener('change', renderDynamicSections);
  refs.dispositivoAssociato.addEventListener('change', renderDynamicSections);
  refs.tipoAcquisto.addEventListener('change', renderDynamicSections);

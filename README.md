@@ -185,6 +185,15 @@ Su istruzione del proprietario27/10: non usare il browser per i collaudi;
 assistente esegue soltanto test interni/debug e controlli HTTP/CI. Test UI a cura
 del proprietario fino a nuova indicazione.
 
+Conferma cambio opzione27/10: quando si modifica una preselezione automatica
+Mobile, popup MiroxUI con valore originale/proposto, Conferma modifica e
+Mantieni scelta automatica. Fino alla conferma resta selezionato il valore
+originale: nessuna variazione anticipata a punteggi, documenti o bozza. Annulla/
+chiusura conserva la scelta automatica; conferma applica l'override manuale.
+Scelte gia' manuali o senza preselezione non richiedono il popup. Nuova PDA
+riparte dall'automatismo. Doppio cambio e conferme tardive su altra PDA/offerta/
+contratto non applicano modifiche alla nuova compilazione. Nessun cambio DB.
+
 ### Documento identita per contratto
 
 Il documento d'identita e obbligatorio per ogni nuovo contratto. Nel carrello viene selezionato una sola volta; sulle bozze `upload-vendita-documento` crea un allegato e un PDF indipendente per ciascuna riga, con INSERT batch e pulizia delle nuove copie su errore. `finalize` impedisce l'invio se manca l'identita anche su una sola riga. Gli upload successivi da Verifica Contratti restano specifici della riga selezionata. Lo storico dal 1 luglio 2026 viene sistemato dallo script dedicato senza sovrascrivere documenti esistenti; i casi senza sorgente richiedono un'integrazione manuale.

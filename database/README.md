@@ -57,6 +57,9 @@ catalogo/collegamenti/punteggi. Codice rivenditore dei nuovi create fissato lato
 server a9001415852 (anche con input precedente Cerea); CHECK DB e storico invariati.
 Nessuna nuova colonna o migration; pda_opzione_manuale resta solo nel client.
 
+Conferma override opzione27/10: popup solo client prima di cambiare la scelta
+automatica; backend, catalogo, punteggi e schema invariati.
+
 ## ⚠️ Stato del DB
 
 Fino alla `069_baseline_allineamento.sql` (2026-08-22) i file riflettono lo stato di produzione: la 069 recupera il drift accumulato dalle modifiche fatte a caldo prima del tracciamento. Le categorie di drift recuperate erano:

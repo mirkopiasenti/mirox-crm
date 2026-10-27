@@ -235,3 +235,19 @@ Guide aggiornate; esito suite/CI/deploy nel promemoria. Backup/Guardian esclusi.
 Suite finale356/356locale (355versionati+1backup) e build riuscite. Nessuna
 modifica a schema/catalogo/storico; nuova preselezione non sostituisce le scelte
 manuali e il backend continua a validare legami/punteggi dal catalogo.
+
+## Conferma della modifica alla preselezione Mobile
+
+Conferma cambio opzione27/10: quando si modifica una preselezione automatica
+Mobile, popup MiroxUI con valore originale/proposto, Conferma modifica e
+Mantieni scelta automatica. Fino alla conferma resta selezionato il valore
+originale: nessuna variazione anticipata a punteggi, documenti o bozza. Annulla/
+chiusura conserva la scelta automatica; conferma applica l'override manuale.
+Scelte gia' manuali o senza preselezione non richiedono il popup. Nuova PDA
+riparte dall'automatismo. Doppio cambio e conferme tardive su altra PDA/offerta/
+contratto non applicano modifiche alla nuova compilazione. Nessun cambio DB.
+
+Suite completa360/360locale (359versionati+1backup) e build riuscite. Quattro
+regressioni aggiuntive: conferma/annulla senza effetti prematuri, scelta manuale/
+valore identico senza popup, doppio cambio e risposta tardiva. Nessun browser
+usato; test UI a cura del proprietario. Guide aggiornate, rilascio nel promemoria.

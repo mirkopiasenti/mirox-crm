@@ -467,6 +467,15 @@ Su istruzione del proprietario27/10: non usare il browser per i collaudi;
 assistente esegue soltanto test interni/debug e controlli HTTP/CI. Test UI a cura
 del proprietario fino a nuova indicazione.
 
+Conferma cambio opzione27/10: quando si modifica una preselezione automatica
+Mobile, popup MiroxUI con valore originale/proposto, Conferma modifica e
+Mantieni scelta automatica. Fino alla conferma resta selezionato il valore
+originale: nessuna variazione anticipata a punteggi, documenti o bozza. Annulla/
+chiusura conserva la scelta automatica; conferma applica l'override manuale.
+Scelte gia' manuali o senza preselezione non richiedono il popup. Nuova PDA
+riparte dall'automatismo. Doppio cambio e conferme tardive su altra PDA/offerta/
+contratto non applicano modifiche alla nuova compilazione. Nessun cambio DB.
+
 ### Compilatore disdette (dal 2026-08-06, migrations 063–064)
 - Varianti consentite: `sim_consumer`, `sim_business`, `fisso_consumer`, `fisso_business`; ogni PDF riguarda una sola utenza.
 - Tutti i dati anagrafici, di contatto, indirizzo, utenza e le scelte pertinenti sono obbligatori. La data è precompilata con oggi ma è l'unico dato facoltativo e può essere cancellata senza bloccare la generazione.
