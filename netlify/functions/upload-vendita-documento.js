@@ -1,6 +1,7 @@
 const Busboy = require('busboy');
 const { createClient } = require('@supabase/supabase-js');
-const { requireAuth } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'upload-vendita-documento' });
 
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 const STORAGE_BUCKET = 'contratti-vendita';

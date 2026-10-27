@@ -2,6 +2,27 @@
 
 I file `.sql` nella root di questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via CLI) durante lo sviluppo. `staging/` contiene invece bootstrap one-shot destinati esclusivamente a database staging nuovi e vuoti.
 
+## Permessi pagine Mirox — migration applicata 27/10/2026
+
+Migration sorgente CLI `20261027221833_permessi_pagine_mirox.sql`, applicata
+in production con versione registrata `20261027224328` dopo consenso esplicito:
+catalogo `mirox_pagine`, ACL `mirox_permessi_utente` con FK a profili, audit
+`mirox_permessi_audit` e RPC invoker/service-only `mirox_salva_permessi_pagine`.
+RLS ON e privilegi minimi sulle tre tabelle nuove; salvataggio admin validato,
+versione ottimistica, lock e audit atomico. Seed tutte le 19 pagine per i profili
+esistenti; nuovi utenti/pagine negati in assenza di true esplicito.
+Helper interno `mirox_private.can_pages(text[])` vincolato all'identita corrente,
+search_path vuoto, schema privato. Policy AS RESTRICTIVE additive sulle risorse
+vendita e Storage, viste pubbliche report/storico invoker con gate modulo;
+storico legge aggregazione privata autorizzata per conservare le UNION CC.
+Nessuna modifica a schema/RLS/RPC/trigger di profili o tabelle CC condivise.
+Verificati19pagine/7ACL tuttetrue/0audit,84policy restrittive e privilegi;
+profili/permessiCC/schema/RLS/trigger condivisi e RPC esistenti identici allo
+snapshot precedente. Advisor sicurezza/performance7->7, nessun nuovo rilievo.
+Operatore e identita senzaACL verificati in READONLY/ROLLBACK, nessun dato
+cliente modificato. Procedura, limiti dati condivisi e signed URL gia emesse:
+[`docs/PERMESSI_PAGINE.md`](../docs/PERMESSI_PAGINE.md).
+
 ## Verifica automatica contratti (27/10/2026, migration applicata)
 
 `20261027172616_verifica_automatica_contratti.sql`, generata con CLI: sei tabelle

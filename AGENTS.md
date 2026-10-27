@@ -138,6 +138,8 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 | `js/customer-base-device.js` | `window.MiroxCustomerBaseDevice` / CommonJS server | Vincola dispositivo e acquisto nelle due combinazioni Customer Base finanziato/VAR |
 | `js/dashboard-report-core.js` | `window.MiroxDashboardReport` / CommonJS server | Motore puro condiviso con Target e Admin: matching, pesi, calendario, righe Day/Mensile, netto e dettaglio Luce & Gas, gare mensili e compensi |
 | `js/config.js` | `window.db`, `window.MiroxEnvironment` | Guard nel sorgente; la build genera il client con URL + publishable/anon key dell'ambiente |
+| `js/mirox-permissions-core.js` | `window.MiroxPermissions` / CommonJS | Catalogo 19 pagine, permessi puri e dipendenze lettura/scrittura per API e DB |
+| `js/mirox-permissions-ui.js` | `window.MiroxPermissionsUI` | Nasconde menu, gestisce blocchi e iniziale attesa autorizzazioni; caricato con il catalogo nella head prima di Auth |
 | `js/auth.js` | `window.Auth` | `richiediAuth()` guard, `logout()`, `getProfilo()`. Le operazioni sensibili sono autorizzate per ruolo lato server; il frontend non richiede password operative o una seconda immissione della password account |
 | `js/mirox-safe.js` | `window.MiroxSafe` | `escapeHtml`, `safeUrl`, `isUuid`, `isRecordId`, `safeCssColor`. Caricato da tutte le pagine per impedire che dati DB/input diventino markup, URL o handler eseguibili |
 | `js/anagrafica-helper.js` | `window.AnagraficaHelper` | `detectKind`, `cerca`, `cercaOcrea`, `setupAnagraficaSection` |
@@ -153,6 +155,8 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 | `js/vendita-storage-helper.js` | `uploadVenditaDocumento(...)` | wrapper upload PDF via Netlify function |
 
 ### 2. Server (`/netlify/functions/`, Node >=22)
+
+`admin-permessi-pagine.js` (GET/POST) e' admin-only: elenco utenti/ACL, audit per utente, salvataggio versionato. `_lib/page-permissions.js` rilegge profilo/ACL sulle API protette tramite endpoint statico dichiarato nella function; nessun permesso proveniente da header, Referer o body client. `upload-documento-modulo` verifica inoltre il bucket dopo il multipart. Admin/ruoli specifici preesistenti restano richiesti.
 
 Verifica Contratti automatica (27/10, modalità collaudo): `gestisci-verifica-automatica.js` valida JWT e ruolo per collaudo/CSV/configurazione/riconciliazione notifiche; `verifica-contratti-background.js` usa HMAC/timestamp60s e coda privata; `cron-verifica-contratti.js` ogni minuto recupera prove assistite esplicite e, solo in modalità attiva, turni21:00Europe/Rome/riesami/notifiche. Helper `_lib/verifica-documenti.js`, `_lib/verifica-worker.js`, `_lib/verifica-csv.js`; nessuna Edge Function. Default collaudo senza conferme/email.
 
@@ -217,6 +221,13 @@ Le migration Guardian additive `065`–`068` sono applicate sul production `lbgw
 ---
 
 ## Mappa Supabase per dominio
+
+### Permessi pagine Mirox (separati dal CC, migration sorgente 20261027221833, production 20261027224328 applicata)
+- `mirox_pagine`: catalogo canonico, lettura autenticata; modifiche solo service_role.
+- `mirox_permessi_utente`: PK `utente_id` FK a profili, mappa booleana `pagine`, versione e data aggiornamento. Browser legge solo la propria riga (admin tutte), nessuna scrittura.
+- `mirox_permessi_audit`: append dei salvataggi con autore, destinatario e prima/dopo, indice utente/data; accesso solo backend.
+- `mirox_salva_permessi_pagine(uuid,uuid,jsonb,bigint)`: nuova RPC SECURITY INVOKER/service-only con controllo admin, lock e audit nella medesima transazione. Lookup RLS `mirox_private.can_pages(text[])` SECURITY DEFINER, identita auth.uid vincolata, search_path vuoto e schema non esposto.
+- Policy AS RESTRICTIVE sulle sole risorse vendita e bucket correlati; non sostituiscono le policy permissive esistenti. `profili`, tabelle/RPC/RLS CC e anagrafica restano invariati. Dettagli/rollout: `docs/PERMESSI_PAGINE.md`.
 
 ### Anagrafica & Auth (condiviso)
 - `profili` — utenti CRM, `ruolo` IN ('admin','operatore'), `pagine_accessibili` jsonb per ACL Call Center, `alias_di` self-FK opzionale verso il profilo canonico. Il backfill alias usa `applica_alias_backfill_v2(uuid)` (migration `053`), SECURITY DEFINER con controllo `ruolo='admin'`; la v1 viene chiusa al client dalla migration post-deploy `054`.
@@ -766,7 +777,7 @@ Form esterno per prenotazioni dal sito/social. **NON in dashboard** (non ha auth
 
 ### Rischi e limiti noti
 
-- **Permessi granulari Mirox solo per CC**: la modale "Permessi CC" in `admin-utenti.html` lista le 10 chiavi CC (le pagine Vendita/Post-Vendita sono accessibili a tutti gli utenti attivi, non c'è ancora granularità)
+- **Permessi Call Center separati dalle ACL Mirox**: la modale "Permessi CC" in `admin-utenti.html` lista le 9 chiavi CC operative; `configurazione` resta solo nel DB legacy (le ACL Vendita/Post-Vendita/Applicazioni sono separate e gestite da `admin-permessi.html`, dopo la migration dedicata)
 - **`vw_elenco_chiamate_unificate` / `vw_rilavorazione_ricontatti_unificata`**: usate dalle pagine CC, dipendono dalla colonna `chiamate.rilavorazione_stato` (esiste) e dalle viste già createSE — verificate online in Fase 1
 - **`get_slot_disponibili` RPC**: usata da `prenota.html`, `prenota-interno.html`, `appuntamenti.html` (per spostamento). Confermata esistente nel DB
 
@@ -781,7 +792,8 @@ Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile
 | Pagina | Scopo |
 |---|---|
 | `admin.html` | Landing della shell Admin con riepilogo dei reparti Configurazioni e KPI |
-| `admin-utenti.html` | CRUD su `profili`: cambio ruolo admin↔operatore con conferma, abilita/disabilita, modale permessi granulari CC (10 chiavi). Un admin non può togliersi il ruolo né disabilitarsi |
+| `admin-permessi.html` | Permessi per utente di 19 pagine Vendita/Post-Vendita/Applicazioni, copia da altro operatore, riepilogo modifiche e ultimi 30 audit. Solo admin, accesso completo non modificabile per gli admin |
+| `admin-utenti.html` | CRUD su `profili`: cambio ruolo admin↔operatore con conferma, abilita/disabilita, modale permessi granulari CC (9 chiavi operative). Un admin non può togliersi il ruolo né disabilitarsi |
 | `admin-call-center-config.html` | Configurazione CC (orari settimanali, blocchi/chiusure, parametri sistema). Spostata da `moduli/call-center/configurazione.html` (eliminata). NON dipende da `CcHeader` o dai JS del CC: usa solo `js/config.js` + `js/auth.js` + `js/mirox-ui.js` Mirox |
 | `admin-vendita-config.html` | CRUD cataloghi vendita. Check `ruolo='admin'`; la navigazione verso gli altri moduli passa dalla shell condivisa |
 | `admin-gare.html` | Configurazione metriche, obiettivi mensili, compensi e operatori in gara |
@@ -840,8 +852,9 @@ Il bottone "Admin" dentro `moduli/upload-contratti-vendita.html` è stato **rimo
 
 ### Note operative
 
+- **Permessi pagine Vendita/Post-Vendita/Applicazioni (rilascio 27/10/2026)**: catalogo canonico `js/mirox-permissions-core.js`, condiviso browser/CommonJS. Le ACL sono separate da `profili.pagine_accessibili` (solo CC): `mirox_permessi_utente`, `mirox_permessi_audit` e `mirox_pagine`. Nessuna modifica schema/RLS/RPC delle tabelle CC condivise. Gli admin attivi hanno accesso completo; gli operatori richiedono un booleano true esplicito. Seed iniziale solo utenti esistenti, nuovi utenti/pagine senza abilitazione negati. Salvataggio solo backend admin tramite nuova RPC service-only, con versione ottimistica e audit atomico. Permessi per pagina, non per campo: le letture condivise necessarie a Storico Cliente/Dashboard/Verifica restano ammesse se uno di quei moduli e' abilitato; le scritture richiedono il modulo operativo. Revoche rilette per ogni operazione backend protetta e nelle RLS, frontend aggiornato al ritorno alla scheda e ogni 60s visibili. Nessun polling su schede nascoste. Le nuove policy sono restrittive/additive su tabelle vendita e bucket pertinenti; non rimuovere le policy esistenti. Le viste pubbliche vendita/storico usano SECURITY INVOKER con gate del modulo. Lo storico conserva le UNION CC tramite `mirox_private.storico_cliente_dati`, vista proprietaria privata con gate sull'identita corrente; non cambiare le RLS condivise per ampliare le letture CC. UI e gestione centralizzate in `admin-permessi.html`.
 - La creazione di un nuovo utente richiede ancora due step manuali (Supabase Authentication → add user con email/password, poi qui si gli assegna ruolo/permessi). Una function `admin-create-user` con service_role potrebbe automatizzare in futuro
-- I permessi granulari Vendita/Post-Vendita NON esistono ancora: tutte queste pagine sono accessibili a chiunque sia loggato e attivo. Quando serviranno, estendere la mappa `PAGINE_LABELS` in `admin-utenti.html`
+- I permessi Vendita/Post-Vendita/Applicazioni si gestiscono in `admin-permessi.html`; `PAGINE_LABELS` e `profili.pagine_accessibili` rimangono esclusivamente CC. Migration applicata e verificata il27/10 (versione live20261027224328); rilascio autorizzato dal proprietario.
 
 ---
 
@@ -1088,7 +1101,7 @@ Il costo SMS va stimato sui volumi reali di clienti unici e sul listino Smshosti
 - **Cluster `Turista`**: accettato solo da `crea-vendita-pratica-carrello.js`. È voluto.
 - **File SQL in `/database/`**: parziali, NON riflettono lo stato attuale del DB (vedi `database/README.md`)
 - **Modulo `simulatore_protecta.html`**: ~960 KB, molto pesante perché contiene asset embedded. Modificare con cautela.
-- **Permessi granulari Vendita/Post-Vendita**: non esistono ancora. Solo CC ha permessi fine-grained via `pagine_accessibili`. Le pagine Vendita/Post-Vendita sono accessibili a tutti gli utenti attivi, indipendentemente dal ruolo (admin/operatore). Solo il pannello Admin è gated dal `ruolo`.
+- **Permessi Vendita/Post-Vendita/Applicazioni**: rilascio27/10 con migration applicata (live20261027224328, sorgente20261027221833). ACL per pagina separate dal CC; non dedurre permessi da alias, ruolo operatore o chiavi CC. Gli admin attivi accedono sempre. Signed URL già emesse restano valide fino alla scadenza; i dati già visualizzati non sono recuperabili da una revoca. Vedi `docs/PERMESSI_PAGINE.md`.
 - **`vendita_contratti.fascia_prezzo`**: dal 2026-06-26 contiene il **prezzo puntuale del device** (es. `"399.90"`), non più una fascia-range (`"250-599"`). La dashboard pezzi (migration `014`, regole seed in `dashboard_righe_giornaliera`) **non binara mai** per `fascia_prezzo` né `fascia_prezzo_in`, quindi il cambio è transparent per il conteggio mensile attuale. Se in futuro servisse raggruppare per fasce: aggiungere una colonna derivata o una regola DSL che faccia il binning lato dashboard. **Non re-introdurre la dropdown** in `upload-contratti-vendita.html` o `verifica_contratti.html` senza prima discutere.
 - **Catalogo `vendita_reload` dismesso** (migration `035`, 2026-06-26): la dropdown Reload nel wizard upload-contratti, la sezione "Reload (catalogo)" in `admin-vendita-config.html` e il multiselect "Reload disponibili" nelle offerte sono **disabilitati** (UI nascosta o no-op via shim JS). La tabella DB `vendita_reload`, il link `vendita_offerte_reload` e la colonna `vendita_contratti.reload_id` sono **conservati** per dati storici — niente DROP. Le Netlify functions `vendita-config.js` e `admin-vendita-config.js` continuano a leggere/scrivere ma il wizard non invia più `reload_id` né nuovi link. Se serve riabilitare in futuro: ripristinare HTML/JS nei 3 punti citati e gli shim no-op in `upload-contratti-vendita.html`. **Non eliminare** la tabella DB senza prima migrare i contratti storici.
 - **`vendita_contratti.smartphone_reload` + `smartphone_reload_modalita`** (migration `035`, 2026-06-26): non confondere con il vecchio catalogo Reload. Sono campi del singolo contratto, ricavati dalla riga "SMARTPHONE RELOAD SI/NO" del PDA. Il CHECK DB `vc_smartphone_reload_coerenza_chk` impone `modalita NOT NULL ⇔ smartphone_reload IS TRUE`: se vuoi cambiare smartphone_reload da true a false, **prima** azzera la modalita.

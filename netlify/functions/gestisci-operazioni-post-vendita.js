@@ -1,4 +1,5 @@
-const { requireAuth, getAdminClient } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth, getAdminClient } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'gestisci-operazioni-post-vendita' });
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',

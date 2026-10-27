@@ -2,7 +2,8 @@ const Pda = require('./_lib/pda-contract');
 const {validateCombination}=require('../../js/customer-base-device');
 const { saveCodes } = require('./_lib/windtre-customer-codes');
 const { createClient } = require('@supabase/supabase-js');
-const { requireAuth } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'crea-vendita-pratica-carrello' });
 const { INFORMATIVE_VERSIONI_CORRENTI } = require('./_lib/privacy-config');
 const {
   assertPersistedContractScores,

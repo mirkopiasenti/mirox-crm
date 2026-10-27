@@ -30,7 +30,8 @@ const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const { uploadPrivacyPdf, isStorageConflict, isTemporaryStorageError } = require('./_lib/privacy-pdf-storage');
 const { captureServerError } = require('./_lib/with-telemetry');
-const { requireAuth } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'verifica-otp-privacy' });
 const { generateConsensoPdf, INFORMATIVA_VERSIONE_DIGITALE } = require('./_lib/pdf-consenso');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

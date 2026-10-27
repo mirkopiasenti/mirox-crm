@@ -31,6 +31,8 @@ function loadCommonJs(relativePath, stubs = {}) {
       if (id === './_lib/windtre-customer-codes') return require('../netlify/functions/_lib/windtre-customer-codes');
       if (id === './_lib/pda-contract') return require('../netlify/functions/_lib/pda-contract');
       if (id === '../../js/customer-base-device') return require('../js/customer-base-device');
+      if (id === '../../js/mirox-permissions-core') return require('../js/mirox-permissions-core');
+      if (id === './_lib/page-permissions') return require('../netlify/functions/_lib/page-permissions');
       if (Object.prototype.hasOwnProperty.call(stubs, id)) return stubs[id];
       throw new Error(`Dipendenza non prevista nel test: ${id}`);
     }

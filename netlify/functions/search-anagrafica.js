@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
-const { requireAuth } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'search-anagrafica' });
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',

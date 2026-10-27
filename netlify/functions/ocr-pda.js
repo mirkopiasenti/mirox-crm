@@ -27,7 +27,8 @@ const Pda = require('../../js/vendita-pda-core');
 
 const Busboy = require('busboy');
 const Anthropic = require('@anthropic-ai/sdk').default;
-const { requireAuth } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'ocr-pda' });
 const { readPdfFields } = require('./_lib/pda-pdf-text');
 
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;

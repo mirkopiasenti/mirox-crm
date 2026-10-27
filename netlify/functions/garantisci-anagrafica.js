@@ -28,7 +28,8 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const { requireAuth } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'garantisci-anagrafica' });
 
 const Pda = require('../../js/vendita-pda-core');
 const { saveCodes } = require('./_lib/windtre-customer-codes');

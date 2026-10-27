@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { strToU8, zipSync } = require('fflate');
-const { requireAuth } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'gestisci-anagrafiche' });
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',

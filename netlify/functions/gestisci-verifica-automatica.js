@@ -1,5 +1,6 @@
 'use strict';
-const { requireAuth, getAdminClient } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth, getAdminClient } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'gestisci-verifica-automatica' });
 const Core = require('../../js/verifica-contratti-core');
 const Csv = require('./_lib/verifica-csv');
 const Docs = require('./_lib/verifica-documenti');

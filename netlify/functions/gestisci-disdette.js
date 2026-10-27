@@ -1,7 +1,8 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const { requireAuth, getAdminClient } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth, getAdminClient } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'gestisci-disdette' });
 const { generateDisdettaPdf, VARIANTS } = require('./_lib/pdf-disdetta');
 
 const BUCKET = 'disdette-files';

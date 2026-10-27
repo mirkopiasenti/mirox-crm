@@ -17,6 +17,7 @@
   const pages = {
     'admin.html': { title: 'Pannello Admin', key: 'home' },
     'admin-utenti.html': { title: 'Gestione Utenti', key: 'utenti' },
+    'admin-permessi.html': { title: 'Permessi pagine', key: 'permessi' },
     'admin-call-center-config.html': { title: 'Configurazione Call Center', key: 'call-center' },
     'admin-vendita-config.html': { title: 'Catalogo Vendita', key: 'vendita' },
     'admin-gare.html': { title: 'Gare & Avanzamento', key: 'gare' },
@@ -56,6 +57,7 @@
             '<div class="mx-admin-subnav', isKpiPage ? '' : ' is-open', '" id="mxAdminConfigNav" aria-hidden="', String(isKpiPage), '">',
               '<div class="mx-admin-subnav-inner"><div class="mx-admin-subnav-list">',
                 navLink('admin-utenti.html', 'utenti', 'Gestione Utenti', icons.users),
+                navLink('admin-permessi.html', 'permessi', 'Permessi pagine', icons.users),
                 navLink('admin-call-center-config.html', 'call-center', 'Configurazione Call Center', icons.phone),
                 navLink('admin-vendita-config.html', 'vendita', 'Catalogo Vendita', icons.package),
                 navLink('admin-gare.html', 'gare', 'Gare & Avanzamento', icons.trophy),

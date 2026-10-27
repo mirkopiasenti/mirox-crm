@@ -1,6 +1,7 @@
 'use strict';
 
-const { requireAuth, getAdminClient } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth, getAdminClient } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'gestisci-controllo-lg' });
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',

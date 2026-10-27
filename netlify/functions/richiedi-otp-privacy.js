@@ -36,7 +36,8 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
-const { requireAuth } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'richiedi-otp-privacy' });
 const { sendOtpSms, normalizeMobileNumber, generateOtp } = require('./_lib/smshosting');
 const { INFORMATIVA_VERSIONE_DIGITALE } = require('./_lib/privacy-config');
 

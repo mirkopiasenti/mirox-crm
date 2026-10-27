@@ -2,7 +2,8 @@
 const crypto = require('node:crypto');
 const Busboy = require('busboy');
 const { PDFDocument } = require('pdf-lib');
-const { requireAuth, getAdminClient } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth, getAdminClient } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'gestisci-subentri' });
 const { generateSubentroPdf } = require('./_lib/pdf-subentro');
 const { validatePayload, validateMode, validateSearchIdentifier, ValidationError, DOCUMENTI } = require('../../js/subentri-core');
 const BUCKET = 'subentri-files';

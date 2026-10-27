@@ -1,0 +1,8 @@
+.mx-permissions-pending body { visibility: hidden; }
+.mx-permission-hidden { display: none !important; }
+.mx-permissions-blocked body > :not(#mxPermissionsBlock) { display: none !important; }
+#mxPermissionsBlock { visibility: visible; max-width: 620px; margin: 12vh auto; padding: 32px; background: #fff; border: 1px solid #e3e8ee; border-radius: 16px; color: #0a2540; font-family: Inter, sans-serif; }
+#mxPermissionsBlock h1 { font-size: 23px; margin: 0 0 16px; }
+#mxPermissionsBlock p { line-height: 1.6; margin-bottom: 22px; }
+#mxPermissionsBlock a { color: #c64f00; font-weight: 600; margin-right: 20px; }
+.mx-permissions-empty { text-align: center; padding: 32px; color: #697386; }

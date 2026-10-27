@@ -2,6 +2,9 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
+<link rel="stylesheet" href="css/mirox-permissions.css">
+<script src="js/mirox-permissions-core.js"></script>
+<script src="js/mirox-permissions-ui.js"></script>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestione Utenti - Admin Mirox</title>
@@ -274,7 +277,8 @@ async function caricaUtenti() {
           ${ruolo === 'admin'
             ? `<button class="btn btn-sm btn-secondary" ${isMe ? 'disabled title="Non puoi togliere il ruolo admin a te stesso"' : `onclick="cambiaRuolo('${u.id}','operatore')"`}>Rendi Operatore</button>`
             : `<button class="btn btn-sm btn-secondary" onclick="cambiaRuolo('${u.id}','admin')">Rendi Admin</button>
-               <button class="btn btn-sm btn-secondary" onclick="apriPermessi('${u.id}')">Permessi CC</button>`
+               <button class="btn btn-sm btn-secondary" onclick="apriPermessi('${u.id}')">Permessi CC</button>
+               <a class="btn btn-sm btn-secondary" href="admin-permessi.html?utente_id=${encodeURIComponent(u.id)}">Permessi pagine</a>`
           }
           <button class="btn btn-sm ${u.attivo ? 'btn-danger' : 'btn-success'}" ${isMe ? 'disabled title="Non puoi disabilitare te stesso"' : `onclick="toggleAttivo('${u.id}',${!u.attivo})"`}>${u.attivo ? 'Disabilita' : 'Abilita'}</button>
         </div>

@@ -1,5 +1,6 @@
 const Pda = require('./_lib/pda-contract');
-const { requireAuth, getAdminClient } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth, getAdminClient } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'gestisci-vendita-contratto' });
 const {
   assertPersistedContractScores,
   loadAnnualInsuranceBonus,

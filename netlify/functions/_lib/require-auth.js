@@ -25,6 +25,7 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
+const { authorizeEndpoint } = require('./page-permissions');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -104,7 +105,7 @@ async function requireAuth(event, opts = {}) {
         if (opts.adminOnly && cached.profilo.ruolo !== 'admin') {
             return { ok: false, status: 403, error: 'Operazione riservata agli amministratori' };
         }
-        return { ok: true, user: cached.user, profilo: cached.profilo };
+        return authorizeEndpoint(admin, { ok: true, user: cached.user, profilo: cached.profilo }, opts, event);
     }
 
     let user;
@@ -140,7 +141,7 @@ async function requireAuth(event, opts = {}) {
         return { ok: false, status: 403, error: 'Operazione riservata agli amministratori' };
     }
 
-    return { ok: true, user, profilo };
+    return authorizeEndpoint(admin, { ok: true, user, profilo }, opts, event);
 }
 
 function jsonError(statusCode, message, extraHeaders = {}) {

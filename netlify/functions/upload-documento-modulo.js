@@ -1,6 +1,9 @@
 const Busboy = require('busboy');
 const crypto = require('node:crypto');
-const { requireAuth, getAdminClient } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth, getAdminClient } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'upload-documento-modulo' });
+const { authorizePages } = require('./_lib/page-permissions');
+const { buckets } = require('../../js/mirox-permissions-core');
 
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 const ALLOWED_BUCKETS = new Set([
@@ -230,6 +233,8 @@ exports.handler = async (event) => {
     if (!ALLOWED_BUCKETS.has(bucket)) {
       return response(400, { success: false, error: 'Bucket non consentito per questo endpoint' });
     }
+    const permission = await authorizePages(supabase, auth, buckets[bucket]?.write || []);
+    if (!permission.ok) return response(permission.status, { success: false, error: permission.error });
     const contentType = validateUploadType(bucket, file);
 
     let storagePath = normalizeRequestedPath(bucket, fields.path);

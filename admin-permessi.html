@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+<link rel="stylesheet" href="css/mirox-permissions.css">
+<script src="js/mirox-permissions-core.js"></script>
+<script src="js/mirox-permissions-ui.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Permessi pagine | Admin Mirox</title>
+  <link rel="icon" href="assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/admin-shell.css">
+  <link rel="stylesheet" href="css/admin-permessi.css">
+        <script src="js/mirox-safe.js"></script>
+  <script src="js/admin-shell.js" defer></script>
+</head>
+<body class="mx-admin-shell">
+  <main class="admin-container permissions-page">
+    <header class="permissions-header">
+      <div><p class="permissions-eyebrow">Configurazioni</p><h1>Permessi pagine</h1>
+        <p>Scegli le pagine che ogni operatore può visualizzare e utilizzare.</p></div>
+      <button type="button" id="reloadPermissions" class="permission-button">Ricarica</button>
+    </header>
+    <div id="permissionsStatus" role="status" aria-live="polite">Caricamento utenti...</div>
+    <section class="permissions-toolbar" aria-label="Selezione utente">
+      <label>Utente<select id="permissionUser" disabled><option value="">Seleziona un utente</option></select></label>
+      <label>Copia permessi da<select id="permissionCopyUser" disabled><option value="">Seleziona un operatore</option></select></label>
+      <button type="button" id="copyPermissions" class="permission-button" disabled>Copia</button>
+    </section>
+    <section id="permissionEditor" hidden>
+      <div class="permissions-user-summary"><div><h2 id="permissionUserName"></h2><p id="permissionUserState"></p></div><strong id="permissionsCount"></strong></div>
+      <p class="permissions-note">Le pagine disabilitate scompaiono dai menu e non sono accessibili tramite link diretto. Storico Cliente e Dashboard Pezzi comprendono i dati condivisi necessari al loro funzionamento. I permessi Call Center si gestiscono in Gestione Utenti.</p>
+      <div id="permissionGroups" class="permissions-groups"></div>
+      <div class="permissions-savebar"><span id="permissionChanges" aria-live="polite"></span><div>
+        <button type="button" id="resetPermissions" class="permission-button" disabled>Annulla modifiche</button>
+        <button type="button" id="savePermissions" class="permission-button primary" disabled>Salva permessi</button>
+      </div></div>
+      <section class="permissions-history"><h2>Ultime modifiche</h2><p>Ultimi 30 salvataggi di questo utente.</p><div id="permissionAudit" aria-live="polite"></div></section>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/mirox-ui.js"></script>
+  <script src="js/mirox-api.js"></script>
+  <script src="js/admin-permessi.js"></script>
+</body>
+</html>

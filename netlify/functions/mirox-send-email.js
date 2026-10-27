@@ -19,7 +19,8 @@
  */
 
 const { sendEmail } = require('./_lib/mailer');
-const { requireAuth } = require('./_lib/require-auth');
+const { requireAuth: requireBaseAuth } = require('./_lib/require-auth');
+const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'mirox-send-email' });
 
 const CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',
