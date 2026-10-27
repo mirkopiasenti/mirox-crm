@@ -101,3 +101,14 @@ fra operatore_id e profili. Il DB usa ID senza quella relazione: lookup esplicit
 separato, come nella pagina Verifica Contratti. Un errore nella lettura del nome
 non nasconde un duplicato gia' individuato. Primo tentativo fermato prima dello staging
 e di qualsiasi pratica; nuova pubblicazione di correzione e ripetizione collaudo.
+
+Nel collaudo rapido fra PDA diverse e' emersa una risposta di reinserimento
+arrivata dopo l'avvio della pratica successiva. Guard aggiuntivi su revisione PDA,
+cliente, categoria e step scartano sia lookup anagrafici sia candidati/callback
+tardivi, senza alterare la pratica corrente. Regressioni asincrone dedicate.
+
+PDA Business solo dati: in due letture reali il numero SIM resta vuoto pur
+essendo leggibile. Rafforzate istruzioni ed esempio OCR per SIM dati; accettato
+anche prefisso internazionale 39 senza + quando la lunghezza e' inequivocabile.
+Riprova reale necessaria dopo la pubblicazione; gli altri otto PDF verificati.
+Suite aggiornata340/340 (339versionati),26regressioni PDA e SQL isolato OK.

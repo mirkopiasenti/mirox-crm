@@ -25,7 +25,7 @@ Migration gia applicata; deploy autorizzato in corso e refresh client necessario
 collaudare davvero Claude API con le nove PDA private (chiave solo Netlify).
 Debug: chiusura loader su duplicato al submit, divieto azzeramento dati Mobile
 tracciati, blocco PDA di altro cliente, editor non annullabile durante salvataggio
-e protezione input non salvati degli altri popup.335test locali e SQL isolato OK.
+e protezione input non salvati degli altri popup. Risposte tardive reinserimento scartate. OCR SIM dati Business esplicito e prefisso 39 senza + normalizzato solo su lunghezze internazionali.340test locali (339versionati) e SQL isolato OK.
 
 ## Compilatore Subentri (18/10/2026)
 

@@ -17,6 +17,10 @@ test('identificatori PDA: conserva lettere, zeri e separatori; non accetta marku
   for (const bad of ['9.999', '-1', '9,99 EUR', '1e2', 'Infinity', '1.000,00']) assert.equal(Pda.money(bad), null);
   assert.equal(Pda.money('0,00'), 0);
   assert.equal(Pda.phone('0039 333 123456'), '333123456');
+  assert.equal(Pda.phone('393331234567'), '3331234567');
+  assert.equal(Pda.phone('39333123456'), '333123456');
+  assert.equal(Pda.phone('3931234567'), '3931234567');
+  assert.equal(Pda.phone('3933312345678'), null);
 });
 
 test('Mobile nuovo numero e portabilita mantengono numerazioni distinte dal contatto OTP', () => {
@@ -297,4 +301,21 @@ for (const failOperator of [false,true]) test(`duplicato senza FK operatore usa 
   const result=await serverPda.findDuplicate(db,'EXISTING');assert.equal(result.id,id);
   assert.equal(result.operatore.nome,failOperator?'Operatore non disponibile':'Operatore prova');
   await assert.rejects(serverPda.assertAvailable(db,'EXISTING'),e=>e.statusCode===409);
+});
+
+for(const scenario of ['lookup-tardivo','candidati-tardivi','corrente']) test(`reinserimento asincrono: ${scenario}`,async()=>{
+  const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
+  const a=source.indexOf(' async function checkAndOfferReinserimento()'),b=source.indexOf(' function refreshUploadBox',a);
+  const runtimeState={anagraficaId:scenario==='lookup-tardivo'?null:'first',pdaRevision:1,editingTempId:null,pendingReinserimento:{contratto_id:'nuovo'}};
+  const uiState={view:'wizard',step:3},refs={cfPiva:{value:'FIRST'}};let resolvePending,shown=0;
+  const pending=new Promise(resolve=>{resolvePending=resolve;});
+  const ctx={runtimeState,uiState,refs,console:{log(){},warn(){}},getSelectedCategoria:()=>({id:'cat',nome:'Fisso'}),normalizeCfPiva:v=>v,
+    isItalianFiscalCode:()=>true,isItalianVatNumber:()=>false,fetchJsonOrTechnicalError:()=>pending,
+    checkReinserimento:()=>scenario==='lookup-tardivo'?Promise.resolve([]):pending,showReinserimentoOverlay(){shown++;}};
+  vm.runInNewContext(source.slice(a,b)+'\nthis.check=checkAndOfferReinserimento;',ctx);
+  const run=ctx.check();
+  if(scenario!=='corrente'){runtimeState.pdaRevision++;runtimeState.anagraficaId=null;refs.cfPiva.value='SECOND';uiState.step=1;}
+  resolvePending(scenario==='lookup-tardivo'?{found:true,data:{id:'first'}}:[{contratto_id:'old'}]);await run;
+  assert.equal(shown,scenario==='corrente'?1:0);
+  if(scenario!=='corrente'){assert.equal(runtimeState.anagraficaId,null);assert.equal(runtimeState.pendingReinserimento.contratto_id,'nuovo');}
 });

@@ -410,7 +410,7 @@ non azzerabili tramite modalita legacy, seconda PDA di altro CF/PIVA bloccata
 prima dell'upload. Editor non chiudibile durante salvataggio; prima di aprirlo
 salvare le altre modifiche del popup per evitare perdite di input.
 Migration applicata/riletta; prove DB transazionali con rollback riuscite, zero
-righe di collaudo conservate. Deploy e convalida OCR reale in corso.
+righe di collaudo conservate. Risposte tardive reinserimento scartate su revisione, cliente, categoria e step. OCR considera anche le SIM dati Business; prefisso 39 senza + rimosso soltanto con lunghezza internazionale, mai da numeri nazionali 39x. Deploy e convalida OCR reale in corso.
 
 ### Compilatore disdette (dal 2026-08-06, migrations 063–064)
 - Varianti consentite: `sim_consumer`, `sim_business`, `fisso_consumer`, `fisso_business`; ogni PDF riguarda una sola utenza.

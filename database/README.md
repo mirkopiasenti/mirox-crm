@@ -26,7 +26,7 @@ Gli storici senza codice tracciato non vengono cambiati. Il client mantiene le
 RLS esistenti: modifiche del codice tracciato tramite Function autenticata; un
 client legacy senza UPDATE sul contratto riceve errore anziche' lasciare divergenze.
 Nessuna modifica a tabelle/RPC/trigger/policy CC o schema anagrafica; il contatto
-viene aggiornato dai normali upsert applicativi gia' esistenti.
+viene aggiornato dai normali upsert applicativi gia' esistenti. La normalizzazione applicativa accetta il prefisso 39 senza + soltanto su lunghezze internazionali, prima dei CHECK nazionali; nessun nuovo cambio schema per questo caso.
 
 Collaudo offline con `scripts/verifica-vendita-pda-sql.js`, PostgreSQL in memoria
 PGlite0.5.12 installato soltanto nello scratchpad esterno (nessuna dipendenza CRM):
@@ -37,7 +37,6 @@ CLI migration new tentata ma indisponibile per il profilo locale senza formato;
 nome UTC generato localmente, nessuna modifica delle credenziali/config CLI.
 Migration applicata; pubblicazione autorizzata in corso:
 far ricaricare i client e collaudare la nuova estrazione con Claude API.
-
 
 ## ⚠️ Stato del DB
 

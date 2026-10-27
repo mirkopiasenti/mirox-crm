@@ -127,7 +127,7 @@ protegge le modifiche concorrenti e mantiene allineati i due codici Fisso.
 `database/20261027110402_vendita_codice_pda_mobile.sql` applicata e riletta in
 produzione; test transazionali con rollback su unicita/coerenza MNP/sincronizzazione
 Fisso riusciti, nessuna riga di collaudo conservata o bonifica dello storico.
-Suite locale335/335 e SQL isolato OK. Convalida OCR reale delle nove PDA e verifica
+Suite locale340/340 (339test versionati) e SQL isolato OK. Risposte tardive di reinserimento scartate; OCR SIM dati Business esplicito e prefisso 39 senza + normalizzato soltanto su lunghezze internazionali. Convalida OCR reale delle nove PDA e verifica
 del deploy previste dopo la pubblicazione. Prima del primo utilizzo ricaricare il wizard.
 
 

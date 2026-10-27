@@ -3,14 +3,13 @@
 Aggiornato: 2026-10-27. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## Upload PDA: debug completato, deploy autorizzato27/10 in corso
+## Upload PDA: online, ultimo debug OCR Business in corso27/10
 
-- Requisiti confermati: codice unico PDA Mobile/Fisso/CB, manuale prima del controllo/upload; reinserimenti con codice nuovo. Solo Mobile costo base primo importo e numerazioni/MNP/gestore; CB solo codice. Contatto firma elettronica prima pratica, update anagrafica automatico e modifica OTP/riuso privacy conservati. Nessun recupero storico.
-- Implementati core/UI/OCR ogni PDA, carrello/reset/draft e risposte tardive; editor utenti attivi in Verifica anche verificati, Storico e codice Fisso in Controllo Fissi, updated_at ottimistico. Turista conserva defaults/dati ridotti con step3 per dati PDA. Debug serio aggiuntivo: loader duplicato submit, divieto azzeramento Mobile tracciato, PDA altro cliente bloccata, salvataggio editor non annullabile e protezione input non salvati degli altri popup;21regressioni dedicate.
-- Migration `database/20261027110402_vendita_codice_pda_mobile.sql` applicata/riletta (versione reale MCP allineata):7campi nullable/CHECK/UNIQUE/trigger INVOKER, nessun cambio CC/RLS/RPC/anagrafica. Prove production transazionali INSERT bozza/unicita/MNP/sync Fisso con ROLLBACK; nessuna riga test conservata, tutti i codici storici NULL. Advisor nessun nuovo rilievo PDA.
-- Build+335/335test locali (334versionati+1backup) e SQL PGlite0.5.12 isolato OK. Browser locale/API simulate gia verificati: manuale/duplicati/link, Mobile MNP/costo/firma/documenti, secondo AI/CB solo codice e riepilogo.9PDF ora accessibili e ispezionati; Claude API reale da provare dopo deploy usando sessione Chrome CRM autenticata, senza inviare pratiche/OTP o cambiare clienti.
-- Utente autorizza debug/fix e DEPLOY: pubblicare solo codice/doc di questo intervento, escludere backup/Guardian preesistenti anche dalle guide condivise. Remote main riallineato a12833c2 senza divergenze. Prossimo: commit/push selettivo, CI/Netlify/SHA/asset e convalida9PDA. Rapporto `docs/UPLOAD_PDA_2026-10-27.md`; guide aggiornate, risultati finali da annotare qui.
-
+- Requisiti e funzionalita implementati: codice unico Mobile/Fisso/CB, percorso manuale codice prima di staging, costo base e numerazioni/MNP/gestore solo Mobile, OTP prima PDA e aggiornamento anagrafica, editor utenti attivi sulle tre pagine. Nessun recupero storico.
+- Migration20261027110402 applicata/riletta:7campi nullable/CHECK/UNIQUE/trigger INVOKER vendita/Fisso, nessun cambio CC/RLS/RPC/anagrafica. Test production transazionali con ROLLBACK riusciti, nessuna riga test conservata; advisor nessun nuovo rilievo PDA.
+- Commit17aacc5 e2a4597f pubblicati su main, CI verdi; Netlify6ae08a30e6b516dc167cc9df/SHA2a4597f verificati. Corretto lookup duplicati senza FK operatore/profili. Guard reinserimento tardivo su revisione/cliente/categoria/step aggiunti, tre regressioni.
+- Suite340/340 locale (339versionati+1backup),26regressioni PDA, build e SQL PGlite isolato OK.9PDF reali ora accessibili:8con risultati attesi; Business solo dati numero SIM vuoto in due letture, costo assente correttamente. Rafforzati prompt/esempio e normalizzazione prefisso 39 senza +; pubblicare e riprovare. Nessuna pratica/OTP inviata o cliente aggiornato nel collaudo.
+- Deploy esplicitamente autorizzato dal proprietario. Prossimo: push correzione e convalida Business, CI/Netlify/SHA finali, pulizia soli temp creati nel test. Backup/Guardian preesistenti esclusi. Rapporto docs/UPLOAD_PDA_2026-10-27.md e guide aggiornati.
 
 ## Conteggio Netto Luce & Gas: riepilogo esiti pronto 26/10
 

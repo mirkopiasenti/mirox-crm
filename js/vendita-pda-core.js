@@ -13,7 +13,9 @@
   }
   function phone(value) {
     if (typeof value !== 'string') return null;
-    const s = value.replace(/[\s().-]/g, '').replace(/^(?:\+39|0039)/, '');
+    let s = value.replace(/[\s().-]/g, '').replace(/^(?:\+39|0039)/, '');
+    // Prefisso internazionale senza + solo se la lunghezza esclude un numero nazionale.
+    if (/^393\d{8,9}$/.test(s)) s = s.slice(2);
     return /^3\d{8,9}$/.test(s) ? s : null;
   }
   function money(value) {

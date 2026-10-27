@@ -2413,6 +2413,13 @@ Reload Forever
  const categoria = getSelectedCategoria();
  console.log(dbgPrefix, 'check inputs', { anagraficaId, categoria });
  if (!categoria?.id) { console.warn(dbgPrefix, 'skip: categoria mancante'); return; }
+ const revision = runtimeState.pdaRevision;
+ const clienteCf = normalizeCfPiva(refs.cfPiva?.value || '');
+ const stillCurrent = () => uiState.view === 'wizard' && uiState.step === 3
+ && !runtimeState.editingTempId && runtimeState.pdaRevision === revision
+ && getSelectedCategoria()?.id === categoria.id
+ && normalizeCfPiva(refs.cfPiva?.value || '') === clienteCf;
+
 
  // Fallback lookup: se anagraficaId non e' stato popolato (es. flusso OCR dove
  // applyOcrToAnagrafica riempie i campi ma NON chiama search-anagrafica) ma il form
@@ -2428,6 +2435,7 @@ Reload Forever
  {},
  'Lookup anagrafica per check reinserimento'
  );
+ if (!stillCurrent()) return;
  if (data && data.found && data.data && data.data.id) {
  anagraficaId = data.data.id;
  runtimeState.anagraficaId = anagraficaId;
@@ -2440,6 +2448,7 @@ Reload Forever
  }
  }
  }
+ if (!stillCurrent()) return;
  if (!anagraficaId) { console.warn(dbgPrefix, 'skip definitivo: anagraficaId non recuperabile'); return; }
 
  const key = `${anagraficaId}_${categoria.id}`;
@@ -2447,6 +2456,7 @@ Reload Forever
  runtimeState.lastReinsCheckKey = key;
 
  const candidates = await checkReinserimento(anagraficaId, categoria.id, categoria.nome);
+ if (!stillCurrent() || runtimeState.anagraficaId !== anagraficaId) return;
  console.log(dbgPrefix, 'candidati trovati:', candidates);
  if (!candidates || candidates.length === 0) {
  runtimeState.pendingReinserimento = null;
@@ -2455,6 +2465,7 @@ Reload Forever
  showReinserimentoOverlay(
  candidates,
  (chosen) => {
+ if (!stillCurrent()) return;
  const { dataFmt, dettagli } = describeReinserimentoCandidate(chosen);
  runtimeState.pendingReinserimento = {
  contratto_id: chosen.contratto_id,
@@ -2463,6 +2474,7 @@ Reload Forever
  setMessage('Contratto marcato come REINSERIMENTO della pratica precedente', 'info');
  },
  () => {
+ if (!stillCurrent()) return;
  runtimeState.pendingReinserimento = null;
  }
  );
