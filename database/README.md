@@ -64,6 +64,19 @@ Dispositivo automatico27/10: stessi campi dispositivo DB, con nuova conferma UI
 prima dell'override. pda_dispositivo_auto/manuale restano nel draft/carrello client,
 esclusi dall'invio server. Nessuna modifica schema, storico o catalogo.
 
+Tipo attivazione Fisso automatico27/10: dalla casella selezionata nella sezione
+"Linea telefonica su cui attivare il servizio", nuova linea -> Nuova Attivazione,
+numero attivo -> Portabilita. OCR visuale e testo PDF per coordinate leggono il
+segno effettivo (compresa codifica WindTre); entrambe/nessuna casella selezionata,
+sezione assente o illeggibile non producono una scelta. Nessuna deduzione da
+telefono, codice migrazione o offerta. Campo visibile/modificabile: prima di
+cambiare la preselezione compare MiroxUI; annulla conserva l'originale, conferma
+applica l'override manuale. Doppi cambi e risposte tardive protetti. Auto/override
+conservati in draft/carrello con pda_tipo_attivazione_auto e
+pda_tipo_attivazione_manuale, esclusi dal payload DB; nuova PDA azzera lo stato,
+bozze legacy conservano la scelta. Si usa la colonna tipo_attivazione esistente,
+nessuna migration o riscrittura storica. Solo test interni/HTTP, senza browser.
+
 ## ⚠️ Stato del DB
 
 Fino alla `069_baseline_allineamento.sql` (2026-08-22) i file riflettono lo stato di produzione: la 069 recupera il drift accumulato dalle modifiche fatte a caldo prima del tracciamento. Le categorie di drift recuperate erano:

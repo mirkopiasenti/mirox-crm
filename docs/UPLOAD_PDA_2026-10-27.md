@@ -276,3 +276,28 @@ senza perdita anticipata IMEI, cambi ripetuti/tardivi, override e metadati al
 restore/reset, acquisto vincolato. Regressioni Customer Base/FWA e payload server
 aggiornate/confermate. Nessun browser o contratto reale usato nel collaudo.
 Guide aggiornate, rilascio e verifica finale nel promemoria.
+
+## Tipo attivazione Fisso automatico e conferma modifica
+
+Tipo attivazione Fisso automatico27/10: dalla casella selezionata nella sezione
+"Linea telefonica su cui attivare il servizio", nuova linea -> Nuova Attivazione,
+numero attivo -> Portabilita. OCR visuale e testo PDF per coordinate leggono il
+segno effettivo (compresa codifica WindTre); entrambe/nessuna casella selezionata,
+sezione assente o illeggibile non producono una scelta. Nessuna deduzione da
+telefono, codice migrazione o offerta. Campo visibile/modificabile: prima di
+cambiare la preselezione compare MiroxUI; annulla conserva l'originale, conferma
+applica l'override manuale. Doppi cambi e risposte tardive protetti. Auto/override
+conservati in draft/carrello con pda_tipo_attivazione_auto e
+pda_tipo_attivazione_manuale, esclusi dal payload DB; nuova PDA azzera lo stato,
+bozze legacy conservano la scelta. Si usa la colonna tipo_attivazione esistente,
+nessuna migration o riscrittura storica. Solo test interni/HTTP, senza browser.
+
+Collaudo380/380locale (379versionati+1backup), build OK. Dieci regressioni nuove
+su caselle WindTre/ASCII/Unicode, entrambe/nessuna selezione, assenza sezione,
+conflitti, PDF sintetico con portabilita e content stream fuori ordine, conferma/
+annulla in entrambe le direzioni, doppio cambio/risposta tardiva, restore/reset e
+bozze legacy. Payload DB controllato senza metadati UI. Quattro PDF Fisso reali
+letti localmente: tutti nuova linea, incluso contratto_fisso (3).pdf allegato;
+nessuna portabilita reale disponibile, ramo coperto da PDF sintetico. Nessun
+upload reale/OTP/scrittura anagrafica o browser. Guide aggiornate; rilascio e
+verifiche production nel promemoria.

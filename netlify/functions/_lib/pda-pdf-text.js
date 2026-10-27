@@ -19,6 +19,24 @@ function layoutText(pages) {
   }).join('\n');
 }
 
+function fixedActivationFields(text) {
+  const sections = Array.from(text.matchAll(/^[ \t]*Linea\s+telefonica\s+su\s+cui\s+attivare\s+il\s+servizio\b[^\n]*/gim));
+  if (!sections.length) return {};
+  const values = [];
+  for (const header of sections) {
+    const rest = text.slice(header.index + header[0].length, header.index + header[0].length + 1000);
+    const block = rest.split(/\n\s*(?:Codice\s+Migrazione|Dettaglio\b|Dati\s+personali)\b/i)[0];
+    const rows = Array.from(block.matchAll(/^[ \t]*(\[\s*X?\s*\]|[XYN]\uFFFF?|[\u2610\u2611\u2612\u2713\u2714])?[ \t]*(Su\s+una\s+nuova\s+linea\s+telefonica|Sul?\s+Numero\s+di\s+Telefono)\b/gim));
+    const checked = rows.filter(r => /^(?:\[\s*X\s*\]|X\uFFFF?|Y\uFFFF|[\u2611\u2612\u2713\u2714])$/i.test(r[1] || ''));
+    if (checked.length === 1) values.push(/^Su\s+una\b/i.test(checked[0][2]) ? 'Nuova Attivazione' : 'Portabilita');
+    else if (checked.length > 1 || (rows.length >= 2 && rows.every(r => /^(?:N\uFFFF|\[\s*\]|\u2610)$/.test(r[1] || '')))) values.push(null);
+    // Caselle disegnate/scansionate senza un segno testuale leggibile restano alla lettura AI.
+  }
+  if (!values.length) return {};
+  const unique = new Set(values);
+  return { tipo_attivazione_fisso: unique.size === 1 ? values[0] : null };
+}
+
 function sectionFields(text, completeText = true) {
   const normalized = String(text || '').normalize('NFKC').replace(/[\u00ad\u200b]/g, '').replace(/\r/g, '');
   const simHeader = /^[ \t]*DATI\s+DELLA\s+SIM\s+WINDTRE[ \t]*$/gim;
@@ -30,7 +48,8 @@ function sectionFields(text, completeText = true) {
     return end < 0 ? rest : rest.slice(0, end);
   });
   const sims = sections(simHeader), mnps = sections(mnpHeader);
-  if (!sims.length && !mnps.length) return {};
+  const fixed = fixedActivationFields(normalized);
+  if (!sims.length && !mnps.length) return fixed;
   const unique = (blocks, pattern, normalize) => {
     const values = blocks.flatMap(block => Array.from(block.matchAll(pattern), m => normalize(m[1])));
     const found = new Set(values.filter(v => v !== null && v !== ''));
@@ -38,7 +57,7 @@ function sectionFields(text, completeText = true) {
     if (found.size > 1 || values.some(v => v === null)) return { found: true, value: null };
     return { found: found.size === 1, value: Array.from(found)[0] };
   };
-  const out = mnps.length ? { portabilita: true } : completeText ? { portabilita: false } : {};
+  const out = { ...fixed, ...(mnps.length ? { portabilita: true } : completeText ? { portabilita: false } : {}) };
   const sim = unique(sims, /Numero\s+di\s+telefono\s*:\s*([+\d][\d \t().-]*)/gi, Pda.phone);
   if (sim.found) out.numero_sim = sim.value;
   const mnp = unique(mnps, /Numero\s+di\s+telefono\s+da\s+portare\s*:\s*([+\d][\d \t().-]*)/gi, Pda.phone);
@@ -82,4 +101,4 @@ async function readPdfFields(buffer) {
   }
 }
 
-module.exports = { layoutText, sectionFields, readPdfFields };
+module.exports = { layoutText, sectionFields, fixedActivationFields, readPdfFields };

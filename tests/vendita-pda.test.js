@@ -396,7 +396,7 @@ test('payload server conserva i valori PDA nascosti senza inviare metadati UI',(
   const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
   const a=source.indexOf(' function buildInvioPayload()'),b=source.indexOf(' async function inviaPratica()',a);
   const item={...Pda.validate({...mobile,portabilita:true,numero_telefono:'3491234567',numero_mnp:'3491234567',numero_provvisorio:'3931234567',operatore_provenienza:'Vodafone'},'Mobile'),
-    pda_lettura:'ai',pda_dispositivo_auto:false,pda_dispositivo_manuale:true,categoria_nome:'Mobile',categoria_id:'cat',offerta_id:'offer',flags:{},files:{},codice_rivenditore:'9000822241'};
+    pda_lettura:'ai',pda_dispositivo_auto:false,pda_dispositivo_manuale:true,pda_tipo_attivazione_auto:'Portabilita',pda_tipo_attivazione_manuale:true,categoria_nome:'Mobile',categoria_id:'cat',offerta_id:'offer',flags:{},files:{},codice_rivenditore:'9000822241'};
   const state={cart:{contratti:[item]}},cliente={cf_piva:'RSSMRA80A01H501U'};
   const ctx={window:{MiroxPda:Pda},state,getClienteFormData:()=>cliente,validateClienteData(){},
     praticaFiles:{documento_identita:[{}]},runtimeState:{},refs:{originePratica:{value:'spontaneo'},operatoreId:{value:'operator'}},
@@ -404,5 +404,5 @@ test('payload server conserva i valori PDA nascosti senza inviare metadati UI',(
   vm.runInNewContext(source.slice(a,b)+';this.payload=buildInvioPayload;',ctx);
   const saved=ctx.payload().contratti[0];
   for(const key of Pda.FIELDS)assert.equal(saved[key],item[key],key);
-  assert.equal(saved.pda_lettura,undefined);assert.equal(saved.pda_dispositivo_auto,undefined);assert.equal(saved.pda_dispositivo_manuale,undefined);assert.equal(saved.codice_rivenditore,'9001415852');
+  assert.equal(saved.pda_lettura,undefined);assert.equal(saved.pda_dispositivo_auto,undefined);assert.equal(saved.pda_dispositivo_manuale,undefined);assert.equal(saved.pda_tipo_attivazione_auto,undefined);assert.equal(saved.pda_tipo_attivazione_manuale,undefined);assert.equal(saved.codice_rivenditore,'9001415852');
 });

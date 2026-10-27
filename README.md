@@ -210,6 +210,19 @@ della pratica precedente riapplicati al contratto ripristinato. Nessuna migratio
 dipendenza, riscrittura storica o cambio punteggi. Collaudi solo interni/HTTP, mai
 browser su istruzione proprietario.
 
+Tipo attivazione Fisso automatico27/10: dalla casella selezionata nella sezione
+"Linea telefonica su cui attivare il servizio", nuova linea -> Nuova Attivazione,
+numero attivo -> Portabilita. OCR visuale e testo PDF per coordinate leggono il
+segno effettivo (compresa codifica WindTre); entrambe/nessuna casella selezionata,
+sezione assente o illeggibile non producono una scelta. Nessuna deduzione da
+telefono, codice migrazione o offerta. Campo visibile/modificabile: prima di
+cambiare la preselezione compare MiroxUI; annulla conserva l'originale, conferma
+applica l'override manuale. Doppi cambi e risposte tardive protetti. Auto/override
+conservati in draft/carrello con pda_tipo_attivazione_auto e
+pda_tipo_attivazione_manuale, esclusi dal payload DB; nuova PDA azzera lo stato,
+bozze legacy conservano la scelta. Si usa la colonna tipo_attivazione esistente,
+nessuna migration o riscrittura storica. Solo test interni/HTTP, senza browser.
+
 ### Documento identita per contratto
 
 Il documento d'identita e obbligatorio per ogni nuovo contratto. Nel carrello viene selezionato una sola volta; sulle bozze `upload-vendita-documento` crea un allegato e un PDF indipendente per ciascuna riga, con INSERT batch e pulizia delle nuove copie su errore. `finalize` impedisce l'invio se manca l'identita anche su una sola riga. Gli upload successivi da Verifica Contratti restano specifici della riga selezionata. Lo storico dal 1 luglio 2026 viene sistemato dallo script dedicato senza sovrascrivere documenti esistenti; i casi senza sorgente richiedono un'integrazione manuale.

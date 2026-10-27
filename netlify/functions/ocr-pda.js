@@ -148,20 +148,23 @@ numero_mnp: solo Numero di telefono da portare dalla sezione PASSA A WINDTRE; nu
 operatore_provenienza: solo "Operatore attuale:" nella sezione PASSA A WINDTRE; null se assente.
 Numeri italiani come stringhe di 9 o 10 cifre senza +39/0039. Non inventare valori mancanti.
 
+=== TIPO ATTIVAZIONE FISSO ===
+tipo_attivazione_fisso: SOLO dalla casella selezionata nella sezione "Linea telefonica su cui attivare il servizio". "Su una nuova linea telefonica" selezionata -> "Nuova Attivazione"; "Sul Numero di Telefono" (numero attivo) selezionata -> "Portabilita". Leggi il segno di spunta visivo, non la semplice presenza delle due etichette. Non dedurre la scelta da numero telefonico, codice migrazione o nome dell'offerta. Entrambe selezionate, nessuna selezionata, caselle illeggibili o sezione assente -> null. Non e' la portabilita della SIM Mobile.
+
 === OUTPUT ===
 DEVI sempre includere TUTTI i campi richiesti nel JSON, anche quelli null. NON omettere mai un campo. NON usare "..." come placeholder.
 
 Esempio privato Mobile con device finanziato e smartphone reload SI, punto vendita Legnago:
-{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3331234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":true,"tipo_acquisto":"Finanziamento","imei":"356178252707751","prezzo_device":"399.9","smartphone_reload":true,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null}
+{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3331234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":true,"tipo_acquisto":"Finanziamento","imei":"356178252707751","prezzo_device":"399.9","smartphone_reload":true,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null,"tipo_attivazione_fisso":null}
 
 Esempio azienda Mobile con device VAR e smartphone reload NO, punto vendita Cerea:
-{"cf_piva":"04971220233","ragione_sociale":"Lucchiari Auto Srl","nome_referente":"Maicol","cellulare":"3520696271","email":"info@lucchiari.it","provincia":"VR","comune":"Sanguinetto","via":"Via Masaglie","civico":"96","dispositivo_presente":true,"tipo_acquisto":"VAR","imei":"355297179899755","prezzo_device":"1509.9","smartphone_reload":false,"codice_rivenditore":"9000822241","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null}
+{"cf_piva":"04971220233","ragione_sociale":"Lucchiari Auto Srl","nome_referente":"Maicol","cellulare":"3520696271","email":"info@lucchiari.it","provincia":"VR","comune":"Sanguinetto","via":"Via Masaglie","civico":"96","dispositivo_presente":true,"tipo_acquisto":"VAR","imei":"355297179899755","prezzo_device":"1509.9","smartphone_reload":false,"codice_rivenditore":"9000822241","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null,"tipo_attivazione_fisso":null}
 
 Esempio SIM solo dati Business Professional Data (senza device, nessun costo base esplicitato). DATI SIM Numero di telefono +393331234567; DATI FIRMA Numero di telefono +393351234567:
-{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3351234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":false,"tipo_acquisto":null,"imei":null,"prezzo_device":null,"smartphone_reload":null,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":"3331234567","portabilita":false,"numero_mnp":null,"operatore_provenienza":null}
+{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3351234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":false,"tipo_acquisto":null,"imei":null,"prezzo_device":null,"smartphone_reload":null,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":"3331234567","portabilita":false,"numero_mnp":null,"operatore_provenienza":null,"tipo_attivazione_fisso":null}
 
 Esempio Fisso FWA Indoor con modem (tipo_acquisto e smartphone_reload null perche' non applicabili al Fisso):
-{"cf_piva":"CMRGZN48P07A837N","ragione_sociale":"Graziano Camera","nome_referente":"Graziano","cellulare":"3453923639","email":"camera.gra@gmail.com","provincia":"VR","comune":"Bevilacqua","via":"Piazza Marega","civico":"1050","dispositivo_presente":true,"tipo_acquisto":null,"imei":"352941750260290","prezzo_device":"287.52","smartphone_reload":null,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null}`;
+{"cf_piva":"CMRGZN48P07A837N","ragione_sociale":"Graziano Camera","nome_referente":"Graziano","cellulare":"3453923639","email":"camera.gra@gmail.com","provincia":"VR","comune":"Bevilacqua","via":"Piazza Marega","civico":"1050","dispositivo_presente":true,"tipo_acquisto":null,"imei":"352941750260290","prezzo_device":"287.52","smartphone_reload":null,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null,"tipo_attivazione_fisso":"Nuova Attivazione"}`;
 
 const EXPECTED_KEYS = [
   'cf_piva', 'ragione_sociale', 'nome_referente', 'cellulare', 'email',
@@ -171,7 +174,7 @@ const EXPECTED_KEYS = [
   'smartphone_reload',
   // Codice Rivenditore (migration 050): '9001415852' (Legnago) o '9000822241' (Cerea), null altrimenti
   'codice_rivenditore', 'codice_contratto', 'costo_offerta_mensile',
-  'numero_sim', 'portabilita', 'numero_mnp', 'operatore_provenienza'
+  'numero_sim', 'portabilita', 'numero_mnp', 'operatore_provenienza', 'tipo_attivazione_fisso'
 ];
 const BOOLEAN_KEYS = new Set(['dispositivo_presente', 'smartphone_reload', 'portabilita']);
 const CODICI_RIVENDITORE_ALLOWED = new Set(['9001415852', '9000822241']);
@@ -230,6 +233,8 @@ function normalizeResult(raw) {
   out.numero_telefono = out.portabilita === true ? out.numero_mnp
     : out.portabilita === false ? out.numero_sim : null;
   if (out.portabilita !== true) out.operatore_provenienza = null;
+  const fixedType = String(out.tipo_attivazione_fisso || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  out.tipo_attivazione_fisso = fixedType === 'nuova attivazione' ? 'Nuova Attivazione' : fixedType === 'portabilita' ? 'Portabilita' : null;
   return out;
 }
 

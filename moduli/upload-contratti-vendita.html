@@ -3206,6 +3206,10 @@ Reload Forever
  root.dataset.pdaDeviceManual = (data?.pda_dispositivo_manuale === true
  || (data?.pda_dispositivo_manuale === undefined && [true, false, 'true', 'false'].includes(data?.dispositivo_associato))) ? 'true' : 'false';
  delete root.dataset.pdaDevicePending;
+ root.dataset.pdaFixedActivationAuto = ['Nuova Attivazione', 'Portabilita'].includes(data?.pda_tipo_attivazione_auto) ? data.pda_tipo_attivazione_auto : '';
+ root.dataset.pdaFixedActivationManual = (data?.pda_tipo_attivazione_manuale === true
+ || (data?.pda_tipo_attivazione_manuale === undefined && Boolean(data?.tipo_attivazione))) ? 'true' : 'false';
+ delete root.dataset.pdaFixedActivationPending;
  root.innerHTML = window.MiroxPdaUI.formHtml(window.MiroxPda.normalize(data || {}), category, { wizard: true, reading: root.dataset.pdaReading });
  window.MiroxPdaUI.bindForm(root);
  if (!root.dataset.autosaveBound) {
@@ -3220,7 +3224,9 @@ Reload Forever
  return { ...window.MiroxPdaUI.readForm(root), pda_lettura: root.dataset.pdaReading || 'manuale',
  pda_opzione_manuale: root.dataset.pdaOptionManual === 'true',
  pda_dispositivo_auto: root.dataset.pdaDeviceAuto === 'true' ? true : root.dataset.pdaDeviceAuto === 'false' ? false : null,
- pda_dispositivo_manuale: root.dataset.pdaDeviceManual === 'true' };
+ pda_dispositivo_manuale: root.dataset.pdaDeviceManual === 'true',
+ pda_tipo_attivazione_auto: root.dataset.pdaFixedActivationAuto || null,
+ pda_tipo_attivazione_manuale: root.dataset.pdaFixedActivationManual === 'true' };
  }
  async function checkPendingCode() {
  return window.MiroxPdaUI.checkCode(readPdaFields().codice_contratto,
@@ -3365,6 +3371,7 @@ Reload Forever
  function renderDynamicSections() {
  renderPdaFields();
  maybeSelectMobileOption();
+ maybeSelectFixedActivation();
  const categoriaNome = getCategoriaName();
  const offertaNome = getOffertaName();
  const opzioniDisponibili = filteredOpzioni();
@@ -3757,6 +3764,8 @@ Reload Forever
  pda_opzione_manuale: readPdaFields().pda_opzione_manuale,
  pda_dispositivo_auto: readPdaFields().pda_dispositivo_auto,
  pda_dispositivo_manuale: readPdaFields().pda_dispositivo_manuale,
+ pda_tipo_attivazione_auto: readPdaFields().pda_tipo_attivazione_auto,
+ pda_tipo_attivazione_manuale: readPdaFields().pda_tipo_attivazione_manuale,
  temp_id: options.tempId || `temp_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
  categoria_id: categoria.id,
  offerta_id: offerta.id,
@@ -5175,6 +5184,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  });
 
  refs.opzione.addEventListener('change', confirmMobileOptionChange);
+ refs.tipoAttivazione.addEventListener('change', confirmFixedActivationChange);
  refs.apriChiudi.addEventListener('change', renderDynamicSections);
  refs.dispositivoAssociato.addEventListener('change', confirmDeviceChange);
  refs.tipoAcquisto.addEventListener('change', renderDynamicSections);
@@ -5745,6 +5755,43 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  runtimeState.ocrDeviceApplied = false;
  }
 
+ function maybeSelectFixedActivation() {
+ if (!isCategory(getCategoriaName(), 'Fisso')) return;
+ const root = document.getElementById('pdaContractFields');
+ if (root.dataset.pdaFixedActivationManual === 'true') return;
+ refs.tipoAttivazione.value = root.dataset.pdaFixedActivationAuto || '';
+ }
+
+ async function confirmFixedActivationChange() {
+ const root = document.getElementById('pdaContractFields');
+ const selected = refs.tipoAttivazione.value;
+ const automatic = root.dataset.pdaFixedActivationAuto || '';
+ if (root.dataset.pdaFixedActivationPending) { refs.tipoAttivazione.value = automatic; return; }
+ if (isCategory(getCategoriaName(), 'Fisso') && root.dataset.pdaFixedActivationManual !== 'true' && automatic) {
+ if (selected === automatic) return;
+ refs.tipoAttivazione.value = automatic;
+ const revision = runtimeState.pdaRevision;
+ const editingId = runtimeState.editingTempId;
+ const offerId = refs.offerta.value;
+ const token = String(runtimeState.fixedActivationConfirmSequence = (runtimeState.fixedActivationConfirmSequence || 0) + 1);
+ root.dataset.pdaFixedActivationPending = token;
+ try {
+ const confirmed = await window.MiroxUI.confirm(
+ 'La PDA ha impostato Tipo attivazione su "' + automatic + '". Vuoi cambiarlo in "' + (selected || 'Seleziona') + '"?',
+ { title: 'Conferma modifica tipo attivazione', okText: 'Conferma modifica', cancelText: 'Mantieni scelta automatica' }
+ );
+ if (!confirmed || root.dataset.pdaFixedActivationPending !== token || runtimeState.pdaRevision !== revision
+ || runtimeState.editingTempId !== editingId || refs.offerta.value !== offerId) return;
+ refs.tipoAttivazione.value = selected;
+ } finally {
+ if (root.dataset.pdaFixedActivationPending === token) delete root.dataset.pdaFixedActivationPending;
+ }
+ }
+ root.dataset.pdaFixedActivationManual = 'true';
+ renderDynamicSections();
+ queueDraftSave();
+ }
+
  // Scegli Si/No prima di calcolare visibilita e campi obbligatori, senza indovinare un No.
  function maybeSelectOcrDevice(visible) {
  if (!visible || refs.dispositivoAssociato.disabled) return;
@@ -6048,7 +6095,8 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  // Gli altri contratti aggiornano soltanto i dati contratto/dispositivo, mai il contatto OTP.
  if (refs.codiceRivenditore) refs.codiceRivenditore.value = CODICE_RIVENDITORE_DEFAULT;
  renderPdaFields({ ...window.MiroxPda.normalize(data), pda_lettura: data.pda_lettura,
- pda_dispositivo_auto: data.dispositivo_presente, pda_dispositivo_manuale: false });
+ pda_dispositivo_auto: data.dispositivo_presente, pda_dispositivo_manuale: false,
+ pda_tipo_attivazione_auto: data.tipo_attivazione_fisso, pda_tipo_attivazione_manuale: false });
  goToStep(runtimeState.anagraficaCompleted ? 3 : 2);
  queueDraftSave();
  } catch (error) {
