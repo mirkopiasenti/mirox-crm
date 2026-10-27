@@ -51,6 +51,11 @@
 [functions."cron-target-reports"]
   schedule = "*/5 * * * *"
 
+# Verifica contratti: primo turno21:00Europe/Rome, recupero e riesame dei sospesi.
+# Disabilitata in pratica finché la configurazione DB è in collaudo/spenta.
+[functions."cron-verifica-contratti"]
+  schedule = "* * * * *"
+
 # Font privati del renderer PNG Target; esclusi dalla pubblicazione statica.
 [functions."target-worker-background"]
   included_files = ["netlify/functions/_assets/target/*"]

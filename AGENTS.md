@@ -130,6 +130,8 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 
 | File JS | Espone | Uso |
 |---|---|---|
+| `js/verifica-contratti-core.js` | `window.MiroxVerificaCore` / CommonJS | Matching documentale, date firma/scadenza, ICCID, bollette e CSV, esiti puri |
+| `js/verifica-contratti-automatica.js` | `window.MiroxVerificaAuto` | Pannello esiti/CSV, collaudo, riesame e riconciliazione notifiche |
 | `js/subentri-core.js` | `window.MiroxSubentri` / CommonJS server | Campi, consensi, categorie documentali e validazione pura condivisa del Compilatore Subentri |
 | `js/vendita-pda-core.js` | `window.MiroxPda` / CommonJS server | Normalizza codici/telefoni/importi e valida dati PDA/Mobile condivisi |
 | `js/vendita-pda-ui.js` | `window.MiroxPdaUI` | Popup codice/costo/contatto, controllo duplicati e editor PDA condiviso fra wizard e consultazione |
@@ -152,7 +154,9 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 
 ### 2. Server (`/netlify/functions/`, Node >=22)
 
-Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i cron Netlify, `public-prenota`, `guardian-telegram-webhook`, `guardian-codex-worker`, `guardian-voice-background`, `target-telegram-webhook` e `target-worker-background`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `guardian-telemetry-ingest` è autenticata e accetta soltanto eventi tecnici a schema chiuso; `guardian-codex-worker` è protetta da HMAC e da un lease server-only. Il webhook Guardian e' una seconda eccezione pubblica ma richiede sia il secret token Telegram sia il `chat_id` di Mirko. Nessuno degli endpoint è un endpoint anonimo generico. `admin-vendita-config`, `admin-kpi-vendita-consumer`, `admin-kpi-call-center`, `gestisci-controllo-fissi`, `elimina-vendita-contratto`, le action manuali di `gestisci-controllo-lg` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. Le funzioni Guardian condividono inoltre `guardian-telemetry`, `guardian-triage`, `with-telemetry` e l'outbox dell'Observer:
+Verifica Contratti automatica (27/10, modalità collaudo): `gestisci-verifica-automatica.js` valida JWT e ruolo per collaudo/CSV/configurazione/riconciliazione notifiche; `verifica-contratti-background.js` usa HMAC/timestamp60s e coda privata; `cron-verifica-contratti.js` ogni minuto recupera prove assistite esplicite e, solo in modalità attiva, turni21:00Europe/Rome/riesami/notifiche. Helper `_lib/verifica-documenti.js`, `_lib/verifica-worker.js`, `_lib/verifica-csv.js`; nessuna Edge Function. Default collaudo senza conferme/email.
+
+Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i cron Netlify, `public-prenota`, `guardian-telegram-webhook`, `guardian-codex-worker`, `guardian-voice-background`, `target-telegram-webhook` e `target-worker-background` e `verifica-contratti-background`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `guardian-telemetry-ingest` è autenticata e accetta soltanto eventi tecnici a schema chiuso; `guardian-codex-worker` è protetta da HMAC e da un lease server-only. Il webhook Guardian e' una seconda eccezione pubblica ma richiede sia il secret token Telegram sia il `chat_id` di Mirko. Nessuno degli endpoint è un endpoint anonimo generico. `admin-vendita-config`, `admin-kpi-vendita-consumer`, `admin-kpi-call-center`, `gestisci-controllo-fissi`, `elimina-vendita-contratto`, le action manuali di `gestisci-controllo-lg` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. Le funzioni Guardian condividono inoltre `guardian-telemetry`, `guardian-triage`, `with-telemetry` e l'outbox dell'Observer:
 
 - `target-telegram-webhook.js` (POST) — secret Telegram dedicato e chat privata Mirko; accoda testo/vocali Target con dedupe.
 - `target-worker-background.js` (POST background) — HMAC + timestamp, lease della sessione e checkpoint di invio; report, memoria e dialogo read-only.
@@ -226,6 +230,7 @@ Le migration Guardian additive `065`–`068` sono applicate sul production `lbgw
 - RPC chiave: `crm_can_access_page(text)`, `crm_normalize_*`, `crm_import_call_center_lead_outbound_batch`
 
 ### Vendita (focus di questo progetto)
+- Verifica automatica **modalità collaudo**: `vendita_verifica_config`, `vendita_verifiche`, `vendita_verifica_csv`, `vendita_verifica_esecuzioni`, `vendita_verifica_documenti`, `vendita_verifica_notifiche`; RLS server-only e RPC nuove INVOKER. Migration20261027172616 applicata/riletta27/10, default collaudo. Nessuna tabella condivisa CC modificata.
 - `vendita_categorie` — Mobile, Fisso, Energia, Allarmi, Customer Base, Assicurazioni
 - `vendita_offerte` — `cluster_cliente`, `punteggio_gara`, `punteggio_extra_gara`, `abilita_dispositivo`, `abilita_switch_sim`
 - `vendita_opzioni` — `punti_base`, `punti_extra_piva`
@@ -380,6 +385,18 @@ Le pagine post-vendita dei punti 8–11 espongono `Vai alla pratica` per ogni ri
 ---
 
 ## Regole di business chiave
+
+### Verifica automatica contratti (27/10/2026, modalità collaudo)
+
+Implementati motore `js/verifica-contratti-core.js`, pannello `js/verifica-contratti-automatica.js`/CSS, API/worker/cron e migration additiva `20261027172616_verifica_automatica_contratti.sql`. **Migration applicata a production** (versione20261027172616, nome verifica_automatica_contratti); configurazione collaudo, RLS e grant riletti, zero analisi/notifiche. Rilascio autorizzato dal proprietario. Non abilitare automaticamente la modalità attiva. Guida e limiti: `docs/VERIFICA_AUTOMATICA_CONTRATTI.md`; analisi storica separata. Nessuna nuova dipendenza/env richiesta; riusati Anthropic Haiku4.5 e chiavi backend esistenti. Il worker ha HMAC con contesto dedicato derivato dalla service role, non dai segreti degli altri agenti.
+
+Checklist confermata: integrare dati mancanti provati, intestazione contratto/CF/PIVA, identità valida **alla data firma contratto**; Business usa il firmatario/rappresentante della PDA. Per MNP confrontare ICCID della copia SIM con quello **uscente nella sezione portabilità** della PDA, mai nuova SIM o telefono. Energia: identità, bolletta intestata correttamente, prime due pagine con nome/POD/PDR; gestore uscente dalla bolletta, numero nuovo contratto da CSV ufficiale WindTre con match fiscale+punto univoco. CSV quotidiano disponibile in Verifica; fonte almeno del giorno del turno, non necessariamente nuova il giorno del riesame. Date upload/esportazione non valgono come firma; fonte firma PDF, colonna CSV esplicita o attestazione operatore tracciata. Nessuna biometria/nuovo controllo tecnico firme.
+
+Primo turno21:00Europe/Rome tutti i giorni, nuovi invii dopo21 al turno successivo. Nuovi contratti e backlog iniziale attendono prossimo turno; dopo primo tentativo correzioni/allegati/CSV accodano subito riesame, recuperato dal cron entro un minuto se dispatch fallisce. Quattro esiti UI: Da controllare, Controllato, Da verificare, In attesa CSV. Anche contratto assente da CSV valido resta in attesa; problemi veri prevalgono e non sono mascherati dal CSV. Gli esiti sospesi vivono nelle nuove tabelle, senza nuovi valori in `vendita_contratti.stato_controllo`: preservati conteggi e trigger. Nessuna riscrittura autonoma anagrafica condivisa/offerta/punti o valori esistenti discordanti.
+
+Default `vendita_verifica_config.modalita='collaudo'`: solo analisi richiesta dall'admin, senza approvare contratti o inviare email; prova non conta come primo tentativo reale. `attiva` abilita turno/riesame/email e disabilita conferma manuale; `spenta` blocca il commit automatico. Letture cache per hash PDF+modello+prompt; collaudo forza rilettura. Claim massimo2lavori, lease12min e CAS/revisioni/fingerprint; conferma+audit+outbox in un'unica RPC INVOKER service-only. Cambi anagrafica rilevati in sola lettura, nessun trigger sul CC.
+
+CB `smartphone_reload=true` e `smartphone_reload_modalita='Disattivazione cliente'`: email `info@konatech.it` appena verificato; WhatsApp resta manuale e non si tratta del catalogo Reload dismesso/Exchange/Forever. Problemi Da verificare a `mirko.piasenti@mail.com` (dominio esatto), italiano semplice. Attesa CSV da sola senza email errori. Outbox con dedupe; retry solo su mancata accettazione SMTP certa; invii ambigui riconciliati da admin nella pagina con audit e conferma esplicita prima del reinvio. Nessun invio di prova eseguito. L'upload CSV verifica non aggiorna stati L&G o timestamp Netto: il flusso Controllo L&G esistente resta separato.
 
 ### Identificazione PDA e dati Mobile (27/10/2026, online)
 

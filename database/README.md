@@ -2,6 +2,34 @@
 
 I file `.sql` nella root di questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via CLI) durante lo sviluppo. `staging/` contiene invece bootstrap one-shot destinati esclusivamente a database staging nuovi e vuoti.
 
+## Verifica automatica contratti (27/10/2026, migration applicata)
+
+`20261027172616_verifica_automatica_contratti.sql`, generata con CLI: sei tabelle
+private `vendita_verifica_config`, `vendita_verifiche`, `vendita_verifica_csv`,
+`vendita_verifica_esecuzioni`, `vendita_verifica_documenti`, `vendita_verifica_notifiche`.
+RLS ON e grant soltanto service_role, RPC nuove INVOKER con search_path vuoto e
+EXECUTE revocato a PUBLIC/anon/authenticated. Nessun cambio a tabelle/RLS/RPC CC
+né schema/trigger anagrafica: quest'ultima è solo letta e bloccata FOR SHARE nel commit.
+
+Nuovi trigger su sole vendita_contratti/vendita_documenti/vendita_pratiche per
+invalidation e registrazione turno21:00Europe/Rome; esiti separati per compatibilità
+stato_controllo e trigger post-vendita. Claim2worker/lease12min, commit+audit+outbox
+atomici, CAS/revisioni e sorgenti concorrenti bloccanti. Attribuzione sistema:
+controllato_da NULL, nota e audit dedicati. Cache per SHA256+modello+prompt;
+CSV originale e righe non esposte al browser. Firma alla data effettiva, ICCID
+in evidenze private, nessuna nuova colonna ICCID sul contratto. Stato L&G e
+ultimo_csv_upload_at non modificati dal nuovo upload verifica.
+
+Default configurazione **collaudo**: nessun contratto approvato o email inviata.
+Test PostgreSQL in memoria con `scripts/verifica-automatica-sql.js`: grant,
+claim, collaudo, allegato/CSV/anagrafica concorrenti, rollback patch, idempotenza,
+riapertura, riesame e dedupe. Migration applicata production27/10, registro
+`20261027172616`; nome file allineato alla versione Supabase dopo generazione CLI.
+Sei tabelle RLS/grant e sei RPC INVOKER riletti: anon/authenticated senza accesso.
+Configurazione collaudo,31lavori registrati, zero esecuzioni/notifiche; impronta
+degli stati dei2720contratti identica prima/dopo, nessun dato contratto modificato.
+Guida: [Verifica automatica](../docs/VERIFICA_AUTOMATICA_CONTRATTI.md).
+
 ## Identificazione PDA e dati Mobile (27/10/2026, migration applicata)
 
 `20261027110402_vendita_codice_pda_mobile.sql` applicata in produzione27/10
@@ -237,6 +265,7 @@ Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
 | `072_limita_telefoni_cb_dashboard.sql` | Allinea `TELEFONI CB` di Gare Individuali e Avanzamento Mensile al KPI Customer Base Consumer: conta soltanto `Telefono Incluso` con dispositivo associato e `tipo_acquisto` VAR o Finanziamento, escludendo Cambi Piano e Caring. |
 
 | `20261005185700_mirox_ai_target.sql` | Nuove `mirox_target_sessioni` e `mirox_target_jobs` server-only: memoria, lease, coda con dedupe/checkpoint e stato incerto. RLS e grant espliciti alla sola service role; nessun cambio a tabelle CC/RPC esistenti. Migration applicata il 05/10/2026 a production `lbgwamhjkjjfwgusafbi`; versione locale allineata al registro Supabase. RLS e privilegi anon/authenticated/service_role verificati. |
+| `20261027172616_verifica_automatica_contratti.sql` | Verifica documentale: configurazione default collaudo, lavori/esiti, CSV, letture cache, audit/outbox privati, nuovi trigger/RPC solo vendita. **Applicata production27/10, versione20261027172616**. PGlite e rilettura grant/configurazione riusciti; nessuna modifica CC o stato contratto. |
 | `20261018180938_compilatore_subentri.sql` | Crea `subentri_generati` con bozze idempotenti private per operatore, manifest allegati immutabile, snapshot e indice dei PDF generati; bucket privato `subentri-files` per PDF/JPEG/PNG max 4 MiB. RLS e grant solo service role, nessuna policy Storage browser, nessuna modifica alle tabelle condivise. **Applicata e verificata il 18/10/2026 su production `lbgwamhjkjjfwgusafbi`**; anon/authenticated senza SELECT/INSERT, archivio inizialmente vuoto. |
 | `20261018184140_subentri_modalita_compilazione.sql` | Aggiunge `subentri_generati.modalita_compilazione` con valori `invia_pratica` (default compatibile con lo storico) e `standard`. CHECK documenti condizionale: 3–12 file per Invia pratica, array vuoto per standard. **Applicata e verificata il 18/10/2026**: casi validi/invalidi provati in transazione con rollback, zero record conservati; RLS/grant/bucket e tabelle CRM/CC invariati. Pubblicazione delle due modalità richiesta il 19/10/2026; esito nel promemoria. |
 

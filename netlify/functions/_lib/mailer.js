@@ -166,7 +166,10 @@ async function sendEmail(opts) {
             related_id: opts.related_id ? String(opts.related_id) : null,
             payload: null
         });
-        return { ok: false, error: err.message };
+        const rejected = Number(err.responseCode) >= 400 && Number(err.responseCode) < 600
+            || ['EAUTH', 'EENVELOPE', 'ECONNECTION', 'EDNS'].includes(err.code) && err.command !== 'DATA';
+        return { ok: false, error: err.message, rejected,
+            permanent: Number(err.responseCode) >= 500 || ['EAUTH', 'EENVELOPE'].includes(err.code) };
     }
 }
 

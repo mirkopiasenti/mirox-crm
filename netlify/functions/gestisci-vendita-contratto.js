@@ -181,10 +181,16 @@ async function updateContract({ supabase, auth, body }) {
     return response(400, { success: false, error: 'Modalità aggiornamento non valida' });
   }
 
+  if (mode === 'verify') {
+    const cfg = await supabase.from('vendita_verifica_config').select('modalita').eq('id', true).maybeSingle();
+    if (cfg.error && !['42P01', 'PGRST205'].includes(cfg.error.code)) throw cfg.error;
+    if (cfg.data?.modalita === 'attiva') return response(409, { success: false, error: 'La conferma è gestita dalla verifica automatica. Salva le correzioni per avviare il riesame.' });
+  }
+
   const { data: current, error: loadError } = await supabase
     .from('vendita_contratti')
     .select(`
-      id, anagrafica_id, pratica_id, stato_controllo,
+      id, anagrafica_id, pratica_id, stato_controllo, updated_at,
       categoria_id, categoria_snapshot, offerta_id, opzione_id, reload_id,
       ricorrenza_assicurazione, codice_contratto, costo_offerta_mensile, portabilita,
       numero_telefono, numero_provvisorio, numero_mnp, operatore_provenienza,
@@ -195,6 +201,9 @@ async function updateContract({ supabase, auth, body }) {
     .maybeSingle();
   if (loadError) throw loadError;
   if (!current) return response(404, { success: false, error: 'Contratto non trovato' });
+  if (body.expected_updated_at && body.expected_updated_at !== current.updated_at) {
+    return response(409, { success: false, error: 'Il contratto è cambiato durante la consultazione. Riapri il dettaglio prima di salvare.' });
+  }
 
   let patch = {};
   let snapshotPatch = {};
@@ -258,13 +267,16 @@ async function updateContract({ supabase, auth, body }) {
     if (anagraficaError) throw anagraficaError;
   }
 
-  const { data: contratto, error: updateError } = await supabase
+  let updateQuery = supabase
     .from('vendita_contratti')
     .update(patch)
-    .eq('id', contrattoId)
+    .eq('id', contrattoId);
+  if (current.updated_at) updateQuery = updateQuery.eq('updated_at', current.updated_at);
+  const { data: contratto, error: updateError } = await updateQuery
     .select('*')
-    .single();
+    .maybeSingle();
   if (updateError) throw updateError;
+  if (!contratto) return response(409, { success: false, error: 'Il contratto è stato modificato da un altro processo. Riapri il dettaglio.' });
 
   assertPersistedContractScores(contratto, {
     context: `vendita_contratti.${contrattoId}`,
@@ -406,4 +418,21 @@ exports._test = {
   loadAnnualInsuranceBonus,
   parseRequiredScore,
   pickAllowed
+};
+
+const contractHandler = exports.handler;
+exports.handler = async event => {
+  const result = await contractHandler(event);
+  if (event.httpMethod === 'POST' && result.statusCode >= 200 && result.statusCode < 300) {
+    let action, contractId;
+    try { const payload = JSON.parse(event.body || '{}'); action = payload.action; contractId = payload.contratto_id; } catch { /* Already validated by the handler. */ }
+    if (['update', 'update_pda', 'delete_document'].includes(action)) {
+      try {
+        const worker = require('./_lib/verifica-worker'), db = getAdminClient();
+        if (contractId) await worker.changed(db, contractId);
+        await worker.wake(db);
+      } catch { /* Durable contract/document changes are recovered by the scheduled worker. */ }
+    }
+  }
+  return result;
 };

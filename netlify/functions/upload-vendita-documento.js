@@ -571,3 +571,15 @@ exports._test = {
   hasPdfSignature,
   normalizeUuidOrNull
 };
+
+const uploadHandler = exports.handler;
+exports.handler = async event => {
+  const result = await uploadHandler(event);
+  if (event.httpMethod === 'POST' && result.statusCode >= 200 && result.statusCode < 300) {
+    try {
+      const authHelper = require('./_lib/require-auth');
+      await require('./_lib/verifica-worker').wake(authHelper.getAdminClient());
+    } catch { /* The durable invalidation is recovered by the scheduled worker. */ }
+  }
+  return result;
+};

@@ -1,0 +1,12 @@
+.vc-auto { margin:18px auto; max-width:1400px; padding:18px; background:#fff; border:1px solid #dde5ed; border-radius:12px; }
+.vc-auto h2 { margin:0 0 8px; font-size:16px; }
+.vc-auto p { font-size:13px; line-height:1.5; margin:6px 0; }
+.vc-auto-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:12px; }
+.vc-auto-actions select,.vc-auto-actions input { max-width:100%; padding:8px; border:1px solid #ccd5df; border-radius:6px; }
+.vc-auto-result { padding:12px; background:#f4f8fc; border-radius:8px; font-size:13px; margin-bottom:12px; }
+.vc-auto-result ul { padding-left:20px; margin:8px 0; }
+.vc-auto-result li { margin-bottom:6px; line-height:1.45; }
+.vc-auto-meta { color:#697386; font-size:11px; white-space:normal; max-width:300px; line-height:1.4; margin-top:5px; }
+.vc-auto-error { color:#a32424; }
+.vc-auto button:disabled { opacity:.5; cursor:wait; }
+@media(max-width:600px) { .vc-auto { margin:12px; } .vc-auto-actions { align-items:stretch; flex-direction:column; } }

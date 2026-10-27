@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/mirox-modules.css">
+<link rel="stylesheet" href="../css/verifica-contratti-automatica.css">
 <style>
 :root {
   --primary: #FF6600;
@@ -230,8 +231,9 @@ body {
 </div>
 
 <!-- Tab bar -->
+<section id="vcAutomatico" class="vc-auto" aria-live="polite"><h2>Verifica automatica</h2><p>Caricamento stato del servizio...</p></section>
 <div class="nav-tabs">
-<button type="button" class="nav-tab active" data-tab="da-verificare" onclick="switchTabVC('da-verificare', this)">Da Verificare <span id="cntDaVerificare" class="tab-counter zero" style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:11px;background:#EEF3F8;color:#697386;font-size:11px;font-weight:700;padding:0 7px;margin-left:6px;">0</span></button>
+<button type="button" class="nav-tab active" data-tab="da-verificare" onclick="switchTabVC('da-verificare', this)">Da controllare <span id="cntDaVerificare" class="tab-counter zero" style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:11px;background:#EEF3F8;color:#697386;font-size:11px;font-weight:700;padding:0 7px;margin-left:6px;">0</span></button>
 <button type="button" class="nav-tab" data-tab="verificati" onclick="switchTabVC('verificati', this)">Verificati <span id="cntVerificati" class="tab-counter zero" style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:11px;background:#EEF3F8;color:#697386;font-size:11px;font-weight:700;padding:0 7px;margin-left:6px;">0</span></button>
 </div>
 
@@ -472,9 +474,11 @@ async function caricaContratti(statoControllo) {
         punteggio_offerta, punteggio_opzione, punteggio_extra, punteggio_totale,
         stato_controllo, controllato_da, controllato_at, note_controllo,
         data_contratto, created_at, updated_at,
-        anagrafica:anagrafica_id ( id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, provincia, comune, via, civico )
+        anagrafica:anagrafica_id ( id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, provincia, comune, via, civico ),
+        pratica:pratica_id!inner ( stato_pratica )
       `)
       .eq('stato_controllo', statoControllo)
+      .eq('pratica.stato_pratica', 'inviata')
       .order('data_contratto', { ascending: false });
     if (error) throw error;
     const contratti = data || [];
@@ -525,6 +529,7 @@ function applicaFiltri(items, stateKey) {
   const cluster = stateKey === 'verificati' ? VCState.filtroClusterVerificati : '';
   const day = VCState[dateKey] || '';
   return items.filter(c => {
+    if (stateKey === 'daVerificare' && window.MiroxVerificaAuto && !window.MiroxVerificaAuto.accepts(c)) return false;
     if (cat && c.categoria_id !== cat) return false;
     if (cluster && getContrattoCluster(c) !== cluster) return false;
     if (day && toRomeDateFilterValue(c.data_contratto) !== day) return false;
@@ -585,7 +590,7 @@ function renderListaContratti(stateKey) {
         <td><span class="stato-pill ${escapeHtml(String(cluster).toLowerCase())}">${escapeHtml(cluster)}</span></td>
         <td>${escapeHtml(categoriaTxt)}</td>
         <td>${escapeHtml(offertaTxt)}${convergenzaChip}</td>
-        <td><span class="stato-pill ${escapeHtml(c.stato_controllo)}">${escapeHtml(c.stato_controllo || '-')}</span></td>
+        <td>${window.MiroxVerificaAuto ? window.MiroxVerificaAuto.status(c) : `<span class="stato-pill">${c.stato_controllo === 'controllato' ? 'Controllato' : 'Da controllare'}</span>`}</td>
         <td style="text-align:right;white-space:nowrap;">
           <button type="button" class="btn-mini btn-primary" onclick="apriDettaglioContratto('${escapeHtml(c.id)}', '${stateKey}')">Dettagli</button>
         </td>
@@ -661,7 +666,7 @@ async function apriDettaglioContratto(id, stateKey) {
     if (opzRes.error) throw opzRes.error;
     if (offOpzRes.error) throw offOpzRes.error;
     if (relRes.error) throw relRes.error;
-    // (filesRes errore non fatale)
+    if (filesRes.error) throw filesRes.error;
     const categorie = catRes.data || [];
     const offerte = offRes.data || [];
     const opzioni = opzRes.data || [];
@@ -722,7 +727,7 @@ function apriPopupDettaglio(c, opts) {
   const pdaHtml = window.MiroxPda.isPda(c.categoria_snapshot)
     ? '<div class="det-section"><h4>Dati PDA</h4>' + window.MiroxPdaUI.summary(c)
       + '<button type="button" class="mx-btn mx-btn-secondary" data-edit-pda>Modifica dati PDA</button></div>' : '';
-  const bodyHtml = `${pdaHtml}
+  const bodyHtml = `${window.MiroxVerificaAuto ? window.MiroxVerificaAuto.details(c) : ''}${pdaHtml}
     <div class="det-section">
       <h4>Dati cliente <small style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;font-size:11px;">(modifiche su tabella anagrafica condivisa)</small></h4>
       <div class="det-grid">
@@ -979,6 +984,10 @@ function apriPopupDettaglio(c, opts) {
   window.__currentVerificaCataloghi = { categorie, offerte, opzioni, offerteOpzioni, reload };
   // Bottone chiudi via attributo
   m.foot.querySelectorAll('[data-mx-close-popup]').forEach(b => b.addEventListener('click', () => m.close()));
+  if (window.MiroxVerificaAuto?.isActive()) {
+    const manualVerify = m.foot.querySelector('[onclick^="confermaVerifica"]');
+    if (manualVerify) manualVerify.hidden = true;
+  }
 
   renderAllegatiPopup(c, allegati, isReadOnly);
 
@@ -1426,6 +1435,7 @@ async function confermaVerifica(id) {
       action: 'update',
       mode: 'verify',
       contratto_id: id,
+      expected_updated_at: c.updated_at,
       contratto: patch,
       anagrafica: ana
     });
@@ -1474,6 +1484,7 @@ async function salvaModifiche(id) {
       action: 'update',
       mode: 'save',
       contratto_id: id,
+      expected_updated_at: c.updated_at,
       contratto: patch,
       anagrafica: ana
     });
@@ -1634,5 +1645,7 @@ document.getElementById('filterDataVerificati').addEventListener('input', (e) =>
   await apriPraticaRichiesta();
 })();
 </script>
+<script src="../js/verifica-contratti-core.js"></script>
+<script src="../js/verifica-contratti-automatica.js"></script>
 </body>
 </html>

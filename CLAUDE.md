@@ -1,5 +1,22 @@
 # CLAUDE.md — Guida per AI assistants
 
+## Verifica automatica contratti (27/10/2026, modalità collaudo)
+
+Sviluppati motore puro, lettura PDF, CSV, pannello esiti/collaudo, worker, cron,
+cache e outbox. Guida: `docs/VERIFICA_AUTOMATICA_CONTRATTI.md` e sezione AGENTS.
+Migration `20261027172616_verifica_automatica_contratti.sql` collaudata isolata,
+applicata/riletta a production27/10, versione20261027172616. Rilascio autorizzato;
+nessuna email o lettura AI dei clienti ancora eseguita, configurazione collaudo.
+Default collaudo: una pratica richiesta dall'admin, zero conferme/email.
+Identità valida alla data firma, Business sul firmatario PDA, ICCID copia SIM vs
+SIM uscente PDA MNP. Energia prime2pagine bolletta/POD/PDR, gestore da bolletta e
+numero da CSV fiscale+punto univoco. CSV mancante o pratica assente = In attesa CSV.
+Turno21:00Europe/Rome, sospesi corretti ripartono subito; dati discordanti da
+verificare. Reload CB a info@konatech.it appena verificato, problemi semplici a
+mirko.piasenti@mail.com. WhatsApp manuale. Nessun cambio a schema/RLS/RPC CC;
+esiti additivi separati da stato_controllo, punti e anagrafica non riscritti.
+Pubblicazione su richiesta esplicita, con modalità collaudo iniziale.
+
 ## Upload PDA: codice univoco e dati Mobile (27/10/2026, online)
 
 Codice contratto obbligatorio Mobile/Fisso/Customer Base; codice cliente escluso.

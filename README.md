@@ -14,6 +14,26 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 - **Canale proprietario**: bot Telegram privato limitato al solo `chat_id` di Mirko
 - **Hosting**: Netlify (build statica a lista consentita in `dist/` + functions + cron schedules)
 
+## Verifica automatica contratti — collaudo assistito
+
+Motore documentale, upload CSV WindTre, quattro esiti, primo turno ogni sera
+alle **21:00 Europe/Rome** e riesame immediato dei sospesi dopo correzioni/CSV.
+Controlla intestazione, identità valida **alla data firma**, firmatario Business,
+ICCID copia SIM/PDA MNP e prime due pagine bolletta Energia con intestatario/POD/PDR.
+Integra soltanto campi vuoti sostenuti dalle fonti; punteggi e anagrafica non riscritti.
+CSV assente o contratto non ancora presente: In attesa CSV; altri problemi spiegati
+in italiano. Per il turno serve un CSV caricato nel giorno del turno o successivo.
+Reload CB Disattivazione cliente: `info@konatech.it` appena verificato; problemi:
+`mirko.piasenti@mail.com`. Outbox persistente con dedupe e riconciliazione invii incerti.
+
+Nuova modalità iniziale **Collaudo assistito**: analizza una pratica selezionata,
+registra l'esito nelle tabelle private, non conferma il contratto e non invia email.
+Migration applicata e riletta a production il27/10, versione `20261027172616`: sei
+tabelle private/RLS e RPC server-only; configurazione confermata in collaudo.
+Rilascio autorizzato dal proprietario; prove AI sui fascicoli ancora da fare insieme.
+[Guida operativa](docs/VERIFICA_AUTOMATICA_CONTRATTI.md),
+[analisi e requisiti](docs/VERIFICA_AUTOMATICA_CONTRATTI_ANALISI_2026-10-27.md).
+
 ## Struttura cartelle
 
 | Cartella / File | Cosa contiene |
@@ -53,18 +73,23 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |
 | `database/staging/` | Bootstrap one-shot esclusivi del Supabase staging; non applicabili a production |
 | `netlify.toml` | Config Netlify, header di sicurezza (CSP/HSTS/Permissions-Policy) e cron |
+| `js/verifica-contratti-core.js`, `js/verifica-contratti-automatica.js`, `css/verifica-contratti-automatica.css` | Regole documentali pure e pannello Verifica Contratti con CSV, esiti e collaudo assistito |
+| `scripts/verifica-automatica-sql.js` | Collaudo PostgreSQL isolato della nuova coda, commit atomico e grant |
 | `package.json` | Dipendenze Node delle functions |
 | `CLAUDE.md` | Mappa completa per AI assistants (architettura, schema, regole di business, convenzioni) |
 
 ### Netlify Functions
 
-Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenota`, i webhook Telegram Guardian/Target protetti da secret token e allowlist proprietario e i worker Guardian/Target protetti da HMAC. Il client CRM usa `MiroxApi.fetch()`; Target ha un canale backend dedicato.
+Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenota`, i webhook Telegram Guardian/Target protetti da secret token e allowlist proprietario e i worker Guardian/Target/Verifica Contratti protetti da HMAC. Il client CRM usa `MiroxApi.fetch()`; Target ha un canale backend dedicato.
 
 | Function | Metodo | Auth | Scopo |
 |---|---|---|---|
 | `target-telegram-webhook` | POST | secret Telegram + chat privata proprietario | Accoda testo/vocali nel bot dedicato Target; dedupe update e dialogo libero |
 | `target-worker-background` | POST background | HMAC + timestamp | Genera report/dialogo, memoria privata e consegna con checkpoint |
 | `cron-target-reports` | scheduled `*/5 * * * *` | cron Netlify | Report alle 19:45 italiane, calendario lavorativo, dedupe e risveglio coda Target |
+| `gestisci-verifica-automatica` | POST | authenticated; admin per collaudo/CSV/configurazione/notifiche | Stato del servizio, analisi assistita, riesame, data firma attestata, import CSV e modalità |
+| `verifica-contratti-background` | POST background | HMAC con contesto dedicato + timestamp | Legge PDF e applica regole; commit atomico se attiva, sola valutazione se collaudo, outbox email |
+| `cron-verifica-contratti` | scheduled ogni minuto | cron Netlify | Recupera collaudi richiesti e lavori automatici dovuti alle21:00Europe/Rome o dopo integrazione; modalità iniziale collaudo |
 | `vendita-config` | GET | authenticated | Carica catalogo per il wizard contratti |
 | `admin-vendita-config` | GET / POST | **admin** | CRUD admin del catalogo |
 | `admin-kpi-vendita-consumer` | GET | **admin** | Aggrega i KPI Consumer o Business, selezionati tramite parametro `cluster`, per Mobile, Fisso, Customer Base, Luce & Gas, Allarmi e Assicurazioni; la scheda Customer Base è mostrata soltanto nel Consumer |
@@ -540,6 +565,8 @@ su `main` dopo il merge. I deploy production restano attivi.
 - I bottoni delle email operative basate su template (segnalazioni, rientro Switch SIM, ordini smartphone) puntano a [`https://www.mirox-crm.it`](https://www.mirox-crm.it). Le vecchie email automatiche per errori tecnici sono state rimosse.
 
 ## Schedulazioni
+
+- `cron-verifica-contratti`: ogni **minuto**, primo turno **21:00 Europe/Rome** quotidiano, riesame dei sospesi e recupero notifiche. In modalità `collaudo` elabora soltanto prove richieste esplicitamente su singoli contratti.
 
 - `cron-rientro-sim`: ogni giorno alle **07:00 UTC** (09:00 ora italiana estate / 08:00 inverno). Cerca pratiche `vendita_switch_sim` con `giorno_rientro = oggi` e `mail_rientro_inviata_at IS NULL`, invia notifica via template `rientro_sim`, imposta `mail_rientro_inviata_at = now()`. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o inviare email.
 - `cron-pulizia-operativa`: ogni giorno alle **02:30 UTC**. Scade gli OTP pending oltre termine, elimina i contatori del rate limit pubblico scaduti, recupera fino a 100 pratiche `bozza` più vecchie di 24 ore cancellando prima i PDF Storage e poi la pratica, rimuove dopo 90 giorni il contesto tecnico degli incidenti Guardian ed elimina gli eventi Observer oltre `expires_at`. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o modificare dati.
