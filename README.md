@@ -160,6 +160,12 @@ nessun log del testo o invio aggiuntivo. Campi AI nascosti e popup costo invaria
 nessuna modifica DB/storico. Dipendenza fissata nel lockfile e mantenuta esterna
 per preservare l'import ESM dinamico di PDF.js.
 
+Codice PDA nel percorso AI: nascosto anche in Dati Contratto e nel riepilogo
+carrello, per Mobile/Fisso/Customer Base; resta conservato in bozza/payload/DB e
+nel controllo duplicati. Manuale ed editor post-vendita mantengono il codice
+visibile. Se AI non legge il codice, blocco con invito a riprovare o scegliere
+il manuale esplicitamente, senza aprire il popup codice nel percorso AI.
+
 ### Documento identita per contratto
 
 Il documento d'identita e obbligatorio per ogni nuovo contratto. Nel carrello viene selezionato una sola volta; sulle bozze `upload-vendita-documento` crea un allegato e un PDF indipendente per ciascuna riga, con INSERT batch e pulizia delle nuove copie su errore. `finalize` impedisce l'invio se manca l'identita anche su una sola riga. Gli upload successivi da Verifica Contratti restano specifici della riga selezionata. Lo storico dal 1 luglio 2026 viene sistemato dallo script dedicato senza sovrascrivere documenti esistenti; i casi senza sorgente richiedono un'integrazione manuale.

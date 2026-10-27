@@ -146,7 +146,7 @@ test('editor PDA respinge collisione concorrente tramite vincolo DB senza succes
   assert.equal(response.statusCode,409);assert.equal(JSON.parse(response.body).error_code,'contratto_duplicato');
 });
 
-function pdaWizardFixture({ completed = false, duplicate = false, manual = false, stale = false, differentClient = false, incomplete = false, ocrFailure = false } = {}) {
+function pdaWizardFixture({ completed = false, duplicate = false, manual = false, stale = false, differentClient = false, incomplete = false, ocrFailure = false, missingCode = false } = {}) {
   const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
   const start=source.indexOf(' async function processPda(useAi)');
   const end=source.indexOf(" refs.btnPdaAnalyzeAi.addEventListener",start);
@@ -155,6 +155,7 @@ function pdaWizardFixture({ completed = false, duplicate = false, manual = false
   const refs={filePda:{files:[{}]},btnPdaAnalyzeAi:{},btnPdaSkipAi:{},codiceRivenditore:{},cfPiva:{value:'RSSMRA80A01H501U'}};
   const response={...mobile,cellulare:'3359999999',codice_contratto:'NEW',cf_piva:differentClient?'VRDLGI80A01H501U':null};
   if(incomplete)response.numero_telefono=null;
+  if(missingCode)response.codice_contratto=null;
   const ctx={runtimeState,refs,window:{MiroxPda:Pda,MiroxPdaUI:{
     async askCode(){calls.push('ask-code');return 'MANUAL';},
     async askContact(){calls.push('ask-contact');return '3351234567';},
@@ -328,6 +329,8 @@ test('AI incompleta si ferma prima dello staging e non apre campi manuali in aut
   assert.deepEqual(ui.calls,['ocr']);assert.equal(ui.form,undefined);
   const failed=pdaWizardFixture({ocrFailure:true});await failed.run();
   assert.deepEqual(failed.calls,['ocr','alert']);assert.equal(failed.form,undefined);
+  const noCode=pdaWizardFixture({missingCode:true});await assert.rejects(noCode.run(),/codice contratto non leggibile/);
+  assert.deepEqual(noCode.calls,['ocr']);assert.equal(noCode.form,undefined);
 });
 
 function pdaUiFixture(){
@@ -343,6 +346,14 @@ test('wizard Mobile: costo solo hidden, campi telefonici nascosti AI e visibili 
     assert.doesNotMatch(html,/Costo mensile base offerta/);
     assert.equal(html.includes('<div data-pda-mobile hidden>'),reading==='ai');
     assert.match(html,/Numero di cellulare/);assert.doesNotMatch(html,/Numero del contratto/);
+  }
+  for(const category of ['Mobile','Fisso','Customer Base']){
+    const ai=ui.formHtml(data,category,{wizard:true,reading:'ai'});
+    assert.match(ai,/<input type="hidden" data-pda-field="codice_contratto" value="00AB123">/);
+    assert.doesNotMatch(ai,/Codice contratto/);
+    assert.match(ui.formHtml(data,category,{wizard:true,reading:'manuale'}),/Codice contratto/);
+    assert.match(ui.formHtml(data,category),/Codice contratto/);
+    assert.equal(ui.summary({...data,pda_lettura:'ai',costo_offerta_mensile:null,numero_telefono:null},{wizard:true}),'');
   }
   const editor=ui.formHtml(data,'Mobile');assert.match(editor,/Costo mensile base offerta/);
   assert.doesNotMatch(editor,/<div data-pda-mobile hidden>/);
@@ -363,7 +374,7 @@ test('manuale alterna cellulare/provvisorio e MNP senza confondere le numerazion
 });
 test('riepilogo upload nasconde costo e dati AI conservandoli per gli editor post-vendita',()=>{
   const ui=pdaUiFixture(),data={...Pda.validate(mobile,'Mobile'),pda_lettura:'ai'};
-  const hidden=ui.summary(data,{wizard:true});assert.match(hidden,/Codice contratto/);
+  const hidden=ui.summary(data,{wizard:true});assert.doesNotMatch(hidden,/Codice contratto|00AB123/);
   assert.doesNotMatch(hidden,/Costo mensile|Numero di cellulare|3331234567/);
   assert.match(ui.summary({...data,pda_lettura:'manuale'},{wizard:true}),/Numero di cellulare/);
   assert.match(ui.summary(data),/Costo mensile offerta/);

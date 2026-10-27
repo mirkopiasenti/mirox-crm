@@ -53,7 +53,9 @@
     if (!Pda.isPda(category)) return '';
     const input = (key, label, extra = '') => '<label style="display:block;margin:10px 0;"><span data-pda-label="' + key + '">' + esc(label) + '</span>'
       + '<input class="mx-input" data-pda-field="' + key + '" autocomplete="off" value="' + esc(data[key]) + '" ' + extra + '></label>';
-    let html = input('codice_contratto', 'Codice contratto *', 'maxlength="80"');
+    let html = options.wizard && options.reading === 'ai'
+      ? '<input type="hidden" data-pda-field="codice_contratto" value="' + esc(data.codice_contratto) + '">'
+      : input('codice_contratto', 'Codice contratto *', 'maxlength="80"');
     if (String(category).toLowerCase() !== 'mobile') return html;
     html += options.wizard
       ? '<input type="hidden" data-pda-field="costo_offerta_mensile" value="' + esc(data.costo_offerta_mensile) + '">'
@@ -85,7 +87,7 @@
     return out;
   }
   function summary(data = {}, options = {}) {
-    const rows = [['Codice contratto', data.codice_contratto]];
+    const rows = options.wizard && data.pda_lettura === 'ai' ? [] : [['Codice contratto', data.codice_contratto]];
     if (!options.wizard && data.costo_offerta_mensile !== null && data.costo_offerta_mensile !== undefined) rows.push(['Costo mensile offerta', String(data.costo_offerta_mensile) + ' EUR']);
     if (!options.wizard || data.pda_lettura !== 'ai') {
       rows.push(['Numero provvisorio', data.numero_provvisorio],

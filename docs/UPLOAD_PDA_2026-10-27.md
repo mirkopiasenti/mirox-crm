@@ -187,3 +187,16 @@ nodemailer, nessun aggiornamento estraneo applicato.
 Riferimenti: [unpdf ufficiale](https://github.com/unjs/unpdf),
 [moduli esterni Netlify](https://docs.netlify.com/build/functions/configuration/).
 Pubblicazione nel deploy gia autorizzato; verifiche online nel promemoria.
+
+## Codice nascosto anche nel percorso AI
+
+Codice PDA nel percorso AI: nascosto anche in Dati Contratto e nel riepilogo
+carrello, per Mobile/Fisso/Customer Base; resta conservato in bozza/payload/DB e
+nel controllo duplicati. Manuale ed editor post-vendita mantengono il codice
+visibile. Se AI non legge il codice, blocco con invito a riprovare o scegliere
+il manuale esplicitamente, senza aprire il popup codice nel percorso AI.
+
+Verifiche esistenti aggiornate per le tre categorie, codice nascosto ma conservato,
+riepilogo AI senza codice e codice AI mancante senza popup o staging.
+Suite completa352/352locale (351versionati+1backup) e build OK.
+Pubblicazione e verifiche finali nel promemoria; backup/Guardian esclusi.

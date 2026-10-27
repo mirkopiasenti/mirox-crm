@@ -5939,6 +5939,9 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
  }
  let code = window.MiroxPda.code(data.codice_contratto);
+ if (useAi && !code) {
+ throw new Error('Lettura AI incompleta: codice contratto non leggibile. Riprova Analizza con AI oppure scegli Continua senza AI per inserirlo manualmente.');
+ }
  if (!code) code = await window.MiroxPdaUI.askCode('');
  if (!code || !stillCurrent()) return;
  if (!await window.MiroxPdaUI.checkCode(code, state.cart.contratti, runtimeState.editingTempId)) return;

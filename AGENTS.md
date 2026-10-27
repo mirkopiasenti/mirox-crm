@@ -442,6 +442,12 @@ nessun log del testo o invio aggiuntivo. Campi AI nascosti e popup costo invaria
 nessuna modifica DB/storico. Dipendenza fissata nel lockfile e mantenuta esterna
 per preservare l'import ESM dinamico di PDF.js.
 
+Codice PDA nel percorso AI: nascosto anche in Dati Contratto e nel riepilogo
+carrello, per Mobile/Fisso/Customer Base; resta conservato in bozza/payload/DB e
+nel controllo duplicati. Manuale ed editor post-vendita mantengono il codice
+visibile. Se AI non legge il codice, blocco con invito a riprovare o scegliere
+il manuale esplicitamente, senza aprire il popup codice nel percorso AI.
+
 ### Compilatore disdette (dal 2026-08-06, migrations 063–064)
 - Varianti consentite: `sim_consumer`, `sim_business`, `fisso_consumer`, `fisso_business`; ogni PDF riguarda una sola utenza.
 - Tutti i dati anagrafici, di contatto, indirizzo, utenza e le scelte pertinenti sono obbligatori. La data è precompilata con oggi ma è l'unico dato facoltativo e può essere cancellata senza bloccare la generazione.
