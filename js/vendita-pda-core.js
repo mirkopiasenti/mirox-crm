@@ -42,6 +42,17 @@
   function hasMobileData(input = {}) {
     return FIELDS.slice(1).some(k => input[k] !== null && input[k] !== undefined && input[k] !== '');
   }
+  function validateMobileNumbers(input) {
+    const out = normalize(input);
+    if (out.portabilita === null) throw new Error('Seleziona nuovo numero o portabilita');
+    if (!out.numero_telefono) throw new Error(out.portabilita ? 'Numero da portare (MNP) obbligatorio o non valido' : 'Numero di cellulare obbligatorio o non valido');
+    if (out.portabilita) {
+      if (!out.numero_provvisorio) throw new Error('Numero provvisorio obbligatorio o non valido');
+      if (!out.numero_mnp || out.numero_mnp !== out.numero_telefono) throw new Error('Numero MNP non coerente con il numero da portare');
+      if (!out.operatore_provenienza) throw new Error('Operatore di provenienza obbligatorio');
+    }
+    return out;
+  }
   function validate(input, category, options = {}) {
     const out = normalize(input);
     const name = String(category || '').trim().toLowerCase();
@@ -58,18 +69,13 @@
     }
     if (options.allowLegacy && !hasMobileData(input)) return out;
     if (out.costo_offerta_mensile === null) throw new Error('Costo mensile offerta obbligatorio o non valido');
-    if (out.portabilita === null) throw new Error('Seleziona nuovo numero o portabilita');
-    if (!out.numero_telefono) throw new Error('Numero del contratto obbligatorio o non valido');
-    if (out.portabilita) {
-      if (!out.numero_provvisorio) throw new Error('Numero provvisorio obbligatorio o non valido');
-      if (!out.numero_mnp || out.numero_mnp !== out.numero_telefono) throw new Error('Numero MNP non coerente con il numero del contratto');
-      if (!out.operatore_provenienza) throw new Error('Operatore di provenienza obbligatorio');
-    } else {
+    validateMobileNumbers(out);
+    if (!out.portabilita) {
       out.numero_provvisorio = null;
       out.numero_mnp = null;
       out.operatore_provenienza = null;
     }
     return out;
   }
-  return { FIELDS, code, phone, money, isPda, normalize, hasMobileData, validate };
+  return { FIELDS, code, phone, money, isPda, normalize, hasMobileData, validateMobileNumbers, validate };
 });

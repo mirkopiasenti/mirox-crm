@@ -3,14 +3,17 @@
 Aggiornato: 2026-10-27. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## Upload PDA: debug e deploy completati27/10
+## Upload PDA: correzione visibilita27/10, pubblicazione in corso
 
 - Online codice unico Mobile/Fisso/CB e blocco duplicati globale/DB, manuale codice prima di staging; solo Mobile costo base e numerazioni/MNP/gestore. OTP dalla firma prima PDA, upsert anagrafica esistenti, editor utenti attivi su Verifica/Storico/Controllo Fissi. Turista conserva defaults con step3 per dati PDA. Nessun recupero storico.
 - Migration20261027110402 applicata/riletta:7campi nullable/CHECK/UNIQUE/trigger INVOKER vendita/Fisso. Nessun cambio CC/RLS/RPC/schema anagrafica. Prove production transazionali INSERT/UNIQUE/MNP/sync con ROLLBACK riuscite, nessuna riga test conservata; advisor nessun nuovo rilievo PDA.
 - Debug: loader su duplicato submit, dati Mobile tracciati non azzerabili, PDA altro cliente bloccata, protezione modifiche non salvate/editor durante save. Online corretti lookup operatore senza FK PostgREST, risposte reinserimento tardive e OCR SIM dati Business/prefisso internazionale senza +. Tre commit17aacc5/2a4597f/c4176c8 pubblicati su autorizzazione esplicita dell'utente.
 - Release codice c4176c837e5db2d1f1f909db2a7ac0ba1e400447/Netlify6ae08f9ca91e866c1212512f, CI40498935335 riuscita. SHA/config, due nuovi asset e script inline delle quattro pagine identici ai sorgenti. Suite340/340 locale (339versionati+1backup),26regressioni PDA, build e SQL PGlite isolato OK.
 - OCR reale sulle nove PDA private:9/9risultati attesi per codice, contatto firma, Mobile prezzo/assenza/MNP/provvisorio/gestore, Fisso/CB solo codice. Business dati ripetuta dopo il fix e corretta. Manuale online chiede codice prima; screenshot privato /private/tmp/mirox-pda-manuale-online.png. Nessuna pratica/OTP inviata o cliente aggiornato nel collaudo;13copie temporanee eliminate dopo hash/dimensione,149preesistenti preservate. Bozza browser azzerata; DB zero righe test, codici storici tutti NULL.
-- Guide README/AGENTS/CLAUDE/databaseREADME e rapporto docs/UPLOAD_PDA_2026-10-27.md aggiornati; chiusura documentale pubblicata separatamente. Backup/Guardian preesistenti esclusi e preservati. Prossimo: ricaricare il wizard prima del primo utilizzo; recupero storico soltanto in successiva fase autorizzata.
+- Guide README/AGENTS/CLAUDE/databaseREADME e rapporto docs/UPLOAD_PDA_2026-10-27.md aggiornati; Chiusura documentale cab5fa5 pubblicata e verificata: CI40499437123 riuscita, Netlify6ae0908e0dddb4016369ff71/SHA cab5fa5 online; nessuna variazione codice rispetto a c4176c8. Backup/Guardian preesistenti esclusi e preservati. Prossimo: ricaricare il wizard prima del primo utilizzo; recupero storico soltanto in successiva fase autorizzata.
+
+- Correzione richiesta dopo primo rilascio: costo solo popup; campi Mobile automatici/nascosti con AI, visibili nel manuale, etichette cellulare/provvisorio/MNP. Modalita lettura conservata nel draft/carrello, mai inviata al DB. OCR incompleto/fallito blocca prima staging e invita a AI/manuale esplicito. Editor post-vendita completi. Nessuna nuova migration o test su dati reali necessario (OCR invariato).
+- Suite finale346/346locale (345versionati+1backup),32regressioni PDA e build OK. Test nuovi su visibilita, etichette, errori AI, modalita restore/reset, riepilogo e payload; browser locale/API simulate verifica AI MNP/costi presenti-assenti/manuale nuovo e MNP/firma/lettura incompleta. Screenshot /private/tmp/mirox-pda-ai-campi-nascosti.png. Prossimo: suite finale, push nel deploy gia autorizzato, CI e SHA/asset online. Guide e rapporto aggiornati, backup/Guardian esclusi.
 
 ## Conteggio Netto Luce & Gas: riepilogo esiti pronto 26/10
 

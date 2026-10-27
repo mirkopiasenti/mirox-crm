@@ -3163,7 +3163,8 @@ Reload Forever
  const category = getCategoriaName();
  if (data === undefined && root.dataset.category === category) return;
  root.dataset.category = category;
- root.innerHTML = window.MiroxPdaUI.formHtml(window.MiroxPda.normalize(data || {}), category, { wizard: true });
+ root.dataset.pdaReading = data?.pda_lettura === 'ai' ? 'ai' : 'manuale';
+ root.innerHTML = window.MiroxPdaUI.formHtml(window.MiroxPda.normalize(data || {}), category, { wizard: true, reading: root.dataset.pdaReading });
  window.MiroxPdaUI.bindForm(root);
  if (!root.dataset.autosaveBound) {
  root.addEventListener('input', queueDraftSave);
@@ -3172,7 +3173,8 @@ Reload Forever
  }
  }
  function readPdaFields() {
- return window.MiroxPdaUI.readForm(document.getElementById('pdaContractFields'));
+ const root = document.getElementById('pdaContractFields');
+ return { ...window.MiroxPdaUI.readForm(root), pda_lettura: root.dataset.pdaReading || 'manuale' };
  }
  async function checkPendingCode() {
  return window.MiroxPdaUI.checkCode(readPdaFields().codice_contratto,
@@ -3702,6 +3704,7 @@ Reload Forever
 
  return {
  ...window.MiroxPda.validate(readPdaFields(), categoriaNome),
+ pda_lettura: readPdaFields().pda_lettura,
  temp_id: options.tempId || `temp_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
  categoria_id: categoria.id,
  offerta_id: offerta.id,
@@ -3881,7 +3884,7 @@ Reload Forever
 </div> ${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}
 <div class="details">
 <div><b>Offerta:</b> ${escapeHtml(item.offerta_nome || item.snapshot.offerta || '-')}</div>
-${window.MiroxPdaUI.summary(item)}
+${window.MiroxPdaUI.summary(item, { wizard: true })}
 <div><b>Opzione:</b> ${escapeHtml(item.opzione_nome || item.snapshot.opzione || '-')}</div>
 <div><b>Reload:</b> ${escapeHtml(item.reload_nome || item.snapshot.reload || '-')}</div>
 <div><b>Switch SIM:</b> ${escapeHtml(item.switch_sim || '-')}</div>
@@ -5692,7 +5695,7 @@ ${window.MiroxPdaUI.summary(item)}
  }
 
  if (refs.anagraficaOcrBanner) {
- refs.anagraficaOcrBanner.classList.toggle('hidden', !appliedAny);
+ refs.anagraficaOcrBanner.classList.toggle('hidden', !appliedAny || ocrData.pda_lettura === 'manuale');
  }
 
  // Reset flag dispositivo: nuovo OCR significa nuovo PDA -> riapplica device alla prossima
@@ -5917,10 +5920,17 @@ ${window.MiroxPdaUI.summary(item)}
  await window.MiroxUI.alert(error.message || 'Lettura AI non riuscita. Compila manualmente i dati richiesti.',
  { title: error.serverErrorCode === 'ocr_credit_exhausted' ? 'Credito OCR esaurito'
  : error.serverErrorCode === 'ocr_rate_limited' ? 'OCR temporaneamente occupato' : 'Lettura PDA non disponibile', type: 'warning' });
+ return;
  }
  hideLoadingOverlay();
  }
  if (!stillCurrent()) return;
+ if (useAi && isCategory(category, 'Mobile')) {
+ try { window.MiroxPda.validateMobileNumbers(data); }
+ catch (error) {
+ throw new Error('Lettura AI incompleta: ' + error.message + '. Riprova Analizza con AI oppure scegli Continua senza AI per compilare manualmente i dati.');
+ }
+ }
  if (runtimeState.anagraficaCompleted && data.cf_piva) {
  const expectedCf = normalizeCfPiva(state.cart.cliente?.cf_piva || refs.cfPiva.value).replace(/\s/g, '');
  const extractedCf = normalizeCfPiva(data.cf_piva).replace(/\s/g, '');
@@ -5944,12 +5954,13 @@ ${window.MiroxPdaUI.summary(item)}
  hideLoadingOverlay();
  if (!stillCurrent()) return;
  runtimeState.pendingPda = uploadInfo;
+ data.pda_lettura = useAi ? 'ai' : 'manuale';
  runtimeState.lastOcrData = data;
  runtimeState.ocrDeviceApplied = false;
  if (!runtimeState.anagraficaCompleted) applyOcrToAnagrafica(data);
  // Gli altri contratti aggiornano soltanto i dati contratto/dispositivo, mai il contatto OTP.
  if (refs.codiceRivenditore && CODICI_RIVENDITORE.includes(data.codice_rivenditore)) refs.codiceRivenditore.value = data.codice_rivenditore;
- renderPdaFields(window.MiroxPda.normalize(data));
+ renderPdaFields({ ...window.MiroxPda.normalize(data), pda_lettura: data.pda_lettura });
  goToStep(runtimeState.anagraficaCompleted ? 3 : 2);
  queueDraftSave();
  } catch (error) {

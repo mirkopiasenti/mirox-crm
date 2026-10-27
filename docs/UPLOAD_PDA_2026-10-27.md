@@ -124,3 +124,30 @@ tutti NULL. Verificato online anche popup manuale con codice richiesto per primo
 screenshot privato /private/tmp/mirox-pda-manuale-online.png. Nessun dato cliente
 nei test o nel rapporto. Guide e promemoria aggiornati; ricaricare il wizard prima
 del primo utilizzo della nuova versione.
+
+## Correzione visibilita upload richiesta dopo il rilascio
+
+Aggiornamento UI27/10: durante l'upload il costo Mobile compare soltanto nel
+popup (precompilato con AI se letto, altrimenti vuoto) e viene salvato come prima.
+Con Analizza con AI scelta nuovo numero/portabilita, numeri e gestore restano
+nascosti e compilati automaticamente, anche nel riepilogo del carrello. Con
+Continua senza AI i campi telefonici sono visibili: Numero di cellulare per
+nuova attivazione; con portabilita Numero provvisorio, Numero da portare (MNP)
+e Operatore di provenienza. La modalita di lettura e' metadato solo del draft/
+carrello, conservato al ripristino e azzerato sul nuovo contratto; vecchie bozze
+senza modalita restano manuali. OCR fallito o numerazioni/gestore incompleti:
+blocco prima dello staging e invito a riprovare AI o scegliere esplicitamente
+il percorso manuale, senza inventare valori o mostrare automaticamente i campi.
+Editor post-vendita completi; nessuna modifica schema o payload dei dati DB.
+
+Convalida: test per AI/manuale, blocco AI incompleta/fallita senza staging,
+etichette dinamiche, dati nascosti conservati al ripristino/reset, riepilogo e
+payload server completo senza metadati UI. Browser locale con API simulate:
+Mobile AI MNP senza campi telefonici/costo, popup costo precompilato e vuoto,
+manuale nuovo numero/MNP e costo vuoto, prosecuzione firma; AI incompleta bloccata.
+Screenshot di esempio privato /private/tmp/mirox-pda-ai-campi-nascosti.png.
+Nessuna pratica reale/OTP o scrittura DB nel collaudo di questa correzione.
+Guide aggiornate; verifiche finali e release nel promemoria di sessione.
+
+Correzione visibilita: suite completa346/346 (345versionati+1backup),
+32regressioni PDA e build riuscite. Nessuna nuova dipendenza o modifica DB.

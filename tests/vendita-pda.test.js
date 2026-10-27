@@ -146,7 +146,7 @@ test('editor PDA respinge collisione concorrente tramite vincolo DB senza succes
   assert.equal(response.statusCode,409);assert.equal(JSON.parse(response.body).error_code,'contratto_duplicato');
 });
 
-function pdaWizardFixture({ completed = false, duplicate = false, manual = false, stale = false, differentClient = false } = {}) {
+function pdaWizardFixture({ completed = false, duplicate = false, manual = false, stale = false, differentClient = false, incomplete = false, ocrFailure = false } = {}) {
   const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
   const start=source.indexOf(' async function processPda(useAi)');
   const end=source.indexOf(" refs.btnPdaAnalyzeAi.addEventListener",start);
@@ -154,13 +154,14 @@ function pdaWizardFixture({ completed = false, duplicate = false, manual = false
   const calls=[]; let contact='3350000000', form;
   const refs={filePda:{files:[{}]},btnPdaAnalyzeAi:{},btnPdaSkipAi:{},codiceRivenditore:{},cfPiva:{value:'RSSMRA80A01H501U'}};
   const response={...mobile,cellulare:'3359999999',codice_contratto:'NEW',cf_piva:differentClient?'VRDLGI80A01H501U':null};
+  if(incomplete)response.numero_telefono=null;
   const ctx={runtimeState,refs,window:{MiroxPda:Pda,MiroxPdaUI:{
     async askCode(){calls.push('ask-code');return 'MANUAL';},
     async askContact(){calls.push('ask-contact');return '3351234567';},
     async checkCode(code){calls.push('check:'+code);return !duplicate;}
   },MiroxUI:{async alert(){calls.push('alert');}}},state:{cart:{contratti:[]}},CODICI_RIVENDITORE:[],
-    normalizeCfPiva:v=>String(v||'').trim().toUpperCase(),getCategoriaName:()=> 'Mobile',showLoadingOverlay(){},hideLoadingOverlay(){},
-    async chiamaOcr(){calls.push('ocr');if(stale)runtimeState.pdaRevision++;return response;},
+    normalizeCfPiva:v=>String(v||'').trim().toUpperCase(),getCategoriaName:()=> 'Mobile',isCategory:(a,b)=>a===b,showLoadingOverlay(){},hideLoadingOverlay(){},
+    async chiamaOcr(){calls.push('ocr');if(ocrFailure)throw new Error('OCR non disponibile');if(stale)runtimeState.pdaRevision++;return response;},
     async uploadPdaStaging(){calls.push('upload');return {storage_path:'temp/test.pdf'};},
     applyOcrToAnagrafica(data){calls.push('anagrafica');contact=data.cellulare;},
     renderPdaFields(data){form=data;},goToStep(step){calls.push('step:'+step);},queueDraftSave(){},showUserError(msg){throw new Error(msg);}};
@@ -170,12 +171,12 @@ function pdaWizardFixture({ completed = false, duplicate = false, manual = false
 test('wizard multi-contratto analizza ogni PDA preservando il contatto della prima pratica',async()=>{
   const first=pdaWizardFixture();await first.run();assert.equal(first.contact,'3359999999');assert.ok(first.calls.includes('step:2'));
   const second=pdaWizardFixture({completed:true});await second.run();assert.equal(second.contact,'3350000000');
-  assert.ok(second.calls.includes('ocr'));assert.ok(second.calls.includes('step:3'));assert.equal(second.form.codice_contratto,'NEW');
+  assert.ok(second.calls.includes('ocr'));assert.ok(second.calls.includes('step:3'));assert.equal(second.form.codice_contratto,'NEW');assert.equal(second.form.pda_lettura,'ai');
   assert.ok(!second.calls.includes('ask-contact'));assert.ok(!second.calls.includes('anagrafica'));
 });
 test('wizard manuale chiede codice e controlla duplicati prima di contatto e upload',async()=>{
   const ui=pdaWizardFixture({manual:true});await ui.run();
-  assert.deepEqual(ui.calls,['ask-code','check:MANUAL','ask-contact','upload','anagrafica','step:2']);
+  assert.deepEqual(ui.calls,['ask-code','check:MANUAL','ask-contact','upload','anagrafica','step:2']);assert.equal(ui.form.pda_lettura,'manuale');
   const duplicate=pdaWizardFixture({manual:true,duplicate:true});await duplicate.run();
   assert.deepEqual(duplicate.calls,['ask-code','check:MANUAL']);assert.equal(duplicate.runtimeState.pendingPda,undefined);
 });
@@ -318,4 +319,79 @@ for(const scenario of ['lookup-tardivo','candidati-tardivi','corrente']) test(`r
   resolvePending(scenario==='lookup-tardivo'?{found:true,data:{id:'first'}}:[{contratto_id:'old'}]);await run;
   assert.equal(shown,scenario==='corrente'?1:0);
   if(scenario!=='corrente'){assert.equal(runtimeState.anagraficaId,null);assert.equal(runtimeState.pendingReinserimento.contratto_id,'nuovo');}
+});
+
+
+test('AI incompleta si ferma prima dello staging e non apre campi manuali in automatico',async()=>{
+  const ui=pdaWizardFixture({incomplete:true});
+  await assert.rejects(ui.run(),/Lettura AI incompleta.*Continua senza AI/);
+  assert.deepEqual(ui.calls,['ocr']);assert.equal(ui.form,undefined);
+  const failed=pdaWizardFixture({ocrFailure:true});await failed.run();
+  assert.deepEqual(failed.calls,['ocr','alert']);assert.equal(failed.form,undefined);
+});
+
+function pdaUiFixture(){
+  const window={MiroxPda:Pda,MiroxSafe:{escapeHtml:v=>String(v).replace(/</g,'&lt;').replace(/"/g,'&quot;')}};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../js/vendita-pda-ui.js'),'utf8'),{window});
+  return window.MiroxPdaUI;
+}
+test('wizard Mobile: costo solo hidden, campi telefonici nascosti AI e visibili manuali',()=>{
+  const ui=pdaUiFixture(),data=Pda.validate(mobile,'Mobile');
+  for(const reading of ['ai','manuale']){
+    const html=ui.formHtml(data,'Mobile',{wizard:true,reading});
+    assert.match(html,/<input type="hidden" data-pda-field="costo_offerta_mensile" value="9.99">/);
+    assert.doesNotMatch(html,/Costo mensile base offerta/);
+    assert.equal(html.includes('<div data-pda-mobile hidden>'),reading==='ai');
+    assert.match(html,/Numero di cellulare/);assert.doesNotMatch(html,/Numero del contratto/);
+  }
+  const editor=ui.formHtml(data,'Mobile');assert.match(editor,/Costo mensile base offerta/);
+  assert.doesNotMatch(editor,/<div data-pda-mobile hidden>/);
+});
+test('manuale alterna cellulare/provvisorio e MNP senza confondere le numerazioni salvate',()=>{
+  const ui=pdaUiFixture(),callbacks={},details=[{},{}],label={};
+  const fields=[{dataset:{pdaField:'portabilita'},value:'false',addEventListener(k,v){callbacks[k]=v;}},
+    {dataset:{pdaField:'numero_telefono'},value:'3491234567'},
+    {dataset:{pdaField:'numero_provvisorio'},value:'3931234567'},
+    {dataset:{pdaField:'costo_offerta_mensile'},value:'9.99'}];
+  const root={querySelector:s=>s.includes('portabilita')?fields[0]:label,
+    querySelectorAll:s=>s==='[data-pda-mnp]'?details:fields};
+  ui.bindForm(root);assert.equal(label.textContent,'Numero di cellulare *');assert.ok(details.every(d=>d.hidden));
+  fields[0].value='true';callbacks.change();assert.equal(label.textContent,'Numero da portare (MNP) *');
+  assert.ok(details.every(d=>!d.hidden));
+  const saved=ui.readForm(root);assert.equal(saved.numero_mnp,'3491234567');assert.equal(saved.numero_provvisorio,'3931234567');
+  assert.equal(saved.costo_offerta_mensile,'9.99');
+});
+test('riepilogo upload nasconde costo e dati AI conservandoli per gli editor post-vendita',()=>{
+  const ui=pdaUiFixture(),data={...Pda.validate(mobile,'Mobile'),pda_lettura:'ai'};
+  const hidden=ui.summary(data,{wizard:true});assert.match(hidden,/Codice contratto/);
+  assert.doesNotMatch(hidden,/Costo mensile|Numero di cellulare|3331234567/);
+  assert.match(ui.summary({...data,pda_lettura:'manuale'},{wizard:true}),/Numero di cellulare/);
+  assert.match(ui.summary(data),/Costo mensile offerta/);
+});
+test('lettura AI/manuale e valori nascosti sopravvivono al restore e al reset della stessa categoria',()=>{
+  const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
+  const a=source.indexOf(' function renderPdaFields(data)'),b=source.indexOf(' async function checkPendingCode()',a);
+  const root={dataset:{},addEventListener(){}};let last;
+  const ctx={document:{getElementById:()=>root},getCategoriaName:()=> 'Mobile',queueDraftSave(){},window:{MiroxPda:Pda,
+    MiroxPdaUI:{formHtml(data,cat,options){last={data,options};return 'form';},bindForm(){},readForm(){return last.data;}}}};
+  vm.runInNewContext(source.slice(a,b)+';this.render=renderPdaFields;this.read=readPdaFields;',ctx);
+  ctx.render({...mobile,pda_lettura:'ai'});assert.equal(last.options.reading,'ai');assert.equal(ctx.read().costo_offerta_mensile,9.99);
+  const draft=JSON.parse(JSON.stringify(ctx.read()));ctx.render({});assert.equal(last.options.reading,'manuale');
+  ctx.render(draft);assert.equal(last.options.reading,'ai');assert.equal(ctx.read().numero_telefono,'3331234567');
+  ctx.render();assert.equal(last.options.reading,'ai');
+});
+
+test('payload server conserva i valori PDA nascosti senza inviare metadati UI',()=>{
+  const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
+  const a=source.indexOf(' function buildInvioPayload()'),b=source.indexOf(' async function inviaPratica()',a);
+  const item={...Pda.validate({...mobile,portabilita:true,numero_telefono:'3491234567',numero_mnp:'3491234567',numero_provvisorio:'3931234567',operatore_provenienza:'Vodafone'},'Mobile'),
+    pda_lettura:'ai',categoria_nome:'Mobile',categoria_id:'cat',offerta_id:'offer',flags:{},files:{},codice_rivenditore:'9001415852'};
+  const state={cart:{contratti:[item]}},cliente={cf_piva:'RSSMRA80A01H501U'};
+  const ctx={window:{MiroxPda:Pda},state,getClienteFormData:()=>cliente,validateClienteData(){},
+    praticaFiles:{documento_identita:[{}]},runtimeState:{},refs:{originePratica:{value:'spontaneo'},operatoreId:{value:'operator'}},
+    CODICI_RIVENDITORE:['9001415852'],CODICE_RIVENDITORE_DEFAULT:'9001415852'};
+  vm.runInNewContext(source.slice(a,b)+';this.payload=buildInvioPayload;',ctx);
+  const saved=ctx.payload().contratti[0];
+  for(const key of Pda.FIELDS)assert.equal(saved[key],item[key],key);
+  assert.equal(saved.pda_lettura,undefined);
 });

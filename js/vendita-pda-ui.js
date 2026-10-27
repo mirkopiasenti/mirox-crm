@@ -51,25 +51,31 @@
 
   function formHtml(data = {}, category, options = {}) {
     if (!Pda.isPda(category)) return '';
-    const input = (key, label, extra = '') => '<label style="display:block;margin:10px 0;">' + esc(label)
+    const input = (key, label, extra = '') => '<label style="display:block;margin:10px 0;"><span data-pda-label="' + key + '">' + esc(label) + '</span>'
       + '<input class="mx-input" data-pda-field="' + key + '" autocomplete="off" value="' + esc(data[key]) + '" ' + extra + '></label>';
     let html = input('codice_contratto', 'Codice contratto *', 'maxlength="80"');
     if (String(category).toLowerCase() !== 'mobile') return html;
-    html += input('costo_offerta_mensile', 'Costo mensile base offerta (euro)', options.wizard ? 'readonly' : 'inputmode="decimal"');
+    html += options.wizard
+      ? '<input type="hidden" data-pda-field="costo_offerta_mensile" value="' + esc(data.costo_offerta_mensile) + '">'
+      : input('costo_offerta_mensile', 'Costo mensile base offerta (euro)', 'inputmode="decimal"');
+    html += '<div data-pda-mobile' + (options.wizard && options.reading === 'ai' ? ' hidden' : '') + '>';
     html += '<label style="display:block;margin:10px 0;">Attivazione *<select class="mx-input" data-pda-field="portabilita">'
       + '<option value="">Seleziona...</option>'
       + '<option value="false"' + (data.portabilita === false ? ' selected' : '') + '>Nuovo numero</option>'
       + '<option value="true"' + (data.portabilita === true ? ' selected' : '') + '>Portabilita (MNP)</option></select></label>';
-    html += input('numero_telefono', 'Numero del contratto (numero da portare in caso di MNP) *', 'inputmode="tel"');
-    html += '<div data-pda-mnp>' + input('numero_provvisorio', 'Numero provvisorio *', 'inputmode="tel"')
-      + input('operatore_provenienza', 'Operatore di provenienza *', 'maxlength="100"') + '</div>';
+    html += '<div data-pda-mnp>' + input('numero_provvisorio', 'Numero provvisorio *', 'inputmode="tel"') + '</div>';
+    html += input('numero_telefono', data.portabilita === true ? 'Numero da portare (MNP) *' : 'Numero di cellulare *', 'inputmode="tel"');
+    html += '<div data-pda-mnp>' + input('operatore_provenienza', 'Operatore di provenienza *', 'maxlength="100"') + '</div></div>';
     return html;
   }
   function bindForm(root) {
     const port = root.querySelector('[data-pda-field="portabilita"]');
-    const detail = root.querySelector('[data-pda-mnp]');
-    if (!port || !detail) return;
-    const render = () => { detail.hidden = port.value !== 'true'; };
+    if (!port) return;
+    const render = () => {
+      root.querySelectorAll('[data-pda-mnp]').forEach(detail => { detail.hidden = port.value !== 'true'; });
+      const label = root.querySelector('[data-pda-label="numero_telefono"]');
+      if (label) label.textContent = port.value === 'true' ? 'Numero da portare (MNP) *' : 'Numero di cellulare *';
+    };
     port.addEventListener('change', render); render();
   }
   function readForm(root) {
@@ -78,11 +84,14 @@
     if (out.portabilita === 'true') out.numero_mnp = out.numero_telefono;
     return out;
   }
-  function summary(data = {}) {
+  function summary(data = {}, options = {}) {
     const rows = [['Codice contratto', data.codice_contratto]];
-    if (data.costo_offerta_mensile !== null && data.costo_offerta_mensile !== undefined) rows.push(['Costo mensile offerta', String(data.costo_offerta_mensile) + ' EUR']);
-    rows.push(['Numero di telefono del contratto', data.numero_telefono], ['Numero provvisorio', data.numero_provvisorio],
-      ['Numero MNP', data.numero_mnp], ['Operatore provenienza', data.operatore_provenienza]);
+    if (!options.wizard && data.costo_offerta_mensile !== null && data.costo_offerta_mensile !== undefined) rows.push(['Costo mensile offerta', String(data.costo_offerta_mensile) + ' EUR']);
+    if (!options.wizard || data.pda_lettura !== 'ai') {
+      rows.push(['Numero provvisorio', data.numero_provvisorio],
+        [data.portabilita ? 'Numero da portare (MNP)' : 'Numero di cellulare', data.numero_telefono],
+        ['Operatore provenienza', data.operatore_provenienza]);
+    }
     return rows.filter(([, v]) => v !== null && v !== undefined && v !== '')
       .map(([label, value]) => '<div><b>' + esc(label) + ':</b> ' + esc(value) + '</div>').join('');
   }

@@ -40,6 +40,11 @@ Pulizia13copie temporanee di collaudo riconciliate per hash/dimensione;149temp
 preesistenti conservati, zero contratti test e zero codici storici popolati.
 Prima del primo utilizzo ricaricare i client.
 
+UI upload27/10: costo solo nel popup, dati Mobile automatici/nascosti con AI e
+visibili nel manuale. Gli stessi sette campi continuano a essere validati e
+scritti. pda_lettura e' metadato client delle bozze/carrello, escluso dal payload
+server: nessuna nuova colonna/migration o modifica di dati storici.
+
 ## ⚠️ Stato del DB
 
 Fino alla `069_baseline_allineamento.sql` (2026-08-22) i file riflettono lo stato di produzione: la 069 recupera il drift accumulato dalle modifiche fatte a caldo prima del tracciamento. Le categorie di drift recuperate erano:
