@@ -315,6 +315,7 @@ const CONTRATTI_BUCKET = 'contratti-vendita';
 const VCState = {
   daVerificare: [],
   verificati: [],
+  caricamenti: { daVerificare: 'idle', verificati: 'idle' },
   categorie: [],
   filtroCatDaVerificare: '',
   filtroCatVerificati: '',
@@ -452,6 +453,7 @@ async function caricaContratti(statoControllo) {
   // statoControllo = 'da_controllare' | 'controllato'
   const containerId = statoControllo === 'da_controllare' ? 'listaDaVerificare' : 'listaVerificati';
   const stateKey = statoControllo === 'da_controllare' ? 'daVerificare' : 'verificati';
+  VCState.caricamenti[stateKey] = 'loading';
   const wrap = document.getElementById(containerId);
   wrap.innerHTML = '<div class="empty-state"><div class="empty-icon"></div><h3>Caricamento...</h3></div>';
   try {
@@ -474,11 +476,9 @@ async function caricaContratti(statoControllo) {
         punteggio_offerta, punteggio_opzione, punteggio_extra, punteggio_totale,
         stato_controllo, controllato_da, controllato_at, note_controllo,
         data_contratto, created_at, updated_at,
-        anagrafica:anagrafica_id ( id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, provincia, comune, via, civico ),
-        pratica:pratica_id!inner ( stato_pratica )
+        anagrafica:anagrafica_id ( id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, provincia, comune, via, civico )
       `)
       .eq('stato_controllo', statoControllo)
-      .eq('pratica.stato_pratica', 'inviata')
       .order('data_contratto', { ascending: false });
     if (error) throw error;
     const contratti = data || [];
@@ -510,8 +510,10 @@ async function caricaContratti(statoControllo) {
       operatore: c.operatore_id ? (profiliMap.get(c.operatore_id) || { id: c.operatore_id, nome: '-' }) : null,
       verificatore: c.controllato_da ? (profiliMap.get(c.controllato_da) || { id: c.controllato_da, nome: '-' }) : null
     }));
+    VCState.caricamenti[stateKey] = 'loaded';
     renderListaContratti(stateKey);
   } catch (e) {
+    VCState.caricamenti[stateKey] = 'error';
     console.error('Errore caricamento contratti:', e);
     wrap.innerHTML = `<div class="empty-state"><div class="empty-icon"></div><h3>Errore caricamento</h3><p>${escapeHtml(e.message)}</p></div>`;
   }
@@ -546,6 +548,8 @@ function applicaFiltri(items, stateKey) {
 }
 
 function renderListaContratti(stateKey) {
+  // Polling must not replace loading/errors with an empty cached list.
+  if (VCState.caricamenti?.[stateKey] && VCState.caricamenti[stateKey] !== 'loaded') return;
   const containerId = stateKey === 'daVerificare' ? 'listaDaVerificare' : 'listaVerificati';
   const wrap = document.getElementById(containerId);
   const items = applicaFiltri(VCState[stateKey], stateKey);

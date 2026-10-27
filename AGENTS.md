@@ -398,6 +398,8 @@ Default `vendita_verifica_config.modalita='collaudo'`: solo analisi richiesta da
 
 CB `smartphone_reload=true` e `smartphone_reload_modalita='Disattivazione cliente'`: email `info@konatech.it` appena verificato; WhatsApp resta manuale e non si tratta del catalogo Reload dismesso/Exchange/Forever. Problemi Da verificare a `mirko.piasenti@mail.com` (dominio esatto), italiano semplice. Attesa CSV da sola senza email errori. Outbox con dedupe; retry solo su mancata accettazione SMTP certa; invii ambigui riconciliati da admin nella pagina con audit e conferma esplicita prima del reinvio. Nessun invio di prova eseguito. L'upload CSV verifica non aggiorna stati L&G o timestamp Netto: il flusso Controllo L&G esistente resta separato.
 
+Nota caricamento Verifica Contratti (fix27/10): il ruolo authenticated legge vendita_contratti ma non righe vendita_pratiche (RLS senza SELECT policy). Non aggiungere inner join/filtro browser su pratiche agli elenchi: elimina tutti i contratti. Mantenere query storica su contratto/anagrafica, controllo pratica inviata nel backend, stati caricamento loaded/loading/error separati per tab. Polling esiti non deve sovrascrivere errori o richieste pendenti con una cache vuota. Nessuna apertura RLS o modifica DB per questa correzione.
+
 ### Identificazione PDA e dati Mobile (27/10/2026, online)
 
 Per i nuovi upload Mobile/Fisso/Customer Base, `codice_contratto` e' obbligatorio:

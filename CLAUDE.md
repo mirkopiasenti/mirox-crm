@@ -17,6 +17,10 @@ mirko.piasenti@mail.com. WhatsApp manuale. Nessun cambio a schema/RLS/RPC CC;
 esiti additivi separati da stato_controllo, punti e anagrafica non riscritti.
 Pubblicazione su richiesta esplicita, con modalità collaudo iniziale.
 
+Correzione elenchi27/10: vendita_pratiche non restituisce righe al browser per RLS.
+Nessun inner join/filtro pratica negli elenchi; idoneità inviata verificata backend.
+Polling non sostituisce caricamenti/errori con liste vuote. Nessun cambio RLS.
+
 ## Upload PDA: codice univoco e dati Mobile (27/10/2026, online)
 
 Codice contratto obbligatorio Mobile/Fisso/Customer Base; codice cliente escluso.

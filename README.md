@@ -34,6 +34,10 @@ Rilascio autorizzato dal proprietario; prove AI sui fascicoli ancora da fare ins
 [Guida operativa](docs/VERIFICA_AUTOMATICA_CONTRATTI.md),
 [analisi e requisiti](docs/VERIFICA_AUTOMATICA_CONTRATTI_ANALISI_2026-10-27.md).
 
+Correzione27/10: gli elenchi leggono contratti e anagrafica senza join browser
+a vendita_pratiche, protetta da RLS server-only. Il controllo pratica inviata
+resta nel backend del verificatore. Il polling conserva caricamenti/errori.
+
 ## Struttura cartelle
 
 | Cartella / File | Cosa contiene |

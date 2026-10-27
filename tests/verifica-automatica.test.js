@@ -257,6 +257,4 @@ test('UI mostra dati AI e problemi come testo escaped e collaudo separato dalla 
   const source = fs.readFileSync(require.resolve('../js/verifica-contratti-automatica.js'), 'utf8');
   assert.doesNotThrow(() => new vm.Script(source));
   assert.ok(source.includes('e(m.message)')); assert.ok(source.includes('Collauda questo contratto'));
-  const page = fs.readFileSync(require.resolve('../moduli/verifica_contratti.html'), 'utf8');
-  assert.ok(page.includes(".eq('pratica.stato_pratica', 'inviata')"));
 });

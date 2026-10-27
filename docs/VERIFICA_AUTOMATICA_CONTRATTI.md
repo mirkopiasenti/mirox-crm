@@ -25,6 +25,15 @@ Configurazione confermata collaudo: nessuna conferma contratto o email automatic
   Problemi documentali effettivi hanno precedenza e restano spiegati, insieme
   all'eventuale mancanza CSV. Un errore tecnico non è una prova documentale positiva.
 
+## Caricamento degli elenchi
+
+Il browser legge vendita_contratti e il join anagrafica già previsto. Non deve
+usare inner join su vendita_pratiche: le sue RLS non espongono righe al ruolo
+authenticated e quindi il join nasconderebbe tutti i contratti. Il verificatore
+controlla stato pratica inviata nel backend. Il polling degli esiti aggiorna
+soltanto elenchi già caricati, preservando loading ed errori di lettura.
+Correzione27/10 dopo rilascio75f69aa; nessun cambio permessi o stato contratto.
+
 ## Controlli implementati
 
 - PDA intestata allo stesso CF/P.IVA, codice contratto corrispondente, identità

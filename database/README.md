@@ -30,6 +30,11 @@ Configurazione collaudo,31lavori registrati, zero esecuzioni/notifiche; impronta
 degli stati dei2720contratti identica prima/dopo, nessun dato contratto modificato.
 Guida: [Verifica automatica](../docs/VERIFICA_AUTOMATICA_CONTRATTI.md).
 
+Diagnosi elenchi27/10: con SET LOCAL ROLE authenticated,2720contratti visibili,
+zero pratiche e zero risultati con inner join (RLS pratiche senza SELECT).
+Correzione solo frontend, query senza join pratica e guardia caricamenti; nessuna
+nuova migration/policy/grant o modifica dati.31da_controllare/2689controllati presenti.
+
 ## Identificazione PDA e dati Mobile (27/10/2026, migration applicata)
 
 `20261027110402_vendita_codice_pda_mobile.sql` applicata in produzione27/10
