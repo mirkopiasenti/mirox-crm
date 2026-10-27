@@ -114,7 +114,7 @@ via: senza civico
 civico: solo numero (es 12, 12/A)
 
 === DISPOSITIVO ===
-dispositivo_presente: true SOLO se il PDA contiene una sezione device con IMEI+prezzo compilati. false altrimenti.
+dispositivo_presente: true se il PDA contiene una sezione device con IMEI/prezzo compilati. false SOLO quando hai verificato tutte le pagine e il PDA non include un dispositivo. null se la sezione e' parziale, illeggibile, ambigua o non sei sicuro; mai dedurre false da campi non letti o dal solo nome dell'offerta.
 tipo_acquisto: "VAR" o "Finanziamento" (mai altro). Riconosci da 3 segnali concordi nel PDA:
   - Titolo pagina device: "Proposta di Adesione Offerta con Finanziamento" -> Finanziamento; "Proposta di Adesione Offerta Vendita a Rate" -> VAR
   - Header sezione: "OFFERTA CON FINANZIAMENTO" -> Finanziamento; "VENDITA A RATE" -> VAR
@@ -212,11 +212,10 @@ function normalizeResult(raw) {
     const normalized = out.prezzo_device.replace(',', '.').replace(/[^\d.]/g, '');
     out.prezzo_device = /^\d+(\.\d{1,2})?$/.test(normalized) ? normalized : null;
   }
-  // Coerenza: se i 3 campi-chiave sono tutti vuoti, dispositivo_presente=false
-  if (out.dispositivo_presente !== false &&
-      !out.tipo_acquisto && !out.imei && !out.prezzo_device) {
-    out.dispositivo_presente = false;
-  }
+  // Dato incompleto/contraddittorio resta incerto: non trasformare l'assenza di lettura in No.
+  const deviceEvidence = Boolean(out.tipo_acquisto || out.imei || out.prezzo_device);
+  if ((out.dispositivo_presente === true && !deviceEvidence)
+      || (out.dispositivo_presente === false && deviceEvidence)) out.dispositivo_presente = null;
   // Codice Rivenditore (migration 050): normalizza a solo cifre e accetta solo i 2 valori canonici
   if (out.codice_rivenditore) {
     const normalized = String(out.codice_rivenditore).replace(/\D/g, '');

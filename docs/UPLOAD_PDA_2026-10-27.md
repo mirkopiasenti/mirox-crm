@@ -251,3 +251,28 @@ Suite completa360/360locale (359versionati+1backup) e build riuscite. Quattro
 regressioni aggiuntive: conferma/annulla senza effetti prematuri, scelta manuale/
 valore identico senza popup, doppio cambio e risposta tardiva. Nessun browser
 usato; test UI a cura del proprietario. Guide aggiornate, rilascio nel promemoria.
+
+## Dispositivo Si/No automatico e conferma modifica
+
+Dispositivo automatico27/10: dove il catalogo consente la scelta, la PDA
+preseleziona Si per dispositivo presente e No per assenza esplicita; dato mancante,
+parziale o contraddittorio resta senza selezione. OCR non trasforma piu' campi
+non letti in false. Prima di modificare la scelta automatica compare MiroxUI:
+Conferma modifica oppure Mantieni scelta automatica. Fino al consenso il valore
+precedente e IMEI/prezzo/acquisto restano invariati; annulla/chiusura li conserva.
+Dopo conferma prevale la correzione manuale. Stato automatico/override conservato
+in draft/carrello tramite pda_dispositivo_auto e pda_dispositivo_manuale (solo
+client, esclusi dal payload DB), azzerato con nuova PDA; bozze legacy preservate.
+Conferme tardive e doppio cambio protetti. Vincoli FWA Indoor e Customer Base con
+telefono obbligatorio restano attivi: dispositivo Si e acquisto vincolato non
+vengono sovrascritti dall'OCR. Campi positivi ancora precompilati; niente dati OCR
+della pratica precedente riapplicati al contratto ripristinato. Nessuna migration,
+dipendenza, riscrittura storica o cambio punteggi. Collaudi solo interni/HTTP, mai
+browser su istruzione proprietario.
+
+Suite370/370locale (369versionati+1backup), build OK. Dieci regressioni nuove
+su presenza/assenza/incertezza OCR, entrambe le direzioni Si-No, conferma/annulla
+senza perdita anticipata IMEI, cambi ripetuti/tardivi, override e metadati al
+restore/reset, acquisto vincolato. Regressioni Customer Base/FWA e payload server
+aggiornate/confermate. Nessun browser o contratto reale usato nel collaudo.
+Guide aggiornate, rilascio e verifica finale nel promemoria.

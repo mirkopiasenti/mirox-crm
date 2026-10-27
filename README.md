@@ -194,6 +194,22 @@ Scelte gia' manuali o senza preselezione non richiedono il popup. Nuova PDA
 riparte dall'automatismo. Doppio cambio e conferme tardive su altra PDA/offerta/
 contratto non applicano modifiche alla nuova compilazione. Nessun cambio DB.
 
+Dispositivo automatico27/10: dove il catalogo consente la scelta, la PDA
+preseleziona Si per dispositivo presente e No per assenza esplicita; dato mancante,
+parziale o contraddittorio resta senza selezione. OCR non trasforma piu' campi
+non letti in false. Prima di modificare la scelta automatica compare MiroxUI:
+Conferma modifica oppure Mantieni scelta automatica. Fino al consenso il valore
+precedente e IMEI/prezzo/acquisto restano invariati; annulla/chiusura li conserva.
+Dopo conferma prevale la correzione manuale. Stato automatico/override conservato
+in draft/carrello tramite pda_dispositivo_auto e pda_dispositivo_manuale (solo
+client, esclusi dal payload DB), azzerato con nuova PDA; bozze legacy preservate.
+Conferme tardive e doppio cambio protetti. Vincoli FWA Indoor e Customer Base con
+telefono obbligatorio restano attivi: dispositivo Si e acquisto vincolato non
+vengono sovrascritti dall'OCR. Campi positivi ancora precompilati; niente dati OCR
+della pratica precedente riapplicati al contratto ripristinato. Nessuna migration,
+dipendenza, riscrittura storica o cambio punteggi. Collaudi solo interni/HTTP, mai
+browser su istruzione proprietario.
+
 ### Documento identita per contratto
 
 Il documento d'identita e obbligatorio per ogni nuovo contratto. Nel carrello viene selezionato una sola volta; sulle bozze `upload-vendita-documento` crea un allegato e un PDF indipendente per ciascuna riga, con INSERT batch e pulizia delle nuove copie su errore. `finalize` impedisce l'invio se manca l'identita anche su una sola riga. Gli upload successivi da Verifica Contratti restano specifici della riga selezionata. Lo storico dal 1 luglio 2026 viene sistemato dallo script dedicato senza sovrascrivere documenti esistenti; i casi senza sorgente richiedono un'integrazione manuale.

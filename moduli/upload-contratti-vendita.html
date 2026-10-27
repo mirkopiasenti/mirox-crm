@@ -3201,6 +3201,11 @@ Reload Forever
  || (data?.pda_opzione_manuale === undefined && Boolean(data?.opzione_id))) ? 'true' : 'false';
  root.dataset.pdaAutoOption = '';
  delete root.dataset.pdaOptionPending;
+ root.dataset.pdaDeviceAuto = data?.pda_dispositivo_auto === true ? 'true'
+ : data?.pda_dispositivo_auto === false ? 'false' : '';
+ root.dataset.pdaDeviceManual = (data?.pda_dispositivo_manuale === true
+ || (data?.pda_dispositivo_manuale === undefined && [true, false, 'true', 'false'].includes(data?.dispositivo_associato))) ? 'true' : 'false';
+ delete root.dataset.pdaDevicePending;
  root.innerHTML = window.MiroxPdaUI.formHtml(window.MiroxPda.normalize(data || {}), category, { wizard: true, reading: root.dataset.pdaReading });
  window.MiroxPdaUI.bindForm(root);
  if (!root.dataset.autosaveBound) {
@@ -3213,7 +3218,9 @@ Reload Forever
  function readPdaFields() {
  const root = document.getElementById('pdaContractFields');
  return { ...window.MiroxPdaUI.readForm(root), pda_lettura: root.dataset.pdaReading || 'manuale',
- pda_opzione_manuale: root.dataset.pdaOptionManual === 'true' };
+ pda_opzione_manuale: root.dataset.pdaOptionManual === 'true',
+ pda_dispositivo_auto: root.dataset.pdaDeviceAuto === 'true' ? true : root.dataset.pdaDeviceAuto === 'false' ? false : null,
+ pda_dispositivo_manuale: root.dataset.pdaDeviceManual === 'true' };
  }
  async function checkPendingCode() {
  return window.MiroxPdaUI.checkCode(readPdaFields().codice_contratto,
@@ -3419,6 +3426,7 @@ Reload Forever
 
  refs.deviceSection.classList.toggle('hidden', !deviceVisible);
  if (!deviceVisible) {
+ runtimeState.ocrDeviceApplied = false;
  refs.dispositivoAssociato.value = '';
  refs.imei.value = '';
  refs.fasciaPrezzo.value = '';
@@ -3449,6 +3457,7 @@ Reload Forever
  refs.dispositivoAssociato.value='true'; refs.dispositivoAssociato.disabled=true;
  refs.tipoAcquisto.value=combinationType; refs.tipoAcquisto.disabled=true;
  }
+ maybeSelectOcrDevice(deviceVisible);
  const hasDevice = deviceVisible && refs.dispositivoAssociato.value === 'true';
  refs.fieldImei.classList.toggle('hidden', !hasDevice);
  refs.fieldFasciaPrezzo.classList.toggle('hidden', !hasDevice);
@@ -3746,6 +3755,8 @@ Reload Forever
  ...window.MiroxPda.validate(readPdaFields(), categoriaNome),
  pda_lettura: readPdaFields().pda_lettura,
  pda_opzione_manuale: readPdaFields().pda_opzione_manuale,
+ pda_dispositivo_auto: readPdaFields().pda_dispositivo_auto,
+ pda_dispositivo_manuale: readPdaFields().pda_dispositivo_manuale,
  temp_id: options.tempId || `temp_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
  categoria_id: categoria.id,
  offerta_id: offerta.id,
@@ -4474,6 +4485,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  // Carichiamo un contratto gia' salvato in carrello: NON riapplicare OCR sopra
  // le scelte dell'operatore (anche se lastOcrData e' ancora in runtimeState).
  if (typeof runtimeState !== 'undefined') runtimeState.ocrDeviceApplied = true;
+ runtimeState.lastOcrData = null;
  refs.categoria.value = item.categoria_id || refs.categoria.value;
  renderPdaFields(item);
  renderOfferte();
@@ -5164,7 +5176,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
 
  refs.opzione.addEventListener('change', confirmMobileOptionChange);
  refs.apriChiudi.addEventListener('change', renderDynamicSections);
- refs.dispositivoAssociato.addEventListener('change', renderDynamicSections);
+ refs.dispositivoAssociato.addEventListener('change', confirmDeviceChange);
  refs.tipoAcquisto.addEventListener('change', renderDynamicSections);
  if (refs.smartphoneReload) refs.smartphoneReload.addEventListener('change', renderDynamicSections);
 
@@ -5374,6 +5386,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
 
  function restoreContractFormDraft(contractForm = {}) {
  if (!contractForm || typeof contractForm !== 'object') return;
+ runtimeState.lastOcrData = null;
 
  if (contractForm.categoria_id) {
  refs.categoria.value = contractForm.categoria_id;
@@ -5732,6 +5745,47 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  runtimeState.ocrDeviceApplied = false;
  }
 
+ // Scegli Si/No prima di calcolare visibilita e campi obbligatori, senza indovinare un No.
+ function maybeSelectOcrDevice(visible) {
+ if (!visible || refs.dispositivoAssociato.disabled) return;
+ const root = document.getElementById('pdaContractFields');
+ if (root.dataset.pdaDeviceManual === 'true') return;
+ refs.dispositivoAssociato.value = root.dataset.pdaDeviceAuto || '';
+ }
+
+ async function confirmDeviceChange() {
+ if (refs.dispositivoAssociato.disabled) { refs.dispositivoAssociato.value = 'true'; return; }
+ const root = document.getElementById('pdaContractFields');
+ const selected = refs.dispositivoAssociato.value;
+ const automatic = root.dataset.pdaDeviceAuto || '';
+ if (root.dataset.pdaDevicePending) { refs.dispositivoAssociato.value = automatic; return; }
+ if (root.dataset.pdaDeviceManual !== 'true' && automatic) {
+ if (selected === automatic) return;
+ refs.dispositivoAssociato.value = automatic;
+ const revision = runtimeState.pdaRevision;
+ const editingId = runtimeState.editingTempId;
+ const offerId = refs.offerta.value;
+ const token = String(runtimeState.deviceConfirmSequence = (runtimeState.deviceConfirmSequence || 0) + 1);
+ root.dataset.pdaDevicePending = token;
+ const label = value => value === 'true' ? 'Si' : value === 'false' ? 'No' : 'Seleziona';
+ try {
+ const confirmed = await window.MiroxUI.confirm(
+ 'La PDA ha impostato Dispositivo associato su "' + label(automatic) + '". Vuoi cambiarlo in "' + label(selected) + '"?',
+ { title: 'Conferma modifica dispositivo', okText: 'Conferma modifica', cancelText: 'Mantieni scelta automatica' }
+ );
+ if (!confirmed || root.dataset.pdaDevicePending !== token || runtimeState.pdaRevision !== revision
+ || runtimeState.editingTempId !== editingId || refs.offerta.value !== offerId) return;
+ refs.dispositivoAssociato.value = selected;
+ } finally {
+ if (root.dataset.pdaDevicePending === token) delete root.dataset.pdaDevicePending;
+ }
+ }
+ root.dataset.pdaDeviceManual = 'true';
+ runtimeState.ocrDeviceApplied = true;
+ renderDynamicSections();
+ queueDraftSave();
+ }
+
  // Auto-compila i campi dispositivo (toggle, IMEI, tipo_acquisto, prezzo) dai dati OCR
  // del PDA. Si attiva solo quando: (a) il PDA aveva dispositivo_presente=true,
  // (b) la deviceSection e' visibile (l'utente ha scelto un'offerta con abilita_dispositivo),
@@ -5741,12 +5795,13 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  function maybeApplyOcrDevice() {
  const ocrData = runtimeState.lastOcrData;
  if (!ocrData || ocrData.dispositivo_presente !== true) return;
+ if (document.getElementById('pdaContractFields').dataset.pdaDeviceManual === 'true') return;
  if (runtimeState.ocrDeviceApplied) return;
  if (!refs.deviceSection || refs.deviceSection.classList.contains('hidden')) return;
 
  refs.dispositivoAssociato.value = 'true';
  if (ocrData.imei) refs.imei.value = ocrData.imei;
- if (ocrData.tipo_acquisto) refs.tipoAcquisto.value = ocrData.tipo_acquisto;
+ if (ocrData.tipo_acquisto && !refs.tipoAcquisto.disabled) refs.tipoAcquisto.value = ocrData.tipo_acquisto;
  if (ocrData.prezzo_device) refs.fasciaPrezzo.value = ocrData.prezzo_device;
 
  // FWA Indoor: device sempre Si, ma Kolme + Smartphone Reload nascosti e non rilevanti.
@@ -5992,7 +6047,8 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  if (!runtimeState.anagraficaCompleted) applyOcrToAnagrafica(data);
  // Gli altri contratti aggiornano soltanto i dati contratto/dispositivo, mai il contatto OTP.
  if (refs.codiceRivenditore) refs.codiceRivenditore.value = CODICE_RIVENDITORE_DEFAULT;
- renderPdaFields({ ...window.MiroxPda.normalize(data), pda_lettura: data.pda_lettura });
+ renderPdaFields({ ...window.MiroxPda.normalize(data), pda_lettura: data.pda_lettura,
+ pda_dispositivo_auto: data.dispositivo_presente, pda_dispositivo_manuale: false });
  goToStep(runtimeState.anagraficaCompleted ? 3 : 2);
  queueDraftSave();
  } catch (error) {
