@@ -35,8 +35,10 @@ Verificati compatibilita storico, CHECK, UNIQUE, due tentativi concorrenti,
 sincronizzazione bidirezionale e comportamento RLS con client legacy.
 CLI migration new tentata ma indisponibile per il profilo locale senza formato;
 nome UTC generato localmente, nessuna modifica delle credenziali/config CLI.
-Migration applicata; pubblicazione autorizzata in corso:
-far ricaricare i client e collaudare la nuova estrazione con Claude API.
+Migration e codice applicativo pubblicati; nove PDF reali con OCR convalidato.
+Pulizia13copie temporanee di collaudo riconciliate per hash/dimensione;149temp
+preesistenti conservati, zero contratti test e zero codici storici popolati.
+Prima del primo utilizzo ricaricare i client.
 
 ## ⚠️ Stato del DB
 

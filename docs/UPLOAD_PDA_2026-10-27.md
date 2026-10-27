@@ -1,8 +1,9 @@
 # Upload PDA: identificazione contratto e dati Mobile
 
-Stato: debug completato, rilascio autorizzato in corso. Migrazione applicata e
-verificata, con prove DB transazionali annullate via ROLLBACK; nessuna riga di
-collaudo conservata o recupero dello storico. Pubblicazione e prova OCR reale in corso.
+Stato: online e convalidato27/10/2026. Codice c4176c8, CI40498935335 riuscita,
+Netlify6ae08f9ca91e866c1212512f verificato per SHA e asset. Migrazione applicata,
+prove DB transazionali annullate via ROLLBACK; nessuna riga test conservata.
+Nove PDF reali con esito atteso. Nessun recupero dello storico.
 
 ## Requisiti confermati dal proprietario
 
@@ -56,8 +57,8 @@ Migration `database/20261027110402_vendita_codice_pda_mobile.sql`: sette colonne
 nullable, CHECK, indice UNIQUE e due nuovi trigger INVOKER su vendita/Fisso;
 nessun backfill o modifica di tabelle/policy/RPC Call Center. Applicata e riletta in produzione.
 
-- Suite completa e build:335/335 test riusciti (334versionati e1backup preesistente),
-  incluse21regressioni dedicate al nuovo flusso PDA.
+- Suite completa e build:340/340 test riusciti (339versionati e1backup preesistente),
+  incluse26regressioni dedicate al nuovo flusso PDA.
 - Regressioni dedicate: dati mancanti, nuovo numero/MNP, storico, duplicati globali,
   errori DB, collisione concorrente, rollback riuscito/fallito, operatori non-admin,
   modifiche obsolete, carrello multi-contratto, contatto conservato e risposte tardive.
@@ -83,18 +84,19 @@ Corretti prima del deploy:
 - nuovi editor non scartano altre modifiche non salvate in Verifica/Controllo Fissi;
 - confronti fiscali senza spazi e limiti locali di lock/statement nella migration.
 
-Suite335/335 locale (334versionati+1backup preesistente),21regressioni PDA e
+Suite340/340 locale (339versionati+1backup preesistente),26regressioni PDA e
 collaudo PostgreSQL isolato riusciti. Migration applicata tramite MCP e allineata
-al timestamp del registro; colonne/indice/search_path/INVOCER riletti, nessun
+al timestamp del registro; colonne/indice/search_path/INVOKER riletti, nessun
 nuovo rilievo advisor. Prove sul DB production con dati sintetici in transazione:
 INSERT bozza, sync Fisso nelle due direzioni, rifiuto duplicato e MNP incoerente;
 ROLLBACK eseguito, nessun dato di collaudo conservato.
 
 Pubblicazione autorizzata dal proprietario dopo il debug. Si pubblica soltanto
 questo intervento; backup/Guardian preesistenti restano fuori dal commit.
-Dopo il deploy: verifica SHA/CI/asset e prova delle nove PDA con la vera Function
-OCR (chiave Anthropic su Netlify), senza inviare pratiche/OTP o modificare clienti.
-Risultati conclusivi nel promemoria di sessione. Storico ancora rinviato.
+Verificati SHA/CI, due asset condivisi e script inline delle quattro pagine online.
+Nove PDA provate con la vera Function OCR: codice e contatto corretti in tutti i
+casi, Mobile con/senza costo e MNP, Fisso/CB senza nuovi campi Mobile. Nessuna
+pratica/OTP inviata o anagrafica aggiornata nel collaudo. Storico ancora rinviato.
 
 Primo collaudo online: corretta la query duplicati che presumeva una FK PostgREST
 fra operatore_id e profili. Il DB usa ID senza quella relazione: lookup esplicito
@@ -107,8 +109,18 @@ arrivata dopo l'avvio della pratica successiva. Guard aggiuntivi su revisione PD
 cliente, categoria e step scartano sia lookup anagrafici sia candidati/callback
 tardivi, senza alterare la pratica corrente. Regressioni asincrone dedicate.
 
-PDA Business solo dati: in due letture reali il numero SIM resta vuoto pur
+PDA Business solo dati: in due letture reali il numero SIM restava vuoto pur
 essendo leggibile. Rafforzate istruzioni ed esempio OCR per SIM dati; accettato
 anche prefisso internazionale 39 senza + quando la lunghezza e' inequivocabile.
-Riprova reale necessaria dopo la pubblicazione; gli altri otto PDF verificati.
+Riprova reale dopo la pubblicazione riuscita, compreso numero SIM e costo vuoto.
+Totale nove PDF con esito atteso. Tutti i valori restano verificabili/correggibili
+dall'operatore: il collaudo non garantisce la lettura perfetta di ogni futura PDA.
 Suite aggiornata340/340 (339versionati),26regressioni PDA e SQL isolato OK.
+
+Pulizia conclusiva:13copie temp create dai test riconciliate tramite MD5 e
+dimensione con i PDF originali, rimosse via API Storage;149temp preesistenti
+preservati. Bozza browser scartata, zero righe test persistenti e codici storici
+tutti NULL. Verificato online anche popup manuale con codice richiesto per primo;
+screenshot privato /private/tmp/mirox-pda-manuale-online.png. Nessun dato cliente
+nei test o nel rapporto. Guide e promemoria aggiornati; ricaricare il wizard prima
+del primo utilizzo della nuova versione.

@@ -381,7 +381,7 @@ Le pagine post-vendita dei punti 8–11 espongono `Vai alla pratica` per ogni ri
 
 ## Regole di business chiave
 
-### Identificazione PDA e dati Mobile (27/10/2026, rilascio autorizzato in corso)
+### Identificazione PDA e dati Mobile (27/10/2026, online)
 
 Per i nuovi upload Mobile/Fisso/Customer Base, `codice_contratto` e' obbligatorio:
 deriva da Codice Contratto/Numero Contratto, mai dal codice cliente. Una PDA
@@ -410,7 +410,7 @@ non azzerabili tramite modalita legacy, seconda PDA di altro CF/PIVA bloccata
 prima dell'upload. Editor non chiudibile durante salvataggio; prima di aprirlo
 salvare le altre modifiche del popup per evitare perdite di input.
 Migration applicata/riletta; prove DB transazionali con rollback riuscite, zero
-righe di collaudo conservate. Risposte tardive reinserimento scartate su revisione, cliente, categoria e step. OCR considera anche le SIM dati Business; prefisso 39 senza + rimosso soltanto con lunghezza internazionale, mai da numeri nazionali 39x. Deploy e convalida OCR reale in corso.
+righe di collaudo conservate. Risposte tardive reinserimento scartate su revisione, cliente, categoria e step. OCR considera anche le SIM dati Business; prefisso 39 senza + rimosso soltanto con lunghezza internazionale, mai da numeri nazionali 39x. Deploy c4176c8 e CI40498935335 verificati; nove PDF reali con esito atteso, comprese SIM dati Business. Prima del primo utilizzo ricaricare i client.
 
 ### Compilatore disdette (dal 2026-08-06, migrations 063–064)
 - Varianti consentite: `sim_consumer`, `sim_business`, `fisso_consumer`, `fisso_business`; ogni PDF riguarda una sola utenza.

@@ -1,6 +1,6 @@
 # CLAUDE.md — Guida per AI assistants
 
-## Upload PDA: codice univoco e dati Mobile (27/10/2026, sviluppo locale)
+## Upload PDA: codice univoco e dati Mobile (27/10/2026, online)
 
 Codice contratto obbligatorio Mobile/Fisso/Customer Base; codice cliente escluso.
 Manuale: popup codice e controllo prima dell'upload. AI: legge ogni PDA, anche
@@ -21,8 +21,8 @@ Motore `js/vendita-pda-core.js` + UI `js/vendita-pda-ui.js`; backend in
 Migration `20261027110402_vendita_codice_pda_mobile.sql` applicata e verificata:
 colonne nullable, CHECK, UNIQUE e nuovi trigger INVOKER su sole tabelle vendita/Fisso.
 Nessuna modifica schema/RLS/RPC CC e nessun recupero storico in questa fase.
-Migration gia applicata; deploy autorizzato in corso e refresh client necessario;
-collaudare davvero Claude API con le nove PDA private (chiave solo Netlify).
+Migration e deploy c4176c8 online, CI40498935335 riuscita e asset verificati.
+OCR reale9/9PDF con esito atteso, inclusa SIM dati Business. Refresh client prima del primo utilizzo.
 Debug: chiusura loader su duplicato al submit, divieto azzeramento dati Mobile
 tracciati, blocco PDA di altro cliente, editor non annullabile durante salvataggio
 e protezione input non salvati degli altri popup. Risposte tardive reinserimento scartate. OCR SIM dati Business esplicito e prefisso 39 senza + normalizzato solo su lunghezze internazionali.340test locali (339versionati) e SQL isolato OK.

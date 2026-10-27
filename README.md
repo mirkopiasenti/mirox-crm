@@ -123,12 +123,11 @@ protegge le modifiche concorrenti e mantiene allineati i due codici Fisso.
 `js/vendita-pda-core.js` condivide validazione browser/server;
 `js/vendita-pda-ui.js` condivide popup e editor. Nessuna nuova dipendenza npm CRM.
 
-**Rilascio autorizzato in corso.** Migration additiva
+**Online dal 27/10/2026.** Migration additiva
 `database/20261027110402_vendita_codice_pda_mobile.sql` applicata e riletta in
 produzione; test transazionali con rollback su unicita/coerenza MNP/sincronizzazione
 Fisso riusciti, nessuna riga di collaudo conservata o bonifica dello storico.
-Suite locale340/340 (339test versionati) e SQL isolato OK. Risposte tardive di reinserimento scartate; OCR SIM dati Business esplicito e prefisso 39 senza + normalizzato soltanto su lunghezze internazionali. Convalida OCR reale delle nove PDA e verifica
-del deploy previste dopo la pubblicazione. Prima del primo utilizzo ricaricare il wizard.
+Suite locale340/340 (339test versionati) e SQL isolato OK. Risposte tardive di reinserimento scartate; OCR SIM dati Business esplicito e prefisso 39 senza + normalizzato soltanto su lunghezze internazionali. Convalida OCR reale9/9 e verifica SHA/CI/asset online riuscite. Prima del primo utilizzo ricaricare il wizard.
 
 
 ### Documento identita per contratto
