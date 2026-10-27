@@ -95,3 +95,9 @@ questo intervento; backup/Guardian preesistenti restano fuori dal commit.
 Dopo il deploy: verifica SHA/CI/asset e prova delle nove PDA con la vera Function
 OCR (chiave Anthropic su Netlify), senza inviare pratiche/OTP o modificare clienti.
 Risultati conclusivi nel promemoria di sessione. Storico ancora rinviato.
+
+Primo collaudo online: corretta la query duplicati che presumeva una FK PostgREST
+fra operatore_id e profili. Il DB usa ID senza quella relazione: lookup esplicito
+separato, come nella pagina Verifica Contratti. Un errore nella lettura del nome
+non nasconde un duplicato gia' individuato. Primo tentativo fermato prima dello staging
+e di qualsiasi pratica; nuova pubblicazione di correzione e ripetizione collaudo.

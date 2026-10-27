@@ -10,12 +10,18 @@ async function findDuplicate(supabase, value, excludeId = null) {
   const normalized = Pda.code(value);
   if (!normalized) throw Object.assign(new Error('Codice contratto obbligatorio o non valido'), { statusCode: 400 });
   let query = supabase.from('vendita_contratti')
-    .select('id, codice_contratto, data_contratto, categoria_snapshot, operatore:operatore_id(nome)')
+    .select('id, codice_contratto, data_contratto, categoria_snapshot, operatore_id')
     .eq('codice_contratto', normalized);
   if (excludeId) query = query.neq('id', excludeId);
   const { data, error } = await query.limit(1);
   if (error) throw error;
-  return data?.[0] || null;
+  const row = data?.[0] || null;
+  if (!row?.operatore_id) return row;
+  // operatore_id non ha una relazione PostgREST verso profili: lookup esplicito.
+  const { data: operator, error: operatorError } = await supabase.from('profili')
+    .select('nome').eq('id', row.operatore_id).maybeSingle();
+  return { ...row, operatore: operatorError ? { nome: 'Operatore non disponibile' } : operator };
+
 }
 
 function isDuplicateViolation(error) {

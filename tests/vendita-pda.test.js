@@ -289,3 +289,12 @@ test(`aprire dati PDA da ${file} non scarta le altre modifiche non salvate`,asyn
   vm.runInNewContext(source.slice(start,end),{m,window:{MiroxUI:ui},MiroxUI:ui});
   events.input();await edit();assert.equal(closed,false);assert.equal(toasts,1);
 });
+
+for (const failOperator of [false,true]) test(`duplicato senza FK operatore usa lookup esplicito (${failOperator?'nome indisponibile':'nome disponibile'})`,async()=>{
+  const row={id,codice_contratto:'EXISTING',operatore_id:'operator'};
+  const db={from(table){const q={select(columns){if(table==='vendita_contratti')assert.ok(!columns.includes('('));return q;},eq(){return q;},
+    async limit(){return {data:[row]};},async maybeSingle(){assert.equal(table,'profili');return failOperator?{error:new Error('profilo non leggibile')}:{data:{nome:'Operatore prova'}};}};return q;}};
+  const result=await serverPda.findDuplicate(db,'EXISTING');assert.equal(result.id,id);
+  assert.equal(result.operatore.nome,failOperator?'Operatore non disponibile':'Operatore prova');
+  await assert.rejects(serverPda.assertAvailable(db,'EXISTING'),e=>e.statusCode===409);
+});
