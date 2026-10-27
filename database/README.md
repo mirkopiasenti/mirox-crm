@@ -4,6 +4,9 @@ I file `.sql` nella root di questa cartella sono **migrazioni storiche parziali*
 
 ## Permessi pagine Mirox — migration applicata 27/10/2026
 
+La query Admin usa le colonne esistenti `nome`/`username` di profili, senza
+richiedere una colonna email o modificare la tabella condivisa.
+
 Migration sorgente CLI `20261027221833_permessi_pagine_mirox.sql`, applicata
 in production con versione registrata `20261027224328` dopo consenso esplicito:
 catalogo `mirox_pagine`, ACL `mirox_permessi_utente` con FK a profili, audit

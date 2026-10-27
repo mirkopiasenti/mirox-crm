@@ -31,7 +31,7 @@ async function handle(event, deps = {}) {
       const users = [];
       for (let offset = 0; ; offset += 500) {
         const { data, error } = await client.from('profili')
-          .select('id,nome,email,ruolo,attivo,mirox_permessi_utente(pagine,versione,updated_at)')
+          .select('id,nome,username,ruolo,attivo,mirox_permessi_utente(pagine,versione,updated_at)')
           .order('nome').order('id').range(offset, offset + 499);
         if (error) throw error;
         users.push(...data);

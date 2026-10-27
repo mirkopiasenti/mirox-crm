@@ -10,6 +10,8 @@ istruzioni dell'utente e guide di progetto restano vincolanti.
 - Snapshot rilascio isolato dai WIP:452/452test versionabili e542checkSQL/PGlite OK;453test nel working tree inclusoBackup preesistente.13regressioniACL/DOM Node senza browser; privilegi audit provati anche con defaultgrantsSupabase. Guide README/AGENTS/CLAUDE/databaseREADME e `docs/PERMESSI_PAGINE.md` aggiornate. Push/deploy autorizzati da completare/verificare; collaudo grafico al proprietario. WIP Backup/Guardian/altre doc esclusi. SignedURL gia emesse valide fino a scadenza; dati condivisi necessari restano consultabili.
 
 
+- Ultimo controllo schema: profili ha username, non email. Corretto elenco Admin e fallback etichette; nuova regressione GET con schema reale e paginazione501utenti. Hotfix in pubblicazione, nessuna nuova migration o modifica dati.
+
 ## Codici cliente WindTre: sviluppo e rilascio27/10
 
 - Proprietario conferma piu codici per anagrafica e input manuale obbligatorio. Estrazione da sole PDA Mobile/Fisso/Customer Base, distinta da codice contratto; input prima staging dopo duplicati, AI mancante chiede manuale. Campo anagrafico, draft/carrello preservati, scheda Anagrafiche/XLSX con tutti i codici, OTP invariato. Nuovi valori si aggiungono; nessun backfill o sincronizzazione vecchio Controllo Fissi.

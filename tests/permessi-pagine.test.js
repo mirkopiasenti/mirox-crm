@@ -161,6 +161,32 @@ test('tutte le pagine protette caricano catalogo e guard UI prima di Auth', () =
   }
 });
 
+test('elenco Admin legge le colonne reali dei profili e pagina senza perdere utenti', async () => {
+  const admin = { ok: true, user: { id: ID(1) }, profilo: { id: ID(1), ruolo: 'admin', attivo: true } };
+  const columns = new Set(['id', 'username', 'nome', 'ruolo', 'attivo', 'mirox_permessi_utente']);
+  const ranges = [];
+  const client = { from(table) {
+    assert.equal(table, 'profili');
+    let selection = '';
+    return {
+      select(value) { selection = value; return this; }, order() { return this; }, eq() { return this; },
+      single: async () => ({ data: admin.profilo, error: null }),
+      range: async (start, end) => {
+        ranges.push([start, end]);
+        const requested = selection.replace(/mirox_permessi_utente\([^)]*\)/, 'mirox_permessi_utente').split(',');
+        if (requested.some(column => !columns.has(column))) return { error: { code: '42703', message: 'Colonna non presente nello schema reale' } };
+        return { data: Array.from({ length: start ? 1 : 500 }, (_, i) => ({ id: ID(start + i + 2), username: `operatore${start + i}`, nome: null, ruolo: 'operatore', attivo: true, mirox_permessi_utente: { pagine: permissions([]), versione: 1 } })), error: null };
+      }
+    };
+  } };
+  const result = await handle({ httpMethod: 'GET' }, { requireAuth: async () => admin, getAdminClient: () => client });
+  assert.equal(result.statusCode, 200);
+  const payload = JSON.parse(result.body);
+  assert.equal(payload.utenti.length, 501);
+  assert.equal(payload.utenti[500].username, 'operatore500');
+  assert.deepEqual(ranges, [[0, 499], [500, 999]]);
+});
+
 test('Auth blocca URL diretto e errori ACL; ritorno scheda aggiorna le revoche e nascoste senza polling', async () => {
   const { client, state } = clientFixture();
   const callbacks = {}, calls = [], intervals = [];

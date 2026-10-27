@@ -6,7 +6,7 @@
   const $ = id => document.getElementById(id);
   const endpoint = '/.netlify/functions/admin-permessi-pagine';
   let users = [], selected = null, saved = {}, draft = {}, version = 0, busy = false, auditRequest = 0;
-  const label = user => user.nome || user.email || user.id;
+  const label = user => user.nome || user.username || user.id;
   const different = () => Core.keys.filter(key => draft[key] !== saved[key]);
   const readonly = () => !selected || selected.ruolo === 'admin';
   function status(text, error = false) { $('permissionsStatus').textContent = text; $('permissionsStatus').classList.toggle('is-error', error); }

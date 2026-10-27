@@ -14,6 +14,10 @@ Advisor sicurezza/performance7->7, nessun nuovo rilievo. Prove READONLY/ROLLBACK
 operatore attivo vede la propria ACL e lo storico; identita senza ACL non
 legge contratti, storico, ticket o allegati. Nessuna riga cliente modificata.
 
+Elenco utenti: legge `profili.nome` e `profili.username`; lo schema condiviso
+non contiene `email` e non viene modificato. Regressione GET con schema reale
+e paginazione oltre 500 utenti.
+
 ## Utilizzo
 
 Admin → Configurazioni → Permessi pagine. Scegliere un utente, abilitare le
