@@ -5,7 +5,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 ## Stack
 
 - **Frontend**: HTML statico + JavaScript vanilla (no bundler), Inter via Google Fonts, client Supabase `@supabase/supabase-js@2.110.8` da CDN con Subresource Integrity
-- **Backend serverless**: Netlify Functions (Node >=22 + esbuild), librerie versionate esattamente (`@supabase/supabase-js@2.110.8`, `nodemailer@9.0.3`, `busboy`, `pdfkit`, `pdf-lib@1.17.1`, `fflate@0.8.2` per gli export `.xlsx`, `@resvg/resvg-js@2.6.2` per i report PNG Target)
+- **Backend serverless**: Netlify Functions (Node >=22 + esbuild), librerie versionate esattamente (`@supabase/supabase-js@2.110.8`, `nodemailer@9.0.3`, `busboy`, `pdfkit`, `pdf-lib@1.17.1`, `unpdf@1.9.1` per il recupero testuale PDA, `fflate@0.8.2` per gli export `.xlsx`, `@resvg/resvg-js@2.6.2` per i report PNG Target)
 - **Database**: Supabase Postgres (Auth + Storage + RLS + RPC + Trigger), 10 bucket Storage (`moduli-template` pubblico + 9 privati con signed URL on-demand)
 - **Email**: Gmail SMTP via nodemailer + template DB (`email_template` + `email_log`)
 - **SMS transactional**: Smshosting REST API (consensi privacy via OTP — vedi `docs/SMSHOSTING_SETUP.md`)
@@ -79,7 +79,7 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `gestisci-subentri` | GET / POST JSON o multipart | authenticated | Due ricerche CRM, bozze idempotenti per operatore, upload PDF/JPEG/PNG (4 MiB/file), verifica allegati, generazione PDF multipagina, storico globale, duplicazione dati e signed URL di 5 minuti per PDF e allegati |
 | `gestisci-disdette` | GET / POST | authenticated | Genera i quattro PDF di recesso sui moduli WindTre originali, salva il PDF nel bucket privato `disdette-files`, registra lo storico, duplica i dati tra SIM/Fisso dello stesso cluster e cerca anagrafiche CRM per nome, cognome o CF/P.IVA |
 | `elimina-vendita-contratto` | POST | **admin** | Eliminazione definitiva da Verifica Contratti: cancella il contratto, i record collegati, gli allegati Storage e la pratica se resta vuota |
-| `ocr-pda` | POST multipart | authenticated | OCR del PDA (Pratica di Adesione PDF) via Claude API — pre-compila anagrafica, codice contratto e dati Mobile; contatto dalla firma elettronica. In caso di errore Anthropic ritorna `error_code` strutturato (`ocr_credit_exhausted`, `ocr_rate_limited`, `ocr_unavailable`, `ocr_auth_error`, `ocr_generic_error`) per popup mirato lato client |
+| `ocr-pda` | POST multipart | authenticated | OCR del PDA (Pratica di Adesione PDF) via Claude API e recupero numerazioni per coordinate con unpdf — pre-compila anagrafica, codice contratto e dati Mobile; contatto dalla firma elettronica. In caso di errore Anthropic ritorna `error_code` strutturato (`ocr_credit_exhausted`, `ocr_rate_limited`, `ocr_unavailable`, `ocr_auth_error`, `ocr_generic_error`) per popup mirato lato client |
 | `search-anagrafica` | GET | authenticated | Ricerca cliente per CF/PIVA |
 | `gestisci-anagrafiche` | GET / POST | authenticated / **admin** per eliminazione | Elenco paginato e filtrato delle anagrafiche per il reparto Post-Vendita; `action=comuni` restituisce le scelte presenti a DB, `action=comuni_istat` cerca nel catalogo ufficiale server-only e `action=export` genera un file `.xlsx` completo con gli stessi filtri multipli. `update` usa allowlist, controllo di concorrenza e validazione Comune/Provincia ISTAT; `delete` elimina solo anagrafiche senza collegamenti CRM |
 | `mirox-send-email` | POST | authenticated | Invio email con template DB |
@@ -143,6 +143,22 @@ senza modalita restano manuali. OCR fallito o numerazioni/gestore incompleti:
 blocco prima dello staging e invito a riprovare AI o scegliere esplicitamente
 il percorso manuale, senza inventare valori o mostrare automaticamente i campi.
 Editor post-vendita completi; nessuna modifica schema o payload dei dati DB.
+
+
+Recupero numerazioni PDF27/10: `ocr-pda` usa anche `_lib/pda-pdf-text.js`
+con `unpdf@1.9.1` (PDF.js serverless, Node22+, modulo esterno esbuild).
+Ricostruisce tutte le pagine per coordinate: l'ordine interno del content stream
+puo' collocare il numero prima del titolo della sezione pur mostrandolo sotto.
+Da DATI DELLA SIM WINDTRE recupera solo numero SIM; da PASSA A WINDTRE numero
+MNP e Operatore attuale. Valori testuali univoci prevalgono sul risultato AI;
+valori discordanti/invalidi non vengono scelti arbitrariamente. Nessun fallback
+sul contatto firma e nessuna deduzione di prezzo/codice dal testo di altre sezioni.
+Pagine ibride/scansioni senza sezione testuale non provano assenza MNP: resta
+la lettura AI. Limiti del parser60pagine/100mila elementi/5s dopo apertura;
+PDF non estraibile o oltre limiti usa la lettura AI esistente. Dati solo in memoria,
+nessun log del testo o invio aggiuntivo. Campi AI nascosti e popup costo invariati;
+nessuna modifica DB/storico. Dipendenza fissata nel lockfile e mantenuta esterna
+per preservare l'import ESM dinamico di PDF.js.
 
 ### Documento identita per contratto
 

@@ -151,3 +151,39 @@ Guide aggiornate; verifiche finali e release nel promemoria di sessione.
 
 Correzione visibilita: suite completa346/346 (345versionati+1backup),
 32regressioni PDA e build riuscite. Nessuna nuova dipendenza o modifica DB.
+
+## Numero SIM omesso su PDA Business multipagina
+
+Recupero numerazioni PDF27/10: `ocr-pda` usa anche `_lib/pda-pdf-text.js`
+con `unpdf@1.9.1` (PDF.js serverless, Node22+, modulo esterno esbuild).
+Ricostruisce tutte le pagine per coordinate: l'ordine interno del content stream
+puo' collocare il numero prima del titolo della sezione pur mostrandolo sotto.
+Da DATI DELLA SIM WINDTRE recupera solo numero SIM; da PASSA A WINDTRE numero
+MNP e Operatore attuale. Valori testuali univoci prevalgono sul risultato AI;
+valori discordanti/invalidi non vengono scelti arbitrariamente. Nessun fallback
+sul contatto firma e nessuna deduzione di prezzo/codice dal testo di altre sezioni.
+Pagine ibride/scansioni senza sezione testuale non provano assenza MNP: resta
+la lettura AI. Limiti del parser60pagine/100mila elementi/5s dopo apertura;
+PDF non estraibile o oltre limiti usa la lettura AI esistente. Dati solo in memoria,
+nessun log del testo o invio aggiuntivo. Campi AI nascosti e popup costo invariati;
+nessuna modifica DB/storico. Dipendenza fissata nel lockfile e mantenuta esterna
+per preservare l'import ESM dinamico di PDF.js.
+
+Segnalazione proprietario14:35: errore lettura AI incompleta sul PDF privato
+Downloads/1.pdf, Mobile Business senza MNP e senza costo base esplicito. Sezione
+SIM nella terza pagina; contatto firma nella prima. Ispezionati testo e pagina;
+nel content stream il numero precede il titolo, nelle coordinate lo segue.
+Prova riproducibile in test con PDF sintetico di tre pagine, identico problema
+di ordine e AI simulata che omette il numero: la Function multipart lo recupera,
+conservando il contatto firma separato. Nessun dato cliente nei test versionati.
+
+Controlli locali:352/352test (351versionati+1backup), build OK;6nuove regressioni
+su layout, sezioni, MNP, ambiguita, PDF ibridi, documento multipagina e handler.
+Recupero diretto con valori attesi su5PDA Mobile precedenti +1.pdf; altre4PDA
+Fisso/Customer Base leggibili senza errori. Tempo caldo sui file privati15-28ms,
+prima apertura102ms locale; non rappresenta il tempo OCR complessivo o production.
+Nuova dipendenza senza rilievi npm audit; due rilievi preesistenti su fflate/
+nodemailer, nessun aggiornamento estraneo applicato.
+Riferimenti: [unpdf ufficiale](https://github.com/unjs/unpdf),
+[moduli esterni Netlify](https://docs.netlify.com/build/functions/configuration/).
+Pubblicazione nel deploy gia autorizzato; verifiche online nel promemoria.

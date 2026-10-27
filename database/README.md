@@ -45,6 +45,10 @@ visibili nel manuale. Gli stessi sette campi continuano a essere validati e
 scritti. pda_lettura e' metadato client delle bozze/carrello, escluso dal payload
 server: nessuna nuova colonna/migration o modifica di dati storici.
 
+Recupero numerazioni27/10: il backend legge anche il testo PDF per coordinate
+(unpdf1.9.1) prima di normalizzare SIM/MNP/gestore. Stessi campi e vincoli; nessuna
+migration, riscrittura o modifica allo storico/CC/anagrafica.
+
 ## ⚠️ Stato del DB
 
 Fino alla `069_baseline_allineamento.sql` (2026-08-22) i file riflettono lo stato di produzione: la 069 recupera il drift accumulato dalle modifiche fatte a caldo prima del tracciamento. Le categorie di drift recuperate erano:

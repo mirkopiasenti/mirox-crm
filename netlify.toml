@@ -13,7 +13,8 @@
   # External modules che non vanno bundlati.
   # pdfkit: ha font AFM e asset binari interni che esbuild non riesce a
   #   bundlare correttamente (a runtime fallirebbe con ENOENT su Helvetica.afm).
-  external_node_modules = ["@supabase/supabase-js", "nodemailer", "pdfkit", "@resvg/resvg-js"]
+  # unpdf: conserva il modulo ESM PDF.js importato dinamicamente e import.meta.url.
+  external_node_modules = ["@supabase/supabase-js", "nodemailer", "pdfkit", "@resvg/resvg-js", "unpdf"]
 
 # Headers di sicurezza statici. La CSP e' generata in dist/_headers dalla build,
 # cosi' consente esclusivamente il progetto Supabase dell'ambiente corrente.

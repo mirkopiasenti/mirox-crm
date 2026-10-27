@@ -19,6 +19,7 @@
     "fflate": "0.8.2",
     "nodemailer": "9.0.3",
     "pdf-lib": "1.17.1",
-    "pdfkit": "0.15.2"
+    "pdfkit": "0.15.2",
+    "unpdf": "1.9.1"
   }
 }

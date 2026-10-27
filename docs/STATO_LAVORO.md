@@ -3,7 +3,7 @@
 Aggiornato: 2026-10-27. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## Upload PDA: correzione visibilita27/10, pubblicazione in corso
+## Upload PDA: recupero numero multipagina27/10, deploy in corso
 
 - Online codice unico Mobile/Fisso/CB e blocco duplicati globale/DB, manuale codice prima di staging; solo Mobile costo base e numerazioni/MNP/gestore. OTP dalla firma prima PDA, upsert anagrafica esistenti, editor utenti attivi su Verifica/Storico/Controllo Fissi. Turista conserva defaults con step3 per dati PDA. Nessun recupero storico.
 - Migration20261027110402 applicata/riletta:7campi nullable/CHECK/UNIQUE/trigger INVOKER vendita/Fisso. Nessun cambio CC/RLS/RPC/schema anagrafica. Prove production transazionali INSERT/UNIQUE/MNP/sync con ROLLBACK riuscite, nessuna riga test conservata; advisor nessun nuovo rilievo PDA.
@@ -13,7 +13,10 @@ istruzioni dell'utente e guide di progetto restano vincolanti.
 - Guide README/AGENTS/CLAUDE/databaseREADME e rapporto docs/UPLOAD_PDA_2026-10-27.md aggiornati; Chiusura documentale cab5fa5 pubblicata e verificata: CI40499437123 riuscita, Netlify6ae0908e0dddb4016369ff71/SHA cab5fa5 online; nessuna variazione codice rispetto a c4176c8. Backup/Guardian preesistenti esclusi e preservati. Prossimo: ricaricare il wizard prima del primo utilizzo; recupero storico soltanto in successiva fase autorizzata.
 
 - Correzione richiesta dopo primo rilascio: costo solo popup; campi Mobile automatici/nascosti con AI, visibili nel manuale, etichette cellulare/provvisorio/MNP. Modalita lettura conservata nel draft/carrello, mai inviata al DB. OCR incompleto/fallito blocca prima staging e invita a AI/manuale esplicito. Editor post-vendita completi. Nessuna nuova migration o test su dati reali necessario (OCR invariato).
-- Suite finale346/346locale (345versionati+1backup),32regressioni PDA e build OK. Test nuovi su visibilita, etichette, errori AI, modalita restore/reset, riepilogo e payload; browser locale/API simulate verifica AI MNP/costi presenti-assenti/manuale nuovo e MNP/firma/lettura incompleta. Screenshot /private/tmp/mirox-pda-ai-campi-nascosti.png. Prossimo: suite finale, push nel deploy gia autorizzato, CI e SHA/asset online. Guide e rapporto aggiornati, backup/Guardian esclusi.
+- Suite finale346/346locale (345versionati+1backup),32regressioni PDA e build OK. Test nuovi su visibilita, etichette, errori AI, modalita restore/reset, riepilogo e payload; browser locale/API simulate verifica AI MNP/costi presenti-assenti/manuale nuovo e MNP/firma/lettura incompleta. Screenshot /private/tmp/mirox-pda-ai-campi-nascosti.png. Correzione pubblicata0a4407b93c33d17b148dd2acf59afcba3d2d281e, CI40502938968 riuscita, Netlify6ae096f6b0366f9a1f9680be/SHA0a4407b online. Asset condivisi e script inline quattro pagine verificati identici. Guide e rapporto aggiornati, backup/Guardian esclusi. Prossimo: ricaricare Upload Contratti; storico ancora rinviato.
+
+- Segnalazione14:35 su Downloads/1.pdf: SIM nella terza pagina, firma nella prima; numero nel content stream prima del titolo ma visivamente sotto. Aggiunto recupero per coordinate `_lib/pda-pdf-text.js`/unpdf1.9.1 esterno esbuild: SIM/MNP/gestore dalle sole sezioni, ambiguita bloccanti, PDF ibrido non prova assenza MNP, fallback OCR se non estraibile/limiti. Nessun cambio UI/DB/storico o copia PDF in repo.
+- Suite352/352locale (351versionati+1backup),6nuove regressioni con PDF sintetico multipagina e handler multipart AI omessa.5PDA Mobile precedenti+1.pdf recuperate esatte, altre4PDA senza errori. Lock/guide aggiornati; nuovo pacchetto senza rilievi audit, due preesistenti su fflate/nodemailer. Prossimo: commit/push selettivo gia autorizzato, CI/Netlify e prova1.pdf online senza inviare pratica/OTP.
 
 ## Conteggio Netto Luce & Gas: riepilogo esiti pronto 26/10
 

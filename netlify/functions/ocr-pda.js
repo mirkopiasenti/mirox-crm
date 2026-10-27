@@ -28,6 +28,7 @@ const Pda = require('../../js/vendita-pda-core');
 const Busboy = require('busboy');
 const Anthropic = require('@anthropic-ai/sdk').default;
 const { requireAuth } = require('./_lib/require-auth');
+const { readPdfFields } = require('./_lib/pda-pdf-text');
 
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -304,6 +305,9 @@ exports.handler = async (event) => {
 
     const client = new Anthropic({ apiKey });
     const pdfBase64 = file.buffer.toString('base64');
+    // Legge tutte le pagine rispettando le coordinate: numeri SIM/MNP mai presi dal contatto firma.
+    // Un PDF solo immagine o non estraibile continua a usare la lettura AI.
+    const pdfFields = await readPdfFields(file.buffer).catch(() => ({}));
 
     const completion = await client.messages.create({
       model: MODEL,
@@ -325,17 +329,17 @@ exports.handler = async (event) => {
 
     const textBlock = completion.content?.find((b) => b.type === 'text');
     const rawText = (textBlock?.text || '').trim();
-    if (!rawText) return response(200, { success: true, data: emptyResult() });
+    if (!rawText) return response(200, { success: true, data: normalizeResult(pdfFields) });
 
     // Estrai il primo oggetto JSON dal testo (Claude tende a rispondere solo con JSON ma a volte aggiunge testo)
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return response(200, { success: true, data: emptyResult() });
+    if (!jsonMatch) return response(200, { success: true, data: normalizeResult(pdfFields) });
 
     let parsed;
     try { parsed = JSON.parse(jsonMatch[0]); }
-    catch (_) { return response(200, { success: true, data: emptyResult() }); }
+    catch (_) { return response(200, { success: true, data: normalizeResult(pdfFields) }); }
 
-    return response(200, { success: true, data: normalizeResult(parsed) });
+    return response(200, { success: true, data: normalizeResult({ ...parsed, ...pdfFields }) });
   } catch (error) {
     console.error('ocr-pda error:', error);
     const classification = classifyAnthropicError(error);
