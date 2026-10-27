@@ -63,6 +63,25 @@ nel controllo duplicati. Manuale ed editor post-vendita mantengono il codice
 visibile. Se AI non legge il codice, blocco con invito a riprovare o scegliere
 il manuale esplicitamente, senza aprire il popup codice nel percorso AI.
 
+Opzioni Mobile e rivenditore27/10: `MiroxPda.mobileOptionId` preseleziona
+Nessuna opzione senza portabilita; con MNP sceglie la voce per Iliad/Coop/Poste/
+Tiscali (alias Iliad Italia, CoopVoce, PosteMobile/PostePay) oppure MNP standard
+per gli altri gestori. Usa catalogo attivo e soli collegamenti dell'offerta;
+nessuna voce inventata o scelta arbitraria se ambigua/non disponibile. Senza
+gestore o portabilita determinabili resta da scegliere. Campo Opzione visibile
+come prima e modificabile: la correzione dell'operatore prevale fino a nuova
+lettura/PDA, si conserva nel carrello/draft e al cambio offerta se ancora ammessa.
+Metadato client `pda_opzione_manuale`, escluso dal payload DB; vecchie scelte
+senza metadato si conservano. Punteggi e documenti dipendono dalla voce scelta,
+sempre tramite il catalogo esistente; nessuna modifica dei punteggi di catalogo.
+Codice rivenditore nascosto per tutte le categorie upload e fissato9001415852
+(Legnago), anche nel backend create e nei restore/cart/payload: OCR, input
+precedenti o client vecchi non possono cambiare il negozio del nuovo inserimento.
+Storico e correzioni post-vendita invariati; nessuna migration o backfill.
+Su istruzione del proprietario27/10: non usare il browser per i collaudi;
+assistente esegue soltanto test interni/debug e controlli HTTP/CI. Test UI a cura
+del proprietario fino a nuova indicazione.
+
 ## Compilatore Subentri (18/10/2026)
 
 Nuova Applicazione `moduli/compilatore_subentri.html`: scelta Mobile/Fisso (Fisso
@@ -532,10 +551,9 @@ Quando l'utente carica un PDA + sceglie "Analizza con AI", i dati estratti dall'
 ### Codice rivenditore (dal 2026-07-18, migration `050`)
 Ogni contratto è etichettato col punto vendita di **inserimento**: `9001415852` = Legnago (negozio principale, dove gira Mirox), `9000822241` = Cerea (piccolo negozio, senza gestionale locale). Un contratto acquisito a Legnago può poi essere spostato amministrativamente su Cerea, ma resta contabilizzato al negozio di **inserimento**.
 
-- Campo obbligatorio nello step 3 del wizard `moduli/upload-contratti-vendita.html` (dropdown 2 valori, **default Legnago preselezionato**). Sempre visibile per tutte le categorie
-- `collectContractDraft()` salva il valore nel carrello e `buildInvioPayload()` deve propagarlo esplicitamente al backend; non rimuovere questo pass-through, altrimenti ogni contratto Cerea ricade sul default Legnago
-- Auto-compilato dall'**OCR PDA** (`ocr-pda.js`): l'OCR estrae il "Codice POS" WindTre e ritorna `codice_rivenditore` con uno dei 2 valori esatti (`null` se il codice trovato non è fra i due). Il client sovrascrive il default se estratto valido. Vale per PDA Mobile/Customer Base/Fisso — per le categorie senza PDA (Energia/Allarmi/Assicurazioni) l'operatore sceglie manualmente
-- Backend `crea-vendita-pratica-carrello.js` valida enum + default Legnago se assente, poi INSERT su `vendita_contratti.codice_rivenditore`
+- Dal27/10 su richiesta proprietario, campo nascosto e fisso9001415852 per tutte le nuove pratiche, senza variazioni da OCR o input precedenti
+- Carrello, draft e payload conservano il valore Legnago; il backend create lo forza anche per client/bozze precedenti. Nessuna riscrittura dei contratti storici
+- OCR puo' ancora leggere il Codice POS dal documento, ma tale dato non cambia il rivenditore del nuovo inserimento
 - **Editabile in Verifica Contratti** (tab "Da Verificare", sezione "Inserimento pratica" accanto a Data upload + Operatore). Read-only nella tab "Verificati"
 - **Dashboard Pezzi** (`moduli/dashboard_pezzi.html`, costante `CODICE_LEGNAGO`):
   - **Day by Day** → filtro `.codice_rivenditore === '9001415852'` sui contratti caricati (Cerea escluso)

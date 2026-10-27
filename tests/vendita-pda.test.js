@@ -153,24 +153,24 @@ function pdaWizardFixture({ completed = false, duplicate = false, manual = false
   const runtimeState={anagraficaCompleted:completed,pdaRevision:1,processingPda:false,editingTempId:null};
   const calls=[]; let contact='3350000000', form;
   const refs={filePda:{files:[{}]},btnPdaAnalyzeAi:{},btnPdaSkipAi:{},codiceRivenditore:{},cfPiva:{value:'RSSMRA80A01H501U'}};
-  const response={...mobile,cellulare:'3359999999',codice_contratto:'NEW',cf_piva:differentClient?'VRDLGI80A01H501U':null};
+  const response={...mobile,cellulare:'3359999999',codice_contratto:'NEW',cf_piva:differentClient?'VRDLGI80A01H501U':null,codice_rivenditore:'9000822241'};
   if(incomplete)response.numero_telefono=null;
   if(missingCode)response.codice_contratto=null;
   const ctx={runtimeState,refs,window:{MiroxPda:Pda,MiroxPdaUI:{
     async askCode(){calls.push('ask-code');return 'MANUAL';},
     async askContact(){calls.push('ask-contact');return '3351234567';},
     async checkCode(code){calls.push('check:'+code);return !duplicate;}
-  },MiroxUI:{async alert(){calls.push('alert');}}},state:{cart:{contratti:[]}},CODICI_RIVENDITORE:[],
+  },MiroxUI:{async alert(){calls.push('alert');}}},state:{cart:{contratti:[]}},CODICE_RIVENDITORE_DEFAULT:'9001415852',
     normalizeCfPiva:v=>String(v||'').trim().toUpperCase(),getCategoriaName:()=> 'Mobile',isCategory:(a,b)=>a===b,showLoadingOverlay(){},hideLoadingOverlay(){},
     async chiamaOcr(){calls.push('ocr');if(ocrFailure)throw new Error('OCR non disponibile');if(stale)runtimeState.pdaRevision++;return response;},
     async uploadPdaStaging(){calls.push('upload');return {storage_path:'temp/test.pdf'};},
     applyOcrToAnagrafica(data){calls.push('anagrafica');contact=data.cellulare;},
     renderPdaFields(data){form=data;},goToStep(step){calls.push('step:'+step);},queueDraftSave(){},showUserError(msg){throw new Error(msg);}};
   vm.runInNewContext(source.slice(start,end)+'\nthis.processPda=processPda;',ctx);
-  return {async run(){await ctx.processPda(!manual);},calls,runtimeState,get contact(){return contact;},get form(){return form;}};
+  return {async run(){await ctx.processPda(!manual);},calls,runtimeState,get contact(){return contact;},get form(){return form;},get dealer(){return refs.codiceRivenditore.value;}};
 }
 test('wizard multi-contratto analizza ogni PDA preservando il contatto della prima pratica',async()=>{
-  const first=pdaWizardFixture();await first.run();assert.equal(first.contact,'3359999999');assert.ok(first.calls.includes('step:2'));
+  const first=pdaWizardFixture();await first.run();assert.equal(first.contact,'3359999999');assert.equal(first.dealer,'9001415852');assert.ok(first.calls.includes('step:2'));
   const second=pdaWizardFixture({completed:true});await second.run();assert.equal(second.contact,'3350000000');
   assert.ok(second.calls.includes('ocr'));assert.ok(second.calls.includes('step:3'));assert.equal(second.form.codice_contratto,'NEW');assert.equal(second.form.pda_lettura,'ai');
   assert.ok(!second.calls.includes('ask-contact'));assert.ok(!second.calls.includes('anagrafica'));
@@ -396,7 +396,7 @@ test('payload server conserva i valori PDA nascosti senza inviare metadati UI',(
   const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
   const a=source.indexOf(' function buildInvioPayload()'),b=source.indexOf(' async function inviaPratica()',a);
   const item={...Pda.validate({...mobile,portabilita:true,numero_telefono:'3491234567',numero_mnp:'3491234567',numero_provvisorio:'3931234567',operatore_provenienza:'Vodafone'},'Mobile'),
-    pda_lettura:'ai',categoria_nome:'Mobile',categoria_id:'cat',offerta_id:'offer',flags:{},files:{},codice_rivenditore:'9001415852'};
+    pda_lettura:'ai',categoria_nome:'Mobile',categoria_id:'cat',offerta_id:'offer',flags:{},files:{},codice_rivenditore:'9000822241'};
   const state={cart:{contratti:[item]}},cliente={cf_piva:'RSSMRA80A01H501U'};
   const ctx={window:{MiroxPda:Pda},state,getClienteFormData:()=>cliente,validateClienteData(){},
     praticaFiles:{documento_identita:[{}]},runtimeState:{},refs:{originePratica:{value:'spontaneo'},operatoreId:{value:'operator'}},
@@ -404,5 +404,5 @@ test('payload server conserva i valori PDA nascosti senza inviare metadati UI',(
   vm.runInNewContext(source.slice(a,b)+';this.payload=buildInvioPayload;',ctx);
   const saved=ctx.payload().contratti[0];
   for(const key of Pda.FIELDS)assert.equal(saved[key],item[key],key);
-  assert.equal(saved.pda_lettura,undefined);
+  assert.equal(saved.pda_lettura,undefined);assert.equal(saved.codice_rivenditore,'9001415852');
 });

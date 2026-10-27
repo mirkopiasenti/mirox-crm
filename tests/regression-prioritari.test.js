@@ -134,7 +134,7 @@ test('Protecta non salva preventivi senza PDF archiviato', () => {
   );
 });
 
-test('normalizzazione contratto conserva Cerea e reinserimento', () => {
+test('nuovi contratti fissano Legnago conservando il reinserimento', () => {
   const normalized = carrelloModule._test.normalizeContractInput({
     categoria_id: 'categoria-1',
     offerta_id: 'offerta-1',
@@ -143,7 +143,7 @@ test('normalizzazione contratto conserva Cerea e reinserimento', () => {
     reinserimento_di_contratto_id: '11111111-1111-4111-8111-111111111111'
   }, 0);
 
-  assert.equal(normalized.codice_rivenditore, '9000822241');
+  assert.equal(normalized.codice_rivenditore, '9001415852');
   assert.equal(normalized.stato_inserimento, 'reinserimento');
   assert.equal(
     normalized.reinserimento_di_contratto_id,
@@ -645,7 +645,7 @@ test('wizard propaga codice rivenditore e usa finalize/rollback compensativo', (
     html.indexOf("refs.cluster.addEventListener('change'")
   );
 
-  assert.match(payloadBlock, /codice_rivenditore:\s*CODICI_RIVENDITORE\.includes/);
+  assert.match(payloadBlock, /codice_rivenditore:\s*CODICE_RIVENDITORE_DEFAULT/);
   assert.match(payloadBlock, /stato_inserimento:\s*item\.stato_inserimento/);
   assert.match(payloadBlock, /reinserimento_di_contratto_id:\s*item\.reinserimento_di_contratto_id/);
   assert.match(submitBlock, /action:\s*'finalize'/);

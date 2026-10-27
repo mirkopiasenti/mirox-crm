@@ -200,3 +200,38 @@ Verifiche esistenti aggiornate per le tre categorie, codice nascosto ma conserva
 riepilogo AI senza codice e codice AI mancante senza popup o staging.
 Suite completa352/352locale (351versionati+1backup) e build OK.
 Pubblicazione e verifiche finali nel promemoria; backup/Guardian esclusi.
+
+## Opzioni Mobile automatiche e rivenditore fisso
+
+Opzioni Mobile e rivenditore27/10: `MiroxPda.mobileOptionId` preseleziona
+Nessuna opzione senza portabilita; con MNP sceglie la voce per Iliad/Coop/Poste/
+Tiscali (alias Iliad Italia, CoopVoce, PosteMobile/PostePay) oppure MNP standard
+per gli altri gestori. Usa catalogo attivo e soli collegamenti dell'offerta;
+nessuna voce inventata o scelta arbitraria se ambigua/non disponibile. Senza
+gestore o portabilita determinabili resta da scegliere. Campo Opzione visibile
+come prima e modificabile: la correzione dell'operatore prevale fino a nuova
+lettura/PDA, si conserva nel carrello/draft e al cambio offerta se ancora ammessa.
+Metadato client `pda_opzione_manuale`, escluso dal payload DB; vecchie scelte
+senza metadato si conservano. Punteggi e documenti dipendono dalla voce scelta,
+sempre tramite il catalogo esistente; nessuna modifica dei punteggi di catalogo.
+Codice rivenditore nascosto per tutte le categorie upload e fissato9001415852
+(Legnago), anche nel backend create e nei restore/cart/payload: OCR, input
+precedenti o client vecchi non possono cambiare il negozio del nuovo inserimento.
+Storico e correzioni post-vendita invariati; nessuna migration o backfill.
+Su istruzione del proprietario27/10: non usare il browser per i collaudi;
+assistente esegue soltanto test interni/debug e controlli HTTP/CI. Test UI a cura
+del proprietario fino a nuova indicazione.
+
+Ricognizione catalogo production in sola lettura: tre voci e collegamenti
+Consumer/Business confermati; offerte senza collegamenti restano senza opzione.
+Test interni su varianti gestori, standard/nuovo numero, campi mancanti, voci
+ambigue/non collegate, override persistito/reset, invio rivenditore canonico e
+normalizzazione server. Fixture Customer Base adattata al nuovo helper senza
+variazioni della sua logica. Prove UI preliminari svolte prima dell'istruzione
+stop browser; da quella istruzione nessun ulteriore accesso al browser, fixture
+locale arrestata. Collaudo finale UI lasciato al proprietario.
+Guide aggiornate; esito suite/CI/deploy nel promemoria. Backup/Guardian esclusi.
+
+Suite finale356/356locale (355versionati+1backup) e build riuscite. Nessuna
+modifica a schema/catalogo/storico; nuova preselezione non sostituisce le scelte
+manuali e il backend continua a validare legami/punteggi dal catalogo.

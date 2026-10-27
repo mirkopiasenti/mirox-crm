@@ -259,17 +259,8 @@ function normalizeContractInput(contract, index) {
     // normalizzazione, altrimenti il backend ricade sempre su "inserimento".
     stato_inserimento: cleanString(contract?.stato_inserimento) || 'inserimento',
     reinserimento_di_contratto_id: cleanString(contract?.reinserimento_di_contratto_id) || null,
-    // Codice Rivenditore (migration 050): punto vendita di inserimento.
-    // Default '9001415852' (Legnago) se assente. CHECK enum a DB.
-    codice_rivenditore: (() => {
-      const raw = cleanString(contract?.codice_rivenditore);
-      if (!raw) return '9001415852';
-      const allowed = ['9001415852', '9000822241'];
-      if (!allowed.includes(raw)) {
-        throw new Error(`Codice rivenditore non valido per contratti[${index}]: ammessi ${allowed.join(', ')}`);
-      }
-      return raw;
-    })(),
+    // Regola nuovi inserimenti27/10: Legnago fisso, anche per client/bozze precedenti.
+    codice_rivenditore: '9001415852',
     // Convergenza (solo Fisso): uno degli 8 valori ammessi. null per altre categorie o se non fornita.
     // Vedi migration 017 (introduzione) + 048 (aggiunta "Seconda Casa") + CHECK constraint a DB.
     convergenza: (() => {

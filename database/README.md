@@ -52,6 +52,11 @@ migration, riscrittura o modifica allo storico/CC/anagrafica.
 Codice nascosto nel wizard/carrello AI: stessa validazione, payload, colonna e
 UNIQUE; nessuna modifica DB o storico. Manuale e consultazione restano visibili.
 
+Opzioni Mobile27/10: preselezione dal catalogo esistente, senza scritture di
+catalogo/collegamenti/punteggi. Codice rivenditore dei nuovi create fissato lato
+server a9001415852 (anche con input precedente Cerea); CHECK DB e storico invariati.
+Nessuna nuova colonna o migration; pda_opzione_manuale resta solo nel client.
+
 ## ⚠️ Stato del DB
 
 Fino alla `069_baseline_allineamento.sql` (2026-08-22) i file riflettono lo stato di produzione: la 069 recupera il drift accumulato dalle modifiche fatte a caldo prima del tracciamento. Le categorie di drift recuperate erano:

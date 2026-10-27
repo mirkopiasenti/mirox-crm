@@ -42,6 +42,36 @@
   function hasMobileData(input = {}) {
     return FIELDS.slice(1).some(k => input[k] !== null && input[k] !== undefined && input[k] !== '');
   }
+  function mobileOptionId(input = {}, options = [], catalogue = options) {
+    const normalizeName = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const providerKey = value => {
+      const name = normalizeName(value);
+      if (/^iliad(?: |$)/.test(name)) return 'iliad';
+      if (/^coop(?:voce| voce)?(?: |$)/.test(name)) return 'coop';
+      if (/^poste(?:mobile| mobile|pay)?(?: |$)/.test(name)) return 'poste';
+      if (/^tiscali(?: |$)/.test(name)) return 'tiscali';
+      return name;
+    };
+    const port = normalize(input).portabilita;
+    let matches = [];
+    if (port === false) matches = options.filter(o => normalizeName(o.nome_opzione) === 'nessuna opzione');
+    if (port === true) {
+      const provider = providerKey(input.operatore_provenienza);
+      if (!provider) return null;
+      matches = catalogue.filter(o => {
+        const name = String(o.nome_opzione || '');
+        if (!/^mnp da seguenti operatori\b/.test(normalizeName(name))) return false;
+        return (name.split(':')[1] || '').split(/[-,;/]/).some(label => {
+          const listed = providerKey(label);
+          return listed && (provider === listed || provider.startsWith(listed + ' '));
+        });
+      });
+      if (!matches.length) matches = options.filter(o => normalizeName(o.nome_opzione) === 'mnp');
+      else matches = matches.filter(o => options.some(allowed => allowed.id === o.id));
+    }
+    return matches.length === 1 ? matches[0].id : null;
+  }
   function validateMobileNumbers(input) {
     const out = normalize(input);
     if (out.portabilita === null) throw new Error('Seleziona nuovo numero o portabilita');
@@ -77,5 +107,5 @@
     }
     return out;
   }
-  return { FIELDS, code, phone, money, isPda, normalize, hasMobileData, validateMobileNumbers, validate };
+  return { FIELDS, code, phone, money, isPda, normalize, hasMobileData, mobileOptionId, validateMobileNumbers, validate };
 });

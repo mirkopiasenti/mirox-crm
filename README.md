@@ -166,6 +166,25 @@ nel controllo duplicati. Manuale ed editor post-vendita mantengono il codice
 visibile. Se AI non legge il codice, blocco con invito a riprovare o scegliere
 il manuale esplicitamente, senza aprire il popup codice nel percorso AI.
 
+Opzioni Mobile e rivenditore27/10: `MiroxPda.mobileOptionId` preseleziona
+Nessuna opzione senza portabilita; con MNP sceglie la voce per Iliad/Coop/Poste/
+Tiscali (alias Iliad Italia, CoopVoce, PosteMobile/PostePay) oppure MNP standard
+per gli altri gestori. Usa catalogo attivo e soli collegamenti dell'offerta;
+nessuna voce inventata o scelta arbitraria se ambigua/non disponibile. Senza
+gestore o portabilita determinabili resta da scegliere. Campo Opzione visibile
+come prima e modificabile: la correzione dell'operatore prevale fino a nuova
+lettura/PDA, si conserva nel carrello/draft e al cambio offerta se ancora ammessa.
+Metadato client `pda_opzione_manuale`, escluso dal payload DB; vecchie scelte
+senza metadato si conservano. Punteggi e documenti dipendono dalla voce scelta,
+sempre tramite il catalogo esistente; nessuna modifica dei punteggi di catalogo.
+Codice rivenditore nascosto per tutte le categorie upload e fissato9001415852
+(Legnago), anche nel backend create e nei restore/cart/payload: OCR, input
+precedenti o client vecchi non possono cambiare il negozio del nuovo inserimento.
+Storico e correzioni post-vendita invariati; nessuna migration o backfill.
+Su istruzione del proprietario27/10: non usare il browser per i collaudi;
+assistente esegue soltanto test interni/debug e controlli HTTP/CI. Test UI a cura
+del proprietario fino a nuova indicazione.
+
 ### Documento identita per contratto
 
 Il documento d'identita e obbligatorio per ogni nuovo contratto. Nel carrello viene selezionato una sola volta; sulle bozze `upload-vendita-documento` crea un allegato e un PDF indipendente per ciascuna riga, con INSERT batch e pulizia delle nuove copie su errore. `finalize` impedisce l'invio se manca l'identita anche su una sola riga. Gli upload successivi da Verifica Contratti restano specifici della riga selezionata. Lo storico dal 1 luglio 2026 viene sistemato dallo script dedicato senza sovrascrivere documenti esistenti; i casi senza sorgente richiedono un'integrazione manuale.

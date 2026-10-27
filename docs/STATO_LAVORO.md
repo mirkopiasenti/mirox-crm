@@ -3,7 +3,7 @@
 Aggiornato: 2026-10-27. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## Upload PDA: codice nascosto AI27/10, pubblicazione in corso
+## Upload PDA: opzioni automatiche e rivenditore27/10, deploy in corso
 
 - Codice unico PDA obbligatorio Mobile/Fisso/CB, blocco globale/carrello/bozze e UNIQUE DB; manuale codice prima di staging, reinserimenti codice nuovo. Solo Mobile costo base e numerazioni/MNP/gestore. OTP firma prima PDA e upsert anagrafica, editor utenti attivi su Verifica/Storico/Controllo Fissi. Turista conserva defaults con step3 dati PDA. Nessun recupero storico.
 - Migration20261027110402 applicata/riletta:7campi nullable/CHECK/UNIQUE/trigger INVOKER vendita/Fisso. Test transazionali INSERT/UNIQUE/MNP/sync con ROLLBACK, nessuna riga test conservata. Nessun cambio CC/RLS/RPC/schema anagrafica; advisor nessun nuovo rilievo PDA.
@@ -13,7 +13,10 @@ istruzioni dell'utente e guide di progetto restano vincolanti.
 - Pubblicato3406c382affd774ff05184fc100bc474e3185c46, CI40514930168 Node22 riuscita, Netlify6ae0ab0b9b0e655930c32ce9/SHA3406c38 online. Build+352/352test locali (351versionati+1backup),6nuove regressioni PDF sintetico multipagina/handler con AI che omette numero.5Mobile precedenti+1.pdf recuperate esatte, altre4PDA senza errori; nuovo pacchetto senza rilievi npm audit, due preesistenti fflate/nodemailer non modificati.
 - Prova reale online sullo stesso1.pdf riuscita: step anagrafica/contratto e popup costo vuoto raggiunti, SIM esatta, contatto firma distinto, codice corretto e campi AI nascosti. Nessuna pratica/OTP inviata; bozza browser azzerata e sola copia temp test eliminata per hash/dimensione,150preesistenti preservate. Guide/lock/rapporto docs/UPLOAD_PDA_2026-10-27.md aggiornati, backup/Guardian esclusi. Prossimo: ricaricare il wizard e riprovare1.pdf; recupero storico sempre fase successiva autorizzata.
 
-- Ultima richiesta: anche codice contratto nascosto nel wizard/riepilogo AI per Mobile/Fisso/CB, conservato in draft/payload/DB e controllo duplicati; manuale/editor invariati. AI senza codice blocca con invito AI/manuale, senza popup codice automatico.352test locali/build OK, regressioni esistenti aggiornate; nessun cambio DB. Guide e rapporto aggiornati, prossimo push/CI/SHA nel deploy gia autorizzato.
+- Ultima richiesta: anche codice contratto nascosto nel wizard/riepilogo AI per Mobile/Fisso/CB, conservato in draft/payload/DB e controllo duplicati; manuale/editor invariati. AI senza codice blocca con invito AI/manuale, senza popup codice automatico.352test locali/build OK, regressioni esistenti aggiornate; nessun cambio DB. Guide e rapporto aggiornati. Pubblicato48eaa3b28059d802d1696f9da36a41406e83b5fe, CI40518754524 riuscita, Netlify6ae0b113dfe141241034063f/SHA48eaa3b verificati; UI condivisa e script wizard identici online. Prossimo: ricaricare Upload Contratti.
+
+- Nuova richiesta: opzioni Mobile automatiche da portabilita/gestore (Nessuna, MNP Iliad/Coop/Poste/Tiscali, MNP standard), visibili/modificabili con override persistito in draft/cart; catalogo e collegamenti riletti senza scritture. Rivenditore nascosto su tutte le categorie e fisso9001415852 anche nel backend create/restore/payload. Storico e editor post-vendita invariati. Suite356/356locale (355versionati+1backup) e build OK; test matching/override, OCR Cerea ignorato, payload e backend Legnago. Prossimo push/CI/SHA via HTTP nel deploy autorizzato.
+- Preferenza esplicita proprietario: NON USARE PIU IL BROWSER. Solo test interni/debug e verifica HTTP/CI; test dell'interfaccia a cura del proprietario. Nessun ulteriore uso dopo stop; fixture locale arrestata. Guide e rapporto aggiornati; backup/Guardian preservati.
 
 ## Conteggio Netto Luce & Gas: riepilogo esiti pronto 26/10
 
