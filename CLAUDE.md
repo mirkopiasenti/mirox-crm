@@ -21,6 +21,16 @@ Correzione elenchi27/10: vendita_pratiche non restituisce righe al browser per R
 Nessun inner join/filtro pratica negli elenchi; idoneità inviata verificata backend.
 Polling non sostituisce caricamenti/errori con liste vuote. Nessun cambio RLS.
 
+Preparazione locale per28/10: storico al controllo manuale del proprietario,
+nuovi contratti in collaudo diurno uno alla volta. Lettura tool a schema con
+evidenze anche per booleani, un secondo tentativo sul formato errato, testo
+digitale del medesimo PDF numerato per pagina + PDF integro per scansioni/visione.
+Cache versionata; polling dettaglio aggiornato anche dopo focus sul pulsante,
+data in modifica preservata. Nessuna dipendenza/env/migration; correzioni ancora
+da pubblicare su richiesta. Nessuna nuova lettura AI cliente o email avviata.
+Ultima modalità confermata collaudo; rilettura live successiva SQL/REST fallita
+per timeout, non equivale a nuova conferma configurazione né prova di guasto CRM.
+
 ## Upload PDA: codice univoco e dati Mobile (27/10/2026, online)
 
 Codice contratto obbligatorio Mobile/Fisso/Customer Base; codice cliente escluso.

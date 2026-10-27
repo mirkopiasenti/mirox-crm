@@ -95,6 +95,112 @@ non viene unificato il caricamento fisico fra i due moduli.
 
 ## Modalità e collaudo
 
+### Preparazione del 28/10: nuovi contratti, prove durante il giorno
+
+Il proprietario verificherà manualmente i contratti già presenti. Nessuna nuova
+analisi massiva dello storico. Il28/10 proveremo insieme i contratti inseriti
+da quel giorno, uno alla volta, mantenendo **Collaudo assistito**. Il pulsante
+Collauda questo contratto accoda subito la prova anche prima delle21; non modifica
+il contratto, non applica i dati proposti, non invia email e non abilita il turno
+automatico. Il controllo manuale finale resta disponibile in questa modalità.
+Scansioni alla migliore qualità disponibile nel CRM; copia WindTre separata,
+la cui generazione automatica non fa parte di questa preparazione.
+
+Correzioni locali preparate il27/10, ancora da pubblicare esplicitamente:
+
+- Lettura tramite tool forzato `trascrivi_documento`, schema per tipo allegato e
+  validazione server di tutti i campi. Anche i booleani, incluso false, richiedono
+  valore/pagina/citazione; campi incerti null. Un solo secondo tentativo su
+  formato errato; se ancora errato resta errore tecnico, senza inventare evidenze.
+- Testo digitale del medesimo PDF ricostruito per coordinate e fornito con numeri
+  pagina; PDF originale inviato comunque integro per la lettura visiva delle
+  scansioni e delle pagine ibride. Nessun dato atteso CRM fornito come suggerimento.
+  Testo limitato a60pagine/100mila elementi/120mila caratteri/20mila per pagina/5s;
+  se assente, eccessivo o non estraibile il lettore usa comunque il PDF visuale.
+- Cache con versione lettore esplicita oltre a modello/prompt e SHA256 dei byte.
+  Modello Haiku4.5 e chiavi esistenti conservati, senza dipendenze o env nuove.
+- Il dettaglio aggiorna l'esito dopo il clic senza dover chiudere e riaprire il
+  popup. Il polling preserva il campo data firma mentre è in modifica.
+
+Verifiche locali:426test (425versionati + test Backup preesistente),46mirati
+sul modulo, harness PostgreSQL isolato OK. Prove: booleano false, risposte
+malformate/duplicate/incomplete, pagina/evidenza, PDF testuale/ibrido/senza testo,
+collaudo prima del turno, cron senza backlog/email e polling con focus.
+Non attestano l'accuratezza OCR dei futuri documenti: nel primo fascicolo del28/10
+controllare intestazione, data firma, identità/scadenza e SIM o bolletta/CSV.
+Qualsiasi lettura ambigua o discordante deve restare da verificare.
+
+Controllo live: sito Netlify ancora67e6de4/6ae0e6e182920c23340fd5cf; progetto
+Supabase dichiarato ACTIVE_HEALTHY e gateway pubblico raggiungibile, ma letture
+SQL/REST autorizzate in timeout, connessione diretta con errore risoluzione host.
+Nessuna configurazione modificata; ultima modalità confermata collaudo, da
+riconfermare prima del test. Non dedurre da questi limiti diagnostici un guasto
+applicativo o una nuova conferma dello stato dati. Nessuna analisi cliente,
+email o approvazione eseguita in questo intervento. Nessun browser usato.
+
+### Primo collaudo reale: storico e scansioni (27/10/2026)
+
+Diagnostica successiva al rilascio, non miglioramenti già implementati. Il primo
+collaudo reale resta `da_verificare`; configurazione confermata `collaudo`.
+La pratica esaminata risale al 26/10 e ha i nuovi campi PDA vuoti, ma PDA,
+identità e contratto firmato sono tutti correttamente collegati al contratto.
+Non attribuire quindi questo caso a documenti scollegati o automaticamente
+estendere il recupero ad altri contratti della stessa pratica.
+
+La PDA originale contiene testo digitale estraibile; identità e contratto firmato
+sono scansioni senza testo, immagini CCITT 1656x2339 su foglio A4. Il documento
+d'identità occupa solo parte del foglio. Ispezione PDF locale con skill PDF,
+nessun browser; copie e anteprime esclusivamente in `.backup-private/`.
+Il numero di byte del file da solo non misura la leggibilità.
+
+Difetto distinto dalla qualità: il lettore ha restituito `portabilita:false`
+come booleano diretto, invece dell'oggetto con valore/pagina/evidenza richiesto;
+il motore lo scarta e segnala dato non leggibile. Le altre letture riportano
+discordanze fiscali/anagrafiche fra fonti: non sono automaticamente documenti
+sbagliati, né prove che tutti i dati siano materialmente irrecuperabili.
+
+Prossimo intervento: compatibilità dei dati storici senza presumere campi nuovi
+già compilati; estrazione del testo PDA con pagina/sezione/evidenza; lettura delle
+scansioni per regioni utili (fronte/retro, anagrafica, codici, data, seriale),
+validazione dello schema e secondo tentativo mirato su letture incerte o
+discordanti. Confrontare gli esiti con il proprietario prima di attivare il turno
+automatico. Nessuna normalizzazione deve inventare pagina/evidenza a un booleano.
+Separare nei messaggi dato storico assente, lettura incerta e discordanza provata.
+Ingrandimenti/contrasto/rotazioni non ricostruiscono cifre realmente perse;
+evitare ricostruzione generativa di documenti e approvazioni basate sui dati CRM
+come suggerimento al lettore. Un eventuale modello più capace va misurato sui
+medesimi campioni, non considerato risolutivo a priori.
+
+Confermato dal proprietario: è possibile conservare nel CRM l'originale migliore
+e inviare a WindTre una copia compressa. L'helper browser inoltra il File senza
+conversione e la function upload salva `file.buffer` senza ricompressione; il
+percorso attuale consente quindi di conservare il PDF ricevuto con la sua qualità.
+Per le nuove acquisizioni la fonte della verifica sarà l'originale; la copia
+WindTre dovrà essere derivata separatamente senza sovrascriverlo. La generazione
+automatica e la gestione di due versioni non sono ancora sviluppate. Restano da
+conoscere peso massimo e impostazioni accettate da WindTre prima di definire la
+trasformazione; nessuna compressione arbitraria introdotta. Lo storico continua
+ad avere soltanto le fonti già disponibili, salvo integrazione dell'originale.
+Nessun cambio codice, schema, modalità o deploy eseguito durante questa diagnosi.
+
+Approfondimento successivo su possibile perdita qualità nell'upload: ispezionati
+selezione/anteprima (`URL.createObjectURL(file)` in iframe), helper FormData,
+parser multipart, upload ordinario/staging, fanout identità, promozione PDA
+(`storage.move`) e apertura/download tramite signed URL senza trasformazioni.
+Anche la versione upload precedente al 27/10 (7c5afef) inoltra il buffer originale.
+Prova locale con helper reale, Request/FormData e handler reale, auth/DB/Storage
+simulati senza rete: i tre PDF del fascicolo, sia ordinario sia staging, arrivano
+all'interfaccia Storage identici byte per byte (sei confronti SHA256 riusciti).
+Non è un upload/download production né il confronto con il file sul PC prima
+del caricamento storico: per escludere una differenza in quel caso serve tale
+originale esatto, da confrontare con il download del medesimo allegato.
+Il codice esaminato non applica ricompressione/rasterizzazione del file salvato.
+L'anteprima locale usata nella diagnosi era renderizzata a lato massimo 1800px;
+non rappresenta tutti i pixel della scansione 1656x2339. Il fornitore AI rasterizza
+inoltre i PDF per l'analisi, con risoluzione gestita dal fornitore: eventuali
+limiti di questa lettura non dimostrano una modifica dell'originale nel CRM.
+Evitare di attribuire automaticamente ogni errore OCR alla qualità della fonte.
+
 Configurazione singleton `vendita_verifica_config.modalita`:
 
 - `collaudo` (default): analisi di una pratica selezionata dall'admin, nessuna

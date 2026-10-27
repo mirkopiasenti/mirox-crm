@@ -211,10 +211,12 @@ test('email distingue destinatari, escape contenuti e nessun invio WhatsApp', ()
   assert.ok(mail.html.includes('contratto_id=' + ID));
   assert.ok(Worker.email({ ...job, tipo: 'reload', destinatario: 'info@konatech.it' }).html.includes('ricorda di scrivere'));
 });
-test('lettura AI incompleta o JSON non valido non produce un esito', async () => {
-  const client = stop_reason => ({ messages: { create: async () => ({ stop_reason, content: [{ type: 'text', text: '{"fields":{}}' }] }) } });
-  await assert.rejects(Docs.extractDocument({ id: 'x' }, Buffer.from('pdf'), { client: client('max_tokens') }), /incompleta/);
-  const result = await Docs.extractDocument({ id: 'x' }, Buffer.from('pdf'), { client: client('end_turn') });
+test('lettura AI incompleta o risposta fuori schema non produce un esito', async () => {
+  const doc = { id: 'x', tipo_documento: 'copia_sim_mnp', pages: 1 };
+  const client = stop_reason => ({ messages: { create: async () => ({ stop_reason, content: [{ type: 'tool_use', name: 'trascrivi_documento', input: { fields: { iccid: null } } }] }) } });
+  await assert.rejects(Docs.extractDocument(doc, Buffer.from('pdf'), { client: client('max_tokens'), pdfText: async () => '' }), /incompleta/);
+  await assert.rejects(Docs.extractDocument(doc, Buffer.from('pdf'), { client: client('end_turn'), pdfText: async () => '' }), /non_valida/);
+  const result = await Docs.extractDocument(doc, Buffer.from('pdf'), { client: client('tool_use'), pdfText: async () => '' });
   assert.equal(result.id, 'x');
 });
 test('worker scarta un esito se il CSV cambia prima del commit', async () => {

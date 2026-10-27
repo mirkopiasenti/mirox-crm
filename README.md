@@ -38,6 +38,18 @@ Correzione27/10: gli elenchi leggono contratti e anagrafica senza join browser
 a vendita_pratiche, protetta da RLS server-only. Il controllo pratica inviata
 resta nel backend del verificatore. Il polling conserva caricamenti/errori.
 
+Preparazione locale del collaudo diurno **28/10**: i contratti già presenti
+saranno verificati manualmente dal proprietario; prove una alla volta sui nuovi
+inserimenti, con scansioni migliori. Lettore aggiornato con trascrizione tramite
+tool a schema, pagina/citazione anche per booleani, un solo secondo tentativo
+su formato errato e testo digitale dello stesso PDF numerato per pagina.
+I PDF scansionati restano letti visivamente e vengono inviati integri al servizio.
+Esito nel dettaglio aggiornato anche se il pulsante conserva il focus, senza
+perdere la data firma in modifica. Nessuna nuova dipendenza, env o migration.
+Queste correzioni richiedono ancora pubblicazione esplicita; qualità della lettura
+reale da misurare insieme. Ultima modalità confermata collaudo; nel controllo
+successivo letture live SQL/REST in timeout, configurazione non riconfermata.
+
 ## Struttura cartelle
 
 | Cartella / File | Cosa contiene |

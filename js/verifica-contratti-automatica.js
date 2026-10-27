@@ -75,7 +75,8 @@
         if (!document.getElementById('vcAutoFiltro') || state.panelVersion !== panelVersion) panel();
         window.renderListaContratti?.('daVerificare'); window.renderListaContratti?.('verificati');
         const section = window.__currentVerificaModal?.body?.querySelector('.vc-auto-result');
-        if (section && !section.contains(document.activeElement) && window.__currentVerificaContratto) {
+        const editingDate = section?.contains(document.activeElement) && document.activeElement?.matches('input[data-vc-date]');
+        if (section && !editingDate && window.__currentVerificaContratto) {
           section.outerHTML = details(window.__currentVerificaContratto);
         }
       } catch { if (!state.ready) panel(); }

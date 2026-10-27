@@ -35,6 +35,14 @@ zero pratiche e zero risultati con inner join (RLS pratiche senza SELECT).
 Correzione solo frontend, query senza join pratica e guardia caricamenti; nessuna
 nuova migration/policy/grant o modifica dati.31da_controllare/2689controllati presenti.
 
+Preparazione locale collaudo diurno28/10: nessuna modifica schema, trigger,
+permessi o dati production. Lettore tool a schema + testo PDF per pagina, cache
+con versione lettore esplicita oltre a modello/prompt/hash byte. I collaudi
+restano senza patch contratto o notifiche; storico affidato al proprietario.
+SQL isolato riconferma grant/claim/CAS/rollback e assenza effetti del collaudo.
+Letture live SQL/REST successive al primo collaudo in timeout: configurazione
+attuale non riconfermata, ultima letta collaudo; nessun tentativo di attivazione.
+
 ## Identificazione PDA e dati Mobile (27/10/2026, migration applicata)
 
 `20261027110402_vendita_codice_pda_mobile.sql` applicata in produzione27/10
