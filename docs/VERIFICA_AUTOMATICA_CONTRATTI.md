@@ -19,11 +19,13 @@ AI esplicitamente discordanti restano bloccanti. Gli altri tipi non cambiano.
 
 Nuovo `readPdfData` nel parser condiviso espone campi, pagine e completezza dal
 medesimo PDF; `readPdfFields` conserva il comportamento upload preesistente.
-Cache con nuova versione, nessuna migration/env o dipendenza. Pubblicazione
-autorizzata, deploy da verificare. Rivalutazione locale del caso con PDF reale e precedente
+Cache con nuova versione, nessuna migration/env o dipendenza. Pubblicata con
+`a609019`, CI `40704725248` riuscita e Netlify `6ae204566efd25ade3a381f4`
+online alle15:19:45 Europe/Rome. Rivalutazione locale del caso con PDF reale e precedente
 trascrizione AI: esito conforme, zero errori; tutte le scritture intercettate,
-nessuna nuova chiamata AI. Il primo esito nel CRM rimane quello precedente
-finche non si pubblica e si ripete il collaudo. Nessuna approvazione/email.
+nessuna nuova chiamata AI. Collaudo online ripetuto dopo il deploy: esito conforme, zero errori/attese.
+Il contratto resta da_controllare e le notifiche sono zero. Modalita collaudo
+invariata. Nessuna approvazione/email.
 
 Versione sviluppata il 27/10/2026, rilascio autorizzato in modalità collaudo.
 Migration applicata e riletta a production, versione `20261027172616`.

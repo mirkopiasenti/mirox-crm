@@ -42,7 +42,7 @@ contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 
 ### Identita nell’upload e permesso di soggiorno (28/10/2026, pubblicato)
 
-Correzione del28/10, pubblicazione autorizzata: per Mobile
+Correzione pubblicata del28/10: per Mobile
 con PDA digitale completa, pagine numerate coerentemente e nessuna sezione MNP,
 il numero definitivo viene da `DATI DELLA SIM WINDTRE` e portabilita e false.
 Il lettore serale riusa il parser per coordinate dell’upload; immagini estese,
