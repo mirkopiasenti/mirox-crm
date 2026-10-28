@@ -103,6 +103,7 @@ contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |
 | `database/staging/` | Bootstrap one-shot esclusivi del Supabase staging; non applicabili a production |
 | `netlify.toml` | Config Netlify, header di sicurezza (CSP/HSTS/Permissions-Policy) e cron |
+| `js/identita-upload-core.js`, `js/identita-upload-ui.js` | Regole identita/cittadinanza/permesso e controllo anticipato nell’upload (28/10) |
 | `js/verifica-contratti-core.js`, `js/verifica-contratti-automatica.js`, `css/verifica-contratti-automatica.css` | Regole documentali pure e pannello Verifica Contratti con CSV, esiti e collaudo assistito |
 | `scripts/verifica-automatica-sql.js` | Collaudo PostgreSQL isolato della nuova coda, commit atomico e grant |
 | `netlify/functions/_lib/windtre-customer-codes.js` | Registro anagrafico dei codici cliente WindTre, append idempotente |
@@ -122,6 +123,7 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `target-worker-background` | POST background | HMAC + timestamp | Genera report/dialogo, memoria privata e consegna con checkpoint |
 | `cron-target-reports` | scheduled `*/5 * * * *` | cron Netlify | Report alle 19:45 italiane, calendario lavorativo, dedupe e risveglio coda Target |
 | `gestisci-verifica-automatica` | POST | authenticated; admin per collaudo/CSV/configurazione/notifiche | Stato del servizio, analisi assistita, riesame, data firma attestata, import CSV e modalità |
+| `verifica-identita-upload` (28/10) | POST multipart/JSON | JWT + permesso Upload Contratti | Legge identita, confronta anagrafica e firma ricevuta; conferma manuale tracciata |
 | `verifica-contratti-background` | POST background | HMAC con contesto dedicato + timestamp | Legge PDF e applica regole; commit atomico se attiva, sola valutazione se collaudo, outbox email |
 | `cron-verifica-contratti` | scheduled ogni minuto | cron Netlify | Recupera collaudi richiesti e lavori automatici dovuti alle21:00Europe/Rome o dopo integrazione; modalità iniziale collaudo |
 | `vendita-config` | GET | authenticated | Carica catalogo per il wizard contratti |
@@ -158,6 +160,27 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `verifica-otp-privacy` | POST | authenticated | Verifica OTP (max 3 tentativi), impedisce aggiornamenti concorrenti e recupera un timeout Storage con verifica SHA256, genera il PDF informativa/dichiarazione con scelta marketing ed evidenze probatorie, lo archivia e imposta `valido_fino_al = now()+24 mesi` |
 | `genera-pdf-consenso-cartaceo` | GET | authenticated | Stream del modulo cartaceo v6 precompilato: una pagina A4, monocromatico, corpo 10 pt, scelta marketing già marcata e riga firma |
 | `upload-consenso-cartaceo` | POST multipart | authenticated | Upload scansione firmata (max 20 MB, PDF); richiede l'esito ACCONSENTO/NON ACCONSENTO e crea il record `'cartaceo'` confermato |
+
+
+### Identita nell’upload e permesso di soggiorno (28/10/2026, rilascio autorizzato)
+
+Controllo anticipato del solo documento di riconoscimento, confronto con anagrafica:
+Consumer nome/CF (nascita come riscontro se CF assente), Business Nome referente
+confermato dal proprietario. Data firma esplicita, tipo e fronte/retro; esiti
+coerente/da correggere/da confermare, manuale tracciato solo per incerto.
+Cittadinanza esplicita o confermata, mai dedotta da residenza/nascita/nome:
+permesso PDF obbligatorio solo Mobile Consumer + dispositivo VAR + extra UE.
+Nuova API `verifica-identita-upload` con JWT e permesso Upload, ricevuta HMAC
+legata ad autore/dati/hash PDF, verifica server su create/upload/finalize e audit.
+Nuovi helper `js/identita-upload-core.js`, `js/identita-upload-ui.js`,
+`netlify/functions/_lib/identita-upload.js`; nessuna nuova dipendenza/env.
+Migration sorgente `20261028122800_identita_upload_permesso_soggiorno.sql`,
+applicata a production come `20261028131258`: JSONB audit in vendita_pratiche e SHA256 in vendita_documenti, nullable
+per legacy, grant/RLS/CC invariati. Nuovo tipo allegato `permesso_soggiorno`.
+Verifica serale conserva PDA/SIM/bollette/CSV e data firma effettiva; riusa identita
+solo con anagrafica e byte coincidenti. Nessun cambio modalita/email o storico.
+Guida e limiti: `docs/IDENTITA_UPLOAD_2026-10-28.md`. Rilascio autorizzato; collaudo
+scansioni reali e UI al proprietario, senza browser da parte dell’assistente.
 
 ### Professional Cloud Mobile e Fisso Business (28/10/2026)
 

@@ -1,5 +1,9 @@
 # Documento identita su ogni contratto
 
+Estensione del 28/10, rilascio autorizzato: [controllo anticipato dell’identita
+e permesso di soggiorno](IDENTITA_UPLOAD_2026-10-28.md). Mantiene le copie
+indipendenti per contratto descritte sotto e aggiunge una migration dedicata.
+
 Richiesta del proprietario, 05/10/2026: associare il documento d'identita a ogni
 riga di contratto, anche nei carrelli, e sistemare lo storico dal 1 luglio 2026.
 

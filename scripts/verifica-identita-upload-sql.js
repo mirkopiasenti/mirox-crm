@@ -1,0 +1,30 @@
+'use strict';
+// PostgreSQL in memoria, senza connessioni o dati di produzione.
+const { PGlite } = require(process.env.MIROX_PGLITE_MODULE || '@electric-sql/pglite');
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+(async () => {
+  const db = new PGlite();
+  await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;
+    CREATE TABLE public.vendita_pratiche(id integer PRIMARY KEY);
+    CREATE TABLE public.vendita_documenti(id integer PRIMARY KEY);
+    ALTER TABLE public.vendita_pratiche ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.vendita_documenti ENABLE ROW LEVEL SECURITY;
+    GRANT ALL ON public.vendita_pratiche,public.vendita_documenti TO service_role;
+    INSERT INTO public.vendita_pratiche VALUES(1); INSERT INTO public.vendita_documenti VALUES(1);`);
+  await db.exec(fs.readFileSync(path.join(__dirname, '../database/20261028122800_identita_upload_permesso_soggiorno.sql'), 'utf8'));
+  const rows = async (sql, args = []) => (await db.query(sql, args)).rows;
+  assert.equal((await rows('select identita_verifica_upload from public.vendita_pratiche'))[0].identita_verifica_upload, null);
+  assert.equal((await rows('select sha256 from public.vendita_documenti'))[0].sha256, null);
+  await db.exec('SET ROLE authenticated');
+  await assert.rejects(db.exec('select * from public.vendita_pratiche'), e => e.code === '42501');
+  await db.exec('RESET ROLE; SET ROLE service_role');
+  await db.query('UPDATE public.vendita_pratiche SET identita_verifica_upload=$1', [JSON.stringify({ version: 1, user: 'fixture', result: { stato: 'coerente' } })]);
+  for (const invalid of ['[]', '"test"', '{}', '{"version":null}', '{"version":2}']) await assert.rejects(db.query('UPDATE public.vendita_pratiche SET identita_verifica_upload=$1', [invalid]), e => e.code === '23514');
+  await db.query('UPDATE public.vendita_documenti SET sha256=$1', ['a'.repeat(64)]);
+  for (const invalid of ['a'.repeat(63), 'x'.repeat(64), 'A'.repeat(64)]) await assert.rejects(db.query('UPDATE public.vendita_documenti SET sha256=$1', [invalid]), e => e.code === '23514');
+  assert.equal((await rows('select count(*) as n from public.vendita_pratiche'))[0].n, 1);
+  console.log('OK migration identita: storico nullable, vincoli JSON/SHA, RLS e grant invariati; nessuna tabella condivisa CC coinvolta');
+  await db.close();
+})().catch(error => { console.error(error); process.exitCode = 1; });

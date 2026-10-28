@@ -85,6 +85,7 @@ test('intestatario fiscale errato, nome identità discordante o documento illegg
 });
 test('Business verifica la persona firmataria della PDA, distinta dalla società', () => {
   const f = fixture(); f.contract.cluster_cliente = 'Business'; f.customer.cf_piva = '01234567890'; f.customer.ragione_sociale = 'Società esempio';
+  f.customer.nome_referente = 'Mario Rossi';
   get(f, 'pda').fiscale = evidence('01234567890');
   get(f, 'pda').firmatario_nome = evidence('Mario Rossi'); get(f, 'pda').firmatario_fiscale = evidence('RSSMRA80A01H501U');
   assert.equal(Core.evaluate(f).esito, 'controllato');

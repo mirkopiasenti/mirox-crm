@@ -86,6 +86,7 @@
       'crea-vendita-pratica-carrello': ['upload_contratti'],
       'ocr-pda': ['upload_contratti'], 'vendita-config': ['upload_contratti'],
       'upload-vendita-documento': ['upload_contratti'],
+      'verifica-identita-upload': ['upload_contratti'],
       'richiedi-otp-privacy': ['upload_contratti'], 'verifica-otp-privacy': ['upload_contratti'],
       'upload-consenso-cartaceo': ['upload_contratti'], 'genera-pdf-consenso-cartaceo': ['upload_contratti'],
       'garantisci-anagrafica': ['upload_contratti'], 'search-anagrafica': ['upload_contratti'],

@@ -135,16 +135,20 @@ for (const failure of [null,'readback','insert']) test(`bonifica verifica i byte
   assert.deepEqual(files.get(source.storage_path), Buffer.from('%PDF-test'));
 });
 
-function finalizeFixture({ identityIds, readError = false }) {
+function finalizeFixture({ identityIds, readError = false, check = null, fileDocs = [], customer = null, contractPatch = {} }) {
   let finalized = false, ccCalls = 0;
-  const practice = { id: pratica, anagrafica_id: cliente, operatore_id: 'user', stato_pratica: 'bozza' };
+  const practice = { id: pratica, anagrafica_id: cliente, operatore_id: 'user', stato_pratica: 'bozza', identita_verifica_upload: check };
   const db = { from(table) {
-    let update = false;
-    const q = { select() { return q; }, eq() { return q; }, update() { update = true; return q; },
+    let update = false; const filters = [];
+    const q = { select() { return q; }, eq(key, value) { filters.push([key, value]); return q; }, update() { update = true; return q; },
+      async single() { return { data: customer }; },
       async maybeSingle() { if (update) finalized = true; return { data: update ? { id: pratica } : practice }; },
       then(resolve, reject) {
-        return Promise.resolve(readError ? { error: new Error('DB offline') } : { data:
-          table === 'vendita_contratti' ? contracts : identityIds.map(contratto_id => ({ contratto_id })) }).then(resolve,reject);
+        let data = table === 'vendita_contratti' ? contracts.map(c => ({ ...c, ...contractPatch })) : check ? fileDocs : identityIds.map(contratto_id => ({ contratto_id }));
+        if (check && table === 'vendita_documenti') for (const [key, value] of filters) {
+          if (key === 'tipo_documento') data = data.filter(row => row[key] === value);
+        }
+        return Promise.resolve(readError ? { error: new Error('DB offline') } : { data }).then(resolve,reject);
       }
     }; return q;
   }, async rpc() { ccCalls++; return { data: {} }; } };
@@ -154,6 +158,7 @@ function finalizeFixture({ identityIds, readError = false }) {
     process: { env: { SUPABASE_URL: 'https://test.invalid', SUPABASE_SERVICE_ROLE_KEY: 'private' } },
     require(id) {
       if (id === './_lib/windtre-customer-codes') return require('../netlify/functions/_lib/windtre-customer-codes');
+      if (id === './_lib/identita-upload') return require('../netlify/functions/_lib/identita-upload');
       if (id === './_lib/pda-contract') return require('../netlify/functions/_lib/pda-contract');
       if (id === '../../js/customer-base-device') return require('../js/customer-base-device');
       if (id === '@supabase/supabase-js') return { createClient: () => db };
@@ -164,6 +169,27 @@ function finalizeFixture({ identityIds, readError = false }) {
     } });
   return { handler: module.exports.handler, get finalized() { return finalized; }, get ccCalls() { return ccCalls; } };
 }
+
+test('finalize nuovo upload verifica hash di tutti i PDF, anagrafica e permesso Consumer VAR extra UE lato server', async () => {
+  const owner = { cf_piva: 'RSSMRA80A01H501U', cluster: 'Consumer', ragione_sociale: 'Mario Rossi' };
+  const check = { version: 1, customer: owner, result: { stato: 'coerente', cittadinanza: 'extra_ue' }, documents: [{ sha256: 'a'.repeat(64) }] };
+  const docs = contracts.flatMap(c => [{ contratto_id: c.id, tipo_documento: 'documento_identita', sha256: 'a'.repeat(64) },
+    { contratto_id: c.id, tipo_documento: 'permesso_soggiorno', sha256: 'b'.repeat(64) }]);
+  const mobile = { categoria_snapshot: 'Mobile', cluster_cliente: 'Consumer', dispositivo_associato: true, tipo_acquisto: 'VAR' };
+  for (const scenario of [
+    { status: 200 },
+    { status: 409, fileDocs: docs.filter(d => d.tipo_documento !== 'permesso_soggiorno') },
+    { status: 409, fileDocs: docs.map(d => ({ ...d, sha256: 'c'.repeat(64) })) },
+    { status: 409, customer: { ...owner, ragione_sociale: 'Altra persona' } },
+    { status: 409, check: { ...check, result: { ...check.result, cittadinanza: null } } },
+    { status: 200, contractPatch: { ...mobile, tipo_acquisto: 'Finanziamento' }, fileDocs: docs.filter(d => d.tipo_documento !== 'permesso_soggiorno') }
+  ]) {
+    const fixture = finalizeFixture({ identityIds: [], check, customer: owner, fileDocs: docs, contractPatch: mobile, ...scenario });
+    const response = await fixture.handler({ httpMethod: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'finalize', pratica_id: pratica }) });
+    assert.equal(response.statusCode, scenario.status, response.body);
+    assert.equal(fixture.finalized, scenario.status === 200); assert.equal(fixture.ccCalls, scenario.status === 200 ? 1 : 0);
+  }
+});
 
 for (const scenario of [
   { ids: [contracts[0].id], status: 409 },

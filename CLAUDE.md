@@ -8,7 +8,7 @@ Migration `20261027172616_verifica_automatica_contratti.sql` collaudata isolata,
 applicata/riletta a production27/10, versione20261027172616. Rilascio autorizzato;
 nessuna email o lettura AI dei clienti ancora eseguita, configurazione collaudo.
 Default collaudo: una pratica richiesta dall'admin, zero conferme/email.
-Identità valida alla data firma, Business sul firmatario PDA, ICCID copia SIM vs
+Identità valida alla data firma, Business su Nome referente anagrafico (nuova regola locale28/10), ICCID copia SIM vs
 SIM uscente PDA MNP. Energia prime2pagine bolletta/POD/PDR, gestore da bolletta e
 numero da CSV fiscale+punto univoco. CSV mancante o pratica assente = In attesa CSV.
 Turno21:00Europe/Rome, sospesi corretti ripartono subito; dati discordanti da
@@ -38,6 +38,27 @@ ACTIVE_HEALTHY e Auth/REST HTTP200 in circa 0,4s. Modalità collaudo confermata,
 zero verifiche in corso e zero notifiche verifica. Test completi sui nuovi
 contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 `docs/INCIDENTE_ACCESSO_REPORT_2026-10-27.md`.
+
+
+### Identita nell’upload e permesso di soggiorno (28/10/2026, rilascio autorizzato)
+
+Controllo anticipato del solo documento di riconoscimento, confronto con anagrafica:
+Consumer nome/CF (nascita come riscontro se CF assente), Business Nome referente
+confermato dal proprietario. Data firma esplicita, tipo e fronte/retro; esiti
+coerente/da correggere/da confermare, manuale tracciato solo per incerto.
+Cittadinanza esplicita o confermata, mai dedotta da residenza/nascita/nome:
+permesso PDF obbligatorio solo Mobile Consumer + dispositivo VAR + extra UE.
+Nuova API `verifica-identita-upload` con JWT e permesso Upload, ricevuta HMAC
+legata ad autore/dati/hash PDF, verifica server su create/upload/finalize e audit.
+Nuovi helper `js/identita-upload-core.js`, `js/identita-upload-ui.js`,
+`netlify/functions/_lib/identita-upload.js`; nessuna nuova dipendenza/env.
+Migration sorgente `20261028122800_identita_upload_permesso_soggiorno.sql`,
+applicata a production come `20261028131258`: JSONB audit in vendita_pratiche e SHA256 in vendita_documenti, nullable
+per legacy, grant/RLS/CC invariati. Nuovo tipo allegato `permesso_soggiorno`.
+Verifica serale conserva PDA/SIM/bollette/CSV e data firma effettiva; riusa identita
+solo con anagrafica e byte coincidenti. Nessun cambio modalita/email o storico.
+Guida e limiti: `docs/IDENTITA_UPLOAD_2026-10-28.md`. Rilascio autorizzato; collaudo
+scansioni reali e UI al proprietario, senza browser da parte dell’assistente.
 
 ## Professional Cloud Mobile e Fisso Business (28/10/2026)
 
@@ -889,7 +910,7 @@ Quando una pratica va in KO post-vendita (o `Rifiutata`/`Annullata`/`In lavorazi
 
 ### Documenti
 - Bucket: `contratti-vendita`
-- Tipi gestiti: `documento_identita`, `contratto`, `contratto_firmato`, `copia_bolletta`, `copia_sim_mnp`
+- Tipi gestiti: `documento_identita`, `permesso_soggiorno` (nuovo28/10 locale), `contratto`, `contratto_firmato`, `copia_bolletta`, `copia_sim_mnp`
 - Regole con `campo_condizione='admin_config'` sono gestibili da UI admin
 - Nome standard: `documento_identita.pdf`, `contratto_<categoria_slug>[_N].pdf`, `contratto_firmato_<categoria_slug>[_N].pdf` (solo per firma cartacea), `copia_sim_mnp.pdf`, `copia_bolletta.pdf`. `[_N]` parte da `_2` quando più contratti della stessa categoria condividono la pratica.
 - Solo `application/pdf`, max 20 MB

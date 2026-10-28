@@ -124,6 +124,25 @@ test('create blocca codice mancante/duplicati nel carrello prima di qualsiasi sc
   }
 });
 
+test('create non accetta un controllo identita dichiarato dal client senza ricevuta HMAC valida', async () => {
+  let writes = 0;
+  const db = duplicateDb([]), original = db.from;
+  db.from = table => {
+    if (table === 'vendita_categorie') return { select() { return this; }, async in() { return { data: [{ id: 'cat', nome: 'Customer Base' }] }; } };
+    if (table === 'vendita_contratti') return original(table);
+    writes++; throw new Error('Scrittura prematura');
+  };
+  const api = loadHandler('crea-vendita-pratica-carrello.js', db);
+  for (const token of [undefined, 'ricevuta.manomessa']) {
+    const response = await api.handler(event({ cliente: { cf_piva: 'RSSMRA80A01H501U', ragione_sociale: 'Cliente test',
+      cluster: 'Consumer', cellulare: '3331234567', email: 'test@example.invalid' },
+      pratica: { identita_token: token, identita_verifica_upload: { version: 1, result: { stato: 'coerente' } } },
+      contratti: [{ categoria_id: 'cat', offerta_id: 'offer', codice_contratto: 'NEW001' }] }));
+    assert.equal(response.statusCode, 409); assert.match(JSON.parse(response.body).error, /controllo identita/);
+  }
+  assert.equal(writes, 0);
+});
+
 test('editor PDA disponibile agli operatori senza alterare punteggi/stato/anagrafica',async()=>{
   const current={id,categoria_snapshot:'Customer Base',codice_contratto:'OLD',stato_controllo:'controllato',punteggio_gara_totale:12};
   let patch;
@@ -203,7 +222,7 @@ for (const failRollback of [false,true]) test(`collisione durante INSERT: rollba
     function result(single=false){
       if(table==='vendita_categorie')return {data:[{id:'cat',nome:'Mobile'}]};
       if(table==='vendita_offerte')return {data:[{id:'offer',categoria_id:'cat',nome_offerta:'SIM prova',cluster_cliente:'Consumer',punteggio_gara:1,punteggio_extra_gara:0}]};
-      if(table==='anagrafica')return {data:single?{id}:[]};
+      if(table==='anagrafica')return {data:single?{id,cf_piva:'RSSMRA80A01H501U',ragione_sociale:'Cliente prova',cluster:'Consumer'}:[]};
       if(table==='vendita_consensi_privacy')return {data:single?{id}:[]};
       if(table==='vendita_pratiche'){
         if(operation==='insert'){inserted++;return {data:{id,stato_pratica:'bozza'}};}
@@ -219,7 +238,9 @@ for (const failRollback of [false,true]) test(`collisione durante INSERT: rollba
     return q;
   }};
   const api=loadHandler('crea-vendita-pratica-carrello.js',db);
-  const response=await api.handler(event({cliente:{cf_piva:'RSSMRA80A01H501U',ragione_sociale:'Cliente prova',cluster:'Consumer',cellulare:'3350000000',email:'test@example.invalid'},
+  const identity = require('../netlify/functions/_lib/identita-upload');
+  const token=identity.sign({version:1,at:Date.now(),user:id,customer:{cf_piva:'RSSMRA80A01H501U',ragione_sociale:'Cliente prova',cluster:'Consumer'},result:{stato:'coerente'}},'test');
+  const response=await api.handler(event({cliente:{cf_piva:'RSSMRA80A01H501U',ragione_sociale:'Cliente prova',cluster:'Consumer',cellulare:'3350000000',email:'test@example.invalid'},pratica:{identita_token:token},
     contratti:[{...mobile,categoria_id:'cat',offerta_id:'offer',tipo_firma:'elettronica'}]}));
   assert.equal(response.statusCode,409,response.body);assert.equal(inserted,1);assert.equal(deleted,1);assert.equal(savedCode,'00AB123');
   const body=JSON.parse(response.body);assert.equal(body.rollback_failed,failRollback);
@@ -399,7 +420,7 @@ test('payload server conserva i valori PDA nascosti senza inviare metadati UI',(
   const item={...Pda.validate({...mobile,portabilita:true,numero_telefono:'3491234567',numero_mnp:'3491234567',numero_provvisorio:'3931234567',operatore_provenienza:'Vodafone'},'Mobile'),
     codice_cliente:'P0001234567',pda_lettura:'ai',pda_dispositivo_auto:false,pda_dispositivo_manuale:true,pda_tipo_attivazione_auto:'Portabilita',pda_tipo_attivazione_manuale:true,categoria_nome:'Mobile',categoria_id:'cat',offerta_id:'offer',flags:{},files:{},codice_rivenditore:'9000822241'};
   const state={cart:{contratti:[item]}},cliente={cf_piva:'RSSMRA80A01H501U'};
-  const ctx={window:{MiroxPda:Pda},state,getClienteFormData:()=>cliente,validateClienteData(){},
+  const ctx={window:{MiroxPda:Pda,MiroxIdentitaCore:require('../js/identita-upload-core'),MiroxIdentitaUpload:{get:()=>({token:'fixture',result:{cittadinanza:'ue'}})}},state,getClienteFormData:()=>cliente,validateClienteData(){},
     praticaFiles:{documento_identita:[{}]},runtimeState:{},refs:{originePratica:{value:'spontaneo'},operatoreId:{value:'operator'}},
     CODICI_RIVENDITORE:['9001415852'],CODICE_RIVENDITORE_DEFAULT:'9001415852'};
   vm.runInNewContext(source.slice(a,b)+';this.payload=buildInvioPayload;',ctx);

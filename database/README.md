@@ -75,6 +75,27 @@ zero verifiche in corso e zero notifiche verifica. Test completi sui nuovi
 contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 `docs/INCIDENTE_ACCESSO_REPORT_2026-10-27.md`.
 
+
+### Identita nell’upload e permesso di soggiorno (28/10/2026, rilascio autorizzato)
+
+Controllo anticipato del solo documento di riconoscimento, confronto con anagrafica:
+Consumer nome/CF (nascita come riscontro se CF assente), Business Nome referente
+confermato dal proprietario. Data firma esplicita, tipo e fronte/retro; esiti
+coerente/da correggere/da confermare, manuale tracciato solo per incerto.
+Cittadinanza esplicita o confermata, mai dedotta da residenza/nascita/nome:
+permesso PDF obbligatorio solo Mobile Consumer + dispositivo VAR + extra UE.
+Nuova API `verifica-identita-upload` con JWT e permesso Upload, ricevuta HMAC
+legata ad autore/dati/hash PDF, verifica server su create/upload/finalize e audit.
+Nuovi helper `js/identita-upload-core.js`, `js/identita-upload-ui.js`,
+`netlify/functions/_lib/identita-upload.js`; nessuna nuova dipendenza/env.
+Migration sorgente `20261028122800_identita_upload_permesso_soggiorno.sql`,
+applicata a production come `20261028131258`: JSONB audit in vendita_pratiche e SHA256 in vendita_documenti, nullable
+per legacy, grant/RLS/CC invariati. Nuovo tipo allegato `permesso_soggiorno`.
+Verifica serale conserva PDA/SIM/bollette/CSV e data firma effettiva; riusa identita
+solo con anagrafica e byte coincidenti. Nessun cambio modalita/email o storico.
+Guida e limiti: `docs/IDENTITA_UPLOAD_2026-10-28.md`. Rilascio autorizzato; collaudo
+scansioni reali e UI al proprietario, senza browser da parte dell’assistente.
+
 ## Professional Cloud Mobile e Fisso Business (28/10/2026, migration applicata)
 
 Professional Cloud e' separata dall'opzione MNP, solo Mobile e Fisso Business. Il wizard

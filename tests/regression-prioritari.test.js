@@ -29,6 +29,7 @@ function loadCommonJs(relativePath, stubs = {}) {
     process: { env: {} },
     require(id) {
       if (id === './_lib/windtre-customer-codes') return require('../netlify/functions/_lib/windtre-customer-codes');
+      if (id === './_lib/identita-upload') return require('../netlify/functions/_lib/identita-upload');
       if (id === './_lib/pda-contract') return require('../netlify/functions/_lib/pda-contract');
       if (id === '../../js/customer-base-device') return require('../js/customer-base-device');
       if (id === '../../js/mirox-permissions-core') return require('../js/mirox-permissions-core');

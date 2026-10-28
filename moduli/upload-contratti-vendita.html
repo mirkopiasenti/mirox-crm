@@ -1054,6 +1054,9 @@
 <script src="../js/vendita-pda-ui.js"></script>
 <script src="../js/mirox-upload.js"></script>
 <script src="../js/customer-base-device.js"></script>
+<script src="../js/verifica-contratti-core.js"></script>
+<script src="../js/identita-upload-core.js"></script>
+<script src="../js/identita-upload-ui.js"></script>
 <script> // Auth guard: blocca rendering se non loggato
  (async () => {
  const profilo = await Auth.richiediAuth();
@@ -1349,11 +1352,21 @@ Reload Forever
 </div>
 </section> <section id="stepDocumentiSection" class="card panel hidden">
 <h2>Upload Documenti Cliente</h2>
-<p class="hint" style="margin:0 0 10px;">Carica il documento d'identita una sola volta: sara associato a ogni contratto del carrello. Il contratto originale (PDA) e' gia' stato caricato nello step 1.</p>
+<p class="hint" style="margin:0 0 10px;">Carica il documento di riconoscimento una sola volta: sara associato a ogni contratto del carrello. Controllalo rispetto all'anagrafica prima di proseguire. Per Mobile Consumer con dispositivo VAR e cittadinanza extra UE comparira anche il permesso di soggiorno. Il PDA e' gia stato caricato nello step 1.</p>
 <div class="grid">
 <div id="fieldDocumentoIdentita" class="field half">
 <label for="file_documento_identita">Documento identita *</label>
 <input id="file_documento_identita" type="file" accept="application/pdf" multiple>
+</div><div class="field half">
+<label for="identita_data_firma">Data effettiva di firma per il controllo identita *</label>
+<input id="identita_data_firma" type="date">
+<p class="hint">Indica la data reale di firma del contratto: non la data di caricamento.</p>
+<button type="button" id="btnControllaIdentita">Controlla documento di riconoscimento</button>
+<p id="identitaControlloEsito" role="status">Documento non ancora controllato.</p>
+</div><div id="fieldPermessoSoggiorno" class="field half hidden">
+<label for="file_permesso_soggiorno">Permesso di soggiorno *</label>
+<input id="file_permesso_soggiorno" type="file" accept="application/pdf" multiple>
+<p class="hint">Richiesto solo per Mobile Consumer con dispositivo VAR e cittadinanza extra UE.</p>
 </div> <div id="fieldContrattoFirmato" class="field half hidden">
 <label for="file_contratto_firmato">Contratto firmato *</label>
 <input id="file_contratto_firmato" type="file" accept="application/pdf">
@@ -1671,6 +1684,7 @@ Reload Forever
  fieldSmartphoneReloadModalita: document.getElementById('fieldSmartphoneReloadModalita'),
 
  fileDocumentoIdentita: document.getElementById('file_documento_identita'),
+ filePermessoSoggiorno: document.getElementById('file_permesso_soggiorno'),
  fileCopiaSimMnp: document.getElementById('file_copia_sim_mnp'),
  fileCopiaBolletta: document.getElementById('file_copia_bolletta'),
  fileContrattoFirmato: document.getElementById('file_contratto_firmato'),
@@ -2505,6 +2519,7 @@ Reload Forever
 
  function initUploadBoxes() {
  const uploadConfig = [
+ { input: refs.filePermessoSoggiorno, title: 'Permesso di soggiorno', hint: 'Carica il PDF del permesso di soggiorno', icon: '', multiple: true },
  { input: refs.fileDocumentoIdentita, title: 'Documento identita', hint: 'Trascina i PDF qui o clicca per selezionare', icon: '', multiple: true },
  { input: refs.fileContrattoFirmato, title: 'Contratto firmato *', hint: 'Trascina la scansione del PDA firmato (1 PDF)', icon: '', multiple: false },
  { input: refs.fileCopiaSimMnp, title: 'Fotocopia SIM', hint: 'Trascina i PDF qui o clicca per selezionare', icon: '', multiple: true },
@@ -2592,8 +2607,30 @@ Reload Forever
  });
  }
 
+ function getIdentityFiles() {
+ const selected = getInputFiles(refs.fileDocumentoIdentita);
+ return selected.length ? selected : (praticaFiles.documento_identita || []);
+ }
+ async function ensureIdentityUpload() {
+ const files = getIdentityFiles();
+ const cliente = getClienteFormData();
+ const date = document.getElementById('identita_data_firma').value;
+ const snapshot = JSON.stringify(window.MiroxIdentitaCore.customer(cliente));
+ return window.MiroxIdentitaUpload.ensure({ files, customer: cliente, date,
+ requireCitizenship: window.MiroxIdentitaCore.needsPermit({ cluster: cliente.cluster, categoria_nome: getCategoriaName(), dispositivo_associato: refs.dispositivoAssociato.value === 'true', tipo_acquisto: refs.tipoAcquisto.value }, 'extra_ue')
+ || state.cart.contratti.some(c => window.MiroxIdentitaCore.needsPermit({ ...c, cluster_cliente: cliente.cluster }, 'extra_ue')),
+ current: () => snapshot === JSON.stringify(window.MiroxIdentitaCore.customer(getClienteFormData()))
+ && date === document.getElementById('identita_data_firma').value
+ && files.length === getIdentityFiles().length && files.every((file, index) => file === getIdentityFiles()[index]) });
+ }
+ function currentNeedsPermit() {
+ return window.MiroxIdentitaCore.needsPermit({ cluster: refs.cluster.value, categoria_nome: getCategoriaName(),
+ dispositivo_associato: refs.dispositivoAssociato.value === 'true', tipo_acquisto: refs.tipoAcquisto.value },
+ window.MiroxIdentitaUpload.get()?.result?.cittadinanza);
+ }
  function updateUploadVisibility() {
  const requirements = getCurrentDocumentRequirements();
+ document.getElementById('fieldPermessoSoggiorno').classList.toggle('hidden', !currentNeedsPermit());
  const hasIdentity = Array.isArray(praticaFiles.documento_identita) && praticaFiles.documento_identita.length> 0;
  const needsIdentityReselection = runtimeState.restoreNeedsFileReselection && !hasIdentity && requirements.documento_identita;
  const mustHideIdentity = hasIdentity;
@@ -3315,12 +3352,16 @@ Reload Forever
  }
  clearInputFile(refs.fileCopiaSimMnp);
  clearInputFile(refs.fileCopiaBolletta);
+ clearInputFile(refs.filePermessoSoggiorno);
  if (refs.fileContrattoFirmato) clearInputFile(refs.fileContrattoFirmato);
  refs.fieldFinanziaria.classList.add('hidden');
  updateUploadVisibility();
  }
 
  function resetFullPracticeForm() {
+ window.MiroxIdentitaUpload.invalidate();
+ document.getElementById('identita_data_firma').value = '';
+ document.getElementById('identitaControlloEsito').textContent = 'Documento non ancora controllato.';
  state.cart.cliente = null;
  state.cart.contratti = [];
  runtimeState.editingTempId = null;
@@ -3371,6 +3412,7 @@ Reload Forever
  clearInputFile(refs.fileDocumentoIdentita);
  clearInputFile(refs.fileCopiaSimMnp);
  clearInputFile(refs.fileCopiaBolletta);
+ clearInputFile(refs.filePermessoSoggiorno);
 
  renderOfferte();
  renderOpzioni();
@@ -3876,6 +3918,7 @@ Reload Forever
  reload: reload?.nome || null
  },
  files: {
+ permesso_soggiorno: selectedFiles.permesso_soggiorno || [],
  sim_mnp: mnpFiles,
  bolletta: bollettaFiles,
  // PDF del contratto firmato dal cliente (solo se tipo_firma='cartacea')
@@ -4460,6 +4503,14 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  throw new Error('Sul primo contratto devi caricare il documento identita della pratica');
  }
 
+ const identity = await ensureIdentityUpload();
+ updateUploadVisibility();
+ const isConsumerVar = window.MiroxIdentitaCore.needsPermit({ cluster: cliente.cluster, categoria_nome: getCategoriaName(),
+ dispositivo_associato: refs.dispositivoAssociato.value === 'true', tipo_acquisto: refs.tipoAcquisto.value }, 'extra_ue');
+ if (isConsumerVar && !identity.result.cittadinanza) throw new Error('Conferma la cittadinanza prima di inserire un Mobile Consumer con dispositivo VAR.');
+ if (currentNeedsPermit() && !getInputFiles(refs.filePermessoSoggiorno).length) throw new Error('Carica il permesso di soggiorno per il dispositivo VAR del cliente extra UE.');
+ selectedContractFiles.permesso_soggiorno = currentNeedsPermit() ? getInputFiles(refs.filePermessoSoggiorno) : [];
+ selectedContractFiles.permesso_soggiorno.forEach(file => assertValidFile(file, 'Permesso di soggiorno'));
  const draft = collectContractDraft(selectedContractFiles, {
  tempId: runtimeState.editingTempId || null
  });
@@ -4592,6 +4643,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
 
  setInputFiles(refs.fileCopiaSimMnp, item.files?.sim_mnp || []);
  setInputFiles(refs.fileCopiaBolletta, item.files?.bolletta || []);
+ setInputFiles(refs.filePermessoSoggiorno, item.files?.permesso_soggiorno || []);
  if (Array.isArray(praticaFiles.documento_identita) && praticaFiles.documento_identita.length> 0) {
  setInputFiles(refs.fileDocumentoIdentita, praticaFiles.documento_identita);
  }
@@ -4699,6 +4751,14 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
  });
 
+ const identity = window.MiroxIdentitaUpload.get();
+ if (!identity?.token) throw new Error('Completa il controllo identita prima dell’invio.');
+ state.cart.contratti.forEach((item, index) => {
+ const scoped = window.MiroxIdentitaCore.needsPermit({ ...item, cluster_cliente: cliente.cluster }, 'extra_ue');
+ if (scoped && !identity.result.cittadinanza) throw new Error('Conferma la cittadinanza per il dispositivo VAR.');
+ if (window.MiroxIdentitaCore.needsPermit({ ...item, cluster_cliente: cliente.cluster }, identity.result.cittadinanza)
+ && !(item.files?.permesso_soggiorno || []).length) throw new Error(`Contratto ${index + 1}: permesso di soggiorno mancante. Modifica il contratto nel carrello e caricalo.`);
+ });
  const contratti = state.cart.contratti.map((item, idx) => {
  if (item.flags.sim_mnp_required && (!Array.isArray(item.files.sim_mnp) || item.files.sim_mnp.length === 0)) {
  throw new Error(`Contratto ${idx + 1}: fotocopia SIM mancante`);
@@ -4771,6 +4831,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  return {
  cliente,
  pratica: {
+ identita_token: identity.token,
  origine_pratica: origineCurrente,
  appuntamento_id: praticaAppuntamentoId,
  chiamata_id: praticaChiamataId,
@@ -4799,12 +4860,13 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
 	 showLoadingOverlay('Caricamento in corso', 'Creazione pratica e contratti...');
 
  try {
- payload = buildInvioPayload();
  hideLoadingOverlay();
  for (const item of state.cart.contratti) {
  if (!item.codice_contratto) continue;
  if (!await window.MiroxPdaUI.checkCode(item.codice_contratto, state.cart.contratti, item.temp_id)) return;
  }
+ await ensureIdentityUpload();
+ payload = buildInvioPayload();
  setMessage('Creazione pratica e contratti in corso...', 'info');
  showLoadingOverlay('Caricamento in corso', 'Creazione pratica e contratti...');
  markTechnicalChecking('Verifica...');
@@ -4934,6 +4996,17 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  });
  }
 
+ if (window.MiroxIdentitaCore.needsPermit({ ...cartItem, cluster_cliente: payload.cliente.cluster }, window.MiroxIdentitaUpload.get().result.cittadinanza)) {
+ const permitFiles = cartItem.files.permesso_soggiorno || [];
+ for (let n = 0; n < permitFiles.length; n++) {
+ const permitFile = permitFiles[n]; assertValidFile(permitFile, 'Permesso di soggiorno');
+ const permitResult = await uploadDocumentoOrTechnicalError({ file: permitFile, pratica_id: createResult.pratica_id,
+ contratto_id: created.contratto_id, anagrafica_id: createResult.anagrafica_id, tipo_documento: 'permesso_soggiorno',
+ file_name: `permesso_soggiorno_${idx + 1}_${n + 1}.pdf`, storage_base_path: createResult.storage_base_path,
+ nome_cartella_storage: createResult.nome_cartella_storage }, 'Errore upload permesso di soggiorno');
+ uploadResults.push({ tipo_documento: 'permesso_soggiorno', contratto_id: created.contratto_id, result: permitResult });
+ }
+ }
  const simFiles = Array.isArray(cartItem.files.sim_mnp) ? cartItem.files.sim_mnp : [];
  for (let simIndex = 0; simIndex< simFiles.length; simIndex += 1) {
  const simFile = simFiles[simIndex];
@@ -5281,7 +5354,9 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  function serializeContractForDraft(item) {
  const currentSimMeta = getFileMetaArray(item?.files?.sim_mnp);
  const currentBollettaMeta = getFileMetaArray(item?.files?.bolletta);
+ const currentPermitMeta = getFileMetaArray(item?.files?.permesso_soggiorno);
  const fileMeta = {
+ permesso_soggiorno: currentPermitMeta.length ? currentPermitMeta : (item?.file_meta?.permesso_soggiorno || []),
  sim_mnp: currentSimMeta.length> 0
  ? currentSimMeta
  : (Array.isArray(item?.file_meta?.sim_mnp) ? item.file_meta.sim_mnp : []),
@@ -5294,6 +5369,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  return {
  ...item,
  files: {
+ permesso_soggiorno: [],
  sim_mnp: [],
  bolletta: [],
  contratto_firmato: null
@@ -5529,11 +5605,13 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  state.cart.contratti = (draft.cart?.contratti || []).map((item) => ({
  ...item,
  files: {
+ permesso_soggiorno: [],
  sim_mnp: [],
  bolletta: [],
  contratto_firmato: null
  },
  file_meta: {
+ permesso_soggiorno: item?.file_meta?.permesso_soggiorno || [],
  sim_mnp: Array.isArray(item?.file_meta?.sim_mnp) ? item.file_meta.sim_mnp : [],
  bolletta: Array.isArray(item?.file_meta?.bolletta) ? item.file_meta.bolletta : [],
  contratto_firmato: item?.file_meta?.contratto_firmato || null
@@ -5565,6 +5643,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  clearInputFile(refs.fileDocumentoIdentita);
  clearInputFile(refs.fileCopiaSimMnp);
  clearInputFile(refs.fileCopiaBolletta);
+ clearInputFile(refs.filePermessoSoggiorno);
  if (refs.fileContrattoFirmato) clearInputFile(refs.fileContrattoFirmato);
  return true;
  } finally {
@@ -6314,6 +6393,13 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
  });
 
+ document.getElementById('btnControllaIdentita').addEventListener('click', async () => {
+ window.MiroxIdentitaUpload.invalidate();
+ try { await ensureIdentityUpload(); updateUploadVisibility(); } catch (error) { showUserError(error.message, 'Controllo identita'); }
+ });
+ for (const input of [refs.fileDocumentoIdentita, document.getElementById('identita_data_firma'), refs.cfPiva, refs.ragioneSociale, refs.nomeReferente]) {
+ input.addEventListener('change', () => { window.MiroxIdentitaUpload.invalidate(); document.getElementById('identitaControlloEsito').textContent = 'Dati o documento cambiati: ripeti il controllo identita.'; });
+ }
  refs.btnAddToCart.addEventListener('click', () => addContrattoToCart({ goToCart: false }));
  refs.btnOpenCarrello.addEventListener('click', () => addContrattoToCart({ goToCart: true }));
  refs.btnOpenCarrelloTop.addEventListener('click', openCartView);

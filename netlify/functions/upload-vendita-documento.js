@@ -1,5 +1,6 @@
 const Busboy = require('busboy');
 const { createClient } = require('@supabase/supabase-js');
+const Identity = require('./_lib/identita-upload');
 const { requireAuth: requireBaseAuth } = require('./_lib/require-auth');
 const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'upload-vendita-documento' });
 
@@ -8,6 +9,7 @@ const STORAGE_BUCKET = 'contratti-vendita';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DOCUMENT_TYPES = new Set([
   'documento_identita',
+  'permesso_soggiorno',
   'contratto',
   'contratto_firmato',
   'copia_sim_mnp',
@@ -127,6 +129,8 @@ function suggestedFileName(tipoDocumento, fields) {
   switch (tipo) {
     case 'documento_identita':
       return 'documento_identita.pdf';
+    case 'permesso_soggiorno':
+      return 'permesso_soggiorno.pdf';
     case 'contratto': {
       const categorySlug = resolveContractCategorySlug(fields);
       return `contratto_${categorySlug}.pdf`;
@@ -436,7 +440,7 @@ exports.handler = async (event) => {
 
     const { data: praticaRow, error: praticaError } = await supabase
       .from('vendita_pratiche')
-      .select('id, anagrafica_id, operatore_id, storage_base_path, nome_cartella_storage, stato_pratica')
+      .select('id, anagrafica_id, operatore_id, storage_base_path, nome_cartella_storage, stato_pratica, identita_verifica_upload')
       .eq('id', praticaId)
       .maybeSingle();
 
@@ -455,12 +459,16 @@ exports.handler = async (event) => {
     if (!['bozza', 'inviata'].includes(praticaRow.stato_pratica)) {
       return response(409, { success: false, error: 'La pratica non accetta nuovi documenti nello stato corrente' });
     }
+    if (tipoDocumento === 'documento_identita' && praticaRow.stato_pratica === 'bozza' && praticaRow.identita_verifica_upload
+      && !praticaRow.identita_verifica_upload.documents?.some(d => d.sha256 === Identity.hash(file.buffer))) {
+      return response(409, { success: false, error: 'PDF identita diverso da quello controllato: ripeti il controllo prima dell’invio.' });
+    }
 
     let contrattoRow = null;
     if (contrattoId) {
       const { data, error } = await supabase
         .from('vendita_contratti')
-        .select('id, pratica_id, anagrafica_id, categoria_snapshot')
+        .select('id, pratica_id, anagrafica_id, categoria_snapshot,cluster_cliente,dispositivo_associato,tipo_acquisto')
         .eq('id', contrattoId)
         .maybeSingle();
 
@@ -471,6 +479,9 @@ exports.handler = async (event) => {
         return response(400, { success: false, error: 'contratto_id non coerente con pratica e anagrafica' });
       }
       contrattoRow = data;
+    }
+    if (tipoDocumento === 'permesso_soggiorno' && !Identity.Core.needsPermit(contrattoRow || {}, praticaRow.identita_verifica_upload?.result?.cittadinanza)) {
+      return response(400, { success: false, error: 'Permesso di soggiorno previsto solo per Mobile Consumer con dispositivo VAR e cittadinanza extra UE.' });
     }
 
     const requestedFileName = normalizeOptional(fields.file_name)
@@ -502,7 +513,7 @@ exports.handler = async (event) => {
       const documenti = await storeIdentityForContracts({ supabase, contracts: contracts || [], buffer: file.buffer,
         payload: { pratica_id: praticaId, contratto_id: identityContractId, anagrafica_id: anagraficaId,
           tipo_documento: tipoDocumento, storage_bucket: STORAGE_BUCKET, storage_path: storagePath,
-          file_name: finalFileName, mime_type: file.mimeType, file_size: file.size, uploaded_by: uploadedBy }
+          file_name: finalFileName, mime_type: file.mimeType, file_size: file.size, uploaded_by: uploadedBy, sha256: Identity.hash(file.buffer) }
       });
       return response(200, { success: true,
         documento: documenti.find(d => d.contratto_id === identityContractId), documenti });
@@ -533,7 +544,8 @@ exports.handler = async (event) => {
       file_name: finalFileName,
       mime_type: file.mimeType,
       file_size: file.size,
-      uploaded_by: uploadedBy
+      uploaded_by: uploadedBy,
+      sha256: Identity.hash(file.buffer)
     };
 
     const { data: documento, error: insertError } = await supabase

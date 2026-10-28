@@ -246,6 +246,8 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 
 | File JS | Espone | Uso |
 |---|---|---|
+| `js/identita-upload-core.js` | `window.MiroxIdentitaCore` / CommonJS | Confronto identita/anagrafica, cittadinanza UE e obbligo permesso Consumer VAR |
+| `js/identita-upload-ui.js` | `window.MiroxIdentitaUpload` | Lettura anticipata, conferma manuale e ricevuta legata ai PDF; rilascio28/10 |
 | `js/verifica-contratti-core.js` | `window.MiroxVerificaCore` / CommonJS | Matching documentale, date firma/scadenza, ICCID, bollette e CSV, esiti puri |
 | `js/verifica-contratti-automatica.js` | `window.MiroxVerificaAuto` | Pannello esiti/CSV, collaudo, riesame e riconciliazione notifiche |
 | `js/subentri-core.js` | `window.MiroxSubentri` / CommonJS server | Campi, consensi, categorie documentali e validazione pura condivisa del Compilatore Subentri |
@@ -273,6 +275,8 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 ### 2. Server (`/netlify/functions/`, Node >=22)
 
 `admin-permessi-pagine.js` (GET/POST) e' admin-only: elenco utenti/ACL, audit per utente, salvataggio versionato. `_lib/page-permissions.js` rilegge profilo/ACL sulle API protette tramite endpoint statico dichiarato nella function; nessun permesso proveniente da header, Referer o body client. `upload-documento-modulo` verifica inoltre il bucket dopo il multipart. Admin/ruoli specifici preesistenti restano richiesti.
+
+Nuova function del28/10 `verifica-identita-upload.js`: JWT/permesso upload_contratti, lettura PDF e conferma manuale, ricevuta HMAC. Nessun cron, chiave o invio nuovo.
 
 Verifica Contratti automatica (27/10, modalità collaudo): `gestisci-verifica-automatica.js` valida JWT e ruolo per collaudo/CSV/configurazione/riconciliazione notifiche; `verifica-contratti-background.js` usa HMAC/timestamp60s e coda privata; `cron-verifica-contratti.js` ogni minuto recupera prove assistite esplicite e, solo in modalità attiva, turni21:00Europe/Rome/riesami/notifiche. Helper `_lib/verifica-documenti.js`, `_lib/verifica-worker.js`, `_lib/verifica-csv.js`; nessuna Edge Function. Default collaudo senza conferme/email.
 
@@ -480,7 +484,7 @@ L'eccezione anon temporanea di `segnalazioni-files` introdotta dalla migration `
    2. **Anagrafica**: cf_piva (auto-detect cluster CF→Consumer, P.IVA→Business), email, cellulare, ragione sociale, ecc. Pre-compilata se l'OCR ha estratto dati. **Skippato automaticamente dal 2° contratto in poi** (anagrafica gia' nota nella pratica).
    3. **Dati contratto**: offerta/opzione/reload e campi specifici. Codice PDA visibile/correggibile; solo Mobile richiede numerazioni/portabilita e popup di conferma costo mensile base (precompilato se letto). Turista conserva defaults catalogo, mostra solo nuovi dati PDA.
    4. **Firma** (solo per categorie PDA): scelta tra `elettronica` o `cartacea`. Skippato per Energia/Allarmi/Assicurazioni. Il valore finisce in `vendita_contratti.tipo_firma`.
-   5. **Documenti cliente**: documento_identita + eventuali copia_bolletta/copia_sim_mnp. Se `tipo_firma='cartacea'` appare anche il campo upload **"Contratto firmato"** (PDF della scansione del PDA firmato a mano dal cliente). **Niente upload contratto PDF originale qui** — quello e' gia' in staging dallo step 1.
+   5. **Documenti cliente**: documento_identita + eventuali copia_bolletta/copia_sim_mnp. Estensione locale28/10: controllo identita con anagrafica e permesso_soggiorno per Mobile Consumer VAR extra UE. Se `tipo_firma='cartacea'` appare anche il campo upload **"Contratto firmato"** (PDF della scansione del PDA firmato a mano dal cliente). **Niente upload contratto PDF originale qui** — quello e' gia' in staging dallo step 1.
    - **Regola multi-contratto**: dopo "Aggiungi un altro contratto" il wizard conserva solo anagrafica e documenti condivisi della pratica; categoria, PDA/input file/cache, stato visivo della drop-zone, firma e campi specifici vengono azzerati. Anche "Aggiungi altro contratto" dal carrello applica lo stesso reset. Non preselezionare mai categoria o PDF dal contratto precedente.
 4. Submit "Invia pratica" → **prima del fetch al backend**, il wizard esegue il pre-step **consenso privacy GDPR** (vedi sezione "Sistema consensi privacy GDPR"):
    1. `POST garantisci-anagrafica` con i dati cliente → `anagrafica_id`
@@ -520,7 +524,7 @@ Le pagine post-vendita dei punti 8–11 espongono `Vai alla pratica` per ogni ri
 
 Implementati motore `js/verifica-contratti-core.js`, pannello `js/verifica-contratti-automatica.js`/CSS, API/worker/cron e migration additiva `20261027172616_verifica_automatica_contratti.sql`. **Migration applicata a production** (versione20261027172616, nome verifica_automatica_contratti); configurazione collaudo, RLS e grant riletti, zero analisi/notifiche. Rilascio autorizzato dal proprietario. Non abilitare automaticamente la modalità attiva. Guida e limiti: `docs/VERIFICA_AUTOMATICA_CONTRATTI.md`; analisi storica separata. Nessuna nuova dipendenza/env richiesta; riusati Anthropic Haiku4.5 e chiavi backend esistenti. Il worker ha HMAC con contesto dedicato derivato dalla service role, non dai segreti degli altri agenti.
 
-Checklist confermata: integrare dati mancanti provati, intestazione contratto/CF/PIVA, identità valida **alla data firma contratto**; Business usa il firmatario/rappresentante della PDA. Per MNP confrontare ICCID della copia SIM con quello **uscente nella sezione portabilità** della PDA, mai nuova SIM o telefono. Energia: identità, bolletta intestata correttamente, prime due pagine con nome/POD/PDR; gestore uscente dalla bolletta, numero nuovo contratto da CSV ufficiale WindTre con match fiscale+punto univoco. CSV quotidiano disponibile in Verifica; fonte almeno del giorno del turno, non necessariamente nuova il giorno del riesame. Date upload/esportazione non valgono come firma; fonte firma PDF, colonna CSV esplicita o attestazione operatore tracciata. Nessuna biometria/nuovo controllo tecnico firme.
+Checklist confermata: integrare dati mancanti provati, intestazione contratto/CF/PIVA, identità valida **alla data firma contratto**; Business confronta l’identita con Nome referente dell’anagrafica (nuova regola locale28/10); la PDA resta verificata separatamente. Per MNP confrontare ICCID della copia SIM con quello **uscente nella sezione portabilità** della PDA, mai nuova SIM o telefono. Energia: identità, bolletta intestata correttamente, prime due pagine con nome/POD/PDR; gestore uscente dalla bolletta, numero nuovo contratto da CSV ufficiale WindTre con match fiscale+punto univoco. CSV quotidiano disponibile in Verifica; fonte almeno del giorno del turno, non necessariamente nuova il giorno del riesame. Date upload/esportazione non valgono come firma; fonte firma PDF, colonna CSV esplicita o attestazione operatore tracciata. Nessuna biometria/nuovo controllo tecnico firme.
 
 Primo turno21:00Europe/Rome tutti i giorni, nuovi invii dopo21 al turno successivo. Nuovi contratti e backlog iniziale attendono prossimo turno; dopo primo tentativo correzioni/allegati/CSV accodano subito riesame, recuperato dal cron entro un minuto se dispatch fallisce. Quattro esiti UI: Da controllare, Controllato, Da verificare, In attesa CSV. Anche contratto assente da CSV valido resta in attesa; problemi veri prevalgono e non sono mascherati dal CSV. Gli esiti sospesi vivono nelle nuove tabelle, senza nuovi valori in `vendita_contratti.stato_controllo`: preservati conteggi e trigger. Nessuna riscrittura autonoma anagrafica condivisa/offerta/punti o valori esistenti discordanti.
 
@@ -538,6 +542,27 @@ ACTIVE_HEALTHY e Auth/REST HTTP200 in circa 0,4s. Modalità collaudo confermata,
 zero verifiche in corso e zero notifiche verifica. Test completi sui nuovi
 contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 `docs/INCIDENTE_ACCESSO_REPORT_2026-10-27.md`.
+
+
+### Identita nell’upload e permesso di soggiorno (28/10/2026, rilascio autorizzato)
+
+Controllo anticipato del solo documento di riconoscimento, confronto con anagrafica:
+Consumer nome/CF (nascita come riscontro se CF assente), Business Nome referente
+confermato dal proprietario. Data firma esplicita, tipo e fronte/retro; esiti
+coerente/da correggere/da confermare, manuale tracciato solo per incerto.
+Cittadinanza esplicita o confermata, mai dedotta da residenza/nascita/nome:
+permesso PDF obbligatorio solo Mobile Consumer + dispositivo VAR + extra UE.
+Nuova API `verifica-identita-upload` con JWT e permesso Upload, ricevuta HMAC
+legata ad autore/dati/hash PDF, verifica server su create/upload/finalize e audit.
+Nuovi helper `js/identita-upload-core.js`, `js/identita-upload-ui.js`,
+`netlify/functions/_lib/identita-upload.js`; nessuna nuova dipendenza/env.
+Migration sorgente `20261028122800_identita_upload_permesso_soggiorno.sql`,
+applicata a production come `20261028131258`: JSONB audit in vendita_pratiche e SHA256 in vendita_documenti, nullable
+per legacy, grant/RLS/CC invariati. Nuovo tipo allegato `permesso_soggiorno`.
+Verifica serale conserva PDA/SIM/bollette/CSV e data firma effettiva; riusa identita
+solo con anagrafica e byte coincidenti. Nessun cambio modalita/email o storico.
+Guida e limiti: `docs/IDENTITA_UPLOAD_2026-10-28.md`. Rilascio autorizzato; collaudo
+scansioni reali e UI al proprietario, senza browser da parte dell’assistente.
 
 ### Professional Cloud Mobile e Fisso Business (28/10/2026)
 
@@ -912,7 +937,7 @@ Quando una pratica va in KO post-vendita (o `Rifiutata`/`Annullata`/`In lavorazi
 ### Documenti
 - Dal 05/10/2026 ogni contratto nuovo richiede il documento d'identita, indipendentemente dalle regole catalogo. Nel carrello si seleziona una sola volta: `upload-vendita-documento` sulle bozze crea un record e una copia fisica distinta per ciascun contratto della stessa pratica/anagrafica. Il primo mantiene il nome richiesto, gli altri aggiungono `_contratto_<uuid>`. INSERT batch atomico e rimozione dei soli file nuovi su errore; `finalize` rifiuta bozze con contratti senza identita. Sulle pratiche inviate gli upload da Verifica Contratti restano specifici del contratto. Retroattivo dal 01/07/2026 Europe/Rome: solo contratti privi di identita, sorgenti della stessa pratica/anagrafica; nessun riuso automatico da altre pratiche. Copie indipendenti rispettano UNIQUE `(storage_bucket, storage_path)` e cancellazioni per contratto. I PDF mancanti all'origine richiedono integrazione manuale.
 - Bucket: `contratti-vendita`
-- Tipi gestiti: `documento_identita`, `contratto`, `contratto_firmato`, `copia_bolletta`, `copia_sim_mnp`
+- Tipi gestiti: `documento_identita`, `permesso_soggiorno` (nuovo28/10 locale), `contratto`, `contratto_firmato`, `copia_bolletta`, `copia_sim_mnp`
 - Regole con `campo_condizione='admin_config'` sono gestibili da UI admin
 - Nome standard: `documento_identita.pdf`, `contratto_<categoria_slug>[_N].pdf`, `contratto_firmato_<categoria_slug>[_N].pdf` (solo per firma cartacea), `copia_sim_mnp.pdf`, `copia_bolletta.pdf`. `[_N]` parte da `_2` quando più contratti della stessa categoria condividono la pratica.
 - Solo `application/pdf`, max 20 MB

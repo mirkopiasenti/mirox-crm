@@ -41,6 +41,10 @@ async function changed(db, id) {
 function requiredDocuments(snapshot, read) {
   const present = new Set(read.documents.map(d => d.tipo_documento));
   const errors = [];
+  const IdentityCore = require('../../../js/identita-upload-core');
+  if (IdentityCore.needsPermit(snapshot.contract, snapshot.practice?.identita_verifica_upload?.result?.cittadinanza) && !present.has('permesso_soggiorno')) {
+    errors.push({ code: 'allegato_permesso_soggiorno', message: 'Manca il permesso di soggiorno richiesto per Mobile Consumer con dispositivo VAR e cittadinanza extra UE.' });
+  }
   for (const rule of snapshot.documentRules) {
     if (rule.obbligatorio === false) continue;
     if (rule.categoria_id && rule.categoria_id !== snapshot.contract.categoria_id || rule.offerta_id && rule.offerta_id !== snapshot.contract.offerta_id || rule.opzione_id && rule.opzione_id !== snapshot.contract.opzione_id) continue;

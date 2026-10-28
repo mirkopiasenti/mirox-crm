@@ -1,3 +1,5 @@
+Aggiornamento28/10, rilascio autorizzato: identita anticipata nell’upload con confronto anagrafica (Business Nome referente), riuso per hash e nuova richiesta permesso Consumer VAR extra UE. Le regole seguenti restano applicate agli altri controlli; dettagli in [guida identita upload](IDENTITA_UPLOAD_2026-10-28.md).
+
 # Verifica automatica contratti
 
 Versione sviluppata il 27/10/2026, rilascio autorizzato in modalità collaudo.
@@ -71,7 +73,7 @@ Correzione27/10 dopo rilascio75f69aa; nessun cambio permessi o stato contratto.
 ## Controlli implementati
 
 - PDA intestata allo stesso CF/P.IVA, codice contratto corrispondente, identità
-  del cliente; per Business identità del **firmatario della PDA**, non della società.
+  del cliente; per Business identità del **Nome referente nell’anagrafica** (estensione locale28/10).
 - Documento d'identità con nome e CF coerenti; se il CF non è leggibile, servono
   nome completo e data nascita riscontrata nella PDA o nel CF del soggetto.
   Il solo nome non basta. Nessuna biometria o attestazione di autenticità.
@@ -255,7 +257,7 @@ Per collaudare insieme: aprire un contratto non controllato, scegliere
 confrontare i PDF con il proprietario, correggere e riprovare. Minimo un minuto
 fra prove sulla stessa pratica. L'esito si aggiorna senza ricaricare la pagina.
 
-Un documento senza data firma o un Business senza prova del firmatario resta
+Un documento senza data firma o un Business senza Nome referente anagrafico verificabile resta
 bloccato con motivo esplicito; non si presume che upload coincida con firma.
 Le letture reali e la qualità OCR vanno collaudate sui fascicoli del proprietario:
 i test sintetici non certificano quelle letture.
