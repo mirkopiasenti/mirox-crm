@@ -78,6 +78,11 @@ contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 
 ### Identita nell’upload e permesso di soggiorno (28/10/2026, pubblicato)
 
+La successiva correzione del lettore Mobile senza MNP (versione
+`2026-10-28.1`) modifica soltanto estrazione/cache documentale: nessuna nuova
+migration, schema, policy o modifica dei contratti esistenti. Prova locale con
+trascrizione precedente e PDF originale, senza persistenza dei risultati.
+
 Controllo anticipato del solo documento di riconoscimento, confronto con anagrafica:
 Consumer nome/CF (nascita come riscontro se CF assente), Business Nome referente
 confermato dal proprietario. Data firma esplicita, tipo e fronte/retro; esiti

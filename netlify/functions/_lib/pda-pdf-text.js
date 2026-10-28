@@ -104,23 +104,45 @@ function sectionFields(text, completeText = true) {
   return out;
 }
 
-async function readPdfFields(buffer) {
-  const { getDocumentProxy } = require('unpdf');
+function imageBody(operators, OPS) {
+  const images = new Set(Object.entries(OPS).filter(([key]) => /image/i.test(key)).map(([, value]) => value));
+  let matrix = [1, 0, 0, 1]; const stack = [];
+  for (let i = 0; i < operators.fnArray.length; i++) {
+    const op = operators.fnArray[i], args = operators.argsArray[i];
+    if (op === OPS.save) stack.push([...matrix]);
+    else if (op === OPS.restore) matrix = stack.pop() || [1, 0, 0, 1];
+    else if (op === OPS.transform) {
+      const [a, b, c, d] = matrix;
+      matrix = [a * args[0] + c * args[1], b * args[0] + d * args[1], a * args[2] + c * args[3], b * args[2] + d * args[3]];
+    } else if (images.has(op)) {
+      // Piccoli loghi ammessi; immagini estese o operazioni non riconosciute rendono incerta l'assenza di MNP.
+      const size = op === OPS.paintImageXObject ? [args[1], args[2]]
+        : op === OPS.paintInlineImageXObject ? [args[0]?.width, args[0]?.height] : null;
+      if (!size || !size.every(Number.isFinite) || size[0] > 400 || size[1] > 250
+        || Math.hypot(matrix[0], matrix[1]) > 250 || Math.hypot(matrix[2], matrix[3]) > 100) return true;
+    }
+  }
+  return false;
+}
+async function readPdfData(buffer, { inspectImages = true } = {}) {
+  const { getDocumentProxy, getResolvedPDFJS } = require('unpdf');
   let pdf;
   try {
     pdf = await getDocumentProxy(new Uint8Array(buffer), {
       isEvalSupported: false, disableFontFace: true, useSystemFonts: false,
       useWorkerFetch: false, maxImageSize: 1048576, verbosity: 0
     });
-    if (pdf.numPages > MAX_PAGES) return {};
-    const pages = [];
+    if (pdf.numPages > MAX_PAGES) return { fields: {}, pages: [], completeText: false };
+    const pages = []; let hasRasterBody = false;
+    const OPS = inspectImages ? (await getResolvedPDFJS()).OPS : null;
     let total = 0;
     const deadline = Date.now() + 5000;
     for (let n = 1; n <= pdf.numPages; n++) {
       const page = await pdf.getPage(n);
       const content = await page.getTextContent();
+      if (inspectImages && !hasRasterBody) hasRasterBody = imageBody(await page.getOperatorList(), OPS);
       total += content.items.length;
-      if (total > MAX_ITEMS || Date.now() > deadline) return {};
+      if (total > MAX_ITEMS || Date.now() > deadline) return { fields: {}, pages: [], completeText: false };
       // Il viewport gestisce anche i PDF ruotati: y crescente dall'alto.
       const viewport = page.getViewport({ scale: 1 });
       pages.push(content.items.filter(i => typeof i.str === 'string' && i.transform).map(i => {
@@ -131,10 +153,11 @@ async function readPdfFields(buffer) {
     }
     // Su un PDF ibrido/scansione l'assenza del titolo MNP nel testo non ne prova l'assenza visiva.
     const completeText = pages.every(items => items.reduce((n, item) => n + item.str.trim().length, 0) >= 100);
-    return sectionFields(layoutText(pages), completeText);
+    return { fields: sectionFields(layoutText(pages), completeText), pages: pages.map(items => layoutText([items])), completeText, hasRasterBody };
   } finally {
     if (pdf) await pdf.loadingTask.destroy();
   }
 }
+async function readPdfFields(buffer) { return (await readPdfData(buffer, { inspectImages: false })).fields; }
 
-module.exports = { layoutText, sectionFields, fixedActivationFields, customerCodeFields, readPdfFields };
+module.exports = { layoutText, sectionFields, fixedActivationFields, customerCodeFields, readPdfData, readPdfFields };

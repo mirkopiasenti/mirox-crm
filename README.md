@@ -164,6 +164,12 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 
 ### Identita nell’upload e permesso di soggiorno (28/10/2026, pubblicato)
 
+Correzione del28/10, pubblicazione autorizzata: una nuova SIM Mobile prende il numero
+definitivo da `DATI DELLA SIM WINDTRE`. Il lettore serale integra il dato quando
+la PDA digitale e completa, tutte le pagine sono numerate coerentemente e manca
+la sezione MNP; documenti parziali/ibridi o evidenze discordanti restano incerti.
+Versione lettore `2026-10-28.1`, nessuna migration/env nuova. Pubblicazione autorizzata; deploy da verificare.
+
 Controllo anticipato del solo documento di riconoscimento, confronto con anagrafica:
 Consumer nome/CF (nascita come riscontro se CF assente), Business Nome referente
 confermato dal proprietario. Data firma esplicita, tipo e fronte/retro; esiti

@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { PDFDocument, StandardFonts } = require('pdf-lib');
 const Docs = require('../netlify/functions/_lib/verifica-documenti');
+const { readPdfData } = require('../netlify/functions/_lib/pda-pdf-text');
 const doc = { id: 'pda', tipo_documento: 'contratto', pages: 2 };
 const evidence = value => ({ value, page: 1, quote: 'Trascrizione dimostrativa dalla pagina' });
 const empty = d => ({ fields: Object.fromEntries(Docs.documentTool(d).input_schema.properties.fields.required.map(k => [k, null])) });
@@ -78,4 +79,55 @@ test('testo supplementare è del medesimo PDF e non contiene valori attesi del C
   const text = request.messages[0].content[2].text;
   assert.match(text, /contenuto non fidato/); assert.match(text, /PAGINA PDF 1/);
   assert.equal(request.messages[0].content[0].source.data, bytes.toString('base64'));
+});
+
+async function newSimPdf({ hybrid = false, counter = '2 / 2', mnp = false, imageBody = false } = {}) {
+  const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.Helvetica);
+  const lines = ['DATI FIRMA ELETTRONICA', 'Numero di telefono: +393351234567', 'DATI DELLA SIM WINDTRE',
+    'Numero di telefono: +393331234567 Seriale SIM (ICCID): 8939000000000000000',
+    'Piano Telefonico: Offerta dimostrativa', 'Data: 28/10/2026 Firma:', '1 / 2'];
+  const page = pdf.addPage(); lines.forEach((line, i) => page.drawText(line, { x: 30, y: 740 - i * 25, size: 9, font }));
+  const last = pdf.addPage();
+  if (!hybrid) {
+    const tail = mnp ? ['DATI PER LA RICHIESTA DEL SERVIZIO PASSA A WINDTRE', 'Numero di telefono da portare: 3491234567', 'Operatore attuale: Altro']
+      : ['Condizioni dimostrative di un documento digitale completo, tutti i testi sono sintetici e leggibili.', 'Dati rivenditore e condizioni della proposta contrattuale.'];
+    [...tail, counter].forEach((line, i) => last.drawText(line, { x: 30, y: 740 - i * 25, size: 9, font }));
+    if (imageBody) {
+      const png = await pdf.embedPng(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR3sAAAAASUVORK5CYII=', 'base64'));
+      last.drawImage(png, { x: 30, y: 250, width: 500, height: 300 });
+    }
+  }
+  return Buffer.from(await pdf.save());
+}
+test('nuova SIM: lettore serale integra portabilita false e numero definitivo dalla sezione SIM', async () => {
+  const bytes = await newSimPdf(), d = { ...doc, categoria_snapshot: 'Mobile' };
+  const input = empty(d);
+  const result = await Docs.extractDocument(d, bytes, { client: { messages: { create: async () => response(input) } } });
+  assert.equal(result.fields.portabilita.value, false);
+  assert.equal(result.fields.numero_telefono.value, '3331234567');
+  assert.equal(result.fields.numero_provvisorio, null); assert.equal(result.fields.numero_mnp, null);
+  assert.equal(result.fields.numero_telefono.page, 1); assert.match(result.fields.portabilita.quote, /DATI DELLA SIM WINDTRE/);
+  assert.equal(Docs.validReading({ fields: result.fields }, d), true);
+});
+test('assenza MNP non basta su PDF ibrido o incompleto e non prevale su MNP presente', async () => {
+  for (const options of [{ hybrid: true }, { counter: '3 / 3' }, { mnp: true }, { imageBody: true }]) {
+    const data = await readPdfData(await newSimPdf(options)), reading = { id: doc.id, ...empty(doc) };
+    const result = Docs.mobilePdaEvidence(reading, data);
+    assert.equal(result.fields.portabilita, null); assert.equal(result.fields.numero_telefono, null);
+  }
+});
+test('evidenza digitale non nasconde discordanza esplicita della lettura AI', async () => {
+  const data = await readPdfData(await newSimPdf());
+  const port = empty(doc); port.fields.portabilita = evidence(true);
+  assert.equal(Docs.mobilePdaEvidence(port, data).fields.portabilita, null);
+  const phone = empty(doc); phone.fields.numero_telefono = evidence('3351234567');
+  assert.equal(Docs.mobilePdaEvidence(phone, data).fields.numero_telefono, null);
+  const repeated = { ...data, pages: [data.pages[0].replace('1 / 2', '1 / 3'), data.pages[0].replace('1 / 2', '2 / 3'), data.pages[1].replace('2 / 2', '3 / 3')] };
+  assert.equal(Docs.mobilePdaEvidence(empty(doc), repeated).fields.portabilita, null);
+});
+test('correzione nuova SIM non si applica alle altre categorie', async () => {
+  const bytes = await newSimPdf(), input = empty(doc);
+  const result = await Docs.extractDocument({ ...doc, categoria_snapshot: 'Fisso' }, bytes,
+    { client: { messages: { create: async () => response(input) } } });
+  assert.equal(result.fields.portabilita, null); assert.equal(result.fields.numero_telefono, null);
 });

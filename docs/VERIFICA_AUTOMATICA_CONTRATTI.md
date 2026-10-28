@@ -2,6 +2,29 @@ Aggiornamento pubblicato28/10: identita anticipata nell’upload con confronto a
 
 # Verifica automatica contratti
 
+## Correzione dopo primo collaudo reale del28/10
+
+Il proprietario conferma il caso Mobile nuova SIM senza portabilita: numero
+definitivo e numero della SIM sono quelli in `DATI DELLA SIM WINDTRE`, distinti
+dal recapito per firma elettronica. L’AI serale lasciava portabilita null mentre
+il parser upload la riconosceva false. La PDA del caso era nitida e digitale.
+
+Il lettore `2026-10-28.1` riusa il parser per coordinate: integra false e
+numero SIM con pagina/citazione soltanto su Mobile, in assenza di MNP, se tutte
+le pagine contengono testo e numerazione progressiva coerente. Controlla anche
+le immagini: piccoli loghi consentiti, immagini estese o operazioni non
+riconosciute rendono incerta la deduzione. I PDF scansionati, parziali e le
+numerazioni ambigue non diventano automaticamente nuove attivazioni; evidenze
+AI esplicitamente discordanti restano bloccanti. Gli altri tipi non cambiano.
+
+Nuovo `readPdfData` nel parser condiviso espone campi, pagine e completezza dal
+medesimo PDF; `readPdfFields` conserva il comportamento upload preesistente.
+Cache con nuova versione, nessuna migration/env o dipendenza. Pubblicazione
+autorizzata, deploy da verificare. Rivalutazione locale del caso con PDF reale e precedente
+trascrizione AI: esito conforme, zero errori; tutte le scritture intercettate,
+nessuna nuova chiamata AI. Il primo esito nel CRM rimane quello precedente
+finche non si pubblica e si ripete il collaudo. Nessuna approvazione/email.
+
 Versione sviluppata il 27/10/2026, rilascio autorizzato in modalità collaudo.
 Migration applicata e riletta a production, versione `20261027172616`.
 Configurazione confermata collaudo: nessuna conferma contratto o email automatica. Checklist e decisioni storiche:

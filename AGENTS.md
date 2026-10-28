@@ -546,6 +546,18 @@ contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 
 ### Identita nell’upload e permesso di soggiorno (28/10/2026, pubblicato)
 
+Correzione del28/10, pubblicazione autorizzata: per Mobile senza sezione
+`PASSA A WINDTRE`, una PDA digitale completa e leggibile con numerazione pagine
+coerente consente `portabilita=false`; numero definitivo dalla sezione contrattuale
+`DATI DELLA SIM WINDTRE`, mai dal contatto firma. Il lettore serale riusa il
+parser per coordinate dell’upload (`readPdfData`, dati e pagine dal medesimo PDF),
+con evidenza di pagina/sezione e cache versione `2026-10-28.1`. PDF incompleto/ibrido,
+numero ambiguo o evidenze discordanti restano incerti; non basta un mancato
+riconoscimento della portabilita per concludere nuova SIM. Esamina anche gli
+operatori immagine: piccoli loghi ammessi, raster estesi/operazioni immagine non
+riconosciute impediscono questa deduzione. Il percorso upload mantiene i controlli
+precedenti, senza il nuovo costo di scansione operatori. Nessun cambio DB; push autorizzato.
+
 Controllo anticipato del solo documento di riconoscimento, confronto con anagrafica:
 Consumer nome/CF (nascita come riscontro se CF assente), Business Nome referente
 confermato dal proprietario. Data firma esplicita, tipo e fronte/retro; esiti
