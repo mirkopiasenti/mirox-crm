@@ -8,7 +8,7 @@ Migration `20261027172616_verifica_automatica_contratti.sql` collaudata isolata,
 applicata/riletta a production27/10, versione20261027172616. Rilascio autorizzato;
 nessuna email o lettura AI dei clienti ancora eseguita, configurazione collaudo.
 Default collaudo: una pratica richiesta dall'admin, zero conferme/email.
-Identità valida alla data firma, Business su Nome referente anagrafico (nuova regola pubblicata28/10), ICCID copia SIM vs
+Identità valida alla data firma, Business su CF personale del rappresentante dalla PDA (Nome referente senza PDA), ICCID copia SIM vs
 SIM uscente PDA MNP. Energia prime2pagine bolletta/POD/PDR, gestore da bolletta e
 numero da CSV fiscale+punto univoco. CSV mancante o pratica assente = In attesa CSV.
 Turno21:00Europe/Rome, sospesi corretti ripartono subito; dati discordanti da
@@ -84,6 +84,82 @@ inalterati. Problemi, attese CSV o cambiamenti bloccano la conferma. Le notifich
 restano soggette alla configurazione esistente; nessuna attivazione globale.
 Nessuna nuova modalita UI, migration o modifica schema/RLS/CC: procedura operativa.
 
+
+
+### Identita Business: CF del rappresentante dalla PDA (28/10/2026)
+
+Il controllo anticipato legge dalla PDA Business il CF personale nella sezione
+rappresentante legale/delegato, distinto da PIVA aziendale e pagatore SEPA.
+Prima riscontra CF/PIVA aziendale con l’anagrafica CRM; poi confronta esattamente
+CF del rappresentante con documento e scadenza alla firma. Con CF coincidente
+il nome OCR e informativo anche Business. Senza CF sul documento resta il
+riscontro Nome referente completo e nascita coerente; se incerto serve manuale.
+Per categorie senza PDA resta Nome referente, senza confrontare persona e PIVA.
+CF persona non leggibile nella PDA Mobile/Fisso/CB richiede copia completa.
+
+Helper `_lib/pda-business-identity.js`: testo digitale con pagina/citazione,
+fallback AI indipendente solo per dati mancanti; ambiguita o discordanza bloccano.
+Mai inviare valori CRM attesi al modello. Ricevuta HMAC esistente conserva
+`business_identity` con CF persona e prove PDA (codice, azienda, SHA256, lettura).
+Il browser trasmette i percorsi staging, non decide il CF verificato. Tutte le
+PDA del carrello devono riferirsi alla medesima persona, altrimenti pratiche separate.
+Cambio PDA invalida cache/risposte tardive; create e finalize rileggono i byte
+prima dell’invio. Digest PDA promosso nel campo sha256 esistente. Riuso serale
+solo con identita e PDA del singolo contratto identiche; altrimenti nuova lettura.
+Ricevute Business precedenti senza prove PDA richiedono nuovo controllo upload.
+Nessuna migration, colonna anagrafica, dipendenza o env nuova. Modalita collaudo,
+notifiche Reload/Cloud e controlli successivi restano invariati.
+Verificati i due PDF Mobile/Fisso forniti con parser reale senza chiamate AI;
+regressioni sintetiche su CF errato, fonti diverse e sostituzione dei file.
+
+### Identita Consumer: CF e scadenza prioritari (28/10/2026)
+
+Su richiesta successiva del proprietario, se il documento riporta un CF italiano
+identico a quello dell’anagrafica Consumer/Turista, i riscontri principali sono
+CF esatto e scadenza valida alla data firma. Nome OCR informativo: assenza o
+trascrizione diversa non bloccano, non impongono conferma manuale e non avviano
+il secondo giro AI. Nessuna correzione approssimata delle cifre/lettere del CF.
+Un CF esplicito diverso blocca anche con nome uguale; scadenza non leggibile
+richiede conferma manuale, scaduto alla firma blocca. Restano tipo riconosciuto,
+numero documento, parti necessarie e coerenza fra PDF: non approvare tessere
+sanitarie o allegati incompleti soltanto perche riportano un CF. Si verifica la
+coerenza documentale, non l’autenticita/identificazione biometrica da scansione.
+Senza CF restano nome completo e nascita riscontrata nel CF CRM, oppure controllo
+manuale se incerto. Business usa il CF personale dalla PDA come descritto sotto;
+la PIVA aziendale non identifica la persona. Nessuna nuova colonna anagrafica.
+Motore successivo versione `2026-10-28.2` usa la medesima priorita; PDA/intestazione,
+MNP/ICCID, Energia/CSV e notifiche invariati. Ricevuta salva `criterio_identita`
+e `confronto.nome_informativo`; firme/hash/anagrafica e regole anti-risposte tardive
+restano vincolati come prima. Diagnostica nomi conservata; ricontrollo nome resta
+solo nei percorsi senza riscontro CF, con conferma manuale tracciata
+se due letture discordano e gli altri identificativi coincidono.
+Nessuna migration/env/dipendenza o modifica dei dati CRM. Push richiesto dal
+proprietario insieme all’estensione Business. Fonte CIE: https://www.cartaidentita.interno.gov.it/cose-la-carta/caratteristiche-del-documento/
+
+### Diagnostica nome e ricontrollo identita (28/10/2026)
+
+Dopo un blocco reale, l’operatore conferma nome/CF identici a carta e PDA. Il
+vecchio esito non conserva sul server la trascrizione dell’upload rifiutato:
+non attribuire lettere specifiche all’AI senza la relativa risposta. Nessuna
+correzione dell’anagrafica omonima con altro CF senza riscontro/autorizzazione.
+Il risultato espone `confronto` con campo anagrafico usato, nome atteso e nomi
+trascritti. UI escaped nel popup di blocco (Controlla/Aggiungi/Invia) e conferma
+manuale; i nomi restano fuori da error.message/telemetria, nessun CF aggiunto al log.
+Nei percorsi senza CF coincidente, se l’unico errore certo e il nome
+e il primo giro dura meno di18secondi, il backend
+richiede una seconda lettura indipendente dello stesso PDF, senza nome atteso o
+prima risposta. Istruzione su campi stampati/MRZ, non firma/annotazioni; timeout
+SDK20secondi e un solo tentativo formato nel ricontrollo, nessun retry illimitato.
+Se seconda lettura coincide con anagrafica, stesso numero documento, nessuna
+contraddizione CF/nascita/scadenza/tipo e nessun altro errore, il nome passa a
+INCERTO: restano entrambe le trascrizioni e la seconda lettura nella ricevuta,
+conferma manuale esplicita/motivo obbligatori. Mai approvazione automatica del
+nome discordante. Fallimento, errore stabile o altri dati discordanti conservano
+il blocco; CF/documento diverso/scadenza non aggirabili. Nessuna migration/env
+nuova, nessun dato anagrafico atteso inviato al modello.
+Correzione inclusa nel push richiesto insieme al Business; regressioni sintetiche
+e nessuna nuova chiamata Anthropic sui PDF reali, ispezionati localmente.
+
 ### Identita nell’upload e permesso di soggiorno (28/10/2026, pubblicato)
 
 Correzione pubblicata del28/10: per Mobile
@@ -94,15 +170,16 @@ pagine mancanti o discordanza fra evidenze restano incerte. Cache lettore
 `2026-10-28.1`, nessuna migration o nuova env.
 
 Controllo anticipato del solo documento di riconoscimento, confronto con anagrafica:
-Consumer nome/CF (nascita come riscontro se CF assente), Business Nome referente
-confermato dal proprietario. Data firma esplicita, tipo e fronte/retro; esiti
+Consumer CF esatto (nome/nascita se CF assente); Business CF rappresentante
+dalla PDA, oppure Nome referente per categorie senza PDA. Data firma esplicita, tipo e fronte/retro; esiti
 coerente/da correggere/da confermare, manuale tracciato solo per incerto.
 Cittadinanza esplicita o confermata, mai dedotta da residenza/nascita/nome:
 permesso PDF obbligatorio solo Mobile Consumer + dispositivo VAR + extra UE.
 Nuova API `verifica-identita-upload` con JWT e permesso Upload, ricevuta HMAC
 legata ad autore/dati/hash PDF, verifica server su create/upload/finalize e audit.
 Nuovi helper `js/identita-upload-core.js`, `js/identita-upload-ui.js`,
-`netlify/functions/_lib/identita-upload.js`; nessuna nuova dipendenza/env.
+`netlify/functions/_lib/identita-upload.js` e `_lib/pda-business-identity.js`;
+nessuna nuova dipendenza/env.
 Migration sorgente `20261028122800_identita_upload_permesso_soggiorno.sql`,
 applicata a production come `20261028131258`: JSONB audit in vendita_pratiche e SHA256 in vendita_documenti, nullable
 per legacy, grant/RLS/CC invariati. Nuovo tipo allegato `permesso_soggiorno`.
@@ -961,7 +1038,7 @@ Quando una pratica va in KO post-vendita (o `Rifiutata`/`Annullata`/`In lavorazi
 
 ### Documenti
 - Bucket: `contratti-vendita`
-- Tipi gestiti: `documento_identita`, `permesso_soggiorno` (nuovo28/10 locale), `contratto`, `contratto_firmato`, `copia_bolletta`, `copia_sim_mnp`
+- Tipi gestiti: `documento_identita`, `permesso_soggiorno` (pubblicato28/10), `contratto`, `contratto_firmato`, `copia_bolletta`, `copia_sim_mnp`
 - Regole con `campo_condizione='admin_config'` sono gestibili da UI admin
 - Nome standard: `documento_identita.pdf`, `contratto_<categoria_slug>[_N].pdf`, `contratto_firmato_<categoria_slug>[_N].pdf` (solo per firma cartacea), `copia_sim_mnp.pdf`, `copia_bolletta.pdf`. `[_N]` parte da `_2` quando più contratti della stessa categoria condividono la pratica.
 - Solo `application/pdf`, max 20 MB

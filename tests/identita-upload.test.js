@@ -16,13 +16,15 @@ function reading(patch = {}) {
     .map(([key, value]) => [key, value === null ? null : evidence(value)])) };
 }
 const contract = { categoria_snapshot: 'Mobile', cluster_cliente: 'Consumer', dispositivo_associato: true, tipo_acquisto: 'VAR' };
-test('identita confrontata con anagrafica: nome e CF; nascita come riscontro se CF assente', () => {
+test('identita Consumer: CF esatto prioritario; nome e nascita come riscontro se CF assente', () => {
   assert.equal(Core.evaluate([reading()], person, '2026-10-27').stato, 'coerente');
   assert.equal(Core.evaluate([reading({ nome: 'Rossi Mario' })], person, '2026-10-27').stato, 'coerente');
-  for (const patch of [{ nome: 'Luigi Verdi' }, { fiscale: 'VRDLGI80A01H501Z' }]) assert.equal(Core.evaluate([reading(patch)], person, '2026-10-27').stato, 'da_correggere');
+  for(const nome of ['Luigi Verdi',null])assert.equal(Core.evaluate([reading({nome})],person,'2026-10-27').stato,'coerente');
+  assert.equal(Core.evaluate([reading({fiscale:'VRDLGI80A01H501Z'})],person,'2026-10-27').stato,'da_correggere');
   assert.equal(Core.evaluate([reading({ fiscale: null })], person, '2026-10-27').stato, 'coerente');
   assert.equal(Core.evaluate([reading({ fiscale: null, nascita: null })], person, '2026-10-27').stato, 'da_confermare');
-  assert.equal(Core.evaluate([reading(), reading({ nome: 'Altra Persona' })], person, '2026-10-27').stato, 'da_correggere');
+  assert.equal(Core.evaluate([reading(), reading({ nome: 'Altra Persona' })], person, '2026-10-27').stato, 'coerente');
+  assert.equal(Core.evaluate([reading({fiscale:null,nome:'Altro Nome'})],person,'2026-10-27').stato,'da_correggere');
   assert.equal(Core.evaluate([reading(), reading({ numero_documento: 'ALTRO123' })], person, '2026-10-27').stato, 'da_correggere');
 });
 test('Business confronta Nome referente, non societa o partita IVA', () => {
@@ -30,6 +32,14 @@ test('Business confronta Nome referente, non societa o partita IVA', () => {
   assert.equal(Core.evaluate([reading()], business, '2026-10-27').stato, 'coerente');
   assert.equal(Core.evaluate([reading()], { ...business, nome_referente: 'Altro Referente' }, '2026-10-27').stato, 'da_correggere');
   assert.notEqual(Core.evaluate([reading()], { ...business, nome_referente: null }, '2026-10-27').stato, 'coerente');
+});
+test('confronto identita espone nome anagrafico e nome trascritto senza cambiare il blocco', () => {
+  const result=Core.evaluate([reading({nome:'Mario Rosi',fiscale:null})],person,'2026-10-27');
+  assert.equal(result.stato,'da_correggere');
+  assert.deepEqual(result.confronto,{campo_anagrafica:'Ragione sociale',nome_informativo:false,nome_anagrafica:'Mario Rossi',nomi_documenti:['Mario Rosi']});
+  const business={cf_piva:'01234567890',cluster:'Business',ragione_sociale:'Societa esempio',nome_referente:'Mario Rossi'};
+  assert.equal(Core.evaluate([reading()],business,'2026-10-27').confronto.campo_anagrafica,'Nome referente');
+  assert.equal(Core.evaluate([reading()],business,'2026-10-27').confronto.nome_anagrafica,'Mario Rossi');
 });
 test('fronte/retro, tipo riconosciuto e validita alla firma: nessun uso della data upload', () => {
   assert.equal(Core.evaluate([reading({ retro_presente: false })], person, '2026-10-27').stato, 'da_confermare');
@@ -75,6 +85,36 @@ test('lettura non disponibile diventa conferma manuale, PDF invalido resta blocc
   assert.equal(result.documents.length, 2); assert.equal(result.result.stato, 'da_confermare');
   assert.notEqual(result.documents[0].sha256, result.documents[1].sha256);
   await assert.rejects(Identity.analyze(files, person, '2026-10-27', { pdfInfo: async () => { throw new Error('PDF invalido'); } }), /PDF invalido/);
+});
+test('nome OCR discordante ricontrollato senza dati CRM: conferma manuale obbligatoria e due letture conservate', async () => {
+  let calls=0;
+  const out=await Identity.analyze([{buffer:Buffer.from('%PDF-identity')}],person,'2026-10-27',{pdfInfo:async()=>1,extract:async doc=>{
+    calls++;assert.equal(Object.hasOwn(doc,'customer'),false);
+    if(calls===1)return reading({nome:'Mario Rosi',fiscale:null});
+    assert.equal(doc.identity_name_review,true);return reading();
+  }});
+  assert.equal(calls,2);assert.equal(out.result.stato,'da_confermare');assert.deepEqual(out.result.errors,[]);
+  assert.ok(out.result.uncertain.some(v=>v.includes('Due letture')));
+  assert.deepEqual(out.result.confronto.nomi_documenti,['Mario Rosi','Mario Rossi']);
+  assert.equal(out.documents[0].reading.ricontrollo_nome.prima.value,'Mario Rosi');
+  assert.equal(out.documents[0].seconda_lettura.fields.nome.value,'Mario Rossi');
+  assert.throws(()=>Identity.confirm({user:'user',result:out.result},{}),/Descrivi/);
+});
+test('ricontrollo nome non aggira CF, documento diverso, scadenza, lettura ripetuta errata o servizio indisponibile', async () => {
+  for(const patch of [{fiscale:'VRDLGI80A01H501Z'},{numero_documento:'ALTRO123'},{scadenza:'2020-01-01'},{nome:'Mario Rosi'},null]){
+    let calls=0;const out=await Identity.analyze([{buffer:Buffer.from('%PDF-identity')}],person,'2026-10-27',{pdfInfo:async()=>1,extract:async()=>{
+      calls++;if(calls===1)return reading({nome:'Mario Rosi',fiscale:null});if(patch===null)throw Error('Servizio non disponibile');return reading(patch);
+    }});
+    assert.equal(calls,2);assert.equal(out.result.stato,'da_correggere');
+  }
+  let calls=0;
+  const out=await Identity.analyze([{buffer:Buffer.from('%PDF-identity')}],person,'2026-10-27',{pdfInfo:async()=>1,extract:async()=>{calls++;return reading({nome:'Altro Nome',fiscale:'VRDLGI80A01H501Z'});}});
+  assert.equal(calls,1);assert.equal(out.result.stato,'da_correggere');
+});
+test('CF identico e scadenza valida evitano il ricontrollo nome; CF diverso o scaduto restano bloccanti', async () => {
+  let calls=0;const out=await Identity.analyze([{buffer:Buffer.from('%PDF-identity')}],person,'2026-10-27',{pdfInfo:async()=>1,extract:async()=>{calls++;return reading({nome:'Mario Rosi'});}});
+  assert.equal(calls,1);assert.equal(out.result.stato,'coerente');assert.equal(out.result.criterio_identita,'codice_fiscale');assert.equal(out.result.confronto.nome_informativo,true);
+  assert.equal(Core.evaluate([reading({scadenza:'2020-01-01',nome:null})],person,'2026-10-27').stato,'da_correggere');
 });
 test('nuova API richiede permessi; confronto con CRM prima di AI e nessuna scrittura anagrafica', async () => {
   assert.equal((await handler({ httpMethod: 'POST' }, { requireAuth: async () => ({ ok: false, status: 403 }) })).statusCode, 403);
@@ -148,4 +188,17 @@ test('UI invalida il controllo anche quando i file cambiano durante il calcolo h
   window.MiroxIdentitaUpload.invalidate();
   finish(new Uint8Array([1, 2, 3]).buffer);
   await assert.rejects(result, /cambiati/); assert.equal(calls, 0);
+});
+test('UI mostra confronto escaped nel blocco, senza inserire nomi nel messaggio errore o approvare', async () => {
+  let modal;
+  const comparison={campo_anagrafica:'Ragione sociale',nome_anagrafica:'Mario Rossi',nomi_documenti:['<img src=x onerror=alert(1)>']};
+  const window={MiroxSafe:{escapeHtml:v=>String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')},MiroxIdentitaCore:Core,
+    MiroxUI:{_build:options=>{modal=options;}},MiroxApi:{fetch:async()=>({ok:true,json:async()=>({success:true,result:{stato:'da_correggere',errors:['Il nome sul documento non coincide con l’anagrafica.'],confronto:comparison}})})}};
+  vm.runInNewContext(fs.readFileSync(require.resolve('../js/identita-upload-ui'),'utf8'),{window,crypto:require('node:crypto').webcrypto,Uint8Array,Date,FormData,document:{getElementById:()=>({textContent:''})}});
+  await assert.rejects(window.MiroxIdentitaUpload.ensure({files:[new File(['test'],'id.pdf')],customer:person,date:'2026-10-27'}),error=>{
+    assert.doesNotMatch(error.message,/Mario|img/);assert.equal(window.MiroxIdentitaUpload.showError(error),true);return true;
+  });
+  assert.match(modal.bodyHtml,/Mario Rossi/);assert.match(modal.bodyHtml,/&lt;img/);assert.doesNotMatch(modal.bodyHtml,/<img/);
+  assert.equal(window.MiroxIdentitaUpload.get(),null);
+  assert.equal(window.MiroxIdentitaUpload.showError(new Error('Altro errore')),false);
 });

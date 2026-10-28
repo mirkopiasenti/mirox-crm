@@ -2611,16 +2611,22 @@ Reload Forever
  const selected = getInputFiles(refs.fileDocumentoIdentita);
  return selected.length ? selected : (praticaFiles.documento_identita || []);
  }
+ function getBusinessPdaPaths() {
+ if (refs.cluster.value !== 'Business') return [];
+ return [...new Set([...(state.cart.contratti || []).filter(c => c.temp_id !== runtimeState.editingTempId).map(c => c.pda_temp_path), runtimeState.pendingPda?.storage_path].filter(Boolean))].sort();
+ }
  async function ensureIdentityUpload() {
  const files = getIdentityFiles();
  const cliente = getClienteFormData();
  const date = document.getElementById('identita_data_firma').value;
  const snapshot = JSON.stringify(window.MiroxIdentitaCore.customer(cliente));
- return window.MiroxIdentitaUpload.ensure({ files, customer: cliente, date,
+ const pdaPaths = getBusinessPdaPaths();
+ return window.MiroxIdentitaUpload.ensure({ files, customer: cliente, date, pdaPaths,
  requireCitizenship: window.MiroxIdentitaCore.needsPermit({ cluster: cliente.cluster, categoria_nome: getCategoriaName(), dispositivo_associato: refs.dispositivoAssociato.value === 'true', tipo_acquisto: refs.tipoAcquisto.value }, 'extra_ue')
  || state.cart.contratti.some(c => window.MiroxIdentitaCore.needsPermit({ ...c, cluster_cliente: cliente.cluster }, 'extra_ue')),
  current: () => snapshot === JSON.stringify(window.MiroxIdentitaCore.customer(getClienteFormData()))
  && date === document.getElementById('identita_data_firma').value
+ && JSON.stringify(pdaPaths) === JSON.stringify(getBusinessPdaPaths())
  && files.length === getIdentityFiles().length && files.every((file, index) => file === getIdentityFiles()[index]) });
  }
  function currentNeedsPermit() {
@@ -4564,7 +4570,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  goToStep(1);
  }
  } catch (error) {
- showUserError(error.message, 'Verifica contratto');
+ if (!window.MiroxIdentitaUpload?.showError?.(error)) showUserError(error.message, 'Verifica contratto');
  } finally { runtimeState.addingContract = false; }
  }
 
@@ -5207,6 +5213,10 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  if (error.serverErrorCode === 'contratto_duplicato' && !rollbackError && !error.rollbackFailed) {
  hideLoadingOverlay();
  await window.MiroxPdaUI.duplicateNotice(error.duplicate);
+ return;
+ }
+ if (window.MiroxIdentitaUpload?.showError?.(error)) {
+ hideLoadingOverlay();
  return;
  }
  // Submit pratica e' il punto piu' critico: ogni errore va mandato
@@ -6395,7 +6405,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
 
  document.getElementById('btnControllaIdentita').addEventListener('click', async () => {
  window.MiroxIdentitaUpload.invalidate();
- try { await ensureIdentityUpload(); updateUploadVisibility(); } catch (error) { showUserError(error.message, 'Controllo identita'); }
+ try { await ensureIdentityUpload(); updateUploadVisibility(); } catch (error) { if (!window.MiroxIdentitaUpload?.showError?.(error)) showUserError(error.message, 'Controllo identita'); }
  });
  for (const input of [refs.fileDocumentoIdentita, document.getElementById('identita_data_firma'), refs.cfPiva, refs.ragioneSociale, refs.nomeReferente]) {
  input.addEventListener('change', () => { window.MiroxIdentitaUpload.invalidate(); document.getElementById('identitaControlloEsito').textContent = 'Dati o documento cambiati: ripeti il controllo identita.'; });

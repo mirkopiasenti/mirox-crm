@@ -32,6 +32,11 @@ test('seconda risposta ancora malformata resta errore tecnico, mai esito positiv
   await assert.rejects(Docs.extractDocument(doc, Buffer.from('PDF dimostrativo'), { pdfText: async () => '', client: { messages: { create: async () => { attempts++; return response(input); } } } }), /non_valida/);
   assert.equal(attempts, 2);
 });
+test('ricontrollo nome identita usa istruzione indipendente e un solo tentativo formato', async () => {
+  const d={id:'identity',tipo_documento:'identita_upload',pages:1,identity_name_review:true};let calls=0,request;
+  await assert.rejects(Docs.extractDocument(d,Buffer.from('PDF sintetico'),{pdfText:async()=>'',client:{messages:{create:async r=>{request=r;calls++;return response({fields:{}});}}}}),/non_valida/);
+  assert.equal(calls,1);assert.match(request.system,/RICONTROLLO NOME IDENTITA/);assert.match(request.system,/MRZ/);assert.match(request.system,/Nessun nome atteso/);
+});
 
 test('schema rifiuta prova fuori pagina, citazioni vuote, campi eseguibili e codici numerici', () => {
   for (const mutate of [r => { r.fields.codice_contratto = evidence(123); }, r => { r.fields.codice_contratto = { ...evidence('000123'), page: 3 }; },

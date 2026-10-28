@@ -1,6 +1,58 @@
-Aggiornamento pubblicato28/10: identita anticipata nell’upload con confronto anagrafica (Business Nome referente), riuso per hash e nuova richiesta permesso Consumer VAR extra UE. Le regole seguenti restano applicate agli altri controlli; dettagli in [guida identita upload](IDENTITA_UPLOAD_2026-10-28.md).
+Aggiornamento pubblicato28/10: identita anticipata nell’upload con confronto anagrafica (Business CF rappresentante da PDA, Nome referente senza PDA), riuso per hash e nuova richiesta permesso Consumer VAR extra UE. Le regole seguenti restano applicate agli altri controlli; dettagli in [guida identita upload](IDENTITA_UPLOAD_2026-10-28.md).
 
 # Verifica automatica contratti
+
+
+### Identita Business: CF del rappresentante dalla PDA (28/10/2026)
+
+Il controllo anticipato legge dalla PDA Business il CF personale nella sezione
+rappresentante legale/delegato, distinto da PIVA aziendale e pagatore SEPA.
+Prima riscontra CF/PIVA aziendale con l’anagrafica CRM; poi confronta esattamente
+CF del rappresentante con documento e scadenza alla firma. Con CF coincidente
+il nome OCR e informativo anche Business. Senza CF sul documento resta il
+riscontro Nome referente completo e nascita coerente; se incerto serve manuale.
+Per categorie senza PDA resta Nome referente, senza confrontare persona e PIVA.
+CF persona non leggibile nella PDA Mobile/Fisso/CB richiede copia completa.
+
+Helper `_lib/pda-business-identity.js`: testo digitale con pagina/citazione,
+fallback AI indipendente solo per dati mancanti; ambiguita o discordanza bloccano.
+Mai inviare valori CRM attesi al modello. Ricevuta HMAC esistente conserva
+`business_identity` con CF persona e prove PDA (codice, azienda, SHA256, lettura).
+Il browser trasmette i percorsi staging, non decide il CF verificato. Tutte le
+PDA del carrello devono riferirsi alla medesima persona, altrimenti pratiche separate.
+Cambio PDA invalida cache/risposte tardive; create e finalize rileggono i byte
+prima dell’invio. Digest PDA promosso nel campo sha256 esistente. Riuso serale
+solo con identita e PDA del singolo contratto identiche; altrimenti nuova lettura.
+Ricevute Business precedenti senza prove PDA richiedono nuovo controllo upload.
+Nessuna migration, colonna anagrafica, dipendenza o env nuova. Modalita collaudo,
+notifiche Reload/Cloud e controlli successivi restano invariati.
+Verificati i due PDF Mobile/Fisso forniti con parser reale senza chiamate AI;
+regressioni sintetiche su CF errato, fonti diverse e sostituzione dei file.
+
+### Identita Consumer: CF e scadenza prioritari (28/10/2026)
+
+Su richiesta successiva del proprietario, se il documento riporta un CF italiano
+identico a quello dell’anagrafica Consumer/Turista, i riscontri principali sono
+CF esatto e scadenza valida alla data firma. Nome OCR informativo: assenza o
+trascrizione diversa non bloccano, non impongono conferma manuale e non avviano
+il secondo giro AI. Nessuna correzione approssimata delle cifre/lettere del CF.
+Un CF esplicito diverso blocca anche con nome uguale; scadenza non leggibile
+richiede conferma manuale, scaduto alla firma blocca. Restano tipo riconosciuto,
+numero documento, parti necessarie e coerenza fra PDF: non approvare tessere
+sanitarie o allegati incompleti soltanto perche riportano un CF. Si verifica la
+coerenza documentale, non l’autenticita/identificazione biometrica da scansione.
+Senza CF restano nome completo e nascita riscontrata nel CF CRM, oppure controllo
+manuale se incerto. Business usa il CF personale dalla PDA come descritto sotto;
+la PIVA aziendale non identifica la persona. Nessuna nuova colonna anagrafica.
+Motore successivo versione `2026-10-28.2` usa la medesima priorita; PDA/intestazione,
+MNP/ICCID, Energia/CSV e notifiche invariati. Ricevuta salva `criterio_identita`
+e `confronto.nome_informativo`; firme/hash/anagrafica e regole anti-risposte tardive
+restano vincolati come prima. Diagnostica nomi conservata; ricontrollo nome resta
+solo nei percorsi senza riscontro CF, con conferma manuale tracciata
+se due letture discordano e gli altri identificativi coincidono.
+Nessuna migration/env/dipendenza o modifica dei dati CRM. Push richiesto dal
+proprietario insieme all’estensione Business. Fonte CIE: https://www.cartaidentita.interno.gov.it/cose-la-carta/caratteristiche-del-documento/
+
 
 
 ### Email anche nel collaudo assistito (28/10/2026, attivo)
@@ -148,7 +200,7 @@ Correzione27/10 dopo rilascio75f69aa; nessun cambio permessi o stato contratto.
 ## Controlli implementati
 
 - PDA intestata allo stesso CF/P.IVA, codice contratto corrispondente, identità
-  del cliente; per Business identità del **Nome referente nell’anagrafica** (estensione pubblicata28/10).
+  del cliente; per Business CF personale del rappresentante dalla PDA e documento; Nome referente nelle categorie senza PDA.
 - Documento d'identità con nome e CF coerenti; se il CF non è leggibile, servono
   nome completo e data nascita riscontrata nella PDA o nel CF del soggetto.
   Il solo nome non basta. Nessuna biometria o attestazione di autenticità.
@@ -333,8 +385,8 @@ Per collaudare insieme: aprire un contratto non controllato, scegliere
 confrontare i PDF con il proprietario, correggere e riprovare. Minimo un minuto
 fra prove sulla stessa pratica. L'esito si aggiorna senza ricaricare la pagina.
 
-Un documento senza data firma o un Business senza Nome referente anagrafico verificabile resta
-bloccato con motivo esplicito; non si presume che upload coincida con firma.
+Un documento senza data firma o un Business senza CF personale PDA/documento
+riscontrabile (Nome referente e nascita dove previsto) resta bloccato con motivo esplicito; non si presume che upload coincida con firma.
 Le letture reali e la qualità OCR vanno collaudate sui fascicoli del proprietario:
 i test sintetici non certificano quelle letture.
 

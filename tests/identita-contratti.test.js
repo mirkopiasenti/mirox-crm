@@ -158,7 +158,8 @@ function finalizeFixture({ identityIds, readError = false, check = null, fileDoc
     process: { env: { SUPABASE_URL: 'https://test.invalid', SUPABASE_SERVICE_ROLE_KEY: 'private' } },
     require(id) {
       if (id === './_lib/windtre-customer-codes') return require('../netlify/functions/_lib/windtre-customer-codes');
-      if (id === './_lib/identita-upload') return require('../netlify/functions/_lib/identita-upload');
+        if (id === './_lib/identita-upload') return require('../netlify/functions/_lib/identita-upload');
+        if (id === './_lib/pda-business-identity') return require('../netlify/functions/_lib/pda-business-identity');
       if (id === './_lib/pda-contract') return require('../netlify/functions/_lib/pda-contract');
       if (id === '../../js/customer-base-device') return require('../js/customer-base-device');
       if (id === '@supabase/supabase-js') return { createClient: () => db };

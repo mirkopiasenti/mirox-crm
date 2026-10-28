@@ -1,5 +1,6 @@
 const Pda = require('./_lib/pda-contract');
 const Identity = require('./_lib/identita-upload');
+const BusinessIdentity = require('./_lib/pda-business-identity');
 const {validateCombination}=require('../../js/customer-base-device');
 const { saveCodes } = require('./_lib/windtre-customer-codes');
 const { createClient } = require('@supabase/supabase-js');
@@ -311,7 +312,7 @@ function buildPdaFinalFileName(categoryName, progressive = 1) {
  * Se l'INSERT del record documento fallisce, rimuove il file appena spostato
  * per non lasciare oggetti orfani nello Storage.
  */
-async function promoteTempPda({ supabase, tempPath, basePath, categoriaName, progressive, praticaId, contrattoId, anagraficaId, uploadedBy }) {
+async function promoteTempPda({ supabase, tempPath, basePath, categoriaName, progressive, praticaId, contrattoId, anagraficaId, uploadedBy, sha256 = null }) {
   try {
     const finalFileName = buildPdaFinalFileName(categoriaName, progressive);
     const cleanBase = String(basePath || '').replace(/\/+$/, '');
@@ -338,6 +339,7 @@ async function promoteTempPda({ supabase, tempPath, basePath, categoriaName, pro
         file_name: finalFileName,
         mime_type: 'application/pdf',
         file_size: null,
+        ...(sha256 ? { sha256 } : {}),
         uploaded_by: uploadedBy || null
       });
 
@@ -702,10 +704,11 @@ exports.handler = async (event) => {
         if (owner.error) throw new Error('Impossibile rileggere l’anagrafica prima dell’invio.');
         Identity.assertPractice(check, owner.data);
         const [contracts, documents] = await Promise.all([
-          supabase.from('vendita_contratti').select('id,categoria_snapshot,cluster_cliente,dispositivo_associato,tipo_acquisto').eq('pratica_id', praticaRow.id),
-          supabase.from('vendita_documenti').select('contratto_id,tipo_documento,sha256').eq('pratica_id', praticaRow.id)
+          supabase.from('vendita_contratti').select('id,categoria_snapshot,codice_contratto,cluster_cliente,dispositivo_associato,tipo_acquisto').eq('pratica_id', praticaRow.id),
+          supabase.from('vendita_documenti').select('contratto_id,tipo_documento,sha256,storage_bucket,storage_path').eq('pratica_id', praticaRow.id)
         ]);
         if (contracts.error || documents.error) throw new Error('Impossibile verificare gli allegati prima dell’invio.');
+        await BusinessIdentity.assertSources(supabase, check, owner.data, contracts.data || [], documents.data || []);
         for (const c of contracts.data || []) {
           if (Identity.Core.needsPermit(c, 'extra_ue') && !check.result.cittadinanza) throw new Error('Conferma la cittadinanza prima di inviare un Mobile Consumer con dispositivo VAR.');
           for (const source of check.documents) {
@@ -932,6 +935,7 @@ exports.handler = async (event) => {
     }
     const identityCheck = Identity.verify(pratica.identita_token, { user: Identity.author(auth), customer: cliente, secret: serviceRoleKey });
     if (!Identity.approved(identityCheck)) throw new Error('Completa il controllo identita prima dell’invio.');
+    await BusinessIdentity.assertSources(supabase, identityCheck, cliente, normalizedContracts.map(c => ({ ...c, categoria_snapshot: pdaCategories.find(category => category.id === c.categoria_id)?.nome })));
     for (const contract of normalizedContracts) {
       const category = pdaCategories.find(c => c.id === contract.categoria_id);
       if (Identity.Core.needsPermit({ ...contract, categoria_snapshot: category.nome, cluster_cliente: cluster }, 'extra_ue') && !identityCheck.result.cittadinanza) {
@@ -1570,7 +1574,8 @@ exports.handler = async (event) => {
           praticaId: praticaRow.id,
           contrattoId: insertedContract.id,
           anagraficaId,
-          uploadedBy: operatoreId
+          uploadedBy: operatoreId,
+          sha256: identityCheck.business_identity?.pdas?.find(p => p.path === item.pda_temp_path)?.sha256 || null
         });
         if (!result.ok) {
           throw new Error(`Promozione PDA fallita per contratti[${index}]: ${result.error}`);

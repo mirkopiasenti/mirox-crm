@@ -4,7 +4,7 @@
   else root.MiroxVerificaCore = api;
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
-  const VERSION = '2026-10-28.1';
+  const VERSION = '2026-10-28.2';
   const LABELS = { da_controllare: 'Da controllare', controllato: 'Controllato', da_verificare: 'Da verificare', in_attesa_csv: 'In attesa CSV' };
   const FIELD_LABELS = { codice_contratto: 'Codice contratto', costo_offerta_mensile: 'Costo mensile base', portabilita: 'Portabilità', numero_telefono: 'Numero di telefono', numero_provvisorio: 'Numero provvisorio', numero_mnp: 'Numero da portare', operatore_provenienza: 'Gestore di provenienza', tipo_attivazione: 'Tipo attivazione Fisso', imei: 'IMEI', fascia_prezzo: 'Prezzo dispositivo', tipo_acquisto: 'Tipo acquisto', numero_contratto_energia: 'Numero contratto Energia', ex_fornitore: 'Gestore uscente' };
   const norm = v => String(v == null ? '' : v).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
@@ -114,11 +114,12 @@
       }
     }
     const business = norm(c.cluster_cliente || a.cluster) === 'BUSINESS';
-    const targetTax = business ? null : a.cf_piva;
+    const targetTax = business ? field(pda, 'firmatario_fiscale') || identityPrecheck?.cf_rappresentante : a.cf_piva;
     const targetName = business ? a.nome_referente : a.ragione_sociale;
     const targetBirth = null;
     const pdaName = field(pda, business ? 'firmatario_nome' : 'intestatario_nome');
-    if (pdaName && targetName && name(pdaName) !== name(targetName)) fail('intestazione_nome', 'Il nome della persona nella PDA non coincide con l’anagrafica CRM.');
+    if (pdaName && targetName && (!business || !/^[A-Z0-9]{16}$/.test(compact(targetTax))) && name(pdaName) !== name(targetName)) fail('intestazione_nome', 'Il nome della persona nella PDA non coincide con l’anagrafica CRM.');
+    if (business && isPda && !/^[A-Z0-9]{16}$/.test(compact(targetTax))) fail('cf_rappresentante', 'Il CF personale del rappresentante non è leggibile nella sezione dedicata della PDA Business.');
     const energyMatch = cat === 'ENERGIA' && csv ? csvMatch(csv.rows, a.cf_piva, c.pod_pdr, c.numero_contratto_energia) : null;
     const csvDates = [...new Set((energyMatch?.rows || []).map(r => date(r.data_firma)).filter(Boolean))];
     const scannedDates = c.tipo_firma === 'cartacea' ? [...new Set(ofType('contratto_firmato').filter(d => compact(field(d, 'fiscale')) === compact(a.cf_piva) && compact(field(d, 'codice_contratto')) === compact(field(pda, 'codice_contratto'))).map(d => date(field(d, 'data_firma'))).filter(Boolean))] : [];
@@ -128,14 +129,18 @@
     // Upload date is never silently used as signing date. Non-PDA categories require an explicit date source.
     if (!signed) fail('data_firma', 'La data di firma del contratto non è leggibile o non è disponibile. Serve per controllare la scadenza del documento.');
     if (signed && signed > romeDay(new Date())) fail('data_firma_futura', 'La data di firma letta è futura: verifica la data effettiva del contratto.');
-    if (business && !targetName) fail('firmatario', 'Completa Nome referente nell’anagrafica Business per controllare il documento di riconoscimento.');
+    if (business && !targetName && !targetTax) fail('firmatario', 'Completa Nome referente nell’anagrafica Business per controllare il documento di riconoscimento.');
     const identityMatches = identities.filter(d => {
       const tax = compact(field(d, 'fiscale')), n = name(field(d, 'nome')), birth = date(field(d, 'nascita'));
-      if (business) return Boolean(targetName && n && n.split(' ').length >= 2 && n === name(targetName));
-      if (tax && targetTax) return tax === compact(targetTax) && Boolean(n) && (!targetName || n === name(targetName));
+      if (business) {
+        if (tax && targetTax) return tax === compact(targetTax);
+        return Boolean(targetName && n && n.split(' ').length >= 2 && n === name(targetName) && (!targetTax || birthMatchesTax(birth, targetTax)));
+      }
+      if (tax && targetTax) return tax === compact(targetTax);
       return Boolean(targetName && n && n.split(' ').length >= 2 && n === name(targetName) && (birth && (birth === date(targetBirth) || birthMatchesTax(birth, targetTax))));
     });
     if (identityPrecheck) {
+      if (business && compact(identityPrecheck.cf_rappresentante) !== compact(targetTax)) fail('cf_rappresentante', 'Il CF del rappresentante della PDA differisce dal controllo identita eseguito nell’upload.');
       if (!signed || !date(identityPrecheck.scadenza) || date(identityPrecheck.scadenza) < signed) fail('scadenza', 'Il documento già controllato nell’upload non è valido alla data di firma del contratto.');
       else checks.push('Identità già controllata nell’upload rispetto all’anagrafica CRM; validità riscontrata alla data di firma');
     }

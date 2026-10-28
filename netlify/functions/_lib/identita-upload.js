@@ -39,6 +39,7 @@ async function analyze(files, customer, signingDate, deps = {}) {
   const documents = [];
   for (const file of files) total += file.buffer.length;
   if (total > 20 * 1024 * 1024) throw new Error('I PDF identita superano complessivamente 20 MB.');
+  const started = Date.now();
   const client = deps.client || (deps.extract ? null : new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 20000, maxRetries: 0 }));
   await Promise.all(files.map(async file => {
     const pages = await (deps.pdfInfo || Docs.pdfInfo)(file.buffer);
@@ -49,6 +50,30 @@ async function analyze(files, customer, signingDate, deps = {}) {
     documents.push({ sha256: doc.id, pages, reading });
   }));
   documents.sort((a, b) => a.sha256.localeCompare(b.sha256));
+  const first = Core.evaluate(documents.map(d => d.reading), customer, signingDate);
+  // Ricontrollo soltanto il nome: altri errori certi restano bloccanti. Nessun dato CRM viene fornito all'AI.
+  if (first.errors.length === 1 && first.errors[0] === 'Il nome sul documento non coincide con l’anagrafica.' && Date.now() < (deps.nameRetryDeadline || started + 18000)) {
+    await Promise.all(documents.map(async doc => {
+      const initial = doc.reading.fields?.nome;
+      if (!initial?.value || Core.name(initial.value) === Core.customer(customer).nome) return;
+      const file = files.find(f => hash(f.buffer) === doc.sha256);
+      try {
+        const repeated = await (deps.extract || Docs.extractDocument)({ id: doc.sha256, tipo_documento: 'identita_upload', pages: doc.pages, identity_name_review: true }, file.buffer, { ...deps, client });
+        const next = repeated.fields?.nome;
+        const number = doc.reading.fields?.numero_documento?.value;
+        const sameNumber = number && Core.norm(number) === Core.norm(repeated.fields?.numero_documento?.value);
+        const conflicting = ['fiscale', 'nascita', 'scadenza', 'tipo_identita'].some(key => {
+          const a = doc.reading.fields?.[key]?.value, b = repeated.fields?.[key]?.value;
+          return a && b && Core.norm(a) !== Core.norm(b);
+        });
+        doc.seconda_lettura = repeated;
+        if (sameNumber && !conflicting && next?.value && Core.name(next.value) === Core.customer(customer).nome
+          && Core.evaluate([repeated], customer, signingDate).errors.length === 0) {
+          doc.reading = { ...doc.reading, fields: { ...doc.reading.fields, nome: null }, ricontrollo_nome: { prima: initial, seconda: next } };
+        }
+      } catch { /* Un ricontrollo fallito conserva il blocco originario. */ }
+    }));
+  }
   return { documents, result: Core.evaluate(documents.map(d => d.reading), customer, signingDate) };
 }
 function confirm(data, input) {

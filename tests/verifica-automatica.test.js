@@ -70,11 +70,11 @@ test('non usa data upload come data firma; rifiuta data impossibile e sola fiduc
   f.extracted.approved = true;
   assert.equal(Core.evaluate(f).esito, 'da_verificare');
 });
-test('intestatario fiscale errato, nome identità discordante o documento illeggibile bloccano', () => {
-  for (const kind of ['tax', 'name', 'page', 'quote', 'duplicate']) {
+test('intestatario fiscale errato, CF identita diverso o documento illeggibile bloccano', () => {
+  for (const kind of ['tax', 'identityTax', 'page', 'quote', 'duplicate']) {
     const f = fixture();
     if (kind === 'tax') get(f, 'pda').fiscale = evidence('VRDLGI80A01H501Z');
-    if (kind === 'name') get(f, 'identity').nome = evidence('Luigi Verdi');
+    if (kind === 'identityTax') get(f, 'identity').fiscale = evidence('VRDLGI80A01H501Z');
     if (kind === 'page') get(f, 'identity').fiscale.page = 9;
     if (kind === 'quote') get(f, 'identity').scadenza.quote = '';
     if (kind === 'duplicate') f.extracted.documents.push(f.extracted.documents[0]);
@@ -83,13 +83,22 @@ test('intestatario fiscale errato, nome identità discordante o documento illegg
     assert.equal(Core.evaluate(f).esito, 'da_verificare', kind);
   }
 });
-test('Business verifica la persona firmataria della PDA, distinta dalla società', () => {
+test('identita Consumer con CF esatto e scadenza valida non dipende dal nome OCR, anche nella verifica serale',()=>{
+  const f=fixture();get(f,'identity').nome=evidence('Mario Rosi');
+  assert.equal(Core.evaluate(f).esito,'controllato');
+  get(f,'identity').nome=null;assert.equal(Core.evaluate(f).esito,'controllato');
+  get(f,'identity').fiscale=null;assert.equal(Core.evaluate(f).esito,'da_verificare');
+});
+test('Business verifica CF personale del rappresentante PDA, distinto dalla società; nome OCR informativo', () => {
   const f = fixture(); f.contract.cluster_cliente = 'Business'; f.customer.cf_piva = '01234567890'; f.customer.ragione_sociale = 'Società esempio';
   f.customer.nome_referente = 'Mario Rossi';
   get(f, 'pda').fiscale = evidence('01234567890');
   get(f, 'pda').firmatario_nome = evidence('Mario Rossi'); get(f, 'pda').firmatario_fiscale = evidence('RSSMRA80A01H501U');
   assert.equal(Core.evaluate(f).esito, 'controllato');
   get(f, 'pda').firmatario_nome = evidence('Luigi Verdi');
+  get(f,'identity').nome=evidence('Mario Rosi');
+  assert.equal(Core.evaluate(f).esito,'controllato');
+  get(f,'identity').fiscale=evidence('VRDLGI80A01H501Z');
   assert.equal(Core.evaluate(f).esito, 'da_verificare');
 });
 test('identità senza CF usa nome e nascita, mai il solo nome', () => {

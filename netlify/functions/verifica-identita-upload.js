@@ -1,6 +1,7 @@
 'use strict';
 const Busboy = require('busboy');
 const Identity = require('./_lib/identita-upload');
+const Business = require('./_lib/pda-business-identity');
 const { requireAuth, getAdminClient } = require('./_lib/require-auth');
 const reply = (statusCode, data) => ({ statusCode, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, body: JSON.stringify(data) });
 function multipart(event) {
@@ -26,6 +27,7 @@ async function handler(event, deps = {}) {
   const auth = await (deps.requireAuth || requireAuth)(event, { endpoint: 'verifica-identita-upload' });
   if (!auth.ok) return reply(auth.status, { success: false, error: auth.error });
   try {
+    const started = Date.now();
     const user = Identity.author(auth);
     if (!user) throw new Error('Account non valido');
     const json = /application\/json/i.test(event.headers?.['content-type'] || event.headers?.['Content-Type'] || '');
@@ -41,7 +43,7 @@ async function handler(event, deps = {}) {
     const cliente = JSON.parse(fields.cliente || '{}');
     if (!/^(?:[A-Z0-9]{16}|[0-9]{11})$/.test(Identity.Core.customer(cliente).fiscale) || !Identity.Core.customer(cliente).nome) throw new Error('Completa l’anagrafica prima del controllo identita.');
     const db = deps.db || getAdminClient();
-    const existing = await db.from('anagrafica').select('cf_piva,cluster,ragione_sociale,nome_referente').ilike('cf_piva', cliente.cf_piva).limit(2);
+    const existing = await db.from('anagrafica').select('cf_piva,cluster,ragione_sociale,nome_referente').ilike('cf_piva', Identity.Core.customer(cliente).fiscale).limit(2);
     if (existing.error) throw new Error('Anagrafica non disponibile. Riprova il controllo.');
     if (existing.data?.length > 1) throw new Error('Anagrafica non univoca: correggi il codice fiscale prima del controllo.');
     const saved = existing.data?.[0];
@@ -50,9 +52,11 @@ async function handler(event, deps = {}) {
       ragione_sociale: saved.ragione_sociale?.trim() ? saved.ragione_sociale : cliente.ragione_sociale,
       nome_referente: saved.nome_referente?.trim() ? saved.nome_referente : cliente.nome_referente } : cliente;
     if (!Identity.Core.sameCustomer(target, cliente)) throw new Error('I dati inseriti differiscono dall’anagrafica CRM: correggi prima l’anagrafica o ricarica i dati.');
-    const analysis = await Identity.analyze(files, target, fields.data_firma, deps);
+    const paths = JSON.parse(fields.pda_paths || '[]');
+    const business = Identity.Core.customer(target).business ? await Business.load(db, paths, target, deps) : null;
+    const analysis = await Identity.analyze(files, { ...target, cf_rappresentante: business?.cf_rappresentante }, fields.data_firma, { ...deps, nameRetryDeadline: started + 18000 });
     const data = { version: 1, at: Date.now(), user, customer: { cf_piva: target.cf_piva, cluster: target.cluster,
-      ragione_sociale: target.ragione_sociale, nome_referente: target.nome_referente }, ...analysis };
+      ragione_sociale: target.ragione_sociale, nome_referente: target.nome_referente }, business_identity: business, ...analysis };
     return reply(200, { success: true, token: Identity.sign(data, deps.secret), result: data.result });
   } catch (error) { return reply(error.statusCode || 400, { success: false, error: error.message || 'Controllo identita non disponibile' }); }
 }
