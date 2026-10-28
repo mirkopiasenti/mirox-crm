@@ -546,7 +546,7 @@ contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 
 
 
-### Email anche nel collaudo assistito (28/10/2026, attivazione richiesta)
+### Email anche nel collaudo assistito (28/10/2026, attivo)
 
 Reload ora invia a `mirko.piasenti@gmail.com`, come Professional Cloud; i problemi
 restano a `mirko.piasenti@mail.com`. Nuove colonne private configurazione
@@ -563,7 +563,11 @@ notifiche (`notifications:true`, HMAC) mantenendo fermi turni e backlog contratt
 Gli errori tecnici dopo cinque tentativi producono esito/mail anche in collaudo.
 UI mostra lo stato delle email, checkbox admin e reinvio esplicito quando abilitato.
 Migrazione sorgente `20261028153619_verifica_email_collaudo_reload.sql`, applicata
-production `20261028154059`; flag da accendere dopo pubblicazione worker compatibile.
+production `20261028154059`; flag abilitato il28/10 alle16:45:15 Europe/Rome
+dopo il deploy `838c0a6` / Netlify `6ae21810a3cc31721d8192c3` (16:43:59),
+CI `40718797608` riuscita. SHA/UI verificati HTTP e dispatch notifiche-only202.
+Coda vuota alla rilettura, nessuna email fittizia inviata e nessun nuovo collaudo
+avviato. Modalita serale collaudo invariata; advisor sicurezza invariati.
 Build e504/504test riusciti, harness SQL esteso riuscito. Nessuna nuova env/dipendenza.
 
 ### Collaudo assistito con conferma del singolo contratto (28/10/2026)

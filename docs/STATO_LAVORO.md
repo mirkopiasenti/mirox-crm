@@ -2,10 +2,10 @@
 
 Aggiornato: 2026-10-28. Promemoria di ripresa, non autorizza deploy o attivazioni.
 
-## Email verifica anche in collaudo: attivazione in corso28/10
+## Email verifica anche in collaudo: attive28/10
 
 - Proprietario richiede destinatario Reload Gmail come Cloud e attivazione email collaudo, mantenendo separato il turno serale. Implementati email_collaudo/email_collaudo_at, accodamento nuovi problemi e promemoria dopo audit conferma assistita, invii notifiche-only firmati, dedupe/SMTP/reinvio e UI aggiornati. Nessun vecchio test recuperato, attesa CSV senza mail. Errori tecnici terminali inclusi. Problemi restano mirko.piasenti@mail.com.
-- Migration CLI20261028153619 in database/, applicata production20261028154059: colonne private e nuova RPC INVOKER/service-only, concludi conserva ACL e nuovo destinatario Reload. Flag ancora false fino deploy. Build504/504test e harness SQL riusciti; security advisor prima7categorie. Guide README/AGENTS/CLAUDE/databaseREADME/verifica aggiornate. Prossimo: pubblicare worker/UI, abilitare solo email_collaudo, rileggere config/coda; nessuna attivazione serale, contratto nuovo o email di prova avviati.
+- Migration CLI20261028153619 in database/, applicata production20261028154059: colonne private e nuova RPC INVOKER/service-only, concludi conserva ACL e nuovo destinatario Reload. Flag true con decorrenza16:45:15Europe/Rome dopo deploy; modalita collaudo invariata. Build504/504test e harness SQL riusciti; security advisor7categorie invariati prima/dopo. Guide README/AGENTS/CLAUDE/databaseREADME/verifica aggiornate. 838c0a6 online Netlify6ae21810a3cc31721d8192c3 alle16:43:59Europe/Rome, CI40718797608 verde, SHA/UI HTTP identici. Flag riletto true, nuova RPC eseguita senza errori, coda0; worker notifiche-only firmato202. Nessuna attivazione serale, nuovo collaudo o email fittizia avviati. Prossimo: singolo collaudo reale o conferma assistita successivi useranno le nuove mail; non riaccodare prove vecchie.
 
 ## Identita nell’upload e permesso di soggiorno: pubblicato28/10
 
