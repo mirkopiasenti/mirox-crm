@@ -54,3 +54,36 @@ Node nuove su piano, consenso, drift, ordine deploy-dati-salute e fallimenti.
 PR13 conservata realmente dal worker: revisionare sovrapposizione Day by Day e
 vincoli acquisto/device, convertire SQL proposto in piano revisionato e portare
 la proposta concreta alla conferma finale Telegram.
+
+## Revisione concreta KG23
+
+Fondazione finale22e85df online22:52:52/CI37529716847/health37529988819OK,
+274test. PR13/head ea944a291f5f revisionata:280test+build (6regressioni feature
+con render wizard/validator server veri), piano2offerte/2righe a1punto e sole
+regole14/15 per evitare duplicati preservando Telefono Incluso storico. Vincoli
+telefono obbligatorio e tipo Finanziamento/VAR, altre offerte/FWA invariate.
+Intero piano PostgreSQL eseguito in transazione annullata,0nuove righe/offerte
+attive dopo rollback. Nessun SQL spostato/eseguito, nessuna conferma simulata.
+Piano JSON/digest approvazione patch6ebcabfa legati alla head. I test finali del
+workflow e la proposta Telegram precedono il consenso del proprietario; schema
+fuori da questo piano e altre tabelle protette richiedono revisione separata.
+
+## Esito finale del collaudo
+
+Il cron riprende automaticamente il piano revisionato alle23:01:08. Test2c36f914/
+workflow37530802409 riuscito su head ea944a291f5f e base22e85df: install/test/
+smoke superati. Conferma finale Telegram consegnata23:01:35, messaggio185,
+approvazione474d0db6 in_attesa fino07/10 00:01:35Europe/Rome. Comprende piano
+dati a1punto e hash dc9c7539; nessun errore di proposta. PR13 draft/open/mergeable.
+La funzionalita non e ancora online: attende il consenso finale del proprietario.
+Nessun nuovo push main/PR o modifica piano dopo questo punto, per preservare
+l'approvazione legata alla versione.
+
+
+## Pubblicazione KG23 verificata06/10 sera
+
+Conferma reale del proprietario: releaseb5a7b0f3 completata23:08:53,
+merge81412e40fbe5/Netlify6ac5632e pronto23:08:32, healthOK e piano catalogo applicato
+con hash dc9c7539. Due offerte Consumer rilette a1punto/deviceTRUE; caso chiuso.
+La successiva KG25 riguarda anche i conteggi Avanzamento/Gare: audio recuperato
+23:35 e requisito registrato, sviluppo della nuova regola ancora da avviare.

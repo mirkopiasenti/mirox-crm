@@ -59,13 +59,21 @@ zero pratiche e zero risultati con inner join (RLS pratiche senza SELECT).
 Correzione solo frontend, query senza join pratica e guardia caricamenti; nessuna
 nuova migration/policy/grant o modifica dati.31da_controllare/2689controllati presenti.
 
-Preparazione locale collaudo diurno28/10: nessuna modifica schema, trigger,
+Preparazione collaudo diurno28/10, pubblicata84bb310: nessuna modifica schema, trigger,
 permessi o dati production. Lettore tool a schema + testo PDF per pagina, cache
 con versione lettore esplicita oltre a modello/prompt/hash byte. I collaudi
 restano senza patch contratto o notifiche; storico affidato al proprietario.
 SQL isolato riconferma grant/claim/CAS/rollback e assenza effetti del collaudo.
-Letture live SQL/REST successive al primo collaudo in timeout: configurazione
-attuale non riconfermata, ultima letta collaudo; nessun tentativo di attivazione.
+Letture live SQL/REST riprese alle22:15 del27/10 dopo passaggio Nano->Micro
+effettuato dal proprietario; modalità collaudo riconfermata,0verifiche in corso
+e0notifiche verifica. Nessuna modifica schema/dati o attivazione dall’assistente.
+
+Controllo successivo 27/10 alle 22:45: proprietario conferma Small e upgrade;
+PostgreSQL 17.11 (build Supabase 17.11.0.003) confermato SQL/metadati, progetto
+ACTIVE_HEALTHY e Auth/REST HTTP200 in circa 0,4s. Modalità collaudo confermata,
+zero verifiche in corso e zero notifiche verifica. Test completi sui nuovi
+contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
+`docs/INCIDENTE_ACCESSO_REPORT_2026-10-27.md`.
 
 ## Professional Cloud Mobile e Fisso Business (28/10/2026, migration applicata)
 
@@ -109,6 +117,26 @@ assenza incerta resta manuale, No richiede lo stesso accordo testo/AI. UI,
 DTO create ed editor conservano Cloud sul Fisso e azzerano solo i dati specifici
 Mobile. Consumer, Turista e Customer Base restano esclusi. Stessi popup, conferme
 e salvataggio di presenza/gestione; nessuna disattivazione o notifica automatica.
+
+Verifica automatica e promemoria email (28/10, pubblicazione autorizzata in corso):
+il worker passa `cluster_cliente` alla validazione PDA condivisa, evitando falsi
+errori `dati_pda` su Mobile/Fisso Business. No e storico sconosciuto restano validi;
+Si richiede una gestione valida. Le scelte non sono dedotte o modificate dall’AI.
+Dopo esito automatico Controllato, Professional Cloud Si con Richiedi disattivazione
+accoda una email a `mirko.piasenti@gmail.com`, oggetto «Mirox CRM: promemoria WhatsApp
+Professional Cloud», con nome cliente, riferimento e link alla pratica. Il messaggio
+ricorda il WhatsApp manuale; nessun invio WhatsApp o disattivazione sul portale.
+Una notifica per contratto, con tipo `professional_cloud` e chiave dedicata;
+No/Mantieni attiva/Consumer/altre categorie/collaudo non accodano il promemoria.
+Prima di inviare vengono riletti stato controllato, esito definitivo e scelta:
+se non più valida, notifica superata. Riutilizzati retry SMTP certi e riconciliazione
+degli incerti; il pannello distingue «Promemoria Professional Cloud».
+Migration `database/20261028093837_verifica_professional_cloud_notifiche.sql`
+pronta, NON applicata: amplia il CHECK tipo dell’outbox e aggiorna soltanto la RPC
+vendita `vendita_verifica_concludi`, INVOKER con grant/RLS invariati; nessun nuovo
+trigger o modifica a tabelle/RPC/permessi CC, nessun backfill. Pubblicare prima
+il worker compatibile, poi applicare la migration e rileggere i vincoli/grant.
+Non attivare il sistema: in collaudo restano esclusi approvazioni e invii.
 
 ## Codici cliente WindTre anagrafici (27/10/2026, migration applicata)
 
@@ -211,6 +239,48 @@ conservati in draft/carrello con pda_tipo_attivazione_auto e
 pda_tipo_attivazione_manuale, esclusi dal payload DB; nuova PDA azzera lo stato,
 bozze legacy conservano la scelta. Si usa la colonna tipo_attivazione esistente,
 nessuna migration o riscrittura storica. Solo test interni/HTTP, senza browser.
+
+## Backup e recupero (05/10/2026)
+
+Controllo storico 23/10: ultima copia 17:18:54 Europe/Rome verificata integralmente
+(7.298 file/11 bucket, dump leggibile/1.658 voci TOC), nessun nuovo restore SQL.
+418/441 copie automatiche riuscite, 23 fallite, massimo intervallo circa 8 ore;
+full/checkpoint giornalieri 20-23/10 mancanti, da correggere separatamente.
+176 manifest conservati validi; scadenze sintetiche osservate 13/23 ottobre.
+Rapporto: [`verifica storico`](../docs/BACKUP_VERIFICA_STORICO_2026-10-23.md).
+
+Runner read-only Aruba in `scripts/backup/`, VPS IT1/Storage R1-IT, cifratura client
+AES-GCM/versioni/Compliance. Prima copia completa: 10 bucket/6.579 oggetti; tutti
+i 6.584 file riscaricati e verificati da Aruba. Restore DB isolato dalla copia
+Aruba: 100 tabelle/51.252 righe con tutti i valori identici, 20,4 secondi,
+container senza rete/cron off; API/ACL Supabase gestite non collaudate.
+68 test Python sul VPS e 128 npm passati; timer orario enabled/active dopo
+collaudo off-site, restore e avvisi errore/assenza. Email errore e custodia chiave confermate. Un PDF assente
+nella sorgente recuperato da duplicato con checksum/dimensione verificati, senza
+scritture in produzione. Export Netlify autorizzato: 20/28 valori Production
+nel secret privato e nel recovery.json cifrato Aruba, readback/confronto verificati;
+8 Secret write-only mancanti, utente senza copie. Configurazioni esterne ancora
+parziali, nessuna rotazione; inventario statico da aggiornare dopo modifiche.
+CA ufficiale Supabase tramite `database.sslrootcert` assoluto e `verify-full`.
+Backup nativi fisici 27/09-04/10 presenti; PITR non attivo, nessun restore production.
+Audit quotidiano 06:47 UTC e restore DB trimestrale abilitati sul VPS; ultima prova
+100 tabelle/51.313 righe identiche in 18,5 s. Docker avviato solo durante la prova
+e fermato dopo; controllo scadenza su versione sintetica ancora in osservazione.
+Nuovo progetto per restore CRM completo rinviato espressamente dall'utente fino
+alla rimozione del Call Center test. Auth SMTP/sessioni/13 template, 7 pagine avanzate e zona DNS
+autorevole BIND conservati privatamente; 8 chiavi Netlify ancora mancanti.
+Copia indipendente checkpoint 11:46 sul Mac: 6.585 file/1,16 GB, SHA256/AES-GCM
+verificati senza rete e senza credenziali S3; strumenti in `.backup-private/offline/`.
+Custodia fisica su supporto scollegato ancora da confermare dal proprietario.
+Il precedente template AWS
+non e' la destinazione scelta. Nessuna migration o modifica schema/RLS richiesta. Dump DB e inventario
+Storage condividono uno snapshot; i byte degli allegati sono copiati separatamente.
+I file SQL storici non costituiscono un backup dei dati. Il dump custom completo
+include oggetti gestiti Supabase e non va applicato integralmente su un nuovo
+progetto gestito: serve un restore selettivo collaudato, inclusi Auth, policy Storage
+e configurazioni esterne. Restore solo su ambiente isolato; il DB production e'
+condiviso col CC storico. Copertura e punti ancora da completare in
+[`docs/BACKUP_RIPRISTINO.md`](../docs/BACKUP_RIPRISTINO.md).
 
 ## ⚠️ Stato del DB
 

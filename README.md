@@ -7,6 +7,8 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 - **Frontend**: HTML statico + JavaScript vanilla (no bundler), Inter via Google Fonts, client Supabase `@supabase/supabase-js@2.110.8` da CDN con Subresource Integrity
 - **Backend serverless**: Netlify Functions (Node >=22 + esbuild), librerie versionate esattamente (`@supabase/supabase-js@2.110.8`, `nodemailer@9.0.3`, `busboy`, `pdfkit`, `pdf-lib@1.17.1`, `unpdf@1.9.1` per il recupero testuale PDA, `fflate@0.8.2` per gli export `.xlsx`, `@resvg/resvg-js@2.6.2` per i report PNG Target)
 - **Database**: Supabase Postgres (Auth + Storage + RLS + RPC + Trigger), 10 bucket Storage (`moduli-template` pubblico + 9 privati con signed URL on-demand)
+- **Backup Aruba attivo**: VPS IT1 e Object Storage R1-IT, copie automatiche ogni ora anche a Mac spento, AES-256-GCM/versioni/Compliance. Prima copia: 10 bucket/6.579 oggetti; tutti i 6.584 file verificati da Aruba e restore DB isolato riuscito (100 tabelle/51.252 righe). Monitor esterno con avvisi di errore/mancata esecuzione collaudato; chiave custodita separatamente. 68 test Linux e 128 npm superati. Netlify: 20/28 valori Production esportati con autorizzazione, salvati privatamente e cifrati su Aruba; readback/confronto verificati. 8 Secret write-only mancanti, senza copie originali: serve futura riemissione coordinata. Inventario configurazioni statico da aggiornare dopo modifiche; copertura esterna ancora parziale. API/ACL del recupero su progetto Supabase gestito e scadenza lifecycle da collaudare. Guida: [`docs/BACKUP_RIPRISTINO.md`](docs/BACKUP_RIPRISTINO.md)
+- **Verifica storico 23/10**: ultima copia integra (7.298 file/11 bucket), ma 23/441 copie automatiche fallite e un intervallo massimo di circa 8 ore; full/checkpoint giornalieri del 20-23/10 mancanti. Nessuna correzione applicata; dettagli e interventi necessari nel [rapporto](docs/BACKUP_VERIFICA_STORICO_2026-10-23.md).
 - **Email**: Gmail SMTP via nodemailer + template DB (`email_template` + `email_log`)
 - **SMS transactional**: Smshosting REST API (consensi privacy via OTP — vedi `docs/SMSHOSTING_SETUP.md`)
 - **KONA AI Guardian**: OpenAI Responses API per raccolta/analisi strutturata + Audio Transcriptions per i vocali Telegram conclusi
@@ -38,7 +40,7 @@ Correzione27/10: gli elenchi leggono contratti e anagrafica senza join browser
 a vendita_pratiche, protetta da RLS server-only. Il controllo pratica inviata
 resta nel backend del verificatore. Il polling conserva caricamenti/errori.
 
-Preparazione locale del collaudo diurno **28/10**: i contratti già presenti
+Preparazione del collaudo diurno **28/10** (pubblicata): i contratti già presenti
 saranno verificati manualmente dal proprietario; prove una alla volta sui nuovi
 inserimenti, con scansioni migliori. Lettore aggiornato con trascrizione tramite
 tool a schema, pagina/citazione anche per booleani, un solo secondo tentativo
@@ -46,9 +48,17 @@ su formato errato e testo digitale dello stesso PDF numerato per pagina.
 I PDF scansionati restano letti visivamente e vengono inviati integri al servizio.
 Esito nel dettaglio aggiornato anche se il pulsante conserva il focus, senza
 perdere la data firma in modifica. Nessuna nuova dipendenza, env o migration.
-Queste correzioni richiedono ancora pubblicazione esplicita; qualità della lettura
-reale da misurare insieme. Ultima modalità confermata collaudo; nel controllo
-successivo letture live SQL/REST in timeout, configurazione non riconfermata.
+Correzioni pubblicate su richiesta nel commit `84bb310`, CI425/425 e deploy
+Netlify verificati HTTP. Qualità della lettura reale da misurare insieme. Dopo i timeout e il passaggio
+Nano->Micro effettuato dal proprietario, alle22:15 del27/10 Auth/REST/SQL
+rispondono e modalità collaudo è riconfermata, senza analisi o notifiche avviate.
+
+Controllo successivo 27/10 alle 22:45: proprietario conferma Small e upgrade;
+PostgreSQL 17.11 (build Supabase 17.11.0.003) confermato SQL/metadati, progetto
+ACTIVE_HEALTHY e Auth/REST HTTP200 in circa 0,4s. Modalità collaudo confermata,
+zero verifiche in corso e zero notifiche verifica. Test completi sui nuovi
+contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
+`docs/INCIDENTE_ACCESSO_REPORT_2026-10-27.md`.
 
 ## Struttura cartelle
 
@@ -73,7 +83,9 @@ successivo letture live SQL/REST in timeout, configurazione non riconfermata.
 | `assets/` | Logo, favicon e mascotte trasparente `kona-guardian-robot.png` |
 | `scripts/build-static.js` | Build Netlify: copia in `dist/` soltanto i file pubblici, genera `dist/js/config.js` con ambiente/release e inietta la telemetria nelle pagine autenticate |
 | `scripts/backfill-identita-contratti.js` | Bonifica documenti identita dal 01/07/2026 Europe/Rome: dry-run predefinito, `--apply` per copie indipendenti con SHA256/readback; `--same-client` solo con autorizzazione del proprietario per il documento piu recente dello stesso cliente. Piano/report privati in `.backup-private/identity-backfill/` |
+| `scripts/backup/` | Runner DB/Storage read-only, adattatore Aruba cifrato, provisioning Ubuntu, restore PG isolato trimestrale, audit quotidiano, export/verifica TAR indipendente, timer/service systemd, lifecycle, packaging Git, test offline; template AWS precedente non scelto. Escluso dalla build pubblica |
 | `.backup-private/` | Credenziali e pacchetti privati, ignorati da Git; mai pubblici |
+| `docs/BACKUP_RIPRISTINO.md` | Copertura backup, attivazione Aruba, costi stimati, limiti e procedura di collaudo/ripristino |
 | `dist/` | Output locale della build, ignorato da Git. Non contiene backend, migration, test o documentazione |
 | `netlify/functions/` | Endpoint server-side (vedi sotto) |
 | `netlify/functions/_assets/target/` | Font Lato (OFL) privati del renderer immagini Target, inclusi nel solo worker e fuori da `dist/` |
@@ -87,6 +99,7 @@ successivo letture live SQL/REST in timeout, configurazione non riconfermata.
 | `.github/codex/` | Prompt e schemi strutturati usati dai workflow Codex; i dati della segnalazione arrivano soltanto tramite il worker HMAC |
 | `docs/KONA_AI_GUARDIAN_SETUP.md` | Setup production, Telegram/OpenAI, approvazioni e confini del primo agente |
 | `docs/MIROX_AI_TARGET.md` | Requisiti, report, dialogo, setup bot dedicato, coda e collaudo Target |
+| `docs/STATO_LAVORO.md` | Promemoria breve per riprendere fra chat: branch, verifiche, punti aperti e prossimo passo; aggiornato a fine intervento |
 | `database/` | Migrazioni SQL storiche **parziali** — vedi `database/README.md` |
 | `database/staging/` | Bootstrap one-shot esclusivi del Supabase staging; non applicabili a production |
 | `netlify.toml` | Config Netlify, header di sicurezza (CSP/HSTS/Permissions-Policy) e cron |
@@ -188,6 +201,26 @@ assenza incerta resta manuale, No richiede lo stesso accordo testo/AI. UI,
 DTO create ed editor conservano Cloud sul Fisso e azzerano solo i dati specifici
 Mobile. Consumer, Turista e Customer Base restano esclusi. Stessi popup, conferme
 e salvataggio di presenza/gestione; nessuna disattivazione o notifica automatica.
+
+Verifica automatica e promemoria email (28/10, pubblicazione autorizzata in corso):
+il worker passa `cluster_cliente` alla validazione PDA condivisa, evitando falsi
+errori `dati_pda` su Mobile/Fisso Business. No e storico sconosciuto restano validi;
+Si richiede una gestione valida. Le scelte non sono dedotte o modificate dall’AI.
+Dopo esito automatico Controllato, Professional Cloud Si con Richiedi disattivazione
+accoda una email a `mirko.piasenti@gmail.com`, oggetto «Mirox CRM: promemoria WhatsApp
+Professional Cloud», con nome cliente, riferimento e link alla pratica. Il messaggio
+ricorda il WhatsApp manuale; nessun invio WhatsApp o disattivazione sul portale.
+Una notifica per contratto, con tipo `professional_cloud` e chiave dedicata;
+No/Mantieni attiva/Consumer/altre categorie/collaudo non accodano il promemoria.
+Prima di inviare vengono riletti stato controllato, esito definitivo e scelta:
+se non più valida, notifica superata. Riutilizzati retry SMTP certi e riconciliazione
+degli incerti; il pannello distingue «Promemoria Professional Cloud».
+Migration `database/20261028093837_verifica_professional_cloud_notifiche.sql`
+pronta, NON applicata: amplia il CHECK tipo dell’outbox e aggiorna soltanto la RPC
+vendita `vendita_verifica_concludi`, INVOKER con grant/RLS invariati; nessun nuovo
+trigger o modifica a tabelle/RPC/permessi CC, nessun backfill. Pubblicare prima
+il worker compatibile, poi applicare la migration e rileggere i vincoli/grant.
+Non attivare il sistema: in collaudo restano esclusi approvazioni e invii.
 
 ### Upload PDA: codice contratto e dati Mobile (rilascio 27/10/2026)
 
@@ -448,6 +481,7 @@ Dal 2026-07-25 **Codex è l'assistente principale per tutto lo sviluppo**: anali
 - Commit locali in autonomia, `git push` **solo su richiesta esplicita** dell'utente (ogni push è deploy production su `mirox-crm.it`)
 - Nessuna azione irreversibile (DROP, `push --force`, revoca policy RLS, cambio env var) senza conferma
 - Prima di iniziare un task, leggere `git log --oneline -20` per allinearsi con l'ultima sessione dell'altro assistant
+- Ogni nuova chat in questa cartella deve leggere esplicitamente [`docs/STATO_LAVORO.md`](docs/STATO_LAVORO.md) prima di esplorare il repository, come prescritto all'inizio di `AGENTS.md` e `CLAUDE.md`: controllare lo stato Git, poi concentrarsi sui file pertinenti. Aggiornare il promemoria a fine intervento; un altro checkout/worktree deve contenere gli stessi file. Le guide e le verifiche necessarie restano vincolanti
 
 Dettagli e regole complete in [`AGENTS.md`](AGENTS.md); [`CLAUDE.md`](CLAUDE.md) resta sincronizzato per compatibilità con eventuali sessioni Claude Code.
 
@@ -660,6 +694,9 @@ su `main` dopo il merge. I deploy production restano attivi.
 
 - `cron-verifica-contratti`: ogni **minuto**, primo turno **21:00 Europe/Rome** quotidiano, riesame dei sospesi e recupero notifiche. In modalità `collaudo` elabora soltanto prove richieste esplicitamente su singoli contratti.
 
+- **Backup Aruba attivo**: timer systemd sul VPS ogni ora al minuto 17 UTC; controllo completo sorgenti/byte archiviati alle 03:17 UTC. Monitor Healthchecks: periodo 1 ora, tolleranza 1 ora, avvisi email per errori e assenza; entrambe le condizioni collaudate. Nessuna env var o schedule Netlify aggiunta. Vedi [`docs/BACKUP_RIPRISTINO.md`](docs/BACKUP_RIPRISTINO.md).
+- **Verifiche backup**: timer VPS giornaliero 06:47 UTC; controllo checkpoint/lifecycle e restore DB isolato una volta per trimestre. Monitor separato 24h/tolleranza 12h. Prima prova: 100 tabelle/51.313 righe identiche. Progetto Supabase per collaudo CRM completo rinviato dall'utente; nessun nuovo costo. Copia TAR cifrata sul Mac verificata senza rete: 6.585 file/1,16 GB. Custodia su supporto scollegato da completare.
+
 - `cron-rientro-sim`: ogni giorno alle **07:00 UTC** (09:00 ora italiana estate / 08:00 inverno). Cerca pratiche `vendita_switch_sim` con `giorno_rientro = oggi` e `mail_rientro_inviata_at IS NULL`, invia notifica via template `rientro_sim`, imposta `mail_rientro_inviata_at = now()`. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o inviare email.
 - `cron-pulizia-operativa`: ogni giorno alle **02:30 UTC**. Scade gli OTP pending oltre termine, elimina i contatori del rate limit pubblico scaduti, recupera fino a 100 pratiche `bozza` più vecchie di 24 ore cancellando prima i PDF Storage e poi la pratica, rimuove dopo 90 giorni il contesto tecnico degli incidenti Guardian ed elimina gli eventi Observer oltre `expires_at`. Se `MIROX_DEPLOY_ENV=staging`, restituisce `skipped` senza inizializzare Supabase o modificare dati.
 - `cron-target-reports`: ogni **5 minuti**, crea i tre report alle **19:45 Europe/Rome**, lun-sab escluse festivita nazionali/Pasquetta; riprende la coda anche fuori orario. Richiede configurazione esplicita Target production.
@@ -799,3 +836,8 @@ al successivo di procedere. Timeout/429 restano ritentabili e in ordine.
 “Aprimi una nuova richiesta” crea subito il caso e collega la sessione prima del
 vocale successivo; il primo dettaglio sostituisce il testo provvisorio. Nessuna
 modifica di schema, segreti, modello predefinito o conferme di pubblicazione.
+
+Convenzione materiale locale (28/10): `/tmp/`, `/output/` e `ed.hup` sono
+ignorati da Git; contengono elaborati, documenti e scratchpad locali, mai
+parte del codice da pubblicare. Dati di recupero e credenziali restano
+esclusivamente in `.backup-private/`.

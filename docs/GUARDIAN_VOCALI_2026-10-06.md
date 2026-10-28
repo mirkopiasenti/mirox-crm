@@ -63,3 +63,28 @@ consegnato la risposta alle 19:35:36 (Telegram172). Due messaggi con ID numerico
 collegati dal voice_job_id, senza duplicati. Guardian riconosce le due righe
 Day by Day e le due opzioni Customer Base e propone Analisi Guardian.
 La nuova funzionalità CRM resta da analizzare/approvare e implementare.
+
+
+## Formato Telegram e nuova richiesta: recupero sera06/10
+
+Il vocale23:15 falliva nella trascrizione con errore generico e fermava quello
+23:19; nessun audio perso. `_lib/telegram.js` usava il filename restituito da
+Telegram (anche `.oga`), mentre l’allegato Ogg esportato e trascritto nel primo
+collaudo aveva estensione `.ogg`. La correzione95cd066 usa `vocale.ogg`/`audio/ogg`
+con gli stessi byte; distingue i campi lingua dei modelli e conserva codici
+API ripuliti senza messaggi grezzi. Errori4xx permanenti sospendono solo quel
+vocale, timeout/429 conservano l’ordine/retry. API richiede nome/content-type
+riconoscibili: [riferimento OpenAI](https://developers.openai.com/api/reference/resources/audio/subresources/transcriptions/methods/create).
+
+Il comando testuale “Aprimi una nuova richiesta” ora crea il caso e cambia
+sessione prima del vocale; il primo dettaglio sostituisce la descrizione vuota.
+Il comando reale delle23:18 è stato recuperato con audit inKG25: audio23:19
+collegato al nuovo caso, senza riaprire KG23, simulare consensi o reinviare audio.
+
+Build284/284test,19 dedicati, CI37534710464 e health37534917777 riusciti.
+Netlify6ac5691e/95cd066 online23:33:52. Cron reale: audio23:15 trascritto458caratteri
+al4°tentativo/consegnato23:35:28/TG199; audio23:19 trascritto454caratteri al1°tentativo
+/consegnato23:35:51/TG200. Stato inviato/erroreNULL per entrambi. Stessa chiave e
+modello, nessuna migration/env/RLS/CC. KG25 registra l’estensione dei conteggi in
+Avanzamento/Gare, ancora ricevuta: questo intervento recupera audio e dialogo,
+non applica la nuova regola di business.

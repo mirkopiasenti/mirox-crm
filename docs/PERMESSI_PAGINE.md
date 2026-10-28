@@ -4,8 +4,9 @@ Rilascio 27/10/2026, autorizzato dal proprietario. Migration applicata e
 verificata in produzione con versione `20261027224328` (sorgente CLI
 `20261027221833_permessi_pagine_mirox.sql`). Tutti i 7 account presenti
 conservano inizialmente le 19 pagine abilitate; nessun accesso ristretto.
-Ultima verifica: build e 453/453 test Node locali (uno Backup preesistente),
-13 regressioni ACL, 542 verifiche SQL isolate e `git diff --check` riusciti.
+Verifica iniziale:453/453 test Node locali (uno Backup preesistente).
+Rilascio finale:453/453 test versionati,14regressioni ACL e542verifiche SQL
+isolate; build e `git diff --check` riusciti.
 Snapshot di rilascio separato dai WIP:452/452 test versionabili riusciti.
 Verifica production:84policy restrittive,3nuove tabelleRLS,0audit iniziali,
 RPC service-only e audit senza privilegi UPDATE/DELETE del backend.
@@ -13,6 +14,17 @@ Hash profili/permessiCC/colonne/RLS/trigger condivisi e RPC esistenti invariati.
 Advisor sicurezza/performance7->7, nessun nuovo rilievo. Prove READONLY/ROLLBACK:
 operatore attivo vede la propria ACL e lo storico; identita senza ACL non
 legge contratti, storico, ticket o allegati. Nessuna riga cliente modificata.
+
+Pubblicato su main `ea747411955715d493696c8f1668db0b33dc1f30`; CI
+[40597229319](https://github.com/mirkopiasenti/mirox-crm/actions/runs/40597229319)
+verde452/452. Netlify `6ae1298dfc86d536f76b8c20` verificato HTTP per SHA,
+pagina Admin200 e sette asset identici; quattro API senza JWT rispondono401.
+Collaudo grafico al proprietario dopo ricarica, nessun browser usato.
+
+Hotfix finale `3a8132ac717300894977f58c44a5bf32364eb2dd`: CI
+[40597710374](https://github.com/mirkopiasenti/mirox-crm/actions/runs/40597710374)
+verde453/453, Netlify `6ae12a7bfc86d536f76ba237` verificato per SHA, sette
+asset identici, pagina200 e quattro API senzaJWT401. Nessuna nuova migration.
 
 Elenco utenti: legge `profili.nome` e `profili.username`; lo schema condiviso
 non contiene `email` e non viene modificato. Regressione GET con schema reale

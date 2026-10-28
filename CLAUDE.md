@@ -21,15 +21,23 @@ Correzione elenchi27/10: vendita_pratiche non restituisce righe al browser per R
 Nessun inner join/filtro pratica negli elenchi; idoneità inviata verificata backend.
 Polling non sostituisce caricamenti/errori con liste vuote. Nessun cambio RLS.
 
-Preparazione locale per28/10: storico al controllo manuale del proprietario,
+Preparazione pubblicata per28/10: storico al controllo manuale del proprietario,
 nuovi contratti in collaudo diurno uno alla volta. Lettura tool a schema con
 evidenze anche per booleani, un secondo tentativo sul formato errato, testo
 digitale del medesimo PDF numerato per pagina + PDF integro per scansioni/visione.
 Cache versionata; polling dettaglio aggiornato anche dopo focus sul pulsante,
-data in modifica preservata. Nessuna dipendenza/env/migration; correzioni ancora
-da pubblicare su richiesta. Nessuna nuova lettura AI cliente o email avviata.
-Ultima modalità confermata collaudo; rilettura live successiva SQL/REST fallita
-per timeout, non equivale a nuova conferma configurazione né prova di guasto CRM.
+data in modifica preservata. Nessuna dipendenza/env/migration; correzioni pubblicate
+su richiesta84bb310, CI425/425 e Netlify6ae0f23563f8ffded0ed96e1 verificatiHTTP. Nessuna nuova lettura AI cliente o email avviata.
+Dopo l’incidente Disk IO e il passaggio Nano->Micro effettuato dal proprietario,
+alle22:15 del27/10 Auth/REST/SQL rispondono e modalità collaudo è riconfermata;
+nessuna attivazione/analisi cliente/notifica avviata dall’assistente.
+
+Controllo successivo 27/10 alle 22:45: proprietario conferma Small e upgrade;
+PostgreSQL 17.11 (build Supabase 17.11.0.003) confermato SQL/metadati, progetto
+ACTIVE_HEALTHY e Auth/REST HTTP200 in circa 0,4s. Modalità collaudo confermata,
+zero verifiche in corso e zero notifiche verifica. Test completi sui nuovi
+contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
+`docs/INCIDENTE_ACCESSO_REPORT_2026-10-27.md`.
 
 ## Professional Cloud Mobile e Fisso Business (28/10/2026)
 
@@ -73,6 +81,26 @@ assenza incerta resta manuale, No richiede lo stesso accordo testo/AI. UI,
 DTO create ed editor conservano Cloud sul Fisso e azzerano solo i dati specifici
 Mobile. Consumer, Turista e Customer Base restano esclusi. Stessi popup, conferme
 e salvataggio di presenza/gestione; nessuna disattivazione o notifica automatica.
+
+Verifica automatica e promemoria email (28/10, pubblicazione autorizzata in corso):
+il worker passa `cluster_cliente` alla validazione PDA condivisa, evitando falsi
+errori `dati_pda` su Mobile/Fisso Business. No e storico sconosciuto restano validi;
+Si richiede una gestione valida. Le scelte non sono dedotte o modificate dall’AI.
+Dopo esito automatico Controllato, Professional Cloud Si con Richiedi disattivazione
+accoda una email a `mirko.piasenti@gmail.com`, oggetto «Mirox CRM: promemoria WhatsApp
+Professional Cloud», con nome cliente, riferimento e link alla pratica. Il messaggio
+ricorda il WhatsApp manuale; nessun invio WhatsApp o disattivazione sul portale.
+Una notifica per contratto, con tipo `professional_cloud` e chiave dedicata;
+No/Mantieni attiva/Consumer/altre categorie/collaudo non accodano il promemoria.
+Prima di inviare vengono riletti stato controllato, esito definitivo e scelta:
+se non più valida, notifica superata. Riutilizzati retry SMTP certi e riconciliazione
+degli incerti; il pannello distingue «Promemoria Professional Cloud».
+Migration `database/20261028093837_verifica_professional_cloud_notifiche.sql`
+pronta, NON applicata: amplia il CHECK tipo dell’outbox e aggiorna soltanto la RPC
+vendita `vendita_verifica_concludi`, INVOKER con grant/RLS invariati; nessun nuovo
+trigger o modifica a tabelle/RPC/permessi CC, nessun backfill. Pubblicare prima
+il worker compatibile, poi applicare la migration e rileggere i vincoli/grant.
+Non attivare il sistema: in collaudo restano esclusi approvazioni e invii.
 
 ## Upload PDA: codice univoco e dati Mobile (27/10/2026, online)
 
@@ -283,7 +311,19 @@ applicazione solo dopo deploy compatibile. Applicata e riletta il 06/10/2026
 dopo `ab44097`: 9 obiettivi corretti, altre righe e metriche globali invariate.
 Nessuna modifica profili/schema/RLS.
 
+
 Questo file viene letto automaticamente all'avvio di ogni sessione Claude. Contiene il contesto necessario per essere subito produttivi senza ri-esplorare il repo.
+
+## Ripresa del lavoro fra chat
+
+**Procedura obbligatoria all'avvio di ogni nuova chat in questo progetto, prima di esplorare il repository:**
+
+1. Leggere esplicitamente [`docs/STATO_LAVORO.md`](docs/STATO_LAVORO.md), risolto rispetto alla root del repository.
+2. Controllare branch, `git status --short` e `git log --oneline -20`; riconfermare soltanto le informazioni pertinenti cambiate o obsolete.
+3. Per richieste mirate leggere i file coinvolti e le sezioni pertinenti delle guide. Una nuova chat non richiede di per sé scansioni complete o interrogazioni ai servizi esterni; ampliare l'analisi quando richiesta, dipendenze o rischi lo richiedono. Se il promemoria manca, ricostruire il contesto necessario dalle guide e da Git, segnalando l'assenza.
+4. Aggiornare il promemoria a fine intervento nella stessa sessione con risultato, verifiche, punti aperti e prossimo passo, mantenendolo intorno a 80 righe e sostituendo lo stato superato.
+
+Il promemoria non sostituisce `AGENTS.md` né le guide tecniche e non autorizza attività sospese o deploy. Un altro checkout o worktree deve contenere questi file per applicare la stessa procedura.
 
 ## Identita per contratto (05/10/2026)
 
@@ -380,14 +420,14 @@ Sostituire sempre con testo descrittivo (es. `🔄 Aggiorna` → `Aggiorna`, `�
 ## Roadmap & boundaries (LEGGERE PRIMA DI MODIFICARE)
 
 - **Vendita / Post-Vendita** = focus storico, completato in larga parte
-- **Call Center integrato** = a partire dal 2026-06-20 le pagine CC sono integrate in `moduli/call-center/` (Fase 1: mount UI). Il CC prod su `mirox-crm.netlify.app` continua a girare in parallelo invariato — entrambi puntano allo stesso project Supabase
+- **Call Center integrato** = a partire dal 2026-06-20 le pagine CC sono integrate in `moduli/call-center/` (Fase 1: mount UI). Lo storico CC condivide il project Supabase; il pannello del 05/10/2026 conferma `mirox-crm.netlify.app` come alias del CRM attuale, quindi il vecchio deploy distinto va reidentificato
 - **Integrazione CC completata nelle fasi 2–4**: `storico_cliente` esteso, backfill/auto-link di `chiamate.anagrafica_id` e convergenza Upload Contratti con `origine_pratica` automatica sono già applicati. Le eventuali estensioni successive sono nuove funzionalità, non attività arretrate.
 
 ### URL deploy
 - **Repo GitHub**: `git@github.com:mirkopiasenti/mirox-crm.git` (dal 2026-07-02, prima era `konahub-vendita-test` — redirect ancora attivo ma va usato il nome nuovo)
 - **Netlify site di questa codebase**: **`mirox-crm`** (nome sito Netlify dal 2026-07-02, prima era il vecchio nome legato al test). Custom domain **`mirox-crm.it`** in production dal 2026-06-29 — tutte le functions (auth + OTP + backend) rispondono qui. Env vars (Supabase, Smshosting, Anthropic, SMTP) configurate su questo site
 - `test-upload-contratti-konahub.netlify.app` — vecchio URL di test del repo. **Non è più aggiornato** (le functions OTP rispondono 404). Deprecato — l'URL "buono" è `mirox-crm.it`
-- `mirox-crm.netlify.app` — **DIVERSO PROGETTO**: sito Call Center prod (altro repo GitHub, NON in questa codebase). Condivide lo stesso DB Supabase. Da non confondere col Netlify site `mirox-crm` di cui sopra (che è custom-domain su `mirox-crm.it`)
+- `mirox-crm.netlify.app` — il 05/10/2026 il pannello Netlify Domain management lo mostra come alias del site `mirox-crm`, collegato a questo repository e a `mirox-crm.it`. La precedente indicazione di un progetto CC distinto su questo URL è obsoleta. Il repository/deploy storico del CC resta da identificare; i vincoli sulle tabelle condivise restano validi.
 
 ### Tabelle condivise — toccare con cautela (regole NON negoziabili)
 
@@ -405,6 +445,79 @@ Modifiche a schema / RLS / RPC / trigger su queste tabelle hanno rischio di **ro
 ---
 
 ## Architettura 3 layer
+
+### Backup Aruba attivo (05/10/2026)
+
+Destinazione scelta: Aruba Object Storage in Italia e VPS italiano. Runner isolato
+in `scripts/backup/aruba.py`, versioni/Object Lock Compliance, cifratura client
+AES-256-GCM, readback di ogni upload e controllo notturno anche delle copie riusate.
+Timer systemd orario abilitato dopo collaudo; monitor esterno Healthchecks configurato, senza dati CRM nei ping. Credenziali private via LoadCredential;
+chiave cifratura custodita anche separatamente. Dipendenze Python isolate con hash.
+Sorgenti 404 recuperabili solo da duplicati con checksum/dimensione verificati
+e record stabili; recupero annotato nel manifest, nessuna scrittura production.
+Trasferimenti Storage limitati a 8 worker con file temporanei separati e
+controlli DB serializzati; errori impediscono il manifest completo.
+Legge DB e inventario Storage dallo stesso snapshot, pubblica il manifest completo
+per ultimo e non esegue restore o deploy. Dati e pacchetti locali esclusivamente
+in `.backup-private/` ignorata da Git. Nessun Delete nel runner, lock Compliance
+non riducibile durante la retention. Lifecycle/tag e compatibilità API verificati live; scadenza effettiva sintetica osservata il 13 e 23/10/2026.
+Ripristino del DB condiviso coinvolge il CC storico: prove solo su ambiente isolato
+con integrazioni disattivate. Account Aruba e VPS O2A4 IT1 creati; Storage R1-IT
+attivo, bucket privato/versionato/Compliance creato; password in file privato.
+Preflight e prove sintetiche live superati, scadenza lifecycle da osservare. Runner installato,
+68 test superati sul VPS, timer enabled/active.
+Password DB/export verificati, monitor 1h/grace 1h e avvisi errore/assenza collaudati;
+prima copia Aruba completa e 6.584 file verificati; restore 100 tabelle/51.252 righe. Repo CRM pubblico letto
+senza token; CC storico da identificare, repository inaccessibili bloccano il job. Chiave Storage esistente recuperata
+in file privato; TLS IPv6 verificato con CA ufficiale Supabase. `database.sslrootcert`
+assoluto configura la CA per connessione e pg_dump, sempre con `verify-full`.
+`provision-aruba.sh` prepara Ubuntu 24.04 amd64 senza abilitare il timer; verificare
+l'identita' SSH dopo cloud-init prima di accettare un cambio chiave host;
+resize legacy errato del template IT1 disabilitato solo con root gia' espanso.
+Eventuali futuri ampliamenti del disco richiedono verifica manuale;
+il template AWS precedente resta disponibile ma non e' la destinazione scelta.
+Restore locale `restore-local.py`: immagine Supabase PG17.6 fissata al digest,
+nessuna rete, cron off, container effimero. Restore da Aruba: 100 tabelle/51.252 righe
+con valori COPY identici. API/ACL non collaudate.
+Export Netlify autorizzato il 05/10: 20/28 valori Production privati e cifrati
+Aruba, readback/confronto verificati; 8 Secret write-only mancanti, utente senza
+copie originali. Serve riemissione coordinata distinta, nessuna rotazione eseguita.
+Inventario statico da aggiornare dopo cambi configurazione; status DA_COMPLETARE.
+Guida: `docs/BACKUP_RIPRISTINO.md`.
+
+
+Controlli nativi VPS: `audit.py` + `mirox-backup-audit.service/.timer` abilitati
+alle 06:47 UTC ogni giorno (ritardo casuale massimo 2 minuti). Preflight e ultimo
+manifest completo entro 3 ore; prova lifecycle su una versione sintetica con lock
+2 giorni, allarme se scompare prima o persiste oltre 7 giorni. Scadenza reale sintetica osservata il 13 e 23/10/2026. Una volta per trimestre ripristina dump/ruoli Aruba tramite
+`restore-local.py`: prima prova 05/10, 100 tabelle/51.313 righe, valori COPY identici,
+18,5 s; seconda esecuzione verifica lo skip trimestrale. Audit root solo per
+avviare/arrestare Docker, codice root-owned, LoadCredential e stato root-only;
+backup orario resta non privilegiato. Monitor dedicato 24h/grace 12h/email ON,
+ping di successo osservato. Nessuna API Auth/Storage o ACL di produzione collaudata.
+`maintenance.py` esporta una copia TAR indipendente cifrata da versioni esatte,
+verifica SHA256 e AES-GCM, senza conservare plaintext. Verifica offline senza S3,
+progetto/chiave/manifest e nomi TAR vincolati; niente estrazione libera. La custodia
+su supporto fisicamente scollegato richiede il proprietario, chiave separata.
+Copia indipendente checkpoint 11:46 sul Mac: 6.585 file/1,16 GB, SHA256/AES-GCM
+verificati senza rete e senza credenziali S3; strumenti in `.backup-private/offline/`.
+Custodia fisica su supporto scollegato ancora da confermare dal proprietario.
+Config Auth SMTP disabilitato/sessioni/13 template e 7 pagine avanzate salvata privatamente; zona DNS
+Aruba autorevole esportata BIND. Config esterne statiche da aggiornare dopo cambi.
+Il 05/10 l'utente ha rinviato esplicitamente nuovo progetto Supabase e collaudo CRM
+completo fino alla rimozione del Call Center test: non creare progetti o rimuovere
+ambienti in autonomia. Otto Secret Netlify e restore gestito restano punti aperti.
+
+
+Verifica storico read-only 23/10: 441 avvii orari, 418 riusciti/23 falliti,
+massimo intervallo copie circa 8 ore; ultima full/checkpoint giornaliero riuscita
+19/10, quattro successivi falliti. Ultima copia 23/10 17:18 valida: 7.298 file,
+11 bucket (Subentri incluso), hash/AES verificati; 176 manifest conservati validi.
+Audit: una failure 22/10 e successo 23/10, probabile soglia lifecycle da verificare,
+causa non certa per log generici. Nessuna correzione ancora applicata: servono
+diagnostica ripulita, retry e recupero giornaliero. Inventario Netlify off-site
+ancora iniziale (28/20/8), successive configurazioni da riallineare. Rapporto:
+`docs/BACKUP_VERIFICA_STORICO_2026-10-23.md`; non presumere che tutto sia regolare.
 
 ### 1. Frontend (`/`, `/moduli/`, `/moduli/call-center/`, `/js/`, `/css/`)
 

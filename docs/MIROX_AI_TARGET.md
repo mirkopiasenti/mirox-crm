@@ -5,6 +5,16 @@ Migration, configurazione dedicata, webhook, cron, tre report reali e dialogo
 verificati. Trascrizione di un audio sintetico riuscita; vocale entrante Telegram
 ancora da collaudare con il proprietario. Obiettivi mensili di ottobre assenti.
 
+## Incidente accesso e report del27/10/2026
+
+Dopo i timeout Auth/API e l'avviso Disk IO Budget, il proprietario passa da Nano
+a Micro e riesce nuovamente ad accedere. Alle22:15 Auth/REST/SQL rispondono;
+il cron Target riprende e accoda la chiave serale 27/10. Alle 22:20:23 il job
+risulta `inviato`: 3/3 messaggi accettati da Telegram al primo tentativo, nessun
+errore o invio incerto. Nessun reinvio manuale avviato dall'assistente. Il recupero
+non dimostra risolta la causa del consumo IO né un guasto Netlify indipendente.
+Diagnosi e cronologia: [incidente27/10](INCIDENTE_ACCESSO_REPORT_2026-10-27.md).
+
 ## Comportamento concordato
 
 Chat privata del solo Mirko, bot dedicato con nome **MIROX AI - Target**.
