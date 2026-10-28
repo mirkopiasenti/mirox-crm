@@ -2,6 +2,52 @@ Aggiornamento pubblicato28/10: identita anticipata nell’upload con confronto a
 
 # Verifica automatica contratti
 
+
+### Email anche nel collaudo assistito (28/10/2026, attivazione richiesta)
+
+Reload ora invia a `mirko.piasenti@gmail.com`, come Professional Cloud; i problemi
+restano a `mirko.piasenti@mail.com`. Nuove colonne private configurazione
+`email_collaudo` (default false) e `email_collaudo_at` delimitano l’abilitazione.
+Con modalita collaudo e flag attivo: mail problemi per nuovi collaudi richiesti
+con esito Da verificare e revisione/anagrafica correnti; Reload/Cloud dopo conferma
+assistita tracciata nell’audit e collegata all’esecuzione conforme. Solo eventi
+successivi all’abilitazione: nessun recupero massivo dei vecchi test. Attesa CSV
+senza mail problemi; dedupe condivisa con la modalita attiva. Reload in coda non
+inviato aggiornato al nuovo destinatario; gli invii incerti restano da riconciliare.
+RPC `vendita_verifica_accoda_email_collaudo` INVOKER/search_path vuoto e service-only,
+senza schema/RLS/trigger CC modificati. Worker/cron possono elaborare soltanto
+notifiche (`notifications:true`, HMAC) mantenendo fermi turni e backlog contratti.
+Gli errori tecnici dopo cinque tentativi producono esito/mail anche in collaudo.
+UI mostra lo stato delle email, checkbox admin e reinvio esplicito quando abilitato.
+Migrazione sorgente `20261028153619_verifica_email_collaudo_reload.sql`, applicata
+production `20261028154059`; flag da accendere dopo pubblicazione worker compatibile.
+Build e504/504test riusciti, harness SQL esteso riuscito. Nessuna nuova env/dipendenza.
+
+
+
+### Collaudo assistito con conferma del singolo contratto (28/10/2026)
+
+Il proprietario autorizza Codex a confermare il singolo contratto dopo un collaudo
+interamente positivo, senza chiedere una nuova autorizzazione per ogni conferma.
+La simulazione del worker resta separata dalla conferma assistita successiva;
+questa autorizzazione non abilita la modalita automatica serale o test massivi.
+Prima della conferma controllare ultima esecuzione collaudo conforme e recente,
+versione corrente, zero errori/attese, revisione non cambiata, nessuna analisi in
+corso e fingerprint identico di contratto/anagrafica/pratica/documenti/regole.
+Rileggere anche i byte degli allegati e confrontare SHA256/pagine con le prove.
+Eventuali integrazioni vanno salvate e riscontrate in un nuovo collaudo coerente.
+Conferma transazionale con confronto ottimistico e audit: stato contratto e
+verifica `controllato`, job fermo, autore assistito esplicito nelle note/log;
+non attribuire l’azione a un profilo umano inventato. Punteggi e dati commerciali
+inalterati. Problemi, attese CSV o cambiamenti bloccano la conferma. Le notifiche
+restano soggette alla configurazione esistente; nessuna attivazione globale.
+Nessuna nuova modalita UI, migration o modifica schema/RLS/CC: procedura operativa.
+
+Prima conferma assistita del28/10 eseguita dopo rilettura di entrambi i PDF,
+fingerprint identico e zero errori/attese del collaudo online. Contratto e verifica
+controllati, job fermo, una voce audit dedicata; solo quattro campi conferma
+modificati, nessun punteggio/dato commerciale cambiato e zero notifiche.
+
 ## Correzione dopo primo collaudo reale del28/10
 
 Il proprietario conferma il caso Mobile nuova SIM senza portabilita: numero
@@ -162,7 +208,8 @@ Il proprietario verificherà manualmente i contratti già presenti. Nessuna nuov
 analisi massiva dello storico. Il28/10 proveremo insieme i contratti inseriti
 da quel giorno, uno alla volta, mantenendo **Collaudo assistito**. Il pulsante
 Collauda questo contratto accoda subito la prova anche prima delle21; non modifica
-il contratto, non applica i dati proposti, non invia email e non abilita il turno
+il contratto, non applica i dati proposti e non abilita il turno; le email sono
+  disponibili con email_collaudo attivo. Non abilita il turno
 automatico. Il controllo manuale finale resta disponibile in questa modalità.
 Scansioni alla migliore qualità disponibile nel CRM; copia WindTre separata,
 la cui generazione automatica non fa parte di questa preparazione.
@@ -304,7 +351,7 @@ npm o modifica alle chiavi esterne. I file sono inviati direttamente dal backend
 La cache privata usa hash byte PDF + modello + hash prompt; un nuovo CSV riusa le
 letture invariate, mentre il collaudo richiesto dall'admin forza una nuova lettura.
 
-- CB Reload Disattivazione cliente dopo verifica positiva: `info@konatech.it`.
+- CB Reload Disattivazione cliente dopo verifica positiva: `mirko.piasenti@gmail.com`.
 - Professional Cloud Mobile/Fisso Business Si + Richiedi disattivazione: `mirko.piasenti@gmail.com`, stessi tempi di Reload, con promemoria dedicato (estensione pubblicata 28/10).
 - Esito Da verificare: motivi/azioni semplici in italiano a `mirko.piasenti@mail.com`.
 - La sola attesa CSV non invia l'email problemi. Nessun invio WhatsApp automatico.

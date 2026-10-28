@@ -13,7 +13,15 @@ async function handler(event = {}, deps = {}) {
     const previews = checked(await db.from('vendita_verifiche').select('contratto_id').eq('modalita_job', 'collaudo').in('stato_job', ['in_coda', 'errore', 'in_corso'])
       .lte('prossimo_at', new Date().toISOString()).lt('tentativi', 5).or('lock_until.is.null,lock_until.lt.' + new Date().toISOString()).limit(1));
     if (previews.length) await (deps.nudge || Worker.nudge)({ id: previews[0].contratto_id, test: true });
-    if (cfg.modalita !== 'attiva') return { statusCode: 200, body: '{"skipped":true}' };
+    if (cfg.modalita !== 'attiva') {
+      if (Worker.mailEnabled(cfg)) {
+        checked(await db.rpc('vendita_verifica_accoda_email_collaudo'));
+        const mail = checked(await db.from('vendita_verifica_notifiche').select('id').eq('stato', 'in_coda').eq('payload->>modalita', 'collaudo').lte('prossimo_at', new Date().toISOString()).limit(1));
+        const uncertain = checked(await db.from('vendita_verifica_notifiche').select('id').eq('stato', 'in_corso').lt('updated_at', new Date(Date.now() - 15 * 60000).toISOString()).limit(1));
+        if (mail.length || uncertain.length) await (deps.nudge || Worker.nudge)({ notifications: true });
+      }
+      return { statusCode: 200, body: '{"skipped":true}' };
+    }
     checked(await db.rpc('vendita_verifica_sync'));
     const due = checked(await db.from('vendita_verifiche').select('contratto_id').in('stato_job', ['in_coda', 'errore', 'in_corso']).eq('modalita_job', 'automatica').lte('prossimo_at', new Date().toISOString()).lt('tentativi', 5).limit(1));
     const mail = checked(await db.from('vendita_verifica_notifiche').select('id').eq('stato', 'in_coda').lte('prossimo_at', new Date().toISOString()).limit(1));

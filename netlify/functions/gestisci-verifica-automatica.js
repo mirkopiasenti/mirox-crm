@@ -32,12 +32,18 @@ async function handler(event, deps = {}) {
       // Never return raw PDFs, CSV rows, evidence or AI payloads in list responses.
       const summaries = reviews.map(r => ({ ...r, risultato: r.risultato ? { esito: r.risultato.esito, checks: r.risultato.checks, errors: r.risultato.errors, waiting: r.risultato.waiting, patch: r.risultato.patch, signature_date: r.risultato.signature_date } : null }));
       const notifications = admin ? checked(await db.from('vendita_verifica_notifiche').select('id,contratto_id,tipo,stato,updated_at').order('updated_at', { ascending: false }).limit(100)) : [];
-      return reply(200, { success: true, modalita: cfg.modalita, admin, reviews: summaries, csv, notifications });
+      return reply(200, { success: true, modalita: cfg.modalita, email_collaudo: cfg.email_collaudo === true, admin, reviews: summaries, csv, notifications });
     }
     if (body.action === 'configure') {
       if (!admin) return reply(403, { error: 'Operazione riservata agli amministratori.' });
       if (!['spenta', 'collaudo', 'attiva'].includes(body.modalita)) return reply(400, { error: 'Modalità non valida.' });
-      checked(await db.from('vendita_verifica_config').update({ modalita: body.modalita, updated_by: auth.profilo.alias_di || auth.profilo.id, updated_at: new Date().toISOString() }).eq('id', true));
+      if (body.email_collaudo !== undefined && typeof body.email_collaudo !== 'boolean') return reply(400, { error: 'Impostazione email collaudo non valida.' });
+      const patch = { modalita: body.modalita, updated_by: auth.profilo.alias_di || auth.profilo.id, updated_at: new Date().toISOString() };
+      if (body.email_collaudo !== undefined) {
+        patch.email_collaudo = body.email_collaudo;
+        if (body.email_collaudo && !cfg.email_collaudo) patch.email_collaudo_at = new Date().toISOString();
+      }
+      checked(await db.from('vendita_verifica_config').update(patch).eq('id', true));
       if (body.modalita === 'attiva') { checked(await db.rpc('vendita_verifica_sync')); await (deps.wake || Worker.wake)(db); }
       return reply(200, { success: true });
     }
@@ -52,7 +58,7 @@ async function handler(event, deps = {}) {
       if (!admin) return reply(403, { error: 'Operazione riservata agli amministratori.' });
       if (!UUID.test(String(body.notification_id || ''))) return reply(400, { error: 'Notifica non valida.' });
       const retry = body.action === 'notification_retry';
-      if (retry && cfg.modalita !== 'attiva') return reply(409, { error: 'Il reinvio richiede la modalità attiva.' });
+      if (retry && !Worker.mailEnabled(cfg)) return reply(409, { error: 'Abilita gli invii email prima di richiedere il reinvio.' });
       const updated = checked(await db.from('vendita_verifica_notifiche').update({ stato: retry ? 'in_coda' : 'inviata', tentativi: 0,
         prossimo_at: new Date().toISOString(), lock_token: null, gestita_da: auth.profilo.alias_di || auth.profilo.id,
         gestita_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', body.notification_id).in('stato', ['incerta', 'fallita']).select('id').maybeSingle());

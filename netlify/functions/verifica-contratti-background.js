@@ -7,13 +7,18 @@ async function handler(event, deps = {}) {
   const payload = JSON.parse(body), db = deps.db || getAdminClient();
   if (!db || !Worker.production()) return { statusCode: 503 };
   const cfg = await Worker.config(db);
-  if (cfg.modalita === 'spenta' || !payload.test && cfg.modalita !== 'attiva') return { statusCode: 200 };
+  if (cfg.modalita === 'spenta') return { statusCode: 200 };
+  if (payload.notifications === true) {
+    await Worker.notifications(db, deps);
+    return { statusCode: 200 };
+  }
+  if (!payload.test && cfg.modalita !== 'attiva') return { statusCode: 200 };
   const start = Date.now();
   do {
     const result = await Worker.processOne(db, { id: payload.id || null, test: payload.test === true }, deps);
     if (payload.id || result.skipped || result.failed) break;
   } while (Date.now() - start < 7 * 60000);
-  if (!payload.test) await Worker.notifications(db, deps);
+  await Worker.notifications(db, deps);
   return { statusCode: 200 };
 }
 module.exports = { handler };

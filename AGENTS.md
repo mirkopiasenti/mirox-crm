@@ -278,7 +278,7 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 
 Nuova function del28/10 `verifica-identita-upload.js`: JWT/permesso upload_contratti, lettura PDF e conferma manuale, ricevuta HMAC. Nessun cron, chiave o invio nuovo.
 
-Verifica Contratti automatica (27/10, modalità collaudo): `gestisci-verifica-automatica.js` valida JWT e ruolo per collaudo/CSV/configurazione/riconciliazione notifiche; `verifica-contratti-background.js` usa HMAC/timestamp60s e coda privata; `cron-verifica-contratti.js` ogni minuto recupera prove assistite esplicite e, solo in modalità attiva, turni21:00Europe/Rome/riesami/notifiche. Helper `_lib/verifica-documenti.js`, `_lib/verifica-worker.js`, `_lib/verifica-csv.js`; nessuna Edge Function. Default collaudo senza conferme/email.
+Verifica Contratti automatica (27/10, modalità collaudo): `gestisci-verifica-automatica.js` valida JWT e ruolo per collaudo/CSV/configurazione/riconciliazione notifiche; `verifica-contratti-background.js` usa HMAC/timestamp60s e coda privata; `cron-verifica-contratti.js` ogni minuto recupera prove assistite esplicite e, solo in modalità attiva, turni21:00Europe/Rome/riesami; le notifiche sono disponibili anche in collaudo con email_collaudo abilitato. Helper `_lib/verifica-documenti.js`, `_lib/verifica-worker.js`, `_lib/verifica-csv.js`; nessuna Edge Function. Default collaudo; conferma assistita separata e email con flag esplicito.
 
 Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i cron Netlify, `public-prenota`, `guardian-telegram-webhook`, `guardian-codex-worker`, `guardian-voice-background`, `target-telegram-webhook` e `target-worker-background` e `verifica-contratti-background`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `guardian-telemetry-ingest` è autenticata e accetta soltanto eventi tecnici a schema chiuso; `guardian-codex-worker` è protetta da HMAC e da un lease server-only. Il webhook Guardian e' una seconda eccezione pubblica ma richiede sia il secret token Telegram sia il `chat_id` di Mirko. Nessuno degli endpoint è un endpoint anonimo generico. `admin-vendita-config`, `admin-kpi-vendita-consumer`, `admin-kpi-call-center`, `gestisci-controllo-fissi`, `elimina-vendita-contratto`, le action manuali di `gestisci-controllo-lg` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. Le funzioni Guardian condividono inoltre `guardian-telemetry`, `guardian-triage`, `with-telemetry` e l'outbox dell'Observer:
 
@@ -528,9 +528,9 @@ Checklist confermata: integrare dati mancanti provati, intestazione contratto/CF
 
 Primo turno21:00Europe/Rome tutti i giorni, nuovi invii dopo21 al turno successivo. Nuovi contratti e backlog iniziale attendono prossimo turno; dopo primo tentativo correzioni/allegati/CSV accodano subito riesame, recuperato dal cron entro un minuto se dispatch fallisce. Quattro esiti UI: Da controllare, Controllato, Da verificare, In attesa CSV. Anche contratto assente da CSV valido resta in attesa; problemi veri prevalgono e non sono mascherati dal CSV. Gli esiti sospesi vivono nelle nuove tabelle, senza nuovi valori in `vendita_contratti.stato_controllo`: preservati conteggi e trigger. Nessuna riscrittura autonoma anagrafica condivisa/offerta/punti o valori esistenti discordanti.
 
-Default `vendita_verifica_config.modalita='collaudo'`: solo analisi richiesta dall'admin, senza approvare contratti o inviare email; prova non conta come primo tentativo reale. `attiva` abilita turno/riesame/email e disabilita conferma manuale; `spenta` blocca il commit automatico. Letture cache per hash PDF+modello+prompt; collaudo forza rilettura. Claim massimo2lavori, lease12min e CAS/revisioni/fingerprint; conferma+audit+outbox in un'unica RPC INVOKER service-only. Cambi anagrafica rilevati in sola lettura, nessun trigger sul CC.
+Default `vendita_verifica_config.modalita='collaudo'`: analisi richiesta dall'admin senza approvazione automatica; email opzionali con email_collaudo e conferma assistita successiva; prova non conta come primo tentativo reale. `attiva` abilita turno/riesame/email e disabilita conferma manuale; `spenta` blocca il commit automatico. Letture cache per hash PDF+modello+prompt; collaudo forza rilettura. Claim massimo2lavori, lease12min e CAS/revisioni/fingerprint; conferma+audit+outbox in un'unica RPC INVOKER service-only. Cambi anagrafica rilevati in sola lettura, nessun trigger sul CC.
 
-CB `smartphone_reload=true` e `smartphone_reload_modalita='Disattivazione cliente'`: email `info@konatech.it` appena verificato; WhatsApp resta manuale e non si tratta del catalogo Reload dismesso/Exchange/Forever. Problemi Da verificare a `mirko.piasenti@mail.com` (dominio esatto), italiano semplice. Attesa CSV da sola senza email errori. Outbox con dedupe; retry solo su mancata accettazione SMTP certa; invii ambigui riconciliati da admin nella pagina con audit e conferma esplicita prima del reinvio. Nessun invio di prova eseguito. L'upload CSV verifica non aggiorna stati L&G o timestamp Netto: il flusso Controllo L&G esistente resta separato.
+CB `smartphone_reload=true` e `smartphone_reload_modalita='Disattivazione cliente'`: email `mirko.piasenti@gmail.com` appena verificato; WhatsApp resta manuale e non si tratta del catalogo Reload dismesso/Exchange/Forever. Problemi Da verificare a `mirko.piasenti@mail.com` (dominio esatto), italiano semplice. Attesa CSV da sola senza email errori. Outbox con dedupe; retry solo su mancata accettazione SMTP certa; invii ambigui riconciliati da admin nella pagina con audit e conferma esplicita prima del reinvio. Nessun invio di prova eseguito. L'upload CSV verifica non aggiorna stati L&G o timestamp Netto: il flusso Controllo L&G esistente resta separato.
 
 Nota caricamento Verifica Contratti (fix27/10): il ruolo authenticated legge vendita_contratti ma non righe vendita_pratiche (RLS senza SELECT policy). Non aggiungere inner join/filtro browser su pratiche agli elenchi: elimina tutti i contratti. Mantenere query storica su contratto/anagrafica, controllo pratica inviata nel backend, stati caricamento loaded/loading/error separati per tab. Polling esiti non deve sovrascrivere errori o richieste pendenti con una cache vuota. Nessuna apertura RLS o modifica DB per questa correzione.
 
@@ -543,6 +543,46 @@ zero verifiche in corso e zero notifiche verifica. Test completi sui nuovi
 contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 `docs/INCIDENTE_ACCESSO_REPORT_2026-10-27.md`.
 
+
+
+
+### Email anche nel collaudo assistito (28/10/2026, attivazione richiesta)
+
+Reload ora invia a `mirko.piasenti@gmail.com`, come Professional Cloud; i problemi
+restano a `mirko.piasenti@mail.com`. Nuove colonne private configurazione
+`email_collaudo` (default false) e `email_collaudo_at` delimitano l’abilitazione.
+Con modalita collaudo e flag attivo: mail problemi per nuovi collaudi richiesti
+con esito Da verificare e revisione/anagrafica correnti; Reload/Cloud dopo conferma
+assistita tracciata nell’audit e collegata all’esecuzione conforme. Solo eventi
+successivi all’abilitazione: nessun recupero massivo dei vecchi test. Attesa CSV
+senza mail problemi; dedupe condivisa con la modalita attiva. Reload in coda non
+inviato aggiornato al nuovo destinatario; gli invii incerti restano da riconciliare.
+RPC `vendita_verifica_accoda_email_collaudo` INVOKER/search_path vuoto e service-only,
+senza schema/RLS/trigger CC modificati. Worker/cron possono elaborare soltanto
+notifiche (`notifications:true`, HMAC) mantenendo fermi turni e backlog contratti.
+Gli errori tecnici dopo cinque tentativi producono esito/mail anche in collaudo.
+UI mostra lo stato delle email, checkbox admin e reinvio esplicito quando abilitato.
+Migrazione sorgente `20261028153619_verifica_email_collaudo_reload.sql`, applicata
+production `20261028154059`; flag da accendere dopo pubblicazione worker compatibile.
+Build e504/504test riusciti, harness SQL esteso riuscito. Nessuna nuova env/dipendenza.
+
+### Collaudo assistito con conferma del singolo contratto (28/10/2026)
+
+Il proprietario autorizza Codex a confermare il singolo contratto dopo un collaudo
+interamente positivo, senza chiedere una nuova autorizzazione per ogni conferma.
+La simulazione del worker resta separata dalla conferma assistita successiva;
+questa autorizzazione non abilita la modalita automatica serale o test massivi.
+Prima della conferma controllare ultima esecuzione collaudo conforme e recente,
+versione corrente, zero errori/attese, revisione non cambiata, nessuna analisi in
+corso e fingerprint identico di contratto/anagrafica/pratica/documenti/regole.
+Rileggere anche i byte degli allegati e confrontare SHA256/pagine con le prove.
+Eventuali integrazioni vanno salvate e riscontrate in un nuovo collaudo coerente.
+Conferma transazionale con confronto ottimistico e audit: stato contratto e
+verifica `controllato`, job fermo, autore assistito esplicito nelle note/log;
+non attribuire l’azione a un profilo umano inventato. Punteggi e dati commerciali
+inalterati. Problemi, attese CSV o cambiamenti bloccano la conferma. Le notifiche
+restano soggette alla configurazione esistente; nessuna attivazione globale.
+Nessuna nuova modalita UI, migration o modifica schema/RLS/CC: procedura operativa.
 
 ### Identita nell’upload e permesso di soggiorno (28/10/2026, pubblicato)
 

@@ -12,7 +12,7 @@ Identità valida alla data firma, Business su Nome referente anagrafico (nuova r
 SIM uscente PDA MNP. Energia prime2pagine bolletta/POD/PDR, gestore da bolletta e
 numero da CSV fiscale+punto univoco. CSV mancante o pratica assente = In attesa CSV.
 Turno21:00Europe/Rome, sospesi corretti ripartono subito; dati discordanti da
-verificare. Reload CB a info@konatech.it appena verificato, problemi semplici a
+verificare. Reload CB a mirko.piasenti@gmail.com appena verificato, problemi semplici a
 mirko.piasenti@mail.com. WhatsApp manuale. Nessun cambio a schema/RLS/RPC CC;
 esiti additivi separati da stato_controllo, punti e anagrafica non riscritti.
 Pubblicazione su richiesta esplicita, con modalità collaudo iniziale.
@@ -39,6 +39,46 @@ zero verifiche in corso e zero notifiche verifica. Test completi sui nuovi
 contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 `docs/INCIDENTE_ACCESSO_REPORT_2026-10-27.md`.
 
+
+
+
+### Email anche nel collaudo assistito (28/10/2026, attivazione richiesta)
+
+Reload ora invia a `mirko.piasenti@gmail.com`, come Professional Cloud; i problemi
+restano a `mirko.piasenti@mail.com`. Nuove colonne private configurazione
+`email_collaudo` (default false) e `email_collaudo_at` delimitano l’abilitazione.
+Con modalita collaudo e flag attivo: mail problemi per nuovi collaudi richiesti
+con esito Da verificare e revisione/anagrafica correnti; Reload/Cloud dopo conferma
+assistita tracciata nell’audit e collegata all’esecuzione conforme. Solo eventi
+successivi all’abilitazione: nessun recupero massivo dei vecchi test. Attesa CSV
+senza mail problemi; dedupe condivisa con la modalita attiva. Reload in coda non
+inviato aggiornato al nuovo destinatario; gli invii incerti restano da riconciliare.
+RPC `vendita_verifica_accoda_email_collaudo` INVOKER/search_path vuoto e service-only,
+senza schema/RLS/trigger CC modificati. Worker/cron possono elaborare soltanto
+notifiche (`notifications:true`, HMAC) mantenendo fermi turni e backlog contratti.
+Gli errori tecnici dopo cinque tentativi producono esito/mail anche in collaudo.
+UI mostra lo stato delle email, checkbox admin e reinvio esplicito quando abilitato.
+Migrazione sorgente `20261028153619_verifica_email_collaudo_reload.sql`, applicata
+production `20261028154059`; flag da accendere dopo pubblicazione worker compatibile.
+Build e504/504test riusciti, harness SQL esteso riuscito. Nessuna nuova env/dipendenza.
+
+### Collaudo assistito con conferma del singolo contratto (28/10/2026)
+
+Il proprietario autorizza Codex a confermare il singolo contratto dopo un collaudo
+interamente positivo, senza chiedere una nuova autorizzazione per ogni conferma.
+La simulazione del worker resta separata dalla conferma assistita successiva;
+questa autorizzazione non abilita la modalita automatica serale o test massivi.
+Prima della conferma controllare ultima esecuzione collaudo conforme e recente,
+versione corrente, zero errori/attese, revisione non cambiata, nessuna analisi in
+corso e fingerprint identico di contratto/anagrafica/pratica/documenti/regole.
+Rileggere anche i byte degli allegati e confrontare SHA256/pagine con le prove.
+Eventuali integrazioni vanno salvate e riscontrate in un nuovo collaudo coerente.
+Conferma transazionale con confronto ottimistico e audit: stato contratto e
+verifica `controllato`, job fermo, autore assistito esplicito nelle note/log;
+non attribuire l’azione a un profilo umano inventato. Punteggi e dati commerciali
+inalterati. Problemi, attese CSV o cambiamenti bloccano la conferma. Le notifiche
+restano soggette alla configurazione esistente; nessuna attivazione globale.
+Nessuna nuova modalita UI, migration o modifica schema/RLS/CC: procedura operativa.
 
 ### Identita nell’upload e permesso di soggiorno (28/10/2026, pubblicato)
 

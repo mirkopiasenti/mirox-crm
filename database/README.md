@@ -76,6 +76,38 @@ contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 `docs/INCIDENTE_ACCESSO_REPORT_2026-10-27.md`.
 
 
+
+### Email anche nel collaudo assistito (28/10/2026, attivazione richiesta)
+
+Reload ora invia a `mirko.piasenti@gmail.com`, come Professional Cloud; i problemi
+restano a `mirko.piasenti@mail.com`. Nuove colonne private configurazione
+`email_collaudo` (default false) e `email_collaudo_at` delimitano l’abilitazione.
+Con modalita collaudo e flag attivo: mail problemi per nuovi collaudi richiesti
+con esito Da verificare e revisione/anagrafica correnti; Reload/Cloud dopo conferma
+assistita tracciata nell’audit e collegata all’esecuzione conforme. Solo eventi
+successivi all’abilitazione: nessun recupero massivo dei vecchi test. Attesa CSV
+senza mail problemi; dedupe condivisa con la modalita attiva. Reload in coda non
+inviato aggiornato al nuovo destinatario; gli invii incerti restano da riconciliare.
+RPC `vendita_verifica_accoda_email_collaudo` INVOKER/search_path vuoto e service-only,
+senza schema/RLS/trigger CC modificati. Worker/cron possono elaborare soltanto
+notifiche (`notifications:true`, HMAC) mantenendo fermi turni e backlog contratti.
+Gli errori tecnici dopo cinque tentativi producono esito/mail anche in collaudo.
+UI mostra lo stato delle email, checkbox admin e reinvio esplicito quando abilitato.
+Migrazione sorgente `20261028153619_verifica_email_collaudo_reload.sql`, applicata
+production `20261028154059`; flag da accendere dopo pubblicazione worker compatibile.
+Build e504/504test riusciti, harness SQL esteso riuscito. Nessuna nuova env/dipendenza.
+
+### Conferma assistita del singolo collaudo (28/10/2026)
+
+Operazione dati autorizzata dal proprietario, senza migration/schema/RLS nuovi.
+Conferma solo con snapshot e prove documentali immutati, esito interamente positivo
+ed esecuzione/revisione attuali; transazione aggiorna contratto/verifica e registra
+`conferma_collaudo_assistita` in `vendita_log_modifiche`, responsabile Codex nelle
+note/audit senza impersonare un profilo. `mirox.verifica_commit` evita la coda di
+riesame dello stesso commit; gli altri trigger post-vendita restano abilitati.
+Prima esecuzione verificata: solo campi conferma modificati, job fermo, zero
+notifiche e configurazione collaudo invariata. Nessun dato cliente nei file pubblici.
+
 ### Identita nell’upload e permesso di soggiorno (28/10/2026, pubblicato)
 
 La successiva correzione del lettore Mobile senza MNP (versione

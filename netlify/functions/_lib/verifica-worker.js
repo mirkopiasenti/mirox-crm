@@ -22,14 +22,20 @@ function verify(body, signature, now = Date.now()) {
 function production(env = process.env) {
   return env.MIROX_DEPLOY_ENV !== 'staging' && (!env.BRANCH || env.BRANCH === 'main') && (!env.CONTEXT || env.CONTEXT === 'production');
 }
-async function config(db) { return checked(await db.from('vendita_verifica_config').select('modalita').eq('id', true).single()); }
+async function config(db) { return checked(await db.from('vendita_verifica_config').select('modalita,email_collaudo,email_collaudo_at').eq('id', true).single()); }
+function mailEnabled(cfg) { return cfg.modalita === 'attiva' || cfg.modalita === 'collaudo' && cfg.email_collaudo === true; }
 async function nudge(payload = {}, fetcher = fetch) {
   const body = JSON.stringify({ ts: Date.now(), ...payload });
   const response = await fetcher(ORIGIN + '/.netlify/functions/verifica-contratti-background', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Mirox-Verifica': sign(body) }, body, signal: AbortSignal.timeout(5000) });
   if (!response.ok) throw new Error('dispatch_verifica_fallito');
 }
 async function wake(db) {
-  try { if (production() && (await config(db)).modalita === 'attiva') await nudge(); }
+  try {
+    if (!production()) return;
+    const cfg = await config(db);
+    if (cfg.modalita === 'attiva') await nudge();
+    else if (mailEnabled(cfg)) await nudge({ notifications: true });
+  }
   catch { console.warn('Verifica automatica: dispatch rinviato al recupero periodico.'); }
 }
 async function changed(db, id) {
@@ -107,11 +113,11 @@ async function processOne(db, { id = null, test = false } = {}, deps = {}) {
   } catch (error) {
     // Technical failures are retryable and are never converted into positive documentary outcomes.
     const terminal = claim.tentativi >= 5;
-    if (terminal && !test) {
+    if (terminal) {
       const snapshot = await Docs.loadSnapshot(db, claim.contratto_id);
       const result = { version: Core.VERSION, esito: 'da_verificare', patch: {}, errors: [{ code: 'servizio_lettura', message: 'Non è stato possibile completare la lettura automatica dopo più tentativi. Controlla i documenti o il servizio di analisi e richiedi il riesame.' }], waiting: [], checks: [], technical: true, source_customer_updated_at: snapshot.customer.updated_at };
       const saved = checked(await db.rpc('vendita_verifica_concludi', { p_id: claim.contratto_id, p_token: claim.lock_token, p_revision: claim.revisione,
-        p_updated: snapshot.contract.updated_at, p_customer: snapshot.customer, p_result: result, p_fingerprint: Docs.fingerprint(snapshot), p_docs: [], p_model: Docs.MODEL, p_test: false }));
+        p_updated: snapshot.contract.updated_at, p_customer: snapshot.customer, p_result: result, p_fingerprint: Docs.fingerprint(snapshot), p_docs: [], p_model: Docs.MODEL, p_test: test }));
       return { failed: true, terminal: true, saved };
     }
     checked(await db.from('vendita_verifiche').update({ stato_job: 'errore', lock_token: null, lock_until: null,
@@ -129,7 +135,7 @@ function email(job) {
   const message = reload ? 'Contratto verificato. È stata scelta Disattivazione cliente per Smartphone Reload: ricorda di scrivere il promemoria al cliente su WhatsApp.'
     : cloud ? 'Contratto verificato. È stata scelta Richiedi disattivazione per Professional Cloud: ricorda di scrivere il promemoria al cliente su WhatsApp.'
       : 'La verifica ha riscontrato questi problemi:';
-  return { to: job.destinatario, subject: reload ? 'Mirox CRM: promemoria WhatsApp Reload'
+  return { to: reload ? 'mirko.piasenti@gmail.com' : job.destinatario, subject: reload ? 'Mirox CRM: promemoria WhatsApp Reload'
     : cloud ? 'Mirox CRM: promemoria WhatsApp Professional Cloud' : 'Mirox CRM: contratto da verificare',
     html: `<p>${escape(job.payload.cliente)}</p><p>${message}</p>`
       + (reload || cloud ? '' : '<ul>' + (job.payload.motivi || []).map(m => `<li>${escape(m.message)}</li>`).join('') + '</ul>')
@@ -137,22 +143,33 @@ function email(job) {
     related_table: 'vendita_contratti', related_id: job.contratto_id };
 }
 async function notifications(db, deps = {}) {
-  if ((await config(db)).modalita !== 'attiva') return;
+  const cfg = await config(db);
+  if (!mailEnabled(cfg)) return;
+  if (cfg.modalita === 'collaudo') checked(await db.rpc('vendita_verifica_accoda_email_collaudo'));
   // A previous process may have died after SMTP acceptance: never resend blindly.
-  checked(await db.from('vendita_verifica_notifiche').update({ stato: 'incerta' }).eq('stato', 'in_corso').lt('updated_at', new Date(Date.now() - 15 * 60000).toISOString()));
-  const jobs = checked(await db.from('vendita_verifica_notifiche').select('*').eq('stato', 'in_coda').lte('prossimo_at', new Date().toISOString()).order('prossimo_at').limit(20));
+  let expired = db.from('vendita_verifica_notifiche').update({ stato: 'incerta' }).eq('stato', 'in_corso').lt('updated_at', new Date(Date.now() - 15 * 60000).toISOString());
+  if (cfg.modalita === 'collaudo') expired = expired.eq('payload->>modalita', 'collaudo');
+  checked(await expired);
+  let queue = db.from('vendita_verifica_notifiche').select('*').eq('stato', 'in_coda').lte('prossimo_at', new Date().toISOString());
+  if (cfg.modalita === 'collaudo') queue = queue.eq('payload->>modalita', 'collaudo');
+  const jobs = checked(await queue.order('prossimo_at').limit(20));
   for (const job of jobs) {
     const token = crypto.randomUUID();
     const claimed = checked(await db.from('vendita_verifica_notifiche').update({ stato: 'in_corso', lock_token: token, tentativi: job.tentativi + 1, updated_at: new Date().toISOString() }).eq('id', job.id).eq('stato', 'in_coda').select('id').maybeSingle());
     if (!claimed) continue;
     const c = checked(await db.from('vendita_contratti').select('stato_controllo,smartphone_reload,smartphone_reload_modalita,categoria_snapshot,cluster_cliente,professional_cloud,professional_cloud_gestione').eq('id', job.contratto_id).single());
-    const r = checked(await db.from('vendita_verifiche').select('esito,risultato,stato_job').eq('contratto_id', job.contratto_id).single());
-    const current = job.tipo === 'reload' ? c.stato_controllo === 'controllato' && c.smartphone_reload === true && c.smartphone_reload_modalita === 'Disattivazione cliente'
+    const r = checked(await db.from('vendita_verifiche').select('esito,risultato,stato_job,revisione,errore_codice').eq('contratto_id', job.contratto_id).single());
+    const preview = job.payload.modalita === 'collaudo';
+    const boundary = !preview || cfg.modalita === 'attiva' || Date.parse(job.payload.email_collaudo_at) === Date.parse(cfg.email_collaudo_at);
+    const current = job.tipo === 'reload' ? c.stato_controllo === 'controllato' && c.categoria_snapshot === 'Customer Base'
+      && c.smartphone_reload === true && c.smartphone_reload_modalita === 'Disattivazione cliente' && r.esito === 'controllato' && r.stato_job === 'fermo'
       : job.tipo === 'professional_cloud' ? c.stato_controllo === 'controllato' && Pda.cloudScope(c.categoria_snapshot, c.cluster_cliente)
         && c.professional_cloud === true && c.professional_cloud_gestione === 'Richiedi disattivazione'
         && r.esito === 'controllato' && r.stato_job === 'fermo'
-      : job.tipo === 'problemi' && c.stato_controllo !== 'controllato' && r.esito === 'da_verificare' && r.stato_job === 'fermo' && JSON.stringify(r.risultato?.errors) === JSON.stringify(job.payload.motivi);
-    if (!current) { checked(await db.from('vendita_verifica_notifiche').update({ stato: 'superata' }).eq('id', job.id).eq('lock_token', token)); continue; }
+      : job.tipo === 'problemi' && c.stato_controllo !== 'controllato'
+        && (preview ? r.risultato?.esito === 'da_verificare' && r.revisione === job.payload.revision && r.stato_job !== 'in_corso' && !r.errore_codice : r.esito === 'da_verificare' && r.stato_job === 'fermo')
+        && JSON.stringify(r.risultato?.errors) === JSON.stringify(job.payload.motivi);
+    if (!current || !boundary) { checked(await db.from('vendita_verifica_notifiche').update({ stato: 'superata' }).eq('id', job.id).eq('lock_token', token)); continue; }
     let outcome;
     try { outcome = await (deps.sendEmail || sendEmail)(email(job)); }
     catch { outcome = { ok: false }; }
@@ -162,4 +179,4 @@ async function notifications(db, deps = {}) {
       prossimo_at: new Date(Date.now() + 60000 * 2 ** (job.tentativi + 1)).toISOString(), updated_at: new Date().toISOString() }).eq('id', job.id).eq('lock_token', token));
   }
 }
-module.exports = { sign, verify, production, config, nudge, wake, changed, analyze, processOne, notifications, email, requiredDocuments, categoryErrors };
+module.exports = { sign, verify, production, config, mailEnabled, nudge, wake, changed, analyze, processOne, notifications, email, requiredDocuments, categoryErrors };

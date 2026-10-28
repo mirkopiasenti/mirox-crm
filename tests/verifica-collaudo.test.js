@@ -43,6 +43,35 @@ test('cron in collaudo recupera la prova richiesta senza avviare backlog o notif
   assert.ok(!tables.includes('vendita_verifica_notifiche'));
 });
 
+test('cron con email collaudo abilitate accoda e sveglia soltanto il worker delle mail', async () => {
+  const dispatches = [], calls = [];
+  const db = { async rpc(name) { calls.push(name); assert.equal(name, 'vendita_verifica_accoda_email_collaudo'); return { data: null }; }, from(table) {
+    let state;
+    const q = { select() { return q; }, eq(key,value) { if(key==='stato')state=value;return q; },in(){return q;},lte(){return q;},lt(){return q;},or(){return q;},
+      async single(){return {data:{modalita:'collaudo',email_collaudo:true}};},
+      async limit(){return {data:table==='vendita_verifica_notifiche'&&state==='in_coda'?[{id:ID}]:[]};} };return q;
+  } };
+  const response=await cron({}, {db,nudge:async payload=>dispatches.push(payload)});
+  assert.equal(response.statusCode,200);assert.deepEqual(calls,['vendita_verifica_accoda_email_collaudo']);
+  assert.deepEqual(dispatches,[{notifications:true}]);
+});
+
+test('worker firmato notifiche non avvia analisi dei contratti in collaudo', async () => {
+  const Worker=require('../netlify/functions/_lib/verifica-worker');
+  const {handler}=require('../netlify/functions/verifica-contratti-background');
+  const previous=process.env.SUPABASE_SERVICE_ROLE_KEY; process.env.SUPABASE_SERVICE_ROLE_KEY='fixture';
+  let queued=0;
+  const db={async rpc(name){assert.equal(name,'vendita_verifica_accoda_email_collaudo');queued++;return {data:null};},from(){
+    const q={select(){return q;},update(){return q;},eq(){return q;},lt(){return q;},lte(){return q;},order(){return q;},limit(){return q;},
+      async single(){return {data:{modalita:'collaudo',email_collaudo:true}};},then(resolve,reject){return Promise.resolve({data:[]}).then(resolve,reject);}};return q;
+  }};
+  try{
+    const body=JSON.stringify({ts:Date.now(),notifications:true});
+    const response=await handler({httpMethod:'POST',body,headers:{'x-mirox-verifica':Worker.sign(body)}},{db,sendEmail:async()=>assert.fail('Coda vuota')});
+    assert.equal(response.statusCode,200);assert.equal(queued,1);
+  }finally{if(previous===undefined)delete process.env.SUPABASE_SERVICE_ROLE_KEY;else process.env.SUPABASE_SERVICE_ROLE_KEY=previous;}
+});
+
 for (const focused of ['button', 'date']) test(`polling dettaglio con focus ${focused}: esito aggiornato e data in modifica protetta`, async () => {
   let rendered = '';
   const active = { matches: selector => focused === 'date' && selector === 'input[data-vc-date]' };

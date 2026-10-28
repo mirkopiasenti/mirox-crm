@@ -25,11 +25,12 @@ ICCID copia SIM/PDA MNP e prime due pagine bolletta Energia con intestatario/POD
 Integra soltanto campi vuoti sostenuti dalle fonti; punteggi e anagrafica non riscritti.
 CSV assente o contratto non ancora presente: In attesa CSV; altri problemi spiegati
 in italiano. Per il turno serve un CSV caricato nel giorno del turno o successivo.
-Reload CB Disattivazione cliente: `info@konatech.it` appena verificato; problemi:
+Reload CB Disattivazione cliente: `mirko.piasenti@gmail.com` appena verificato; problemi:
 `mirko.piasenti@mail.com`. Outbox persistente con dedupe e riconciliazione invii incerti.
 
 Nuova modalità iniziale **Collaudo assistito**: analizza una pratica selezionata,
-registra l'esito nelle tabelle private, non conferma il contratto e non invia email.
+registra l'esito nelle tabelle private; la conferma assistita e separata e le email
+sono disponibili con l'impostazione Email anche in collaudo (richiesta28/10).
 Migration applicata e riletta a production il27/10, versione `20261027172616`: sei
 tabelle private/RLS e RPC server-only; configurazione confermata in collaudo.
 Rilascio autorizzato dal proprietario; prove AI sui fascicoli ancora da fare insieme.
@@ -161,6 +162,36 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `genera-pdf-consenso-cartaceo` | GET | authenticated | Stream del modulo cartaceo v6 precompilato: una pagina A4, monocromatico, corpo 10 pt, scelta marketing già marcata e riga firma |
 | `upload-consenso-cartaceo` | POST multipart | authenticated | Upload scansione firmata (max 20 MB, PDF); richiede l'esito ACCONSENTO/NON ACCONSENTO e crea il record `'cartaceo'` confermato |
 
+
+
+### Email anche nel collaudo assistito (28/10/2026, attivazione richiesta)
+
+Reload ora invia a `mirko.piasenti@gmail.com`, come Professional Cloud; i problemi
+restano a `mirko.piasenti@mail.com`. Nuove colonne private configurazione
+`email_collaudo` (default false) e `email_collaudo_at` delimitano l’abilitazione.
+Con modalita collaudo e flag attivo: mail problemi per nuovi collaudi richiesti
+con esito Da verificare e revisione/anagrafica correnti; Reload/Cloud dopo conferma
+assistita tracciata nell’audit e collegata all’esecuzione conforme. Solo eventi
+successivi all’abilitazione: nessun recupero massivo dei vecchi test. Attesa CSV
+senza mail problemi; dedupe condivisa con la modalita attiva. Reload in coda non
+inviato aggiornato al nuovo destinatario; gli invii incerti restano da riconciliare.
+RPC `vendita_verifica_accoda_email_collaudo` INVOKER/search_path vuoto e service-only,
+senza schema/RLS/trigger CC modificati. Worker/cron possono elaborare soltanto
+notifiche (`notifications:true`, HMAC) mantenendo fermi turni e backlog contratti.
+Gli errori tecnici dopo cinque tentativi producono esito/mail anche in collaudo.
+UI mostra lo stato delle email, checkbox admin e reinvio esplicito quando abilitato.
+Migrazione sorgente `20261028153619_verifica_email_collaudo_reload.sql`, applicata
+production `20261028154059`; flag da accendere dopo pubblicazione worker compatibile.
+Build e504/504test riusciti, harness SQL esteso riuscito. Nessuna nuova env/dipendenza.
+
+### Conferma assistita dopo collaudo (28/10/2026)
+
+Il proprietario autorizza Codex a confermare il singolo contratto con collaudo
+completamente positivo, dopo aver riscontrato nuovamente dati e allegati invariati.
+Il contratto passa nei Verificati con audit della conferma; problemi e attese
+rimangono aperti. La simulazione e la conferma assistita sono due passaggi distinti;
+la modalita serale resta collaudo, senza abilitare elaborazioni/invii globali.
+Prima conferma assistita riuscita il28/10; nessun cambio applicativo o schema.
 
 ### Identita nell’upload e permesso di soggiorno (28/10/2026, pubblicato)
 
@@ -530,7 +561,7 @@ Dettagli e regole complete in [`AGENTS.md`](AGENTS.md); [`CLAUDE.md`](CLAUDE.md)
 | `SMSHOSTING_API_SECRET` | sì (per consensi OTP) | Password API Smshosting |
 | `SMSHOSTING_SENDER` | no | Mittente alfanumerico SMS, max 11 caratteri. Default `MIROX`. Va dichiarato in fase di setup account Smshosting |
 | `SMSHOSTING_SIMULATE` | no | `true` per attivare modalità simulazione (logga SMS senza inviarlo). Utile per test dev senza spendere credito |
-| `NOTIFICA_RIENTRO_TO` | no | Default `info@konatech.it` |
+| `NOTIFICA_RIENTRO_TO` | no | Default `mirko.piasenti@gmail.com` |
 | `MAIL_FROM_NAME` | no | Default `Mirox CRM` |
 | `OPENAI_API_KEY` | sì (per Guardian AI) | Responses API e Audio Transcriptions; solo lato server |
 | `OPENAI_GUARDIAN_MODEL` | no | Default `gpt-5.6-luna` |
