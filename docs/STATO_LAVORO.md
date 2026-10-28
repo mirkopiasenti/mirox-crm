@@ -2,11 +2,11 @@
 
 Aggiornato: 2026-10-28. Promemoria di ripresa, non autorizza deploy o attivazioni.
 
-## Gare individuali: push richiesto28/10, verifica rilascio in corso
+## Gare individuali: pubblicate28/10
 
 - Richiesta proprietario: Assicurazioni con punti personali (Matteo5, Francesca0, Mirko0) e totale squadra distinto; correggere compenso Business. Implementato in dashboard-report-core e dashboard_pezzi, stessa resa nei PNG. Assicurazioni conserva bonus50EUR ciascuno a10punti squadra, allowlist/Legnago e regole mensili invariate.
 - PARTITA IVA prima confrontava soglia con produzione personale malgrado tipo_compenso=squadra. Ora usa totale squadra per compenso e mantiene contributo personale separato. Rilettura SQL read-only28/10:26Matteo/0Francesca/11Mirko=37, prima soglia35 ->150EUR ciascuno. Assicurazioni7polizzeMatteo=5punti, bonus0. Nessuna scrittura DB/schema/RLS o modifica scaglioni/configurazioni.
-- Build e534/534test riusciti, inclusi3nuovi test regressione su soglie squadra/alias/perimetro/variabili e DOM delle3schede/totali/bonus/PNG;53test mirati riusciti. diff --check pulito. Guide README/AGENTS/CLAUDE/databaseREADME aggiornate. Push richiesto esplicitamente dal proprietario28/10: pubblicazione e verifica CI/Netlify in corso. Nessun browser. Prossimo: registrare commit/deploy verificati; precedente online97a9641 (feature2ebd2f5).
+- Build e534/534test riusciti, inclusi3nuovi test regressione su soglie squadra/alias/perimetro/variabili e DOM delle3schede/totali/bonus/PNG;53test mirati riusciti. diff --check pulito. Guide README/AGENTS/CLAUDE/databaseREADME aggiornate. Push richiesto ed eseguito28/10: featured575e5c, CI40743853457 riuscita, Netlify6ae23c6b002cbae9f14b6c47 rilevato online alle19:19Europe/Rome. SHA pubblico/core identici, script pagina identici alla build (solo link riscritto da Netlify). Nessun browser. Prossimo: ricaricare Gare per vedere personali/squadra e150EUR Business; nessuna attivazione o scrittura dati necessaria.
 
 ## Preview manuale identita e Haiku5.5: pubblicati28/10
 
@@ -35,7 +35,7 @@ Aggiornato: 2026-10-28. Promemoria di ripresa, non autorizza deploy o attivazion
 ## Vincoli operativi persistenti
 
 - NON USARE IL BROWSER, preferenza esplicita del proprietario. Solo test interni/DOM Node/HTTP/CLI/SQL; UI e documenti reali da provare con lui. Nessuna automazione browser dopo lo stop.
-- Push solo su richiesta esplicita; ogni push main deploya mirox-crm.it. Push CF/Business richiesto e completato; push preview manuale/Haiku5.5 e fix CF non letto richiesto e completato; ulteriori modifiche richiedono nuova richiesta esplicita di push. Nessuna modalita attiva da abilitare da soli.
+- Push solo su richiesta esplicita; ogni push main deploya mirox-crm.it. Push CF/Business, preview manuale/Haiku5.5 e correzioni gare richiesti e completati; ulteriori modifiche richiedono nuova richiesta esplicita di push. Nessuna modalita attiva da abilitare da soli.
 - Tabelle CC/anagrafica condivise: schema/RLS/RPC/trigger solo dopo consenso secondo AGENTS. Nuovo progetto Supabase/restore CRM completo rinviati fino rimozione CC test: non creare/rimuovere ambienti.
 - Segreti e dati di recupero soltanto .backup-private/ ignorata. tmp/output/ed.hup ora ignorati; documenti generati e immagini cliente mai pubblicati. Build dist pubblica solo HTML root/assets/css/js/moduli.
 - CRM mirox-crm.it, alias mirox-crm.netlify.app sullo stesso site; repository/deploy storico CC ancora da identificare. Guardian production unico ambiente autorizzato.
