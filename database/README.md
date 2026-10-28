@@ -116,6 +116,10 @@ notifiche e configurazione collaudo invariata. Nessun dato cliente nei file pubb
 
 ### Identita Business: CF del rappresentante dalla PDA (28/10/2026)
 
+Pubblicato `920f530`, CI `40728727037` riuscita, Netlify
+`6ae22620679a1843b7adb624` online alle17:43:57 Europe/Rome. Build e519/519
+test riusciti; commit e asset UI verificati HTTP, API401 senza JWT.
+
 Il controllo anticipato legge dalla PDA Business il CF personale nella sezione
 rappresentante legale/delegato, distinto da PIVA aziendale e pagatore SEPA.
 Prima riscontra CF/PIVA aziendale con l’anagrafica CRM; poi confronta esattamente
@@ -161,8 +165,8 @@ e `confronto.nome_informativo`; firme/hash/anagrafica e regole anti-risposte tar
 restano vincolati come prima. Diagnostica nomi conservata; ricontrollo nome resta
 solo nei percorsi senza riscontro CF, con conferma manuale tracciata
 se due letture discordano e gli altri identificativi coincidono.
-Nessuna migration/env/dipendenza o modifica dei dati CRM. Push richiesto dal
-proprietario insieme all’estensione Business. Fonte CIE: https://www.cartaidentita.interno.gov.it/cose-la-carta/caratteristiche-del-documento/
+Nessuna migration/env/dipendenza o modifica dei dati CRM. Pubblicato su
+richiesta del proprietario insieme all’estensione Business. Fonte CIE: https://www.cartaidentita.interno.gov.it/cose-la-carta/caratteristiche-del-documento/
 
 ### Diagnostica nome e ricontrollo identita (28/10/2026)
 
@@ -185,7 +189,7 @@ conferma manuale esplicita/motivo obbligatori. Mai approvazione automatica del
 nome discordante. Fallimento, errore stabile o altri dati discordanti conservano
 il blocco; CF/documento diverso/scadenza non aggirabili. Nessuna migration/env
 nuova, nessun dato anagrafico atteso inviato al modello.
-Correzione inclusa nel push richiesto insieme al Business; regressioni sintetiche
+Correzione pubblicata insieme al Business; regressioni sintetiche
 e nessuna nuova chiamata Anthropic sui PDF reali, ispezionati localmente.
 
 ### Identita nell’upload e permesso di soggiorno (28/10/2026, pubblicato)

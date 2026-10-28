@@ -2,14 +2,14 @@
 
 Aggiornato: 2026-10-28. Promemoria di ripresa, non autorizza deploy o attivazioni.
 
-## CF e scadenza Consumer/Business: sviluppo completato, push richiesto28/10
+## CF e scadenza Consumer/Business: pubblicato28/10
 
-- Richiesta attuale «sviluppa anche il business e poi fai push di tutto»: include modifiche locali CF Consumer, diagnostica nomi e nuovo Business. Pubblicazione in corso, non ancora verificata. Nessuna migration/env/dipendenza nuova o modifica anagrafica/CC.
+- Richiesta attuale «sviluppa anche il business e poi fai push di tutto»: include modifiche locali CF Consumer, diagnostica nomi e nuovo Business. Feature920f530 pubblicata Netlify6ae22620679a1843b7adb624 alle17:43:57Europe/Rome, CI40728727037 riuscita; commit pubblico e byteUI identici, campoPDA presente, API401 senzaJWT. Nessuna migration/env/dipendenza nuova o modifica anagrafica/CC.
 - Consumer/Turista CF documento esatto vs anagrafica + scadenza alla firma; nome OCR informativo se CF coincide. Business Mobile/Fisso/CB: CF/PIVA azienda PDA vs CRM, CF personale sezione rappresentante/delegato PDA vs documento + scadenza. Mai persona vs PIVA. Senza PDA resta Nome referente; senza CF documento servono nome completo/nascita o manuale. CF esplicito diverso e scaduto bloccano; tipo/numero/parti/coerenza PDF restano obbligatori.
 - Helper pda-business-identity legge testo con pagina/citazione, AI solo dati mancanti senza valori attesi; ambiguita/conflitti bloccanti. Ricevuta HMAC JSONB esistente business_identity lega CF persona/codice/azienda/hash PDA. Un solo rappresentante per pratica. Client invalida su cambio PDA; create/finalize rileggono byte prima delle scritture/invio e salvano digest PDA. Riuso serale richiede anche PDA identica; legacy senza prova PDA rilegge ID. Versioni motore/lettore2026-10-28.2.
 - Diagnostica nome atteso/letto escaped fuori da telemetria. Solo senza CF coincidente, unico errore nome e tempo<18s: seconda lettura indipendente, stesso numero e nessun altro conflitto -> incerto con manuale/motivo, mai autoconferma. Entrambe letture nella ricevuta.
 - PDF reali allegati ispezionati localmente: identita/PDA concordano con valori confermati; vecchia risposta AI rifiutata non salvata, impossibile attribuire lettere specifiche. Omonima con altro CF non modificata. Due PDA Business Mobile/Fisso lette correttamente dal parser reale, nessuna nuova chiamata AI sui PDF reali; file solo .backup-private/identita-speltri-20261028 e business-cf-rappresentante-20261028.
-- Build e519/519 test riusciti, inclusi fallback AI discordante, pagine vuote e68testPython Backup completi. README/AGENTS/CLAUDE/databaseREADME e guide identita/verifica aggiornati. Prossimo: push autorizzato, controllare CI/Netlify/SHA e poi collaudo upload reale col proprietario. Nessun collaudo/approvazione/email reale avviato in questo sviluppo.
+- Build e519/519 test riusciti, inclusi fallback AI discordante, pagine vuote e68testPython Backup completi. README/AGENTS/CLAUDE/databaseREADME e guide identita/verifica aggiornati. Prossimo: ricaricare Upload e provare nuova pratica Consumer/Business col proprietario; OCR reale e UI restano da collaudare. Nessun collaudo/approvazione/email reale avviato in questo sviluppo.
 
 ## Email verifica anche in collaudo: attive28/10
 
