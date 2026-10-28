@@ -880,9 +880,15 @@ function renderGare() {
       const formatoValori = campo => c.componenti?.length
         ? c.componenti.map(r => `<div class="gara-componente">${escapeHtml(r[campo])} <small>${escapeHtml(r.nome)}</small></div>`).join('')
         : escapeHtml(c[campo]);
-      const attualeHtml = formatoValori('attuale');
-      const obiettivoHtml = formatoValori('obiettivo');
-      const badgeSquadra = (conteggioSquadra || compensoSquadra) ? ' <span title="' + (conteggioSquadra && compensoSquadra ? 'Conteggio e compenso di squadra' : (compensoSquadra ? 'Compenso di squadra (attuale personale)' : 'Conteggio di squadra (compenso personale)')) + '" style="font-size:9.5px;background:#DBEAFE;color:#1E40AF;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700;letter-spacing:.04em">SQUADRA</span>' : '';
+      const garaSquadra = conteggioSquadra || compensoSquadra;
+      const punti = !!o?.compenso_regola?.gara?.punteggio_campo;
+      const attualeHtml = garaSquadra && !c.componenti?.length
+        ? `<div class="gara-componente">${escapeHtml(c.attualePersonale)} <small>${punti ? 'Punti personali' : 'Personale'}</small></div><div class="gara-componente">${escapeHtml(c.attualeSquadra)} <small>${punti ? 'Punti squadra' : 'Squadra'}</small></div>`
+        : formatoValori('attuale');
+      const obiettivoHtml = garaSquadra && !c.componenti?.length
+        ? `<div class="gara-componente">${escapeHtml(c.obiettivo)} <small>Squadra</small></div>`
+        : formatoValori('obiettivo');
+      const badgeSquadra = garaSquadra ? ' <span title="Compenso calcolato sul totale squadra; produzione personale indicata separatamente" style="font-size:9.5px;background:#DBEAFE;color:#1E40AF;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700;letter-spacing:.04em">SQUADRA</span>' : '';
       const hasDesc = !!String(c.descrizione).trim();
       const iconaInfo = hasDesc ? ' <span class="mx-info-dot" title="Come funziona questa gara">i</span>' : '';
       const nomeCol = escapeHtml(m.nome) + badgeSquadra + iconaInfo;

@@ -101,6 +101,50 @@ test('gli alias personali e di squadra confluiscono nel canonico', () => {
   assert.equal(core.valutaGara(insuranceMetric, row(insurance), [assicurazione({ operatore_id: 'alias-mirko', punteggio_gara_totale: 10 })], 'mirko', resolve).euro, 50);
   assert.equal(core.valutaGara(metrica, row(cb), production(35, 15).map(c => ({ ...c, operatore_id: 'alias-mirko' })), 'mirko', resolve).euro, 100);
 });
+test('PARTITA IVA mantiene Attuale personale ma assegna il compenso sulla soglia di squadra', () => {
+  const m = { tipo_conteggio: 'individuale', tipo_compenso: 'squadra', regola: { cluster: 'Business' } };
+  const goal = { obiettivo: 45, compenso_regola: { tipo: 'scaglioni', scaglioni: [
+    { da: 35, importo: 150, tipo_calcolo: 'flat' },
+    { da: 45, importo: 250, tipo_calcolo: 'flat' },
+    { da: 55, importo: 350, tipo_calcolo: 'flat' }
+  ] } };
+  const list = [
+    ...Array.from({ length: 26 }, () => contract({ cluster_cliente: 'Business', punteggio_gara_totale: 2 })),
+    ...Array.from({ length: 11 }, () => contract({ operatore_id: 'alias-mirko', cluster_cliente: 'Business' })),
+    contract({ cluster_cliente: 'Business', stato_inserimento: 'reinserimento' }),
+    contract({ cluster_cliente: 'Consumer' })
+  ];
+  const resolve = id => id === 'alias-mirko' ? 'mirko' : id;
+  for (const [id, personale] of [['matteo', 26], ['mirko', 11], ['francesca', 0]]) {
+    const result = core.valutaGara(m, goal, list, id, resolve);
+    assert.equal(result.attuale, personale);
+    assert.equal(result.attualePersonale, personale);
+    assert.equal(result.attualeSquadra, 37);
+    assert.equal(result.attualeCompenso, 37);
+    assert.equal(result.euro, 150);
+    assert.equal(result.conteggioSquadra, false);
+    assert.equal(result.compensoSquadra, true);
+  }
+  assert.equal(core.valutaGara(m, goal, list.slice(0, 34), 'francesca', resolve).euro, 0);
+  // Le altre gare individuali continuano a pagare solo la produzione personale.
+  assert.equal(core.valutaGara({ ...m, tipo_compenso: 'individuale' }, goal, list, 'matteo', resolve).euro, 0);
+  // Gli scaglioni restano quelli configurati, compresa la cumulabilita flat.
+  assert.equal(core.valutaGara(m, goal, [...list, ...list], 'francesca', resolve).euro, 750);
+});
+test('compenso di squadra rispetta perimetro mensile, punti, alias e contratti per compenso variabile', () => {
+  const m = { tipo_conteggio: 'individuale', tipo_compenso: 'squadra', regola: { categoria: 'Assicurazioni' } };
+  const rule = { tipo: 'per_pezzo_variabile', campo: 'tipo_acquisto', casi: [{ valore: 'VAR', importo: 3 }],
+    gara: { codice_rivenditore: core.LEGNAGO, operatori: ['matteo', 'mirko'], punteggio_campo: 'punteggio_gara_totale' } };
+  const list = [assicurazione({ punteggio_gara_totale: 0.5 }),
+    assicurazione({ operatore_id: 'alias-mirko', punteggio_gara_totale: 1.5 }),
+    assicurazione({ operatore_id: 'cerea', punteggio_gara_totale: 100 }),
+    assicurazione({ codice_rivenditore: core.CEREA, punteggio_gara_totale: 100 }),
+    assicurazione({ stato_inserimento: 'reinserimento', punteggio_gara_totale: 100 })];
+  const result = core.valutaGara(m, { compenso_regola: rule }, list, 'matteo', id => id === 'alias-mirko' ? 'mirko' : id);
+  assert.equal(result.attuale, 0.5);
+  assert.equal(result.attualeSquadra, 2);
+  assert.equal(result.euro, 6);
+});
 test('settembre conserva soglia 50 telefoni, descrizione e assicurazioni individuali a pezzi', () => {
   const legacy = { obiettivo: 50, compenso_regola: { tipo: 'scaglioni', scaglioni: [{ da: 50, importo: 100, tipo_calcolo: 'flat' }] } };
   const september = core.valutaGara(metrica, legacy, production(35, 15), 'matteo');
@@ -144,6 +188,39 @@ test('Dashboard renderizza entrambi i progressi CB e la descrizione mensile', ()
   assert.match(wrap.innerHTML, /15 <small>Cambi piano TIED/);
   assert.match(wrap.innerHTML, /data-descrizione="Bonus individuale unico/);
   assert.match(wrap.innerHTML, /compenso-tot">0</);
+});
+test('Dashboard e PNG distinguono assicurazioni personali e squadra e includono il compenso Business nei totali', () => {
+  const source = fs.readFileSync(path.join(root, 'moduli/dashboard_pezzi.html'), 'utf8');
+  const wrap = { innerHTML: '', querySelectorAll: () => [] };
+  const businessMetric = { id: 6, nome: 'PARTITA IVA', tabella: 'gara_individuale', tipo_conteggio: 'individuale',
+    tipo_compenso: 'squadra', regola: { cluster: 'Business' } };
+  const businessGoal = { obiettivo: 45, compenso_regola: { tipo: 'scaglioni',
+    scaglioni: [{ da: 35, importo: 150, tipo_calcolo: 'flat' }] } };
+  const insMetric = { ...insuranceMetric, id: 7, nome: 'ASSICURAZIONI', tipo_compenso: 'individuale', tabella: 'gara_individuale' };
+  const context = { MiroxDashboardReport: core, escapeHtml: value => String(value), fmtEur: value => String(value),
+    MESI: Array(12).fill('Ottobre'), DPState: { anno: 2026, mese: 10, metricheGara: [businessMetric, insMetric],
+      operatoriInGara: insurance.gara.operatori.map(id => ({ id, nome: id })),
+      contrattiMese: [assicurazione({ punteggio_gara_totale: 5 }),
+        ...Array.from({ length: 26 }, () => contract({ cluster_cliente: 'Business' })),
+        ...Array.from({ length: 11 }, () => contract({ cluster_cliente: 'Business', operatore_id: 'mirko' }))],
+      resolveOperatore: id => id },
+    getObiettivoMese: id => id === 6 ? businessGoal : row(insurance), document: { getElementById: () => wrap } };
+  const render = () => vm.runInNewContext(sourceFunction(source, 'renderGare') + '\nrenderGare();', context);
+  render();
+  const cards = wrap.innerHTML.split('<div class="gara-card"').slice(1);
+  assert.equal(cards.length, 3);
+  for (let i = 0; i < cards.length; i++) {
+    const id = insurance.gara.operatori[i];
+    assert.match(cards[i], new RegExp((id === 'matteo' ? 5 : 0) + ' <small>Punti personali'));
+    assert.match(cards[i], /5 <small>Punti squadra/);
+    assert.match(cards[i], /37 <small>Squadra/);
+    assert.match(cards[i], /45 <small>Squadra/);
+    assert.match(cards[i], /compenso-tot">150</);
+  }
+  // A soglia assicurativa raggiunta, anche chi non ha produzione riceve il bonus.
+  context.DPState.contrattiMese.push(assicurazione({ punteggio_gara_totale: 5 }));
+  render();
+  assert.equal((wrap.innerHTML.match(/compenso-tot">200</g) || []).length, 3);
 });
 test('editor Admin conserva entrambe le soglie e scope mensile al salvataggio', async () => {
   const source = fs.readFileSync(path.join(root, 'admin-gare.html'), 'utf8');

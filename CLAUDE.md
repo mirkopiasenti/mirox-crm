@@ -488,6 +488,13 @@ schema/RLS o contratto modificato; test comportamento integrato copre i criteri.
 
 ## Gare mensili ottobre 2026
 
+Correzione applicativa28/10: schede Gare/PNG distinguono produzione personale e
+totale squadra; Assicurazioni ottobre mostra punti personali e punti squadra,
+bonus invariato50 EUR ciascuno a10 complessivi. `tipo_compenso=squadra` usa il
+totale anche con conteggio personale (PARTITA IVA:37 ->150 EUR a ciascuno).
+Il motore mantiene perimetro, alias, conteggio/punti configurati e scaglioni.
+Nessuna modifica DB o configurazione; stato rilascio in docs/STATO_LAVORO.md.
+
 Variazioni solo in `gara_obiettivi_mensili.compenso_regola`: override `gara`
 (descrizione/conteggio/punteggio/punto vendita/operatori canonici) e DSL
 `obiettivi_combinati` con tutte le soglie obbligatorie. Motore condiviso

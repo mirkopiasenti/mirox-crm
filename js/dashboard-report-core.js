@@ -116,19 +116,30 @@ function valutaGara(metrica, obiettivo, contratti, operatoreId, resolveOperatore
   const regolaCompenso = obiettivo?.compenso_regola;
   const gara = regolaCompenso?.gara || {};
   const conteggioSquadra = (gara.tipo_conteggio || metrica.tipo_conteggio) === 'squadra';
-  const produzione = (contratti || []).filter(c =>
+  const compensoSquadra = metrica.tipo_compenso === 'squadra';
+  const produzioneSquadra = (contratti || []).filter(c =>
     c.stato_inserimento !== 'reinserimento'
     && (!gara.codice_rivenditore || c.codice_rivenditore === gara.codice_rivenditore)
-    && (!Array.isArray(gara.operatori) || gara.operatori.includes(resolveOperatore(c.operatore_id)))
-    && (conteggioSquadra || resolveOperatore(c.operatore_id) === operatoreId));
-  const matched = produzione.filter(c => matchRegola(c, metrica.regola));
+    && (!Array.isArray(gara.operatori) || gara.operatori.includes(resolveOperatore(c.operatore_id))));
+  const produzionePersonale = produzioneSquadra.filter(c => resolveOperatore(c.operatore_id) === operatoreId);
+  const matchedSquadra = produzioneSquadra.filter(c => matchRegola(c, metrica.regola));
+  const matchedPersonali = produzionePersonale.filter(c => matchRegola(c, metrica.regola));
   // Il campo punti si applica solo agli override mensili, preservando il vecchio conteggio.
-  const attuale = matched.reduce((sum, c) => sum + (gara.punteggio_campo
+  const conta = lista => lista.reduce((sum, c) => sum + (gara.punteggio_campo
     ? Number(c[gara.punteggio_campo] || 0) : pesoContratto(c, metrica.regola)), 0);
-  const compenso = calcolaCompenso(attuale, regolaCompenso,
-    regolaCompenso?.tipo === 'obiettivi_combinati' ? produzione : matched);
+  const attualePersonale = conta(matchedPersonali);
+  const attualeSquadra = conta(matchedSquadra);
+  const attuale = conteggioSquadra ? attualeSquadra : attualePersonale;
+  // La soglia del compenso comune usa la squadra anche con Attuale personale.
+  const usaSquadra = conteggioSquadra || compensoSquadra;
+  const attualeCompenso = usaSquadra ? attualeSquadra : attualePersonale;
+  const compenso = calcolaCompenso(attualeCompenso, regolaCompenso,
+    regolaCompenso?.tipo === 'obiettivi_combinati'
+      ? (usaSquadra ? produzioneSquadra : produzionePersonale)
+      : (usaSquadra ? matchedSquadra : matchedPersonali));
   return {
     ...compenso, attuale, obiettivo: obiettivo?.obiettivo ?? 0, conteggioSquadra,
+    compensoSquadra, attualePersonale, attualeSquadra, attualeCompenso,
     descrizione: gara.descrizione ?? metrica.descrizione ?? ''
   };
 }

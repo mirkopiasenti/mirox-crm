@@ -495,8 +495,13 @@ Stato: applicata in production il 06/10/2026 dopo il deploy `ab44097`
 con la configurazione prevista; hash di tutte le altre righe obiettivi e delle
 metriche globali identici alla copia precedente. Preflight successivo riuscito.
 Copia precedente privata in `.backup-private/gare-2026-10/prima.json`.
-Su dati reali ottobre: 2 Assicurazioni = 1 punto complessivo squadra, bonus 0
-per ciascuno fino al raggiungimento di 10 punti.
+Alla verifica iniziale del06/10: 2 Assicurazioni = 1 punto complessivo squadra.
+Rilettura read-only28/10: 7 polizze di Matteo, 5 punti squadra, zero punti
+personali Francesca/Mirko; bonus ancora zero fino a 10 punti. Correzione solo
+applicativa28/10: Dashboard/PNG mostrano punti personali e squadra distinti;
+`tipo_compenso=squadra` valuta il compenso sul totale anche con conteggio personale
+(PARTITA IVA:26 Matteo/0 Francesca/11 Mirko, totale37 ->150 EUR ciascuno).
+Nessuna migration, scrittura DB o variazione delle regole mensili/scaglioni.
 
 ## Conteggio Netto Luce & Gas (26/10/2026)
 
