@@ -12,7 +12,7 @@ Nome referente resta il riscontro quando manca il CF sul documento o la PDA.
 
 
 
-### Anteprima manuale dopo errore e Haiku 5.5 (28/10/2026, locale)
+### Anteprima manuale dopo errore e Haiku 5.5 (28/10/2026, pubblicato)
 
 Richiesta esplicita del proprietario: dopo esito identita negativo/incerto aprire
 la preview e chiedere «Confermi che il documento visualizzato nella preview e
@@ -41,7 +41,9 @@ sul payload HTTP simulato, nessuna nuova dipendenza/env/migration. Regole dati
 PDA/MNP/Energia/CSV/Reload/Cloud invariate. Motore2026-10-28.3: CF esatto resta
 prioritario, assenza CF non ripiega su nome/nascita; preview sostituisce il
 precedente popup che imponeva trascrizione CF/motivo. API legacy confirm resta
-compatibile. Pubblicazione ancora da richiedere, ultimo online58aec89.
+compatibile. Pubblicato su richiesta: `2ebd2f5`, CI `40738017338` riuscita,
+Netlify `6ae233ae628dbdd6472b432b` online18:41:45 Europe/Rome. Commit pubblico
+e byte della UI verificati HTTP; API identita401 senza JWT.
 Guide ufficiali consultate: https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide
 Build e531/531test, inclusi68Python Backup, preview DOM/annullamento/file cambiati,
 riuso serale senza OCR e richieste modello via SDK simulato. Nessuna nuova
@@ -58,7 +60,7 @@ rappresentante legale/delegato, distinto da PIVA aziendale e pagatore SEPA.
 Prima riscontra CF/PIVA aziendale con l’anagrafica CRM; poi confronta esattamente
 CF del rappresentante con documento e scadenza alla firma. Con CF coincidente
 il nome OCR e informativo anche Business. Nel rilascio precedente, senza CF sul documento si usavano nome/nascita;
-la correzione locale sopra richiede ora conferma esplicita del CF.
+la correzione sopra richiede ora conferma esplicita del CF.
 Per categorie senza PDA resta Nome referente, senza confrontare persona e PIVA.
 CF persona non leggibile nella PDA Mobile/Fisso/CB richiede copia completa.
 
@@ -90,7 +92,7 @@ numero documento, parti necessarie e coerenza fra PDF: non approvare tessere
 sanitarie o allegati incompleti soltanto perche riportano un CF. Si verifica la
 coerenza documentale, non l’autenticita/identificazione biometrica da scansione.
 Il precedente fallback senza CF su nome/nascita e superato dalla correzione
-locale sopra: assenza CF richiede conferma esplicita, mai blocco sul nome. Business usa il CF personale dalla PDA come descritto sotto;
+sopra: assenza CF richiede conferma esplicita, mai blocco sul nome. Business usa il CF personale dalla PDA come descritto sotto;
 la PIVA aziendale non identifica la persona. Nessuna nuova colonna anagrafica.
 Motore successivo versione `2026-10-28.2` usa la medesima priorita; PDA/intestazione,
 MNP/ICCID, Energia/CSV e notifiche invariati. Ricevuta salva `criterio_identita`
@@ -143,7 +145,7 @@ invalido o fuori limite resta bloccante. Letture parallele limitate a quattro;
 client Anthropic timeout 20 secondi, senza retry SDK, un solo retry sul formato.
 
 Confronto Consumer/Turista aggiornato: CF esatto prioritario e nome
-informativo; se CF assente nel documento, la correzione locale richiede
+informativo; se CF assente nel documento, la correzione richiede
 riscontro manuale tramite preview e non usa nome/nascita come sostituti. Business: CF
 rappresentante dalla PDA come sopra; senza PDA si usa Nome referente. Nomi normalizzati anche per ordine/accenti.
 Se il record CRM esiste, viene letto e confrontato prima dell’AI. Soltanto i campi

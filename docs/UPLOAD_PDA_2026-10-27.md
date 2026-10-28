@@ -416,7 +416,7 @@ Cloud presente in Opzioni aggiuntive pagina1, Nuova Attivazione conservata.
 Nessun PDF reale inviato all'AI o upload/OTP/email/browser nel collaudo.
 Guide aggiornate, rilascio e verifica SHA/CI nel promemoria.
 
-## Aggiornamento OCR 28/10/2026: Haiku5.5 (locale, non pubblicato)
+## Aggiornamento OCR 28/10/2026: Haiku5.5 (pubblicato)
 
 ocr-pda usa ora claude-haiku-5-5, stessa chiave ANTHROPIC_API_KEY e SDK.
 Prompt/campi/normalizzazione, dati SIM vs contatto firma, regole MNP, device,
@@ -426,4 +426,6 @@ compatibile con blocchi thinking. Lettore identita/verifica successiva aggiornat
 allo stesso modello; rimosso temperature non supportato, tool forzato invariato.
 Regressione multipart sintetica verifica payload modello e risultati del wizard.
 Nuova anteprima manuale identita documentata in docs/IDENTITA_UPLOAD_2026-10-28.md.
-Nessuna migration/env/dipendenza o OCR live eseguita; serve richiesta di push.
+Nessuna migration/env/dipendenza o OCR live eseguita. Pubblicato `2ebd2f5`,
+CI40738017338 riuscita, Netlify6ae233ae628dbdd6472b432b online18:41:45
+Europe/Rome; commit e UI verificati HTTP. Prossimo: collaudo reale con proprietario.

@@ -2,13 +2,13 @@
 
 Aggiornato: 2026-10-28. Promemoria di ripresa, non autorizza deploy o attivazioni.
 
-## Preview manuale identita e Haiku5.5: completati localmente28/10, non pubblicati
+## Preview manuale identita e Haiku5.5: pubblicati28/10
 
-- Ultima richiesta: dopo errore OCR preview visibile + Si/No documento del cliente, poi upload senza OCR; passaggio Haiku5.5 anche OCR iniziale PDA/verifica successiva. Implementato senza DDL/env/dipendenze nuove. Ultimo online58aec89, CI40729031717 verde, Netlify6ae2268fad1b0b32a8fc559e online17:45:42Europe/Rome; nessun nuovo push richiesto.
+- Ultima richiesta: dopo errore OCR preview visibile + Si/No documento del cliente, poi upload senza OCR; passaggio Haiku5.5 anche OCR iniziale PDA/verifica successiva. Implementato senza DDL/env/dipendenze nuove. Push richiesto e completato: feature2ebd2f5, CI40738017338 verde, Netlify6ae233ae628dbdd6472b432b online18:41:45Europe/Rome; commit pubblico e byteUI identici, API401 senzaJWT. Precedente58aec89.
 - UI mostra tutti i PDF originali locali in iframe blob; Si abilitato solo dopo load di tutti, No/chiusura annullano. Conferma cliente e completezza/validita alla firma; scadenza modificabile obbligatoria, cittadinanza per VAR se necessaria. Nessuna trascrizione CF o motivo libero. Backend confirm_preview verifica ricevuta utente/hash e validita dichiarata; salva modalita preview_manuale, esito_automatico originale e audit. Override umano consentito anche su esito OCR negativo, non successo automatico. Non aggira PDF invalidi, auth/anagrafica, source PDA Business o permesso VAR. URL revocati e modifiche durante preview impediscono il riuso.
 - Aggiungi/Invia riusano ricevuta: zero OCR dopo Si. Anche serale riusa manuale solo con byte/anagrafica/PDA invariati e lo indica nei controlli. Modello claude-haiku-5-5 nei due ingressi ocr-pda/verifica-documenti, per identita/Business/SIM/bollette/PDA/serale; temperature rimosso, schema tool invariato. OCR iniziale max2400+effort low, JSON estratto per tipo; lettore max5000/versione2026-10-28.4. SDK0.32 trasmette correttamente nuovo payload in test HTTP simulato. Documentazione migrazione ufficiale verificata (sampling non ammesso, thinking/forced tool compatibili).
 - Include fix CF non letto precedente: nome informativo e assenza CF non trattata come errore nome; rilettura mirata indipendente entro18s. Vecchio popup trascrizione CF sostituito da preview; API confirm legacy compatibile. Motore2026-10-28.3. Build531/531 verdi, inclusi68Python Backup e riuso manuale serale senza OCR. Nuovi test preview/API/annullamento/file cambiati/riuso e migrazione modello.
-- Guide README/AGENTS/CLAUDE/databaseREADME/identita/verifica/uploadPDA aggiornate. Nessuna nuova OCR live, email, modifica CRM o attivazione serale. Prossimo: push solo su nuova richiesta esplicita; poi collaudo reale con proprietario senza browser.
+- Guide README/AGENTS/CLAUDE/databaseREADME/identita/verifica/uploadPDA aggiornate. Nessuna nuova OCR live, email, modifica CRM o attivazione serale. Prossimo: ricaricare Upload e collaudare con il proprietario un documento reale; nessuna lettura AI live o automazione browser eseguita in questo rilascio.
 
 ## CF e scadenza Consumer/Business: pubblicato28/10
 
@@ -41,7 +41,7 @@ Aggiornato: 2026-10-28. Promemoria di ripresa, non autorizza deploy o attivazion
 ## Vincoli operativi persistenti
 
 - NON USARE IL BROWSER, preferenza esplicita del proprietario. Solo test interni/DOM Node/HTTP/CLI/SQL; UI e documenti reali da provare con lui. Nessuna automazione browser dopo lo stop.
-- Push solo su richiesta esplicita; ogni push main deploya mirox-crm.it. Push CF/Business richiesto e completato; preview manuale/Haiku5.5 e fix CF non letto ancora locali, richiedono nuova richiesta esplicita. Nessuna modalita attiva da abilitare da soli.
+- Push solo su richiesta esplicita; ogni push main deploya mirox-crm.it. Push CF/Business richiesto e completato; push preview manuale/Haiku5.5 e fix CF non letto richiesto e completato; ulteriori modifiche richiedono nuova richiesta esplicita di push. Nessuna modalita attiva da abilitare da soli.
 - Tabelle CC/anagrafica condivise: schema/RLS/RPC/trigger solo dopo consenso secondo AGENTS. Nuovo progetto Supabase/restore CRM completo rinviati fino rimozione CC test: non creare/rimuovere ambienti.
 - Segreti e dati di recupero soltanto .backup-private/ ignorata. tmp/output/ed.hup ora ignorati; documenti generati e immagini cliente mai pubblicati. Build dist pubblica solo HTML root/assets/css/js/moduli.
 - CRM mirox-crm.it, alias mirox-crm.netlify.app sullo stesso site; repository/deploy storico CC ancora da identificare. Guardian production unico ambiente autorizzato.
