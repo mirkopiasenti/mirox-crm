@@ -146,11 +146,12 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `genera-pdf-consenso-cartaceo` | GET | authenticated | Stream del modulo cartaceo v6 precompilato: una pagina A4, monocromatico, corpo 10 pt, scelta marketing già marcata e riga firma |
 | `upload-consenso-cartaceo` | POST multipart | authenticated | Upload scansione firmata (max 20 MB, PDF); richiede l'esito ACCONSENTO/NON ACCONSENTO e crea il record `'cartaceo'` confermato |
 
-### Professional Cloud Mobile Business (28/10/2026)
+### Professional Cloud Mobile e Fisso Business (28/10/2026)
 
-Professional Cloud e' separata dall'opzione MNP, solo Mobile Business. Il wizard
+Professional Cloud e' separata dall'opzione MNP, solo Mobile e Fisso Business. Il wizard
 mostra Si/No anche con lettura AI; presenza ricavata da Opzioni/servizi della SIM
-contrattuale con Piano Telefonico, ignorando prevalidazione e condizioni generali.
+contrattuale con Piano Telefonico per Mobile, dal riquadro Opzioni aggiuntive per
+Fisso, ignorando prevalidazione e condizioni generali.
 Testo PDF per coordinate + OCR: presenza testuale esplicita prevale; No richiede
 lista completa/leggibile e accordo della lettura AI, altrimenti scelta manuale.
 Nessuna assenza dedotta da PDF ibrido/troncato. In presenza di riquadro contrattuale,
@@ -164,12 +165,12 @@ nuova decisione, annullamento conserva la situazione precedente. Input select no
 salva valori prematuri; doppi cambi e risposte tardive su PDA/offerta/cliente/cluster
 o editor chiuso non si applicano. Nuova PDA azzera, draft/carrello conservano la
 coppia. Al cambio cluster fuori Business la UI rimuove i dati Cloud; correzione
-categoria fuori Mobile nell'editor generale li azzera. Dati consultabili e
+categoria fuori Mobile/Fisso nell'editor generale li azzera. Dati consultabili e
 correggibili negli editor PDA Verifica/Storico; Storico mostra anche No esplicito.
 
 `vendita_contratti.professional_cloud` boolean nullable e
 `professional_cloud_gestione` text nullable (Mantieni attiva/Richiedi disattivazione).
-CHECK: solo Mobile Business; Si richiede decisione valida, No/NULL nessuna decisione.
+CHECK: solo Mobile e Fisso Business; Si richiede decisione valida, No/NULL nessuna decisione.
 Migration `20261028085821_professional_cloud_mobile_business.sql` applicata/riletta:
 nessun default o backfill,0righe storiche valorizzate, vincolo validato. Nessun
 cambio a tabelle/permessi/RPC CC o RLS esistenti. Validazione browser/server;
@@ -177,6 +178,16 @@ nuovo wizard obbliga Si/No Business, compatibilita client legacy senza campo e
 storico sconosciuto mantenuta. Nessuna disattivazione sul portale, email/notifica,
 modifica MNP/catalogo/punteggi o verifica automatica avviata da questo rilascio.
 Collaudo PostgreSQL isolato con `scripts/verifica-professional-cloud-sql.js`.
+
+Estensione Fisso28/10: migration `20261028091505_professional_cloud_fisso_business.sql`
+applicata/riletta, nuovo CHECK vendita_professional_cloud_business_coerenza
+validato per Mobile/Fisso Business prima di rimuovere il precedente vincolo.
+Nessuna nuova colonna, riscrittura dati o modifica a CC/RLS/RPC/permessi.
+Il parser riconosce Opzioni aggiuntive Fisso e si ferma ai riquadri successivi;
+assenza incerta resta manuale, No richiede lo stesso accordo testo/AI. UI,
+DTO create ed editor conservano Cloud sul Fisso e azzerano solo i dati specifici
+Mobile. Consumer, Turista e Customer Base restano esclusi. Stessi popup, conferme
+e salvataggio di presenza/gestione; nessuna disattivazione o notifica automatica.
 
 ### Upload PDA: codice contratto e dati Mobile (rilascio 27/10/2026)
 

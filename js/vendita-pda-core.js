@@ -44,13 +44,13 @@
     return ['mobile', 'fisso', 'customer base'].includes(String(category || '').trim().toLowerCase());
   }
   function cloudScope(category, cluster) {
-    return String(category || '').trim().toLowerCase() === 'mobile' && String(cluster || '').trim().toLowerCase() === 'business';
+    return ['mobile', 'fisso'].includes(String(category || '').trim().toLowerCase()) && String(cluster || '').trim().toLowerCase() === 'business';
   }
   function validateCloud(input, category, cluster, required = false) {
     const out = normalize(input);
     const provided = value => value !== null && value !== undefined && value !== '';
     if (!cloudScope(category, cluster)) {
-      if (provided(input.professional_cloud) || provided(input.professional_cloud_gestione)) throw new Error('Professional Cloud ammesso solo per Mobile Business');
+      if (provided(input.professional_cloud) || provided(input.professional_cloud_gestione)) throw new Error('Professional Cloud ammesso solo per Mobile e Fisso Business');
       return out;
     }
     if (out.professional_cloud === null && (required || provided(input.professional_cloud))) throw new Error('Seleziona Professional Cloud: Si oppure No');
@@ -128,7 +128,7 @@
       if (out.codice_contratto) throw new Error('Codice PDA non ammesso per questa categoria');
     }
     if (name !== 'mobile') {
-      FIELDS.slice(1).forEach(k => { out[k] = null; });
+      MOBILE_FIELDS.forEach(k => { out[k] = null; });
       return out;
     }
     if (options.allowLegacy && !hasMobileData(input)) return out;

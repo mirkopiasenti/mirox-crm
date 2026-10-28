@@ -3,10 +3,10 @@
 Aggiornato: 2026-10-27. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
-## Professional Cloud Mobile Business: rilascio28/10
+## Professional Cloud Mobile e Fisso Business: rilascio28/10
 
-- Proprietario conferma sviluppo: Si/No automatico visibile, gestione Mantieni attiva/Richiedi disattivazione obbligatoria se Si, nessun default; conferme prima modifica presenza/decisione, annulla conserva dati. Solo Mobile Business, nessuna azione sui portali o email. Draft/carrello/reset/editor Verifica/Storico, No visibile anche nello Storico. Dati del contratto, separati da MNP/catalogo/punti. Prevalidazione esclusa quando esiste SIM contrattuale; No da testo richiede accordo AI, incerto manuale. PDA Downloads/contratto_mobile.pdf6pagine: Cloud Si pagina5, prevalidazione2 separata; SIM/MNP letti localmente, nessun invio AI/upload reale/OTP/browser.
-- Migration20261028085821 applicata/riletta:2colonne nullable senza default in vendita_contratti, CHECK scope/coerenza validato,0righe storiche valorizzate. Nessun cambio CC/RPC/RLS/permessi/trigger esistenti o modalita verifica automatica.473test locali (472versionati+Backup),19nuove regressioni, build e SQL/PGlite isolato OK; ultimo25mirati verdi. Security advisor invariati. Guide README/AGENTS/CLAUDE/databaseREADME/rapporto aggiornate. Pubblicazione e verifica SHA/CI in corso.
+- Proprietario conferma estensione Fisso: stessi Si/No, popup gestione obbligatorio con Si, conferme senza effetti prematuri e persistenza draft/carrello/DB/editor Verifica/Storico. Solo Mobile/Fisso Business; nessuna azione sui portali o email, Consumer/Turista/CB esclusi. Mobile da SIM contrattuale, Fisso da Opzioni aggiuntive; incerto manuale, No con accordo testo/AI. PDA Fisso Downloads/contratto_fisso.pdf3pagine: Cloud Si pagina1 e Nuova Attivazione conservata; precedente Mobile6pagine con prevalidazione esclusa. Solo lettura locale, nessun invio AI/upload reale/OTP/browser.
+- Colonne nullable migration20261028085821 e nuovo vincolo migration20261028091505 applicato/riletto: scope Mobile/Fisso Business, CHECK validato, vecchio sostituito dopo verifica nuovo. Nessuna riscrittura dati, nuova colonna o modifica CC/RPC/RLS/permessi/trigger. Core Fisso conserva Cloud e azzera solo dati Mobile.478test locali (477versionati+Backup)/build e PostgreSQL isolato OK,5nuove regressioni; test Mobile e sicurezza invariati. Guide README/AGENTS/CLAUDE/databaseREADME/rapporto aggiornate. Basea579643/CI40661258175/Netlify6ae1ba509c496c6d3131246b gia verificati; estensione Fisso pronta, pubblicazione e verifica SHA/CI in corso.
 
 ## Permessi Vendita/Post-Vendita: rilascio autorizzato 27/10
 

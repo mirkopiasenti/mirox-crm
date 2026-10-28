@@ -147,7 +147,7 @@
     let html = options.wizard && options.reading === 'ai'
       ? '<input type="hidden" data-pda-field="codice_contratto" value="' + esc(data.codice_contratto) + '">'
       : input('codice_contratto', 'Codice contratto *', 'maxlength="80"');
-    if (String(category).toLowerCase() !== 'mobile') return html;
+    if (String(category).toLowerCase() !== 'mobile') return html + (Pda.cloudScope(category, options.cluster || data.cluster_cliente) ? cloudFormHtml(data, options.wizard === true) : '');
     html += options.wizard
       ? '<input type="hidden" data-pda-field="costo_offerta_mensile" value="' + esc(data.costo_offerta_mensile) + '">'
       : input('costo_offerta_mensile', 'Costo mensile base offerta (euro)', 'inputmode="decimal"');

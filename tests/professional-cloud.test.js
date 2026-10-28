@@ -21,7 +21,7 @@ test('validazione: scope Business Mobile, decisione obbligatoria con Si, nullabl
  for(const action of Pda.CLOUD_ACTIONS){const out=Pda.validate({...mobile,professional_cloud:true,professional_cloud_gestione:action},'Mobile',{cluster:'Business',requireCloud:true});assert.equal(out.professional_cloud_gestione,action);}
  assert.throws(()=>Pda.validate({...mobile,professional_cloud:true},'Mobile',{cluster:'Business'}),/gestione/);
  assert.throws(()=>Pda.validate({...mobile,professional_cloud:false,professional_cloud_gestione:Pda.CLOUD_ACTIONS[0]},'Mobile',{cluster:'Business'}),/non valida/);
- for(const [cat,cluster] of [['Mobile','Consumer'],['Mobile','Turista'],['Fisso','Business'],['Customer Base','Business']])assert.throws(()=>Pda.validateCloud({professional_cloud:false},cat,cluster),/solo per/);
+ for(const [cat,cluster] of [['Mobile','Consumer'],['Mobile','Turista'],['Fisso','Consumer'],['Customer Base','Business']])assert.throws(()=>Pda.validateCloud({professional_cloud:false},cat,cluster),/solo per/);
  assert.throws(()=>Pda.validateCloud({},'Mobile','Business',true),/Seleziona/);
  assert.equal(Pda.validateCloud({},'Mobile','Business').professional_cloud,null);
  assert.equal(Pda.hasMobileData({professional_cloud:true}),false);
@@ -44,7 +44,7 @@ const tick=async()=>{for(let i=0;i<6;i++)await Promise.resolve();};
 test('HTML Cloud visibile anche AI solo per Business Mobile, riepilogo mostra anche No',()=>{
  const {api}=fixture();const data={professional_cloud:false,cluster_cliente:'Business',codice_contratto:'C001'};
  assert.match(api.formHtml(data,'Mobile',{wizard:true,reading:'ai'}),/data-pda-field="professional_cloud"/);
- for(const [cat,cluster] of [['Mobile','Consumer'],['Fisso','Business'],['Customer Base','Business']])assert.doesNotMatch(api.formHtml({...data,cluster_cliente:cluster},cat),/data-pda-field="professional_cloud"/);
+ for(const [cat,cluster] of [['Mobile','Consumer'],['Fisso','Consumer'],['Customer Base','Business']])assert.doesNotMatch(api.formHtml({...data,cluster_cliente:cluster},cat),/data-pda-field="professional_cloud"/);
  assert.match(api.summary(data,{wizard:true}),/Professional Cloud.*No/);
  const history=fs.readFileSync(path.join(__dirname,'../moduli/storico_cliente.html'),'utf8');assert.match(history,/v !== false \|\| k === 'professional_cloud'/);
 });
@@ -101,9 +101,9 @@ test('payload wizard e normalizzazione create conservano Cloud e gestione',()=>{
  assert.equal(dto.professional_cloud,true);assert.equal(dto.professional_cloud_gestione,'Mantieni attiva');
  const normalized=require('../netlify/functions/crea-vendita-pratica-carrello')._test.normalizeContractInput(dto,0);assert.equal(normalized.professional_cloud,true);assert.equal(normalized.professional_cloud_gestione,'Mantieni attiva');
 });
-for(const cluster of ['Business','Consumer'])test('editor backend applica scope '+cluster+' e preserva stato/punti',async()=>{
+for(const category of ['Mobile','Fisso'])for(const cluster of ['Business','Consumer'])test('editor backend '+category+' applica scope '+cluster+' e preserva stato/punti',async()=>{
  const {updatePda}=require('../netlify/functions/gestisci-vendita-contratto')._test,id='10000000-0000-4000-8000-000000000001';let patch;
- const current={id,categoria_snapshot:'Mobile',cluster_cliente:cluster,stato_controllo:'controllato',punteggio_gara_totale:5};
+ const current={id,categoria_snapshot:category,cluster_cliente:cluster,stato_controllo:'controllato',punteggio_gara_totale:5};
  const db={from(table){assert.equal(table,'vendita_contratti');const q={select(){return q;},eq(){return q;},update(v){patch=v;return q;},async maybeSingle(){return {data:patch?{...current,...patch}:current};}};return q;}};
  const result=await updatePda({supabase:db,auth:{profilo:{id}},body:{contratto_id:id,contratto:{professional_cloud:true,professional_cloud_gestione:'Richiedi disattivazione',cluster_cliente:'Business',punteggio_gara_totale:999}}});
  assert.equal(result.statusCode,cluster==='Business'?200:400);
@@ -116,4 +116,29 @@ test('assenza PDF e visione AI discordanti non diventano un No automatico',()=>{
  assert.equal(mergePdfResult({},{professional_cloud:false}).professional_cloud,null);
  assert.equal(mergePdfResult({professional_cloud:false},{professional_cloud:false}).professional_cloud,false);
  assert.equal(mergePdfResult({professional_cloud:false},{professional_cloud:true}).professional_cloud,true);
+});
+const fixedOptions=value=>'PROPOSTA DI CONTRATTO\nOpzioni aggiuntive\nCodice Migrazione:\nChiamate illimitate - '+value+'\nLe numerazioni aggiuntive associate alla linea saranno disattivate.\nCondizioni Professional Cloud\nTesto generale';
+test('Fisso: legge Cloud solo in Opzioni aggiuntive, non nelle condizioni generali',()=>{
+ assert.equal(sectionFields(fixedOptions('Professional\nCloud')).professional_cloud,true);
+ assert.equal(sectionFields(fixedOptions('Servizio standard')).professional_cloud,false);
+ assert.equal(sectionFields('Condizioni Professional Cloud\nSolo informazioni generali').professional_cloud,undefined);
+ assert.equal(sectionFields('Opzioni aggiuntive\nLista troncata').professional_cloud,undefined);
+ assert.equal(sectionFields(fixedOptions('Servizio standard'),false).professional_cloud,undefined);
+ assert.equal(sectionFields(fixedOptions('Professional Cloud')+'\n'+fixedOptions('Servizio standard')).professional_cloud,null);
+});
+test('Fisso Business: validazione conserva Cloud e gestione, azzera soltanto i dati specifici Mobile',()=>{
+ const out=Pda.validate({...mobile,professional_cloud:true,professional_cloud_gestione:'Richiedi disattivazione'},'Fisso',{cluster:'Business',requireCloud:true});
+ assert.equal(out.professional_cloud,true);assert.equal(out.professional_cloud_gestione,'Richiedi disattivazione');assert.equal(out.numero_telefono,null);assert.equal(out.costo_offerta_mensile,null);
+ assert.throws(()=>Pda.validate({codice_contratto:'F001'},'Fisso',{cluster:'Business',requireCloud:true}),/Seleziona/);
+ for(const flag of [true,false]){
+  const {api}=fixture();const data={professional_cloud:flag,cluster_cliente:'Business',codice_contratto:'F001'};
+  for(const wizard of [true,false]){const html=api.formHtml(data,'Fisso',{wizard,reading:'ai'});assert.match(html,/data-pda-field="professional_cloud"/);assert.doesNotMatch(html,/data-pda-field="numero_telefono"/);}
+ }
+});
+test('Fisso nel payload create conserva la coppia Cloud senza trasformarla in dati Mobile',()=>{
+ const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8'),a=source.indexOf(' function buildInvioPayload()'),b=source.indexOf(' async function inviaPratica()',a);
+ const item={codice_contratto:'F001',professional_cloud:true,professional_cloud_gestione:'Mantieni attiva',codice_cliente:'P0001',categoria_nome:'Fisso',categoria_id:'cat',offerta_id:'offer',flags:{},files:{}};
+ const ctx={window:{MiroxPda:Pda},state:{cart:{contratti:[item]}},getClienteFormData:()=>({cluster:'Business'}),validateClienteData(){},praticaFiles:{documento_identita:[{}]},runtimeState:{},refs:{originePratica:{value:'spontaneo'},operatoreId:{value:'operator'}},CODICE_RIVENDITORE_DEFAULT:'9001415852'};
+ vm.runInNewContext(source.slice(a,b)+';this.payload=buildInvioPayload;',ctx);const dto=ctx.payload().contratti[0];assert.equal(dto.professional_cloud,true);assert.equal(dto.professional_cloud_gestione,'Mantieni attiva');assert.equal(dto.numero_telefono,null);
+ const normalized=require('../netlify/functions/crea-vendita-pratica-carrello')._test.normalizeContractInput(dto,0);assert.equal(normalized.professional_cloud,true);assert.equal(normalized.professional_cloud_gestione,'Mantieni attiva');
 });

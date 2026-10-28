@@ -388,3 +388,30 @@ prevalidazione pagina2 distinto. Numeri SIM/MNP recuperati senza conflitto.
 Nessun PDF reale inviato all'AI, pratica/OTP/email/test browser eseguito. Migration
 CLI allineata alla versione MCP applicata; verifiche SQL metadata e security
 advisor prima/dopo invariati. Pubblicazione e verifica SHA/CI nel promemoria.
+
+## Estensione Professional Cloud Fisso Business (28/10/2026)
+
+Stessa funzione estesa su richiesta al Fisso Business, con sorgente Opzioni
+aggiuntive della Proposta di contratto. Riutilizza i due campi Cloud, il popup
+Mantieni attiva/Richiedi disattivazione, le conferme e l'archiviazione. Nessuna
+azione esterna, email o recupero storico. Core/UI/DTO/editor ora ammettono Fisso
+Business: la normalizzazione non scarta piu Cloud insieme ai campi Mobile.
+Consumer, Turista, Customer Base esclusi. Nessuna modifica al flusso Fisso
+Tipo Attivazione o ai punteggi.
+
+Migration20261028091505 (CLI, allineata alla versione MCP): aggiunge il nuovo
+CHECK per Mobile/Fisso Business e soltanto dopo rimuove il precedente vincolo;
+coerenza Si/decisione, No/NULL senza decisione invariata. Applicata e riletta con
+vincolo validato, nessun cambio colonne/RLS/RPC/CC o riscrittura dei dati.
+Security advisor prima/dopo invariati.
+
+478test locali (477versionati+Backup preesistente) e build OK;5nuove regressioni
+su parser Fisso completo/assente/troncato/discordante, HTML visibile solo
+Business, validazione senza perdita Cloud, DTO create, editor Fisso Business
+e Consumer. Tutti i test Mobile/conferma/annulla/tardive precedenti verdi.
+PostgreSQL isolato verifica entrambe le migration, dati Mobile invariati dopo
+estensione, validi Fisso Si+due decisioni/No e rifiuto casi incoerenti/non-Business.
+PDA Downloads/contratto_fisso.pdf3pagine controllata localmente: Professional
+Cloud presente in Opzioni aggiuntive pagina1, Nuova Attivazione conservata.
+Nessun PDF reale inviato all'AI o upload/OTP/email/browser nel collaudo.
+Guide aggiornate, rilascio e verifica SHA/CI nel promemoria.

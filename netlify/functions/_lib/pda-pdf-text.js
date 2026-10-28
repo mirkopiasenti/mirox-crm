@@ -48,6 +48,18 @@ function customerCodeFields(text) {
   return { codice_cliente: values.every(v => v && v === values[0]) ? values[0] : null };
 }
 
+function fixedCloudValues(text, completeText) {
+  const headers = Array.from(text.matchAll(/\bOpzioni[ \t]+aggiuntive[ \t]*:?[ \t]*(?=\n|$)/gi));
+  return headers.map(header => {
+    const rest = text.slice(header.index + header[0].length, header.index + header[0].length + 1800);
+    const end = rest.search(/\n[ \t]*(?:Le\s+numerazioni|\(\s*\*\s*\)|Dettaglio\b|Dati\b|Condizioni\b|Modalit[aà]\b|Firma\b|Data\s*:)/i);
+    const block = end >= 0 ? rest.slice(0, end) : rest;
+    if (/\bProfessional\s+Cloud\b/i.test(block)) return true;
+    if (!block.trim() || /\uFFFD|\uFFFF/.test(block)) return undefined;
+    return completeText && end >= 0 ? false : undefined;
+  });
+}
+
 function sectionFields(text, completeText = true) {
   const normalized = String(text || '').normalize('NFKC').replace(/[\u00ad\u200b]/g, '').replace(/\r/g, '');
   const simHeader = /^[ \t]*DATI\s+DELLA\s+SIM\s+WINDTRE[ \t]*$/gim;
@@ -61,13 +73,13 @@ function sectionFields(text, completeText = true) {
   const simBlocks = sections(simHeader), mnps = sections(mnpHeader);
   const contractual = simBlocks.filter(block => /Piano\s+Telefonico\s*:|Opzioni\s*\/\s*servizi\s*:/i.test(block));
   const sims = contractual.length ? contractual : simBlocks;
-  const cloudValues = contractual.map(block => {
+  const cloudValues = [...fixedCloudValues(normalized, completeText), ...contractual.map(block => {
     const match = block.match(/Opzioni\s*\/\s*servizi\s*:[ \t]*([\s\S]*?)(?=\n[ \t]*(?:Costo\s+attivazione|Confermo|Firma|Data\s*:)|$)/i);
     if (!match || !match[1].trim()) return undefined;
     if (/\bProfessional\s+Cloud\b/i.test(match[1])) return true;
     if (/\uFFFD|\uFFFF/.test(match[1])) return undefined;
     return completeText && /\bCosto\s+attivazione|Confermo\s+di\s+aver/i.test(block) ? false : undefined;
-  });
+  })];
   const fixed = { ...fixedActivationFields(normalized), ...customerCodeFields(normalized) };
   if (cloudValues.some(v => v !== undefined)) {
     if (cloudValues.every(v => v !== undefined && v === cloudValues[0])) fixed.professional_cloud = cloudValues[0];
