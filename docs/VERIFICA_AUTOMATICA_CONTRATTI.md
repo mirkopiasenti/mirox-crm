@@ -1,4 +1,4 @@
-Aggiornamento28/10, rilascio autorizzato: identita anticipata nell’upload con confronto anagrafica (Business Nome referente), riuso per hash e nuova richiesta permesso Consumer VAR extra UE. Le regole seguenti restano applicate agli altri controlli; dettagli in [guida identita upload](IDENTITA_UPLOAD_2026-10-28.md).
+Aggiornamento pubblicato28/10: identita anticipata nell’upload con confronto anagrafica (Business Nome referente), riuso per hash e nuova richiesta permesso Consumer VAR extra UE. Le regole seguenti restano applicate agli altri controlli; dettagli in [guida identita upload](IDENTITA_UPLOAD_2026-10-28.md).
 
 # Verifica automatica contratti
 
@@ -73,7 +73,7 @@ Correzione27/10 dopo rilascio75f69aa; nessun cambio permessi o stato contratto.
 ## Controlli implementati
 
 - PDA intestata allo stesso CF/P.IVA, codice contratto corrispondente, identità
-  del cliente; per Business identità del **Nome referente nell’anagrafica** (estensione locale28/10).
+  del cliente; per Business identità del **Nome referente nell’anagrafica** (estensione pubblicata28/10).
 - Documento d'identità con nome e CF coerenti; se il CF non è leggibile, servono
   nome completo e data nascita riscontrata nella PDA o nel CF del soggetto.
   Il solo nome non basta. Nessuna biometria o attestazione di autenticità.

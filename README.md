@@ -162,7 +162,7 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `upload-consenso-cartaceo` | POST multipart | authenticated | Upload scansione firmata (max 20 MB, PDF); richiede l'esito ACCONSENTO/NON ACCONSENTO e crea il record `'cartaceo'` confermato |
 
 
-### Identita nell’upload e permesso di soggiorno (28/10/2026, rilascio autorizzato)
+### Identita nell’upload e permesso di soggiorno (28/10/2026, pubblicato)
 
 Controllo anticipato del solo documento di riconoscimento, confronto con anagrafica:
 Consumer nome/CF (nascita come riscontro se CF assente), Business Nome referente
@@ -179,7 +179,7 @@ applicata a production come `20261028131258`: JSONB audit in vendita_pratiche e 
 per legacy, grant/RLS/CC invariati. Nuovo tipo allegato `permesso_soggiorno`.
 Verifica serale conserva PDA/SIM/bollette/CSV e data firma effettiva; riusa identita
 solo con anagrafica e byte coincidenti. Nessun cambio modalita/email o storico.
-Guida e limiti: `docs/IDENTITA_UPLOAD_2026-10-28.md`. Rilascio autorizzato; collaudo
+Guida e limiti: `docs/IDENTITA_UPLOAD_2026-10-28.md`. Pubblicato; collaudo
 scansioni reali e UI al proprietario, senza browser da parte dell’assistente.
 
 ### Professional Cloud Mobile e Fisso Business (28/10/2026)

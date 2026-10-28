@@ -1,6 +1,6 @@
 # Documento identita su ogni contratto
 
-Estensione del 28/10, rilascio autorizzato: [controllo anticipato dell’identita
+Estensione pubblicata del 28/10: [controllo anticipato dell’identita
 e permesso di soggiorno](IDENTITA_UPLOAD_2026-10-28.md). Mantiene le copie
 indipendenti per contratto descritte sotto e aggiunge una migration dedicata.
 

@@ -2,7 +2,7 @@
 
 Aggiornato: 2026-10-28. Promemoria di ripresa, non autorizza deploy o attivazioni.
 
-## Identita nell’upload e permesso di soggiorno: rilascio autorizzato28/10
+## Identita nell’upload e permesso di soggiorno: pubblicato28/10
 
 - Richiesta: anticipare soltanto il controllo identita, mantenendo PDA/firma/SIM/bollette/CSV successivi. Confronto con anagrafica; proprietario conferma Business con Nome referente. Documento tipo carta/passaporto/patente, parti e scadenza alla data firma esplicita, mai data upload. Incerto con conferma e motivo tracciati; problemi certi da correggere.
 - Permesso PDF obbligatorio solo Mobile Consumer + dispositivo associato VAR + cittadinanza extra UE. Cittadinanza esplicita dal documento o dichiarazione operatore se necessaria, distinta da residenza/nascita/rilascio/CF. Almeno una cittadinanza UE esclude obbligo; sconosciuta blocca solo lo specifico Consumer VAR. Nessuna nuova verifica OCR/scadenza del permesso.
@@ -10,7 +10,7 @@ Aggiornato: 2026-10-28. Promemoria di ripresa, non autorizza deploy o attivazion
 - Migration CLI20261028122800 in database/: pratica.identita_verifica_upload JSONB e documenti.sha256, nullable per legacy/CHECK. Applicata a production20261028131258, vincoli validi e modalita collaudo riconfermata. Nessun cambio schema/RLS/RPC/permessi anagrafica o CC. Letture live dei soli metadati confermano pratica RLS senza policy e documenti con scritture authenticated bloccate. Nessun test AI/file cliente, invio, approvazione o cambio modalita live.
 - Motore successivo versione2026-10-28.1: identita rispetto CRM/Nome referente, persona nella PDA coerente separatamente; riuso solo con anagrafica e insieme hash identici, validita sempre alla firma effettiva. Fonte data firma successiva invariata, data upload non la sostituisce. Permesso mancante bloccante; scope e notifiche Reload/Cloud invariati.
 - UI: controllo allo step documenti e obbligatorio su Aggiungi/Invia; date esplicite, scelte incerte tracciate, risposte tardive scartate, doppie richieste accorpate. Permesso per riga carrello, draft conserva soli metadati e richiede riselezione dopo refresh. Nessuna acquisizione automatica di dati personali nel backup.
-- Guide aggiornate README/AGENTS/CLAUDE/databaseREADME e guide identita/verifica. Build e 495/495 test Node riusciti, inclusi 68 test Python Backup completi; harness SQL identita e verifica automatica riusciti, diff pulito. Invalidazione anche durante hash; insieme PDF incompleto riattiva lettura completa. Push completo autorizzato28/10 e in corso, migration applicata prima del deploy. Prossimo: verificare CI/deploy e collaudo con proprietario su nuove scansioni; lettura AI reale e resa grafica ancora da provare.
+- Guide aggiornate README/AGENTS/CLAUDE/databaseREADME e guide identita/verifica. Build e 495/495 test Node riusciti, inclusi 68 test Python Backup completi; harness SQL identita e verifica automatica riusciti, diff pulito. Invalidazione anche durante hash; insieme PDF incompleto riattiva lettura completa. Push completo autorizzato28/10: fe5cfd0 online Netlify6ae1f51da2899fc2fc7f5ec9 alle14:14:53Europe/Rome, CI40694567890 verde; UI byte identici, nuovi campi presenti e API401 senza JWT. Advisor7categorie invariati. Migration prima del deploy. Prossimo: collaudo con proprietario su nuove scansioni; lettura AI reale e resa grafica ancora da provare.
 
 ## Ultima pubblicazione completa28/10
 

@@ -8,7 +8,7 @@ Migration `20261027172616_verifica_automatica_contratti.sql` collaudata isolata,
 applicata/riletta a production27/10, versione20261027172616. Rilascio autorizzato;
 nessuna email o lettura AI dei clienti ancora eseguita, configurazione collaudo.
 Default collaudo: una pratica richiesta dall'admin, zero conferme/email.
-Identità valida alla data firma, Business su Nome referente anagrafico (nuova regola locale28/10), ICCID copia SIM vs
+Identità valida alla data firma, Business su Nome referente anagrafico (nuova regola pubblicata28/10), ICCID copia SIM vs
 SIM uscente PDA MNP. Energia prime2pagine bolletta/POD/PDR, gestore da bolletta e
 numero da CSV fiscale+punto univoco. CSV mancante o pratica assente = In attesa CSV.
 Turno21:00Europe/Rome, sospesi corretti ripartono subito; dati discordanti da
@@ -40,7 +40,7 @@ contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 `docs/INCIDENTE_ACCESSO_REPORT_2026-10-27.md`.
 
 
-### Identita nell’upload e permesso di soggiorno (28/10/2026, rilascio autorizzato)
+### Identita nell’upload e permesso di soggiorno (28/10/2026, pubblicato)
 
 Controllo anticipato del solo documento di riconoscimento, confronto con anagrafica:
 Consumer nome/CF (nascita come riscontro se CF assente), Business Nome referente
@@ -57,7 +57,7 @@ applicata a production come `20261028131258`: JSONB audit in vendita_pratiche e 
 per legacy, grant/RLS/CC invariati. Nuovo tipo allegato `permesso_soggiorno`.
 Verifica serale conserva PDA/SIM/bollette/CSV e data firma effettiva; riusa identita
 solo con anagrafica e byte coincidenti. Nessun cambio modalita/email o storico.
-Guida e limiti: `docs/IDENTITA_UPLOAD_2026-10-28.md`. Rilascio autorizzato; collaudo
+Guida e limiti: `docs/IDENTITA_UPLOAD_2026-10-28.md`. Pubblicato; collaudo
 scansioni reali e UI al proprietario, senza browser da parte dell’assistente.
 
 ## Professional Cloud Mobile e Fisso Business (28/10/2026)

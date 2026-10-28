@@ -484,7 +484,7 @@ L'eccezione anon temporanea di `segnalazioni-files` introdotta dalla migration `
    2. **Anagrafica**: cf_piva (auto-detect cluster CF→Consumer, P.IVA→Business), email, cellulare, ragione sociale, ecc. Pre-compilata se l'OCR ha estratto dati. **Skippato automaticamente dal 2° contratto in poi** (anagrafica gia' nota nella pratica).
    3. **Dati contratto**: offerta/opzione/reload e campi specifici. Codice PDA visibile/correggibile; solo Mobile richiede numerazioni/portabilita e popup di conferma costo mensile base (precompilato se letto). Turista conserva defaults catalogo, mostra solo nuovi dati PDA.
    4. **Firma** (solo per categorie PDA): scelta tra `elettronica` o `cartacea`. Skippato per Energia/Allarmi/Assicurazioni. Il valore finisce in `vendita_contratti.tipo_firma`.
-   5. **Documenti cliente**: documento_identita + eventuali copia_bolletta/copia_sim_mnp. Estensione locale28/10: controllo identita con anagrafica e permesso_soggiorno per Mobile Consumer VAR extra UE. Se `tipo_firma='cartacea'` appare anche il campo upload **"Contratto firmato"** (PDF della scansione del PDA firmato a mano dal cliente). **Niente upload contratto PDF originale qui** — quello e' gia' in staging dallo step 1.
+   5. **Documenti cliente**: documento_identita + eventuali copia_bolletta/copia_sim_mnp. Estensione pubblicata28/10: controllo identita con anagrafica e permesso_soggiorno per Mobile Consumer VAR extra UE. Se `tipo_firma='cartacea'` appare anche il campo upload **"Contratto firmato"** (PDF della scansione del PDA firmato a mano dal cliente). **Niente upload contratto PDF originale qui** — quello e' gia' in staging dallo step 1.
    - **Regola multi-contratto**: dopo "Aggiungi un altro contratto" il wizard conserva solo anagrafica e documenti condivisi della pratica; categoria, PDA/input file/cache, stato visivo della drop-zone, firma e campi specifici vengono azzerati. Anche "Aggiungi altro contratto" dal carrello applica lo stesso reset. Non preselezionare mai categoria o PDF dal contratto precedente.
 4. Submit "Invia pratica" → **prima del fetch al backend**, il wizard esegue il pre-step **consenso privacy GDPR** (vedi sezione "Sistema consensi privacy GDPR"):
    1. `POST garantisci-anagrafica` con i dati cliente → `anagrafica_id`
@@ -524,7 +524,7 @@ Le pagine post-vendita dei punti 8–11 espongono `Vai alla pratica` per ogni ri
 
 Implementati motore `js/verifica-contratti-core.js`, pannello `js/verifica-contratti-automatica.js`/CSS, API/worker/cron e migration additiva `20261027172616_verifica_automatica_contratti.sql`. **Migration applicata a production** (versione20261027172616, nome verifica_automatica_contratti); configurazione collaudo, RLS e grant riletti, zero analisi/notifiche. Rilascio autorizzato dal proprietario. Non abilitare automaticamente la modalità attiva. Guida e limiti: `docs/VERIFICA_AUTOMATICA_CONTRATTI.md`; analisi storica separata. Nessuna nuova dipendenza/env richiesta; riusati Anthropic Haiku4.5 e chiavi backend esistenti. Il worker ha HMAC con contesto dedicato derivato dalla service role, non dai segreti degli altri agenti.
 
-Checklist confermata: integrare dati mancanti provati, intestazione contratto/CF/PIVA, identità valida **alla data firma contratto**; Business confronta l’identita con Nome referente dell’anagrafica (nuova regola locale28/10); la PDA resta verificata separatamente. Per MNP confrontare ICCID della copia SIM con quello **uscente nella sezione portabilità** della PDA, mai nuova SIM o telefono. Energia: identità, bolletta intestata correttamente, prime due pagine con nome/POD/PDR; gestore uscente dalla bolletta, numero nuovo contratto da CSV ufficiale WindTre con match fiscale+punto univoco. CSV quotidiano disponibile in Verifica; fonte almeno del giorno del turno, non necessariamente nuova il giorno del riesame. Date upload/esportazione non valgono come firma; fonte firma PDF, colonna CSV esplicita o attestazione operatore tracciata. Nessuna biometria/nuovo controllo tecnico firme.
+Checklist confermata: integrare dati mancanti provati, intestazione contratto/CF/PIVA, identità valida **alla data firma contratto**; Business confronta l’identita con Nome referente dell’anagrafica (nuova regola pubblicata28/10); la PDA resta verificata separatamente. Per MNP confrontare ICCID della copia SIM con quello **uscente nella sezione portabilità** della PDA, mai nuova SIM o telefono. Energia: identità, bolletta intestata correttamente, prime due pagine con nome/POD/PDR; gestore uscente dalla bolletta, numero nuovo contratto da CSV ufficiale WindTre con match fiscale+punto univoco. CSV quotidiano disponibile in Verifica; fonte almeno del giorno del turno, non necessariamente nuova il giorno del riesame. Date upload/esportazione non valgono come firma; fonte firma PDF, colonna CSV esplicita o attestazione operatore tracciata. Nessuna biometria/nuovo controllo tecnico firme.
 
 Primo turno21:00Europe/Rome tutti i giorni, nuovi invii dopo21 al turno successivo. Nuovi contratti e backlog iniziale attendono prossimo turno; dopo primo tentativo correzioni/allegati/CSV accodano subito riesame, recuperato dal cron entro un minuto se dispatch fallisce. Quattro esiti UI: Da controllare, Controllato, Da verificare, In attesa CSV. Anche contratto assente da CSV valido resta in attesa; problemi veri prevalgono e non sono mascherati dal CSV. Gli esiti sospesi vivono nelle nuove tabelle, senza nuovi valori in `vendita_contratti.stato_controllo`: preservati conteggi e trigger. Nessuna riscrittura autonoma anagrafica condivisa/offerta/punti o valori esistenti discordanti.
 
@@ -544,7 +544,7 @@ contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 `docs/INCIDENTE_ACCESSO_REPORT_2026-10-27.md`.
 
 
-### Identita nell’upload e permesso di soggiorno (28/10/2026, rilascio autorizzato)
+### Identita nell’upload e permesso di soggiorno (28/10/2026, pubblicato)
 
 Controllo anticipato del solo documento di riconoscimento, confronto con anagrafica:
 Consumer nome/CF (nascita come riscontro se CF assente), Business Nome referente
@@ -561,7 +561,7 @@ applicata a production come `20261028131258`: JSONB audit in vendita_pratiche e 
 per legacy, grant/RLS/CC invariati. Nuovo tipo allegato `permesso_soggiorno`.
 Verifica serale conserva PDA/SIM/bollette/CSV e data firma effettiva; riusa identita
 solo con anagrafica e byte coincidenti. Nessun cambio modalita/email o storico.
-Guida e limiti: `docs/IDENTITA_UPLOAD_2026-10-28.md`. Rilascio autorizzato; collaudo
+Guida e limiti: `docs/IDENTITA_UPLOAD_2026-10-28.md`. Pubblicato; collaudo
 scansioni reali e UI al proprietario, senza browser da parte dell’assistente.
 
 ### Professional Cloud Mobile e Fisso Business (28/10/2026)

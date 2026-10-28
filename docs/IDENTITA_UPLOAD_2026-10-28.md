@@ -1,7 +1,10 @@
 # Identita nell’Upload Contratti e permesso di soggiorno
 
 Rilascio autorizzato dal proprietario il 28/10/2026 con «push di tutto».
-Migration applicata a production, versione `20261028131258`; deploy in corso.
+Migration applicata a production, versione `20261028131258`.
+Codice `fe5cfd0` pubblicato su Netlify `6ae1f51da2899fc2fc7f5ec9` alle
+14:14:53 Europe/Rome; CI `40694567890` riuscita, asset HTTP identici e API
+protetta (401 senza JWT). Advisor sicurezza invariati prima/dopo la migration.
 Richiesta: anticipare soltanto il controllo del documento di riconoscimento;
 PDA, firma, SIM, bollette e CSV rimangono nella verifica automatica successiva.
 Il proprietario conferma per Business il confronto con **Nome referente**.
