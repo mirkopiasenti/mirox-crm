@@ -24,7 +24,7 @@ test('identificatori PDA: conserva lettere, zeri e separatori; non accetta marku
 });
 
 test('Mobile nuovo numero e portabilita mantengono numerazioni distinte dal contatto OTP', () => {
-  assert.deepEqual(Pda.validate(mobile, 'Mobile'), { codice_contratto: '00AB123',
+  assert.deepEqual(Pda.validate(mobile, 'Mobile'), { codice_contratto: '00AB123', professional_cloud: null, professional_cloud_gestione: null,
     costo_offerta_mensile: 9.99, portabilita: false, numero_telefono: '3331234567',
     numero_provvisorio: null, numero_mnp: null, operatore_provenienza: null });
   const mnp = { ...mobile, portabilita: true, numero_telefono: '3491234567',

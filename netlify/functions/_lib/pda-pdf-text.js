@@ -58,8 +58,21 @@ function sectionFields(text, completeText = true) {
     const end = rest.search(sectionEnd);
     return end < 0 ? rest : rest.slice(0, end);
   });
-  const sims = sections(simHeader), mnps = sections(mnpHeader);
+  const simBlocks = sections(simHeader), mnps = sections(mnpHeader);
+  const contractual = simBlocks.filter(block => /Piano\s+Telefonico\s*:|Opzioni\s*\/\s*servizi\s*:/i.test(block));
+  const sims = contractual.length ? contractual : simBlocks;
+  const cloudValues = contractual.map(block => {
+    const match = block.match(/Opzioni\s*\/\s*servizi\s*:[ \t]*([\s\S]*?)(?=\n[ \t]*(?:Costo\s+attivazione|Confermo|Firma|Data\s*:)|$)/i);
+    if (!match || !match[1].trim()) return undefined;
+    if (/\bProfessional\s+Cloud\b/i.test(match[1])) return true;
+    if (/\uFFFD|\uFFFF/.test(match[1])) return undefined;
+    return completeText && /\bCosto\s+attivazione|Confermo\s+di\s+aver/i.test(block) ? false : undefined;
+  });
   const fixed = { ...fixedActivationFields(normalized), ...customerCodeFields(normalized) };
+  if (cloudValues.some(v => v !== undefined)) {
+    if (cloudValues.every(v => v !== undefined && v === cloudValues[0])) fixed.professional_cloud = cloudValues[0];
+    else fixed.professional_cloud = null;
+  }
   if (!sims.length && !mnps.length) return fixed;
   const unique = (blocks, pattern, normalize) => {
     const values = blocks.flatMap(block => Array.from(block.matchAll(pattern), m => normalize(m[1])));

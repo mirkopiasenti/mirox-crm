@@ -5,7 +5,9 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
   const FIELDS = ['codice_contratto', 'costo_offerta_mensile', 'portabilita',
-    'numero_telefono', 'numero_provvisorio', 'numero_mnp', 'operatore_provenienza'];
+    'numero_telefono', 'numero_provvisorio', 'numero_mnp', 'operatore_provenienza', 'professional_cloud', 'professional_cloud_gestione'];
+  const MOBILE_FIELDS = FIELDS.slice(1, 7);
+  const CLOUD_ACTIONS = ['Mantieni attiva', 'Richiedi disattivazione'];
   function code(value) {
     if (typeof value !== 'string') return null;
     const s = value.replace(/\s/g, '').toUpperCase();
@@ -41,9 +43,26 @@
   function isPda(category) {
     return ['mobile', 'fisso', 'customer base'].includes(String(category || '').trim().toLowerCase());
   }
+  function cloudScope(category, cluster) {
+    return String(category || '').trim().toLowerCase() === 'mobile' && String(cluster || '').trim().toLowerCase() === 'business';
+  }
+  function validateCloud(input, category, cluster, required = false) {
+    const out = normalize(input);
+    const provided = value => value !== null && value !== undefined && value !== '';
+    if (!cloudScope(category, cluster)) {
+      if (provided(input.professional_cloud) || provided(input.professional_cloud_gestione)) throw new Error('Professional Cloud ammesso solo per Mobile Business');
+      return out;
+    }
+    if (out.professional_cloud === null && (required || provided(input.professional_cloud))) throw new Error('Seleziona Professional Cloud: Si oppure No');
+    if (out.professional_cloud === true && !CLOUD_ACTIONS.includes(out.professional_cloud_gestione)) throw new Error('Seleziona la gestione Professional Cloud');
+    if (out.professional_cloud !== true && provided(input.professional_cloud_gestione)) throw new Error('Gestione Professional Cloud non valida senza opzione attiva');
+    return out;
+  }
   function normalize(input = {}) {
     return {
       codice_contratto: code(input.codice_contratto),
+      professional_cloud: input.professional_cloud === true || input.professional_cloud === 'true' ? true : input.professional_cloud === false || input.professional_cloud === 'false' ? false : null,
+      professional_cloud_gestione: typeof input.professional_cloud_gestione === 'string' ? input.professional_cloud_gestione.trim() || null : null,
       costo_offerta_mensile: money(input.costo_offerta_mensile),
       portabilita: input.portabilita === true || input.portabilita === 'true' ? true
         : input.portabilita === false || input.portabilita === 'false' ? false : null,
@@ -55,7 +74,7 @@
     };
   }
   function hasMobileData(input = {}) {
-    return FIELDS.slice(1).some(k => input[k] !== null && input[k] !== undefined && input[k] !== '');
+    return MOBILE_FIELDS.some(k => input[k] !== null && input[k] !== undefined && input[k] !== '');
   }
   function mobileOptionId(input = {}, options = [], catalogue = options) {
     const normalizeName = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
@@ -99,7 +118,7 @@
     return out;
   }
   function validate(input, category, options = {}) {
-    const out = normalize(input);
+    const out = validateCloud(input, category, options.cluster, options.requireCloud === true);
     const name = String(category || '').trim().toLowerCase();
     const requireCode = options.requireCode !== false && isPda(name);
     if ((requireCode || input.codice_contratto) && !out.codice_contratto) {
@@ -122,5 +141,5 @@
     }
     return out;
   }
-  return { FIELDS, code, customerCode, customerCodes, phone, money, isPda, normalize, hasMobileData, mobileOptionId, validateMobileNumbers, validate };
+  return { FIELDS, CLOUD_ACTIONS, cloudScope, validateCloud, code, customerCode, customerCodes, phone, money, isPda, normalize, hasMobileData, mobileOptionId, validateMobileNumbers, validate };
 });

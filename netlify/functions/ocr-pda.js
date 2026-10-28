@@ -149,6 +149,9 @@ numero_mnp: solo Numero di telefono da portare dalla sezione PASSA A WINDTRE; nu
 operatore_provenienza: solo "Operatore attuale:" nella sezione PASSA A WINDTRE; null se assente.
 Numeri italiani come stringhe di 9 o 10 cifre senza +39/0039. Non inventare valori mancanti.
 
+=== PROFESSIONAL CLOUD MOBILE BUSINESS ===
+professional_cloud: boolean nullable. Leggi SOLO la riga Opzioni/servizi nel riquadro DATI DELLA SIM WINDTRE della Proposta di contratto, con Piano Telefonico e opzioni. "Professional Cloud" presente -> true; lista opzioni completa e leggibile senza Professional Cloud -> false; assente, troncata o illeggibile -> null. Non usare il riquadro SIM della prevalidazione o le sole Condizioni Professional Cloud come prova di presenza/assenza. Non scegliere la gestione: la decisione del cliente viene chiesta dal CRM. Per SIM e MNP usa analogamente la sezione contrattuale, non i numeri della prevalidazione.
+
 === CODICE CLIENTE WINDTRE ===
 codice_cliente: SOLO il valore vicino all'etichetta "Codice Cliente:" nella PDA Mobile, Fisso o Customer Base. Identifica il cliente, non il contratto. Conserva lettere e zeri iniziali come stringa; elimina solo gli spazi di impaginazione (es. "P 0001234567" -> "P0001234567"). Mai Codice Contratto, Numero Contratto, Codice POS o telefono. Se assente, illeggibile o discordante -> null.
 
@@ -159,16 +162,16 @@ tipo_attivazione_fisso: SOLO dalla casella selezionata nella sezione "Linea tele
 DEVI sempre includere TUTTI i campi richiesti nel JSON, anche quelli null. NON omettere mai un campo. NON usare "..." come placeholder.
 
 Esempio privato Mobile con device finanziato e smartphone reload SI, punto vendita Legnago:
-{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3331234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":true,"tipo_acquisto":"Finanziamento","imei":"356178252707751","prezzo_device":"399.9","smartphone_reload":true,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null,"tipo_attivazione_fisso":null,"codice_cliente":"P0001234567"}
+{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3331234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":true,"tipo_acquisto":"Finanziamento","imei":"356178252707751","prezzo_device":"399.9","smartphone_reload":true,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null,"tipo_attivazione_fisso":null,"codice_cliente":"P0001234567","professional_cloud":null}
 
 Esempio azienda Mobile con device VAR e smartphone reload NO, punto vendita Cerea:
-{"cf_piva":"04971220233","ragione_sociale":"Lucchiari Auto Srl","nome_referente":"Maicol","cellulare":"3520696271","email":"info@lucchiari.it","provincia":"VR","comune":"Sanguinetto","via":"Via Masaglie","civico":"96","dispositivo_presente":true,"tipo_acquisto":"VAR","imei":"355297179899755","prezzo_device":"1509.9","smartphone_reload":false,"codice_rivenditore":"9000822241","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null,"tipo_attivazione_fisso":null,"codice_cliente":"P0001234567"}
+{"cf_piva":"04971220233","ragione_sociale":"Lucchiari Auto Srl","nome_referente":"Maicol","cellulare":"3520696271","email":"info@lucchiari.it","provincia":"VR","comune":"Sanguinetto","via":"Via Masaglie","civico":"96","dispositivo_presente":true,"tipo_acquisto":"VAR","imei":"355297179899755","prezzo_device":"1509.9","smartphone_reload":false,"codice_rivenditore":"9000822241","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null,"tipo_attivazione_fisso":null,"codice_cliente":"P0001234567","professional_cloud":null}
 
 Esempio SIM solo dati Business Professional Data (senza device, nessun costo base esplicitato). DATI SIM Numero di telefono +393331234567; DATI FIRMA Numero di telefono +393351234567:
-{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3351234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":false,"tipo_acquisto":null,"imei":null,"prezzo_device":null,"smartphone_reload":null,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":"3331234567","portabilita":false,"numero_mnp":null,"operatore_provenienza":null,"tipo_attivazione_fisso":null,"codice_cliente":"P0001234567"}
+{"cf_piva":"RSSMRA85M01H501Z","ragione_sociale":"Mario Rossi","nome_referente":"Mario","cellulare":"3351234567","email":"m.rossi@email.it","provincia":"RM","comune":"Roma","via":"Via Roma","civico":"12","dispositivo_presente":false,"tipo_acquisto":null,"imei":null,"prezzo_device":null,"smartphone_reload":null,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":"3331234567","portabilita":false,"numero_mnp":null,"operatore_provenienza":null,"tipo_attivazione_fisso":null,"codice_cliente":"P0001234567","professional_cloud":null}
 
 Esempio Fisso FWA Indoor con modem (tipo_acquisto e smartphone_reload null perche' non applicabili al Fisso):
-{"cf_piva":"CMRGZN48P07A837N","ragione_sociale":"Graziano Camera","nome_referente":"Graziano","cellulare":"3453923639","email":"camera.gra@gmail.com","provincia":"VR","comune":"Bevilacqua","via":"Piazza Marega","civico":"1050","dispositivo_presente":true,"tipo_acquisto":null,"imei":"352941750260290","prezzo_device":"287.52","smartphone_reload":null,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null,"tipo_attivazione_fisso":"Nuova Attivazione","codice_cliente":"0001234567"}`;
+{"cf_piva":"CMRGZN48P07A837N","ragione_sociale":"Graziano Camera","nome_referente":"Graziano","cellulare":"3453923639","email":"camera.gra@gmail.com","provincia":"VR","comune":"Bevilacqua","via":"Piazza Marega","civico":"1050","dispositivo_presente":true,"tipo_acquisto":null,"imei":"352941750260290","prezzo_device":"287.52","smartphone_reload":null,"codice_rivenditore":"9001415852","codice_contratto":"0000123456789","costo_offerta_mensile":null,"numero_sim":null,"portabilita":null,"numero_mnp":null,"operatore_provenienza":null,"tipo_attivazione_fisso":"Nuova Attivazione","codice_cliente":"0001234567","professional_cloud":null}`;
 
 const EXPECTED_KEYS = [
   'cf_piva', 'ragione_sociale', 'nome_referente', 'cellulare', 'email',
@@ -178,9 +181,9 @@ const EXPECTED_KEYS = [
   'smartphone_reload',
   // Codice Rivenditore (migration 050): '9001415852' (Legnago) o '9000822241' (Cerea), null altrimenti
   'codice_rivenditore', 'codice_contratto', 'costo_offerta_mensile',
-  'numero_sim', 'portabilita', 'numero_mnp', 'operatore_provenienza', 'tipo_attivazione_fisso', 'codice_cliente'
+  'numero_sim', 'portabilita', 'numero_mnp', 'operatore_provenienza', 'tipo_attivazione_fisso', 'codice_cliente', 'professional_cloud'
 ];
-const BOOLEAN_KEYS = new Set(['dispositivo_presente', 'smartphone_reload', 'portabilita']);
+const BOOLEAN_KEYS = new Set(['dispositivo_presente', 'smartphone_reload', 'portabilita', 'professional_cloud']);
 const CODICI_RIVENDITORE_ALLOWED = new Set(['9001415852', '9000822241']);
 
 function emptyResult() {
@@ -293,6 +296,13 @@ function classifyAnthropicError(error) {
   };
 }
 
+// Un No da testo PDF non deve smentire una lettura visiva positiva o incerta.
+function mergePdfResult(parsed, pdfFields) {
+  const merged = { ...parsed, ...pdfFields };
+  if (pdfFields.professional_cloud === false && normalizeResult(parsed).professional_cloud !== false) merged.professional_cloud = null;
+  return normalizeResult(merged);
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: CORS_HEADERS, body: '' };
   if (event.httpMethod !== 'POST') return response(405, { success: false, error: 'Metodo non consentito: usa POST' });
@@ -338,17 +348,17 @@ exports.handler = async (event) => {
 
     const textBlock = completion.content?.find((b) => b.type === 'text');
     const rawText = (textBlock?.text || '').trim();
-    if (!rawText) return response(200, { success: true, data: normalizeResult(pdfFields) });
+    if (!rawText) return response(200, { success: true, data: mergePdfResult({}, pdfFields) });
 
     // Estrai il primo oggetto JSON dal testo (Claude tende a rispondere solo con JSON ma a volte aggiunge testo)
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return response(200, { success: true, data: normalizeResult(pdfFields) });
+    if (!jsonMatch) return response(200, { success: true, data: mergePdfResult({}, pdfFields) });
 
     let parsed;
     try { parsed = JSON.parse(jsonMatch[0]); }
-    catch (_) { return response(200, { success: true, data: normalizeResult(pdfFields) }); }
+    catch (_) { return response(200, { success: true, data: mergePdfResult({}, pdfFields) }); }
 
-    return response(200, { success: true, data: normalizeResult({ ...parsed, ...pdfFields }) });
+    return response(200, { success: true, data: mergePdfResult(parsed, pdfFields) });
   } catch (error) {
     console.error('ocr-pda error:', error);
     const classification = classifyAnthropicError(error);
@@ -363,4 +373,4 @@ exports.handler = async (event) => {
   }
 };
 
-exports._test = { normalizeResult, SYSTEM_PROMPT };
+exports._test = { normalizeResult, mergePdfResult, SYSTEM_PROMPT };

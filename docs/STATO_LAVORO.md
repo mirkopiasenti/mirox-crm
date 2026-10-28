@@ -3,6 +3,11 @@
 Aggiornato: 2026-10-27. Promemoria di ripresa, non autorizza interventi o deploy;
 istruzioni dell'utente e guide di progetto restano vincolanti.
 
+## Professional Cloud Mobile Business: rilascio28/10
+
+- Proprietario conferma sviluppo: Si/No automatico visibile, gestione Mantieni attiva/Richiedi disattivazione obbligatoria se Si, nessun default; conferme prima modifica presenza/decisione, annulla conserva dati. Solo Mobile Business, nessuna azione sui portali o email. Draft/carrello/reset/editor Verifica/Storico, No visibile anche nello Storico. Dati del contratto, separati da MNP/catalogo/punti. Prevalidazione esclusa quando esiste SIM contrattuale; No da testo richiede accordo AI, incerto manuale. PDA Downloads/contratto_mobile.pdf6pagine: Cloud Si pagina5, prevalidazione2 separata; SIM/MNP letti localmente, nessun invio AI/upload reale/OTP/browser.
+- Migration20261028085821 applicata/riletta:2colonne nullable senza default in vendita_contratti, CHECK scope/coerenza validato,0righe storiche valorizzate. Nessun cambio CC/RPC/RLS/permessi/trigger esistenti o modalita verifica automatica.473test locali (472versionati+Backup),19nuove regressioni, build e SQL/PGlite isolato OK; ultimo25mirati verdi. Security advisor invariati. Guide README/AGENTS/CLAUDE/databaseREADME/rapporto aggiornate. Pubblicazione e verifica SHA/CI in corso.
+
 ## Permessi Vendita/Post-Vendita: rilascio autorizzato 27/10
 
 - `admin-permessi.html` nella shell Admin e link da Gestione Utenti:19pagine (6Vendita,11Post-Vendita inclusoTicket,2Applicazioni), gruppi/interruttori/copia/annulla/riepilogo e30audit. Admin attivi sempre abilitati; ACL per account, indipendenti da alias/CC. Catalogo browser/CommonJS, menu/reparti vuoti nascosti, URL diretto/moduli non censiti bloccati; refresh60s solo visibili/ritorno scheda, errori bloccanti.22API con profilo/ACL freschi, bucket multipart verificato;84policy restrittive su20tabelle/Storage. Letture condivise Storico/Dashboard conservate, scritture per modulo operativo.

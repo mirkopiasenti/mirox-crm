@@ -95,6 +95,7 @@ successivo letture live SQL/REST in timeout, configurazione non riconfermata.
 | `netlify/functions/_lib/windtre-customer-codes.js` | Registro anagrafico dei codici cliente WindTre, append idempotente |
 | `scripts/verifica-codici-cliente-sql.js` | Collaudo isolato di schema, RLS e permessi dei codici cliente |
 | `scripts/verifica-permessi-pagine-sql.js` | Collaudo PostgreSQL isolato delle ACL: matrice 19 pagine, policy, Storage, viste, versioni e audit. PGlite esterno tramite `MIROX_PGLITE_MODULE`, nessuna dipendenza runtime aggiunta |
+| `scripts/verifica-professional-cloud-sql.js` | Collaudo isolato dei nuovi campi e vincoli Professional Cloud |
 | `package.json` | Dipendenze Node delle functions |
 | `CLAUDE.md` | Mappa completa per AI assistants (architettura, schema, regole di business, convenzioni) |
 
@@ -144,6 +145,38 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `verifica-otp-privacy` | POST | authenticated | Verifica OTP (max 3 tentativi), impedisce aggiornamenti concorrenti e recupera un timeout Storage con verifica SHA256, genera il PDF informativa/dichiarazione con scelta marketing ed evidenze probatorie, lo archivia e imposta `valido_fino_al = now()+24 mesi` |
 | `genera-pdf-consenso-cartaceo` | GET | authenticated | Stream del modulo cartaceo v6 precompilato: una pagina A4, monocromatico, corpo 10 pt, scelta marketing già marcata e riga firma |
 | `upload-consenso-cartaceo` | POST multipart | authenticated | Upload scansione firmata (max 20 MB, PDF); richiede l'esito ACCONSENTO/NON ACCONSENTO e crea il record `'cartaceo'` confermato |
+
+### Professional Cloud Mobile Business (28/10/2026)
+
+Professional Cloud e' separata dall'opzione MNP, solo Mobile Business. Il wizard
+mostra Si/No anche con lettura AI; presenza ricavata da Opzioni/servizi della SIM
+contrattuale con Piano Telefonico, ignorando prevalidazione e condizioni generali.
+Testo PDF per coordinate + OCR: presenza testuale esplicita prevale; No richiede
+lista completa/leggibile e accordo della lettura AI, altrimenti scelta manuale.
+Nessuna assenza dedotta da PDF ibrido/troncato. In presenza di riquadro contrattuale,
+anche numero SIM viene letto da quello, evitando conflitti con la prevalidazione.
+
+Con Si il popup Gestione Professional Cloud richiede Mantieni attiva oppure
+Richiedi disattivazione, senza default. Chiudere lascia la decisione da completare;
+non si prosegue senza scelta. Presenza e gestione modificabili con conferma: fino
+al consenso niente modifiche a valori/decisione/bozza; No a Si richiede anche la
+nuova decisione, annullamento conserva la situazione precedente. Input select non
+salva valori prematuri; doppi cambi e risposte tardive su PDA/offerta/cliente/cluster
+o editor chiuso non si applicano. Nuova PDA azzera, draft/carrello conservano la
+coppia. Al cambio cluster fuori Business la UI rimuove i dati Cloud; correzione
+categoria fuori Mobile nell'editor generale li azzera. Dati consultabili e
+correggibili negli editor PDA Verifica/Storico; Storico mostra anche No esplicito.
+
+`vendita_contratti.professional_cloud` boolean nullable e
+`professional_cloud_gestione` text nullable (Mantieni attiva/Richiedi disattivazione).
+CHECK: solo Mobile Business; Si richiede decisione valida, No/NULL nessuna decisione.
+Migration `20261028085821_professional_cloud_mobile_business.sql` applicata/riletta:
+nessun default o backfill,0righe storiche valorizzate, vincolo validato. Nessun
+cambio a tabelle/permessi/RPC CC o RLS esistenti. Validazione browser/server;
+nuovo wizard obbliga Si/No Business, compatibilita client legacy senza campo e
+storico sconosciuto mantenuta. Nessuna disattivazione sul portale, email/notifica,
+modifica MNP/catalogo/punteggi o verifica automatica avviata da questo rilascio.
+Collaudo PostgreSQL isolato con `scripts/verifica-professional-cloud-sql.js`.
 
 ### Upload PDA: codice contratto e dati Mobile (rilascio 27/10/2026)
 

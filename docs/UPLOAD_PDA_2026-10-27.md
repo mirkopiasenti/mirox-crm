@@ -342,3 +342,49 @@ Nessun PDF reale inviato all'AI, nessuna pratica/OTP creati. Advisory prima/dopo
 solo INFO atteso RLS senza policy sul registro server-only, rilievi preesistenti
 invariati. Migration generata con CLI e allineata alla versione MCP applicata.
 Rilascio frontend/backend e verifica SHA/CI nel promemoria.
+
+## Professional Cloud Mobile Business (28/10/2026)
+
+Professional Cloud e' separata dall'opzione MNP, solo Mobile Business. Il wizard
+mostra Si/No anche con lettura AI; presenza ricavata da Opzioni/servizi della SIM
+contrattuale con Piano Telefonico, ignorando prevalidazione e condizioni generali.
+Testo PDF per coordinate + OCR: presenza testuale esplicita prevale; No richiede
+lista completa/leggibile e accordo della lettura AI, altrimenti scelta manuale.
+Nessuna assenza dedotta da PDF ibrido/troncato. In presenza di riquadro contrattuale,
+anche numero SIM viene letto da quello, evitando conflitti con la prevalidazione.
+
+Con Si il popup Gestione Professional Cloud richiede Mantieni attiva oppure
+Richiedi disattivazione, senza default. Chiudere lascia la decisione da completare;
+non si prosegue senza scelta. Presenza e gestione modificabili con conferma: fino
+al consenso niente modifiche a valori/decisione/bozza; No a Si richiede anche la
+nuova decisione, annullamento conserva la situazione precedente. Input select non
+salva valori prematuri; doppi cambi e risposte tardive su PDA/offerta/cliente/cluster
+o editor chiuso non si applicano. Nuova PDA azzera, draft/carrello conservano la
+coppia. Al cambio cluster fuori Business la UI rimuove i dati Cloud; correzione
+categoria fuori Mobile nell'editor generale li azzera. Dati consultabili e
+correggibili negli editor PDA Verifica/Storico; Storico mostra anche No esplicito.
+
+`vendita_contratti.professional_cloud` boolean nullable e
+`professional_cloud_gestione` text nullable (Mantieni attiva/Richiedi disattivazione).
+CHECK: solo Mobile Business; Si richiede decisione valida, No/NULL nessuna decisione.
+Migration `20261028085821_professional_cloud_mobile_business.sql` applicata/riletta:
+nessun default o backfill,0righe storiche valorizzate, vincolo validato. Nessun
+cambio a tabelle/permessi/RPC CC o RLS esistenti. Validazione browser/server;
+nuovo wizard obbliga Si/No Business, compatibilita client legacy senza campo e
+storico sconosciuto mantenuta. Nessuna disattivazione sul portale, email/notifica,
+modifica MNP/catalogo/punteggi o verifica automatica avviata da questo rilascio.
+Collaudo PostgreSQL isolato con `scripts/verifica-professional-cloud-sql.js`.
+
+Sviluppo confermato dal proprietario dopo la proposta.473test locali
+(472versionati+1Backup preesistente), build OK;19regressioni Cloud nuove su
+estrazione contestuale/ambiguita, scope/validazione, popup completo, conferma/
+annulla in entrambe le direzioni, cambi di gestione, doppio cambio/tardive,
+input senza autosalvataggio prematuro, restore/reset, DTO create e editor backend.
+25test mirati lettura PDF/Cloud verdi dopo ultimo controllo sui segni checkbox.
+PostgreSQL in memoria conferma nullable/storico invariato e vincoli anche con
+NULL SQL, categorie/cluster non ammessi e decisioni incoerenti. PDA reale allegata
+contratto_mobile.pdf6pagine letta localmente: Cloud Si dalla pagina5; riquadro
+prevalidazione pagina2 distinto. Numeri SIM/MNP recuperati senza conflitto.
+Nessun PDF reale inviato all'AI, pratica/OTP/email/test browser eseguito. Migration
+CLI allineata alla versione MCP applicata; verifiche SQL metadata e security
+advisor prima/dopo invariati. Pubblicazione e verifica SHA/CI nel promemoria.

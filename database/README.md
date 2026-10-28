@@ -67,6 +67,38 @@ SQL isolato riconferma grant/claim/CAS/rollback e assenza effetti del collaudo.
 Letture live SQL/REST successive al primo collaudo in timeout: configurazione
 attuale non riconfermata, ultima letta collaudo; nessun tentativo di attivazione.
 
+## Professional Cloud Mobile Business (28/10/2026, migration applicata)
+
+Professional Cloud e' separata dall'opzione MNP, solo Mobile Business. Il wizard
+mostra Si/No anche con lettura AI; presenza ricavata da Opzioni/servizi della SIM
+contrattuale con Piano Telefonico, ignorando prevalidazione e condizioni generali.
+Testo PDF per coordinate + OCR: presenza testuale esplicita prevale; No richiede
+lista completa/leggibile e accordo della lettura AI, altrimenti scelta manuale.
+Nessuna assenza dedotta da PDF ibrido/troncato. In presenza di riquadro contrattuale,
+anche numero SIM viene letto da quello, evitando conflitti con la prevalidazione.
+
+Con Si il popup Gestione Professional Cloud richiede Mantieni attiva oppure
+Richiedi disattivazione, senza default. Chiudere lascia la decisione da completare;
+non si prosegue senza scelta. Presenza e gestione modificabili con conferma: fino
+al consenso niente modifiche a valori/decisione/bozza; No a Si richiede anche la
+nuova decisione, annullamento conserva la situazione precedente. Input select non
+salva valori prematuri; doppi cambi e risposte tardive su PDA/offerta/cliente/cluster
+o editor chiuso non si applicano. Nuova PDA azzera, draft/carrello conservano la
+coppia. Al cambio cluster fuori Business la UI rimuove i dati Cloud; correzione
+categoria fuori Mobile nell'editor generale li azzera. Dati consultabili e
+correggibili negli editor PDA Verifica/Storico; Storico mostra anche No esplicito.
+
+`vendita_contratti.professional_cloud` boolean nullable e
+`professional_cloud_gestione` text nullable (Mantieni attiva/Richiedi disattivazione).
+CHECK: solo Mobile Business; Si richiede decisione valida, No/NULL nessuna decisione.
+Migration `20261028085821_professional_cloud_mobile_business.sql` applicata/riletta:
+nessun default o backfill,0righe storiche valorizzate, vincolo validato. Nessun
+cambio a tabelle/permessi/RPC CC o RLS esistenti. Validazione browser/server;
+nuovo wizard obbliga Si/No Business, compatibilita client legacy senza campo e
+storico sconosciuto mantenuta. Nessuna disattivazione sul portale, email/notifica,
+modifica MNP/catalogo/punteggi o verifica automatica avviata da questo rilascio.
+Collaudo PostgreSQL isolato con `scripts/verifica-professional-cloud-sql.js`.
+
 ## Codici cliente WindTre anagrafici (27/10/2026, migration applicata)
 
 Codici cliente WindTre anagrafici (27/10): una anagrafica puo' avere piu' codici,

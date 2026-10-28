@@ -887,7 +887,7 @@ exports.handler = async (event) => {
       const category = (pdaCategories || []).find(c => c.id === contract.categoria_id);
       if (!category) throw new Error('Categoria non trovata');
       // Validate raw values too: malformed input must not silently become null.
-      try { Object.assign(contract, Pda.validate(contrattiRaw[i], category.nome)); }
+      try { Object.assign(contract, Pda.validate(contrattiRaw[i], category.nome, { cluster, requireCloud: Pda.cloudScope(category.nome, cluster) && Object.prototype.hasOwnProperty.call(contrattiRaw[i], 'professional_cloud') })); }
       catch (error) { error.statusCode = 400; throw error; }
       const customerCode = Pda.customerCode(contrattiRaw[i].codice_cliente);
       if (contrattiRaw[i].codice_cliente && (!customerCode || !Pda.isPda(category.nome))) {

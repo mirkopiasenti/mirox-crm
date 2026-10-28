@@ -813,14 +813,14 @@ async function apriDettaglioOperazione(idx) {
     }
     // Costruisce un grid con tutti i campi non-null della tabella
     const rows = Object.entries(rec)
-      .filter(([k, v]) => v !== null && v !== '' && v !== false && k !== 'id')
+      .filter(([k, v]) => v !== null && v !== '' && (v !== false || k === 'professional_cloud') && k !== 'id')
       .map(([k, v]) => {
         let display;
         if (typeof v === 'boolean') display = v ? 'Sì' : 'No';
         else if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) display = fmtDateTime(v);
         else if (typeof v === 'object') display = '<code style="font-size:11px;">' + escapeHtml(JSON.stringify(v)) + '</code>';
         else display = escapeHtml(String(v));
-        const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const label = k === 'professional_cloud_gestione' ? 'Gestione Professional Cloud' : k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
         return `<div style="padding:10px 14px;background:#F6F9FC;border-left:3px solid #FF6600;border-radius:6px;">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#697386;margin-bottom:2px;">${escapeHtml(label)}</div>
           <div style="font-size:13.5px;color:#0A2540;font-weight:500;word-break:break-word;">${display}</div>

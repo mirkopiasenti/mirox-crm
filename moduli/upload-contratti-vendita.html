@@ -3203,7 +3203,12 @@ Reload Forever
  function renderPdaFields(data) {
  const root = document.getElementById('pdaContractFields');
  const category = getCategoriaName();
- if (data === undefined && root.dataset.category === category) return;
+ const cluster = refs.cluster?.value || '';
+ if (data === undefined && root.dataset.category === category && root.dataset.cloudCluster === cluster) return;
+ if (data === undefined && root.dataset.category === category) data = readPdaFields();
+ if (!window.MiroxPda.cloudScope(category, cluster)) data = { ...data, professional_cloud: null, professional_cloud_gestione: null };
+ root.dataset.cloudCluster = cluster;
+ delete root.dataset.cloudPending;
  root.dataset.category = category;
  root.dataset.pdaCustomerCode = window.MiroxPda.customerCode(data?.codice_cliente) || '';
  if (refs.codiceCliente) refs.codiceCliente.value = root.dataset.pdaCustomerCode;
@@ -3221,8 +3226,8 @@ Reload Forever
  root.dataset.pdaFixedActivationManual = (data?.pda_tipo_attivazione_manuale === true
  || (data?.pda_tipo_attivazione_manuale === undefined && Boolean(data?.tipo_attivazione))) ? 'true' : 'false';
  delete root.dataset.pdaFixedActivationPending;
- root.innerHTML = window.MiroxPdaUI.formHtml(window.MiroxPda.normalize(data || {}), category, { wizard: true, reading: root.dataset.pdaReading });
- window.MiroxPdaUI.bindForm(root);
+ root.innerHTML = window.MiroxPdaUI.formHtml(window.MiroxPda.normalize(data || {}), category, { wizard: true, reading: root.dataset.pdaReading, cluster });
+ window.MiroxPdaUI.bindForm(root, { context: () => [runtimeState.pdaRevision, runtimeState.editingTempId, refs.offerta.value, refs.cluster.value, refs.cfPiva?.value || ''].join('|') });
  if (!root.dataset.autosaveBound) {
  const onPdaChange = () => { renderDynamicSections(); queueDraftSave(); };
  root.addEventListener('input', onPdaChange);
@@ -3780,7 +3785,7 @@ Reload Forever
  const punteggioExtra = getPuntiExtraPiva(offerta) + getPuntiExtraPiva(opzione);
 
  return {
- ...window.MiroxPda.validate(readPdaFields(), categoriaNome),
+ ...window.MiroxPda.validate(readPdaFields(), categoriaNome, { cluster: refs.cluster.value, requireCloud: true }),
  codice_cliente: readPdaFields().codice_cliente,
  pda_lettura: readPdaFields().pda_lettura,
  pda_opzione_manuale: readPdaFields().pda_opzione_manuale,
@@ -4703,7 +4708,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
 
  return {
- ...window.MiroxPda.validate(item, item.categoria_nome || item.categoria_snapshot || item.snapshot?.categoria),
+ ...window.MiroxPda.validate(item, item.categoria_nome || item.categoria_snapshot || item.snapshot?.categoria, { cluster: cliente.cluster, requireCloud: true }),
  codice_cliente: window.MiroxPda.isPda(item.categoria_nome || item.categoria_snapshot || item.snapshot?.categoria) ? window.MiroxPda.customerCode(item.codice_cliente, true) : null,
  temp_id: item.temp_id,
  categoria_id: item.categoria_id,

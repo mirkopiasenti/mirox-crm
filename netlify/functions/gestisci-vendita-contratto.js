@@ -194,7 +194,7 @@ async function updateContract({ supabase, auth, body }) {
       id, anagrafica_id, pratica_id, stato_controllo, updated_at,
       categoria_id, categoria_snapshot, offerta_id, opzione_id, reload_id,
       ricorrenza_assicurazione, codice_contratto, costo_offerta_mensile, portabilita,
-      numero_telefono, numero_provvisorio, numero_mnp, operatore_provenienza,
+      numero_telefono, numero_provvisorio, numero_mnp, operatore_provenienza, cluster_cliente, professional_cloud, professional_cloud_gestione,
       punteggio_gara_offerta, punteggio_gara_opzione,
       punteggio_extra_gara_offerta, punteggio_extra_gara_opzione
     `)
@@ -220,13 +220,17 @@ async function updateContract({ supabase, auth, body }) {
       const finalCategory = patch.categoria_id && patch.categoria_id !== current.categoria_id
         ? (await loadCatalogRow(supabase, 'vendita_categorie', patch.categoria_id, 'id, nome')).nome
         : current.categoria_snapshot;
+      if (finalCategory !== current.categoria_snapshot && !Pda.cloudScope(finalCategory, current.cluster_cliente)) {
+        patch.professional_cloud = null;
+        patch.professional_cloud_gestione = null;
+      }
       const pdaPatch = Pda.validate({ ...current, ...patch }, finalCategory,
-        { requireCode: Boolean(current.codice_contratto), allowLegacy: !Pda.hasMobileData(current) });
+        { requireCode: Boolean(current.codice_contratto), allowLegacy: !Pda.hasMobileData(current), cluster: current.cluster_cliente, requireCloud: current.professional_cloud != null });
       Object.assign(patch, pdaPatch);
       if (pdaPatch.codice_contratto) await Pda.assertAvailable(supabase, pdaPatch.codice_contratto, current.id);
     } catch (error) {
       if (error.statusCode === 409) throw error;
-      if (/obbligatorio|non valido|coerente|Seleziona|ammesso/.test(error.message)) error.statusCode = 400;
+      if (/obbligatorio|non valid[oa]|coerente|Seleziona|ammesso/.test(error.message)) error.statusCode = 400;
       throw error;
     }
     snapshotPatch = await deriveCatalogSnapshots(supabase, current, patch);
@@ -309,7 +313,7 @@ async function updatePda({ supabase, auth, body }) {
   let patch;
   try {
     patch = Pda.validate({ ...current, ...pickAllowed(body.contratto, new Set(Pda.FIELDS)) },
-      current.categoria_snapshot, { requireCode: Boolean(current.codice_contratto), allowLegacy: !Pda.hasMobileData(current) });
+      current.categoria_snapshot, { requireCode: Boolean(current.codice_contratto), allowLegacy: !Pda.hasMobileData(current), cluster: current.cluster_cliente, requireCloud: current.professional_cloud != null });
   } catch (e) { return response(400, { success: false, error: e.message }); }
   if (patch.codice_contratto) await Pda.assertAvailable(supabase, patch.codice_contratto, current.id);
   patch.updated_by = canonicalProfileId(auth);
