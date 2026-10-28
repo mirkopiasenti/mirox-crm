@@ -43,6 +43,14 @@ test('CF Business personale corrisponde al documento: nome informativo; mai conf
   assert.equal(Identity.Core.evaluate([idReading()],{...company,cf_rappresentante:'VRDLGI80A01H501Z'},'2026-10-28').stato,'da_correggere');
   assert.equal(Identity.Core.evaluate([idReading()],{...company,cf_rappresentante:company.cf_piva},'2026-10-28').stato,'da_correggere');
 });
+test('CF manuale Business usa il rappresentante della ricevuta, mai la PIVA aziendale',()=>{
+  const reading=idReading();reading.fields.fiscale=null;
+  const result=Identity.Core.evaluate([reading],{...company,cf_rappresentante:person},'2026-10-28');
+  assert.equal(result.stato,'da_confermare');assert.deepEqual(result.errors,[]);
+  const data={customer:company,business_identity:{cf_rappresentante:person},result};
+  assert.throws(()=>Identity.confirm(data,{motivo:'CF personale verificato',codice_fiscale_verificato:company.cf_piva}),/codice fiscale/);
+  assert.equal(Identity.confirm(data,{motivo:'CF personale verificato',codice_fiscale_verificato:person}).conferma.codice_fiscale_verificato,person);
+});
 test('API Business genera ricevuta firmata con CF letto nella PDA, azienda CRM e digest della fonte',async()=>{
   const db={...dbFor(),from:()=>({select(){return this;},ilike(){return this;},limit:async()=>({data:[company]})})};
   const out=await handler({httpMethod:'POST',headers:{}},{db,secret:'fixture',requireAuth:async()=>({ok:true,user:{id:'user'}}),

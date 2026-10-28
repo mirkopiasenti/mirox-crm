@@ -12,6 +12,41 @@ Nome referente resta il riscontro quando manca il CF sul documento o la PDA.
 
 
 
+### Anteprima manuale dopo errore e Haiku 5.5 (28/10/2026, locale)
+
+Richiesta esplicita del proprietario: dopo esito identita negativo/incerto aprire
+la preview e chiedere «Confermi che il documento visualizzato nella preview e
+quello del cliente in anagrafica?». Tutti i PDF selezionati sono mostrati come
+originali locali in iframe blob, con apertura a dimensione intera. Si abilita
+Si solo dopo il caricamento di tutte le anteprime. No/chiusura annullano; URL
+revocati, testo escaped e risposte tardive scartate se cliente/file/PDA cambiano.
+Si usa ricevuta HMAC e hash degli stessi PDF: nuova action JSON confirm_preview
+senza AI, autore/ora/modalita preview_manuale e dichiarazione conservati con
+esito_automatico originale. Su richiesta si puo superare anche un esito OCR
+negativo: e attestazione umana, non successo automatico. Non serve ritrascrivere
+CF o scrivere un motivo libero. Serve scadenza verificata valida alla firma;
+restano anagrafica attuale, data firma, PDF validi, integrita e permesso Consumer
+VAR extra UE. Cittadinanza richiesta se necessaria. Nessuna deroga ad auth,
+limiti file, legame Business/PDA, controlli commerciali o verifica successiva.
+Aggiungi/Invia riusano la ricevuta; nessuna nuova OCR identita dopo Si. Anche la
+verifica successiva riusa il manuale solo con anagrafica e hash invariati e indica
+esplicitamente che il controllo identita era manuale.
+
+Migrazione claude-haiku-5-5 su ocr-pda e lettore condiviso verifica-documenti
+(identita upload, Business, SIM, bollette, PDA e verifica serale). Rimossi sampling
+non supportati; tool forzato con schema/pagina/citazione invariato. OCR iniziale
+JSON, effort low e max2400token per margine adaptive thinking; lettore max5000,
+cache invalidata da modello/READER_VERSION2026-10-28.4. SDK esistente verificato
+sul payload HTTP simulato, nessuna nuova dipendenza/env/migration. Regole dati
+PDA/MNP/Energia/CSV/Reload/Cloud invariate. Motore2026-10-28.3: CF esatto resta
+prioritario, assenza CF non ripiega su nome/nascita; preview sostituisce il
+precedente popup che imponeva trascrizione CF/motivo. API legacy confirm resta
+compatibile. Pubblicazione ancora da richiedere, ultimo online58aec89.
+Guide ufficiali consultate: https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide
+Build e531/531test, inclusi68Python Backup, preview DOM/annullamento/file cambiati,
+riuso serale senza OCR e richieste modello via SDK simulato. Nessuna nuova
+chiamata AI live, modifica dati CRM, email o cambio modalita serale.
+
 ### Identita Business: CF del rappresentante dalla PDA (28/10/2026)
 
 Pubblicato `920f530`, CI `40728727037` riuscita, Netlify
@@ -22,8 +57,8 @@ Il controllo anticipato legge dalla PDA Business il CF personale nella sezione
 rappresentante legale/delegato, distinto da PIVA aziendale e pagatore SEPA.
 Prima riscontra CF/PIVA aziendale con l’anagrafica CRM; poi confronta esattamente
 CF del rappresentante con documento e scadenza alla firma. Con CF coincidente
-il nome OCR e informativo anche Business. Senza CF sul documento resta il
-riscontro Nome referente completo e nascita coerente; se incerto serve manuale.
+il nome OCR e informativo anche Business. Nel rilascio precedente, senza CF sul documento si usavano nome/nascita;
+la correzione locale sopra richiede ora conferma esplicita del CF.
 Per categorie senza PDA resta Nome referente, senza confrontare persona e PIVA.
 CF persona non leggibile nella PDA Mobile/Fisso/CB richiede copia completa.
 
@@ -54,8 +89,8 @@ richiede conferma manuale, scaduto alla firma blocca. Restano tipo riconosciuto,
 numero documento, parti necessarie e coerenza fra PDF: non approvare tessere
 sanitarie o allegati incompleti soltanto perche riportano un CF. Si verifica la
 coerenza documentale, non l’autenticita/identificazione biometrica da scansione.
-Senza CF restano nome completo e nascita riscontrata nel CF CRM, oppure controllo
-manuale se incerto. Business usa il CF personale dalla PDA come descritto sotto;
+Il precedente fallback senza CF su nome/nascita e superato dalla correzione
+locale sopra: assenza CF richiede conferma esplicita, mai blocco sul nome. Business usa il CF personale dalla PDA come descritto sotto;
 la PIVA aziendale non identifica la persona. Nessuna nuova colonna anagrafica.
 Motore successivo versione `2026-10-28.2` usa la medesima priorita; PDA/intestazione,
 MNP/ICCID, Energia/CSV e notifiche invariati. Ricevuta salva `criterio_identita`
@@ -102,14 +137,14 @@ Il lettore riconosce carta d’identita, passaporto e patente; trascrive nome, C
 italiano esplicito, nascita, scadenza, tipo, numero documento, cittadinanza esplicita e presenza delle
 parti necessarie. Ogni campo richiede pagina/citazione; dati attesi non inviati
 al modello. Numeri di documento discordanti fra PDF sono bloccanti. Fronte/retro per carta/patente, pagina dati per passaporto. Nessuna
-biometria o certificazione di autenticita. Modello Haiku 4.5 e chiave esistenti,
+biometria o certificazione di autenticita. Modello Haiku5.5 e chiave esistente,
 nessuna nuova dipendenza o env. Errori di lettura diventano esito incerto; PDF
 invalido o fuori limite resta bloccante. Letture parallele limitate a quattro;
 client Anthropic timeout 20 secondi, senza retry SDK, un solo retry sul formato.
 
 Confronto Consumer/Turista aggiornato: CF esatto prioritario e nome
-informativo; se CF assente nel documento,
-serve nome completo e nascita coerente col CF dell’anagrafica. Business: CF
+informativo; se CF assente nel documento, la correzione locale richiede
+riscontro manuale tramite preview e non usa nome/nascita come sostituti. Business: CF
 rappresentante dalla PDA come sopra; senza PDA si usa Nome referente. Nomi normalizzati anche per ordine/accenti.
 Se il record CRM esiste, viene letto e confrontato prima dell’AI. Soltanto i campi
 anagrafici ancora vuoti possono essere presi dal form; differenze nei dati gia
@@ -117,10 +152,10 @@ presenti richiedono di correggere/rileggere l’anagrafica. Nuovi clienti confro
 col form anagrafico, poi nuovamente col record CRM effettivamente salvato.
 L’endpoint di analisi non scrive l’anagrafica.
 
-Esiti: coerente, da correggere, da confermare. Problemi certi bloccano; per
-incertezze l’operatore controlla il documento, conferma esplicitamente e descrive
-il controllo (almeno dieci caratteri). Scadenza non leggibile richiede una data
-verificata manualmente, valida alla firma. Autore, data e motivo sono conservati.
+Esiti automatici: coerente, da correggere, da confermare. Dopo un esito negativo
+o incerto la preview consente conferma manuale esplicita, anche superando il
+risultato OCR. Serve scadenza verificata e valida alla firma. Autore, data,
+dichiarazione, hash visualizzati ed esito OCR originale sono conservati.
 
 ## Permesso di soggiorno
 
@@ -131,7 +166,7 @@ dispositivo. UE comprende Italia e gli altri 26 Stati; non equivale a Schengen.
 Fonte elenco: https://european-union.europa.eu/principles-countries-history/eu-countries_en
 Paese di residenza, nascita, rilascio documento, nome e CF non provano cittadinanza.
 Cittadinanza ISO esplicita dal documento; se assente, per i soli Consumer VAR
-serve conferma UE/extra UE con motivo. Una cittadinanza UE fra piu cittadinanze
+serve conferma esplicita UE/extra UE nella preview quando l’OCR non la legge. Una cittadinanza UE fra piu cittadinanze
 rende la richiesta non necessaria. Incerto non diventa automaticamente extra UE.
 Per gli altri contratti, cittadinanza sconosciuta non blocca da sola l’invio.
 

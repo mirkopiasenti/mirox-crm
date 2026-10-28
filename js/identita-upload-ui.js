@@ -6,7 +6,8 @@
     if (!comparison) return '';
     return '<p><strong>' + e(comparison.campo_anagrafica) + ':</strong> ' + e(comparison.nome_anagrafica || 'Non compilato') + '</p>'
       + '<p><strong>Nome letto dal documento:</strong> ' + e((comparison.nomi_documenti || []).join(' / ') || 'Non leggibile') + '</p>'
-      + (comparison.nome_informativo ? '<p>Il codice fiscale coincide con l’anagrafica. Il nome letto è mostrato a titolo informativo.</p>'
+      + (comparison.fiscale_atteso ? '<p><strong>Codice fiscale atteso:</strong> ' + e(comparison.fiscale_atteso) + '</p><p><strong>Codice fiscale letto:</strong> ' + e((comparison.fiscali_documenti || []).join(' / ') || 'Non letto dal documento') + '</p>' : '')
+      + (comparison.nome_informativo ? '<p>Il nome OCR è informativo. Il controllo dell’identità usa il codice fiscale e la validità del documento alla firma.</p>'
         : '<p>Confronta questi valori con il testo stampato sul documento per distinguere un errore di trascrizione da un dato anagrafico da correggere.</p>');
   }
   function showError(error) {
@@ -23,30 +24,51 @@
     if (!response.ok || !result.success) throw new Error(result.error || 'Controllo identita non disponibile.');
     return result;
   }
-  function manual(result, requireCitizenship) {
-    return new Promise(resolve => {
-      let done = false;
-      const m = window.MiroxUI._build({ title: 'Conferma controllo identita',
-        bodyHtml: '<p>Controlla personalmente il documento e i dati dell’anagrafica prima di confermare.</p>' + comparisonHtml(result.confronto) + '<ul>'
-          + result.uncertain.map(text => '<li>' + e(text) + '</li>').join('') + '</ul>'
-          + (requireCitizenship && !result.cittadinanza ? '<label>Cittadinanza <select data-identity-country><option value="">Seleziona</option><option value="ue">Italiana o di un Paese UE</option><option value="extra_ue">Extra UE</option></select></label><p>Conta la cittadinanza, non la residenza o il Paese di rilascio. Con più cittadinanze, una cittadinanza UE è sufficiente.</p>' : '')
-          + (!result.scadenza ? '<label>Scadenza verificata sul documento <input type="date" data-identity-expiry></label>' : '')
-          + '<label>Descrivi il controllo effettuato <textarea data-identity-reason maxlength="1000"></textarea></label>'
-          + '<label><input type="checkbox" data-identity-confirm> Ho confrontato il documento con l’anagrafica e verificato la validità alla data di firma indicata.</label>',
-        footerHtml: '<button type="button" class="mx-btn mx-btn-primary" data-identity-save>Conferma controllo manuale</button>',
-        onClose: () => { if (!done) resolve(null); } });
-      m.foot.querySelector('[data-identity-save]').addEventListener('click', async () => {
-        const motivo = m.body.querySelector('[data-identity-reason]').value.trim();
-        if (!m.body.querySelector('[data-identity-confirm]').checked || motivo.length < 10) {
-          await window.MiroxUI.alert('Conferma il controllo e descrivilo in almeno 10 caratteri.'); return;
-        }
-        const scadenza = result.scadenza || m.body.querySelector('[data-identity-expiry]')?.value;
-        if (!scadenza || scadenza < result.data_firma) { await window.MiroxUI.alert('Indica una scadenza valida alla data di firma.'); return; }
-        const decision = { motivo, scadenza, cittadinanza: result.cittadinanza || m.body.querySelector('[data-identity-country]')?.value || null };
-        if (requireCitizenship && !decision.cittadinanza) { await window.MiroxUI.alert('Seleziona cittadinanza UE oppure extra UE per il dispositivo VAR.'); return; }
-        done = true; m.close(); resolve(decision);
+  async function manualPreview(result, files, requireCitizenship) {
+    const digests = await Promise.all(files.map(async file => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()))).map(b => b.toString(16).padStart(2, '0')).join('')));
+    const urls = [];
+    try {
+      files.forEach(file => urls.push(URL.createObjectURL(file)));
+      return await new Promise(resolve => {
+        let done = false;
+        const loaded = new Set();
+        const expiry = result.scadenza && result.scadenza >= result.data_firma ? result.scadenza : '';
+        const m = window.MiroxUI._build({ title: 'Anteprima e conferma manuale del documento', large: true,
+          bodyHtml: '<p>Il controllo automatico richiede una verifica manuale.</p><ul>'
+            + [...(result.errors || []), ...(result.uncertain || [])].map(text => '<li>' + e(text) + '</li>').join('') + '</ul>'
+            + comparisonHtml(result.confronto)
+            + files.map((file, index) => '<section><h3>Documento ' + (index + 1) + ': ' + e(file.name || 'Documento di riconoscimento') + '</h3>'
+              + '<iframe data-identity-preview="' + index + '" title="Anteprima documento ' + (index + 1) + '" src="' + e(urls[index]) + '#view=FitH" style="display:block;width:100%;height:480px;border:1px solid #E3E8EE"></iframe>'
+              + '<p><a href="' + e(urls[index]) + '" target="_blank" rel="noopener">Apri il documento a dimensione intera</a></p></section>').join('')
+            + '<p><strong>Confermi che il documento visualizzato nella preview è quello del cliente in anagrafica?</strong></p>'
+            + '<label>Scadenza verificata sul documento <input type="date" data-identity-expiry value="' + e(expiry) + '"></label>'
+            + (requireCitizenship ? '<label>Cittadinanza <select data-identity-country><option value="">Seleziona</option><option value="ue"' + (result.cittadinanza === 'ue' ? ' selected' : '') + '>Italiana o di un Paese UE</option><option value="extra_ue"' + (result.cittadinanza === 'extra_ue' ? ' selected' : '') + '>Extra UE</option></select></label><p>Conta la cittadinanza, non residenza o Paese di rilascio.</p>' : '')
+            + '<p>Con Sì confermi di aver controllato tutti i PDF, che il documento appartiene al cliente e che è completo e valido alla data di firma. La conferma viene registrata e sostituisce l’esito OCR dell’identità.</p>'
+            + '<p data-identity-preview-status role="status">Caricamento anteprima...</p>',
+          footerHtml: '<button type="button" class="mx-btn" data-identity-cancel>No, annulla</button><button type="button" class="mx-btn mx-btn-primary" data-identity-save disabled>Sì, confermo e proseguo</button>',
+          onClose: () => { if (!done) resolve(null); } });
+        m.body.style.maxHeight = '68vh'; m.body.style.overflowY = 'auto';
+        const save = m.foot.querySelector('[data-identity-save]');
+        const message = m.body.querySelector('[data-identity-preview-status]');
+        m.body.querySelectorAll('[data-identity-preview]').forEach((frame, index) => {
+          frame.addEventListener('load', () => {
+            loaded.add(index);
+            if (loaded.size === files.length) { save.disabled = false; message.textContent = 'Anteprima pronta: controlla il documento prima di confermare.'; }
+          });
+          frame.addEventListener('error', () => { loaded.delete(index); save.disabled = true; message.textContent = 'Impossibile mostrare un PDF. Ricarica il documento prima di confermare.'; });
+        });
+        m.foot.querySelector('[data-identity-cancel]').addEventListener('click', () => m.close());
+        save.addEventListener('click', async () => {
+          if (loaded.size !== files.length) return;
+          const scadenza = m.body.querySelector('[data-identity-expiry]').value;
+          if (!scadenza || scadenza < result.data_firma) { await window.MiroxUI.alert('Indica una scadenza verificata e valida alla data di firma.'); return; }
+          const cittadinanza = requireCitizenship ? m.body.querySelector('[data-identity-country]').value : result.cittadinanza || null;
+          if (requireCitizenship && !cittadinanza) { await window.MiroxUI.alert('Seleziona la cittadinanza per verificare se serve il permesso di soggiorno.'); return; }
+          done = true; m.close();
+          resolve({ action: 'confirm_preview', preview_visualizzata: true, preview_sha256: digests, scadenza, cittadinanza });
+        });
       });
-    });
+    } finally { urls.forEach(url => URL.revokeObjectURL(url)); }
   }
   async function ensure({ files, customer, date, pdaPaths = [], requireCitizenship = false, current = () => true }) {
     if (!files.length) throw new Error('Carica il documento di riconoscimento.');
@@ -67,17 +89,16 @@
     try { data = await call(form); }
     catch (error) { if (status && active()) status.textContent = error.message; throw error; }
     if (!active()) throw new Error('Dati o documenti cambiati durante il controllo. Ripeti la verifica.');
-    if (data.result.stato === 'da_correggere') {
-      if (status) status.textContent = data.result.errors.join(' ');
-      const error = new Error(data.result.errors.join(' '));
-      error.identityComparison = data.result.confronto;
-      throw error;
-    }
-    if (data.result.stato === 'da_confermare' || requireCitizenship && !data.result.cittadinanza) {
-      const decision = await manual(data.result, requireCitizenship);
-      if (!decision) throw new Error('Conferma manuale del documento non completata.');
+    if (data.result.stato !== 'coerente' || requireCitizenship && !data.result.cittadinanza) {
+      if (status) status.textContent = 'Controlla l’anteprima e conferma manualmente il documento per proseguire.';
+      const decision = await manualPreview(data.result, files, requireCitizenship);
+      if (!decision) {
+        if (status && active()) status.textContent = 'Controllo manuale annullato: documento non confermato.';
+        throw new Error('Conferma manuale del documento annullata.');
+      }
       if (!active()) throw new Error('Dati cambiati: ripeti il controllo identita.');
-      data = await call({ token: data.token, ...decision });
+      try { data = await call({ token: data.token, ...decision }); }
+      catch (error) { if (status && active()) status.textContent = error.message; throw error; }
     }
     if (!active()) throw new Error('Dati cambiati: ripeti il controllo identita.');
     cached = { key, at: Date.now(), token: data.token, result: data.result };

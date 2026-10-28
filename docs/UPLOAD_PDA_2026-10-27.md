@@ -415,3 +415,15 @@ PDA Downloads/contratto_fisso.pdf3pagine controllata localmente: Professional
 Cloud presente in Opzioni aggiuntive pagina1, Nuova Attivazione conservata.
 Nessun PDF reale inviato all'AI o upload/OTP/email/browser nel collaudo.
 Guide aggiornate, rilascio e verifica SHA/CI nel promemoria.
+
+## Aggiornamento OCR 28/10/2026: Haiku5.5 (locale, non pubblicato)
+
+ocr-pda usa ora claude-haiku-5-5, stessa chiave ANTHROPIC_API_KEY e SDK.
+Prompt/campi/normalizzazione, dati SIM vs contatto firma, regole MNP, device,
+Cloud e testo PDF per coordinate invariati. JSON max2400token, effort low per
+limitare il ragionamento e lasciare margine all’output. Parsing per tipo text
+compatibile con blocchi thinking. Lettore identita/verifica successiva aggiornato
+allo stesso modello; rimosso temperature non supportato, tool forzato invariato.
+Regressione multipart sintetica verifica payload modello e risultati del wizard.
+Nuova anteprima manuale identita documentata in docs/IDENTITA_UPLOAD_2026-10-28.md.
+Nessuna migration/env/dipendenza o OCR live eseguita; serve richiesta di push.

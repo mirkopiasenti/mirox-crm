@@ -32,20 +32,21 @@
     const types = unique('tipo_identita'), names = unique('nome').map(name);
     const tax = unique('fiscale').map(norm);
     const targetTax = expected.business ? norm(target.cf_rappresentante) : expected.fiscale;
-    const taxMatch = /^[A-Z0-9]{16}$/.test(targetTax) && tax.length > 0 && tax.every(t => t === targetTax);
+    const taxRequired = /^[A-Z0-9]{16}$/.test(targetTax);
+    const taxMatch = taxRequired && tax.length > 0 && tax.every(t => t === targetTax);
     const numbers = [...new Set(unique('numero_documento').map(norm))];
     if (!numbers.length) uncertain.push('Il numero del documento non è leggibile: controlla che i PDF appartengano al medesimo documento.');
     else if (numbers.length > 1) errors.push('I PDF riportano numeri di documento diversi. Carica le parti del medesimo documento di riconoscimento.');
     const repeatedName = readings.some(r => r.ricontrollo_nome);
-    if (!taxMatch) {
+    if (!taxRequired) {
       if (!expected.nome || expected.nome.split(' ').length < 2) uncertain.push('Completa il nome della persona nell’anagrafica. Per Business serve Nome referente.');
       if (repeatedName) uncertain.push('Due letture automatiche hanno trascritto nomi diversi: confronta il nome stampato con l’anagrafica e conferma il controllo manuale.');
       if (!names.length && !repeatedName) uncertain.push('Il nome sul documento non è leggibile.');
       else if (expected.nome.split(' ').length >= 2 && names.some(n => n !== expected.nome)) errors.push('Il nome sul documento non coincide con l’anagrafica.');
     }
+    if (taxRequired && !tax.length) uncertain.push('Il codice fiscale non è stato letto dal documento. Verificalo manualmente: il nome OCR non sostituisce questo controllo.');
     if (!expected.business || targetTax) {
       if (tax.length && tax.some(t => t !== targetTax)) errors.push(expected.business ? 'Il codice fiscale sul documento non coincide con il rappresentante indicato nella PDA Business.' : 'Il codice fiscale sul documento non coincide con l’anagrafica.');
-      if (!tax.length && !Verification.birthMatchesTax(one('nascita'), targetTax)) uncertain.push('Data di nascita o codice fiscale non consentono un confronto completo con l’anagrafica.');
     }
     if (types.length !== 1 || !['carta_identita', 'passaporto', 'patente'].includes(types[0])) uncertain.push('Il tipo di documento di riconoscimento deve essere verificato manualmente.');
     if (!unique('fronte_presente').includes(true)) uncertain.push('La pagina con i dati del documento non è riconoscibile.');
@@ -58,9 +59,11 @@
     const group = countries.length === 1 ? citizenship(countries[0]) : null;
     return { stato: errors.length ? 'da_correggere' : uncertain.length ? 'da_confermare' : 'coerente', errors, uncertain,
       cittadinanza: group, scadenza: expiry, data_firma: signed,
-      criterio_identita: taxMatch ? expected.business ? 'cf_rappresentante_pda' : 'codice_fiscale' : expected.business ? 'nome_referente' : 'nome_nascita',
+      cf_da_confermare: taxRequired && !tax.length,
+      criterio_identita: taxMatch ? expected.business ? 'cf_rappresentante_pda' : 'codice_fiscale' : taxRequired ? 'codice_fiscale_da_confermare' : 'nome_referente',
       confronto: { campo_anagrafica: expected.business ? 'Nome referente' : 'Ragione sociale',
-        nome_informativo: taxMatch,
+        nome_informativo: taxRequired,
+        fiscale_atteso: targetTax || null, fiscali_documenti: [...new Set(tax)],
         nome_anagrafica: String(expected.business ? target.nome_referente || '' : target.ragione_sociale || '').trim(),
         nomi_documenti: [...new Set(readings.flatMap(r => [r.fields?.nome?.value, r.ricontrollo_nome?.prima?.value, r.ricontrollo_nome?.seconda?.value]).filter(v => typeof v === 'string' && v.trim()))] } };
   }

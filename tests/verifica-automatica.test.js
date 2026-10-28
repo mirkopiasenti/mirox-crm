@@ -101,9 +101,9 @@ test('Business verifica CF personale del rappresentante PDA, distinto dalla soci
   get(f,'identity').fiscale=evidence('VRDLGI80A01H501Z');
   assert.equal(Core.evaluate(f).esito, 'da_verificare');
 });
-test('identità senza CF usa nome e nascita, mai il solo nome', () => {
+test('identità senza CF richiede verifica manuale, nome e nascita non sostituiscono il codice', () => {
   const f = fixture(); get(f, 'identity').fiscale = null;
-  assert.equal(Core.evaluate(f).esito, 'controllato');
+  assert.equal(Core.evaluate(f).esito, 'da_verificare');
   get(f, 'identity').nascita = null;
   assert.equal(Core.evaluate(f).esito, 'da_verificare');
   assert.equal(Core.birthMatchesTax('1980-01-01', 'RSSMRA80A01H501U'), true);

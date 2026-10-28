@@ -114,6 +114,41 @@ notifiche e configurazione collaudo invariata. Nessun dato cliente nei file pubb
 
 
 
+### Anteprima manuale dopo errore e Haiku 5.5 (28/10/2026, locale)
+
+Richiesta esplicita del proprietario: dopo esito identita negativo/incerto aprire
+la preview e chiedere «Confermi che il documento visualizzato nella preview e
+quello del cliente in anagrafica?». Tutti i PDF selezionati sono mostrati come
+originali locali in iframe blob, con apertura a dimensione intera. Si abilita
+Si solo dopo il caricamento di tutte le anteprime. No/chiusura annullano; URL
+revocati, testo escaped e risposte tardive scartate se cliente/file/PDA cambiano.
+Si usa ricevuta HMAC e hash degli stessi PDF: nuova action JSON confirm_preview
+senza AI, autore/ora/modalita preview_manuale e dichiarazione conservati con
+esito_automatico originale. Su richiesta si puo superare anche un esito OCR
+negativo: e attestazione umana, non successo automatico. Non serve ritrascrivere
+CF o scrivere un motivo libero. Serve scadenza verificata valida alla firma;
+restano anagrafica attuale, data firma, PDF validi, integrita e permesso Consumer
+VAR extra UE. Cittadinanza richiesta se necessaria. Nessuna deroga ad auth,
+limiti file, legame Business/PDA, controlli commerciali o verifica successiva.
+Aggiungi/Invia riusano la ricevuta; nessuna nuova OCR identita dopo Si. Anche la
+verifica successiva riusa il manuale solo con anagrafica e hash invariati e indica
+esplicitamente che il controllo identita era manuale.
+
+Migrazione claude-haiku-5-5 su ocr-pda e lettore condiviso verifica-documenti
+(identita upload, Business, SIM, bollette, PDA e verifica serale). Rimossi sampling
+non supportati; tool forzato con schema/pagina/citazione invariato. OCR iniziale
+JSON, effort low e max2400token per margine adaptive thinking; lettore max5000,
+cache invalidata da modello/READER_VERSION2026-10-28.4. SDK esistente verificato
+sul payload HTTP simulato, nessuna nuova dipendenza/env/migration. Regole dati
+PDA/MNP/Energia/CSV/Reload/Cloud invariate. Motore2026-10-28.3: CF esatto resta
+prioritario, assenza CF non ripiega su nome/nascita; preview sostituisce il
+precedente popup che imponeva trascrizione CF/motivo. API legacy confirm resta
+compatibile. Pubblicazione ancora da richiedere, ultimo online58aec89.
+Guide ufficiali consultate: https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide
+Build e531/531test, inclusi68Python Backup, preview DOM/annullamento/file cambiati,
+riuso serale senza OCR e richieste modello via SDK simulato. Nessuna nuova
+chiamata AI live, modifica dati CRM, email o cambio modalita serale.
+
 ### Identita Business: CF del rappresentante dalla PDA (28/10/2026)
 
 Pubblicato `920f530`, CI `40728727037` riuscita, Netlify
@@ -124,8 +159,8 @@ Il controllo anticipato legge dalla PDA Business il CF personale nella sezione
 rappresentante legale/delegato, distinto da PIVA aziendale e pagatore SEPA.
 Prima riscontra CF/PIVA aziendale con l’anagrafica CRM; poi confronta esattamente
 CF del rappresentante con documento e scadenza alla firma. Con CF coincidente
-il nome OCR e informativo anche Business. Senza CF sul documento resta il
-riscontro Nome referente completo e nascita coerente; se incerto serve manuale.
+il nome OCR e informativo anche Business. Nel rilascio precedente, senza CF sul documento si usavano nome/nascita;
+la correzione locale sopra richiede ora conferma esplicita del CF.
 Per categorie senza PDA resta Nome referente, senza confrontare persona e PIVA.
 CF persona non leggibile nella PDA Mobile/Fisso/CB richiede copia completa.
 
@@ -156,8 +191,8 @@ richiede conferma manuale, scaduto alla firma blocca. Restano tipo riconosciuto,
 numero documento, parti necessarie e coerenza fra PDF: non approvare tessere
 sanitarie o allegati incompleti soltanto perche riportano un CF. Si verifica la
 coerenza documentale, non l’autenticita/identificazione biometrica da scansione.
-Senza CF restano nome completo e nascita riscontrata nel CF CRM, oppure controllo
-manuale se incerto. Business usa il CF personale dalla PDA come descritto sotto;
+Il precedente fallback senza CF su nome/nascita e superato dalla correzione
+locale sopra: assenza CF richiede conferma esplicita, mai blocco sul nome. Business usa il CF personale dalla PDA come descritto sotto;
 la PIVA aziendale non identifica la persona. Nessuna nuova colonna anagrafica.
 Motore successivo versione `2026-10-28.2` usa la medesima priorita; PDA/intestazione,
 MNP/ICCID, Energia/CSV e notifiche invariati. Ricevuta salva `criterio_identita`
@@ -200,9 +235,9 @@ migration, schema, policy o modifica dei contratti esistenti. Prova locale con
 trascrizione precedente e PDF originale, senza persistenza dei risultati.
 
 Controllo anticipato del solo documento di riconoscimento, confronto con anagrafica:
-Consumer CF esatto (nome/nascita se CF assente); Business CF rappresentante
+Consumer CF esatto (CF assente: conferma esplicita nella correzione locale); Business CF rappresentante
 dalla PDA, oppure Nome referente per categorie senza PDA. Data firma esplicita, tipo e fronte/retro; esiti
-coerente/da correggere/da confermare, manuale tracciato solo per incerto.
+coerente/da correggere/da confermare, conferma preview manuale tracciata dopo esito negativo/incerto, come sopra.
 Cittadinanza esplicita o confermata, mai dedotta da residenza/nascita/nome:
 permesso PDF obbligatorio solo Mobile Consumer + dispositivo VAR + extra UE.
 Nuova API `verifica-identita-upload` con JWT e permesso Upload, ricevuta HMAC

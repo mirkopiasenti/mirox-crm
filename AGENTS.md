@@ -299,7 +299,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `gestisci-subentri.js` (GET/POST JSON o multipart) — endpoint autenticato del Compilatore Subentri: ricerche CRM esatte per ruolo (solo P.IVA cedente/CF personale subentrante), `create` con UUID idempotente/modalità e manifest immutabili (standard senza documenti, invia_pratica con tre gruppi obbligatori), upload singolo PDF/JPEG/PNG max 4 MiB vincolato alla propria bozza, `finalize` con verifica byte/SHA256 di tutti gli allegati, storico globale dei soli generati, `documents`, `signed_url` (300 s) e `duplicate_data`. Usa esclusivamente `subentri_generati`/`subentri-files`; anagrafica solo letta. Errori tecnici ripuliti, nessun upload diretto dal browser.
 - `gestisci-disdette.js` (GET/POST action-based) — genera con `pdf-lib` uno dei quattro moduli WindTre precompilati, carica il risultato nel bucket privato `disdette-files`, registra numero cessato e snapshot validato in `disdette_generate`, elenca lo storico e crea signed URL di 5 minuti. L’action `duplicate_data` restituisce lo snapshot soltanto per SIM/Fisso dello stesso cluster; la ricerca GET `action=search_anagrafica` interroga `cf_piva`, `ragione_sociale` e `nome_referente` senza scrivere su `anagrafica`. Tutte le operazioni sono autenticate e la service role è l'unico soggetto con accesso diretto a tabella e bucket.
 - `elimina-vendita-contratto.js` (POST) — admin-only; elimina definitivamente contratto, record collegati e allegati Storage, e la pratica se rimane vuota.
-- `ocr-pda.js` (POST multipart, max 20MB) — OCR del PDA via Claude API (`claude-haiku-4-5-20251001`). **Dati cliente**: cf_piva, ragione_sociale, nome_referente, cellulare, email, provincia, comune, via, civico. **Codice Rivenditore** (dal 2026-07-18, migration `050`): `codice_rivenditore` estratto dal "Codice POS" WindTre, valori ammessi solo `'9001415852'` (Legnago) o `'9000822241'` (Cerea), altrimenti `null`. **Dati dispositivo** (dal 2026-06-26, PDA WindTre Mobile/Customer Base): `dispositivo_presente` (bool nullable: presenza/assenza esplicita/incerto), `tipo_acquisto` ('VAR' o 'Finanziamento'), `imei` (15 cifre), `prezzo_device` (stringa numerica es. "399.9"), `smartphone_reload` (bool nullable: true=SI[X], false=NO[X], null=sezione assente). Riconoscimento VAR vs Finanziamento via 3 segnali concordi nel PDA: titolo pagina ("Offerta con Finanziamento" vs "Offerta Vendita a Rate"), header sezione ("OFFERTA CON FINANZIAMENTO" vs "VENDITA A RATE"), riga Opzioni/servizi della SIM ("Vendita con Finanziamento" vs "Vendita a rate"). Validazione server-side: tipo_acquisto solo enum, imei regex 15 cifre, prezzo_device regex numerico (altrimenti `null` per evitare di sporcare il form). `finanziaria` e `kolme` NON sono estratti (non presenti nel PDA, compilazione manuale operatore). 200 con `data: {...}` se l'OCR estrae (campi `null` se parziale). In caso di errore "hard" l'errore Anthropic viene classificato in `error_code` strutturato: `ocr_credit_exhausted` (credit balance low → 503), `ocr_rate_limited` (429 → 503), `ocr_unavailable` (5xx/529 → 503), `ocr_auth_error` (401/403 → 503), `ocr_generic_error` (default → 500). Payload errore: `{success:false, error, error_code, http_status, provider_status, provider_message}`. Il client decide il popup in base a `error_code`. Richiede `ANTHROPIC_API_KEY`. Estrae inoltre codice PDA e dati Mobile (costo base, numero SIM, MNP, operatore, presenza portabilita); `cellulare` proviene esclusivamente dalla firma elettronica. Output max1200 token, nessun cambio modello/chiave. Estrae `tipo_attivazione_fisso` dalla casella nuova linea/numero attivo, con null per dato assente o ambiguo. Numerazioni e tipo attivazione recuperati anche da testo PDF per coordinate tramite `_lib/pda-pdf-text.js` e `unpdf@1.9.1`, esterno esbuild. Estrae anche codice_cliente WindTre, distinto dal codice contratto. Estrae professional_cloud nullable dalla SIM contrattuale Mobile o da Opzioni aggiuntive Fisso; No testuale richiede accordo AI, incerto manuale.
+- `ocr-pda.js` (POST multipart, max 20MB) — OCR del PDA via Claude API (`claude-haiku-5-5`). **Dati cliente**: cf_piva, ragione_sociale, nome_referente, cellulare, email, provincia, comune, via, civico. **Codice Rivenditore** (dal 2026-07-18, migration `050`): `codice_rivenditore` estratto dal "Codice POS" WindTre, valori ammessi solo `'9001415852'` (Legnago) o `'9000822241'` (Cerea), altrimenti `null`. **Dati dispositivo** (dal 2026-06-26, PDA WindTre Mobile/Customer Base): `dispositivo_presente` (bool nullable: presenza/assenza esplicita/incerto), `tipo_acquisto` ('VAR' o 'Finanziamento'), `imei` (15 cifre), `prezzo_device` (stringa numerica es. "399.9"), `smartphone_reload` (bool nullable: true=SI[X], false=NO[X], null=sezione assente). Riconoscimento VAR vs Finanziamento via 3 segnali concordi nel PDA: titolo pagina ("Offerta con Finanziamento" vs "Offerta Vendita a Rate"), header sezione ("OFFERTA CON FINANZIAMENTO" vs "VENDITA A RATE"), riga Opzioni/servizi della SIM ("Vendita con Finanziamento" vs "Vendita a rate"). Validazione server-side: tipo_acquisto solo enum, imei regex 15 cifre, prezzo_device regex numerico (altrimenti `null` per evitare di sporcare il form). `finanziaria` e `kolme` NON sono estratti (non presenti nel PDA, compilazione manuale operatore). 200 con `data: {...}` se l'OCR estrae (campi `null` se parziale). In caso di errore "hard" l'errore Anthropic viene classificato in `error_code` strutturato: `ocr_credit_exhausted` (credit balance low → 503), `ocr_rate_limited` (429 → 503), `ocr_unavailable` (5xx/529 → 503), `ocr_auth_error` (401/403 → 503), `ocr_generic_error` (default → 500). Payload errore: `{success:false, error, error_code, http_status, provider_status, provider_message}`. Il client decide il popup in base a `error_code`. Richiede `ANTHROPIC_API_KEY`. Estrae inoltre codice PDA e dati Mobile (costo base, numero SIM, MNP, operatore, presenza portabilita); `cellulare` proviene esclusivamente dalla firma elettronica. Output max2400 token ed effort low su Haiku5.5; stessa chiave API, senza modifica delle regole estrattive. Estrae `tipo_attivazione_fisso` dalla casella nuova linea/numero attivo, con null per dato assente o ambiguo. Numerazioni e tipo attivazione recuperati anche da testo PDF per coordinate tramite `_lib/pda-pdf-text.js` e `unpdf@1.9.1`, esterno esbuild. Estrae anche codice_cliente WindTre, distinto dal codice contratto. Estrae professional_cloud nullable dalla SIM contrattuale Mobile o da Opzioni aggiuntive Fisso; No testuale richiede accordo AI, incerto manuale.
 - **Compatibilità cellulare OCR**: il prompt di `ocr-pda` deve accettare ed estrarre numerazioni mobili italiane di 9 o 10 cifre; non reintrodurre l'assunzione rigida delle sole 10 cifre.
 - `search-anagrafica.js` (GET) — lookup CF/PIVA Include codici cliente WindTre dal registro anagrafico, con relazione opzionale.
 - `gestisci-anagrafiche.js` (GET/POST action-based) — lettura server-side paginata di `anagrafica`, filtro `cluster`, fino a 30 comuni esatti e nominativo; `action=comuni` ricava e mette in cache per 15 minuti i soli valori distinti non vuoti, `action=comuni_istat` cerca per prefisso nel catalogo ufficiale server-only e `action=export` genera il file `.xlsx` completo con gli stessi filtri. `update` è disponibile agli account CRM autenticati e attivi, accetta soltanto i campi anagrafici previsti, valida la selezione ISTAT quando Comune/Provincia cambiano e usa `updated_at` per impedire sovrascritture concorrenti; i valori legacy invariati restano modificabili. `delete` ripete il controllo `ruolo='admin'` lato server e procede solo se nessuna tabella CRM referenzia la riga.
@@ -590,6 +590,41 @@ Nessuna nuova modalita UI, migration o modifica schema/RLS/CC: procedura operati
 
 
 
+### Anteprima manuale dopo errore e Haiku 5.5 (28/10/2026, locale)
+
+Richiesta esplicita del proprietario: dopo esito identita negativo/incerto aprire
+la preview e chiedere «Confermi che il documento visualizzato nella preview e
+quello del cliente in anagrafica?». Tutti i PDF selezionati sono mostrati come
+originali locali in iframe blob, con apertura a dimensione intera. Si abilita
+Si solo dopo il caricamento di tutte le anteprime. No/chiusura annullano; URL
+revocati, testo escaped e risposte tardive scartate se cliente/file/PDA cambiano.
+Si usa ricevuta HMAC e hash degli stessi PDF: nuova action JSON confirm_preview
+senza AI, autore/ora/modalita preview_manuale e dichiarazione conservati con
+esito_automatico originale. Su richiesta si puo superare anche un esito OCR
+negativo: e attestazione umana, non successo automatico. Non serve ritrascrivere
+CF o scrivere un motivo libero. Serve scadenza verificata valida alla firma;
+restano anagrafica attuale, data firma, PDF validi, integrita e permesso Consumer
+VAR extra UE. Cittadinanza richiesta se necessaria. Nessuna deroga ad auth,
+limiti file, legame Business/PDA, controlli commerciali o verifica successiva.
+Aggiungi/Invia riusano la ricevuta; nessuna nuova OCR identita dopo Si. Anche la
+verifica successiva riusa il manuale solo con anagrafica e hash invariati e indica
+esplicitamente che il controllo identita era manuale.
+
+Migrazione claude-haiku-5-5 su ocr-pda e lettore condiviso verifica-documenti
+(identita upload, Business, SIM, bollette, PDA e verifica serale). Rimossi sampling
+non supportati; tool forzato con schema/pagina/citazione invariato. OCR iniziale
+JSON, effort low e max2400token per margine adaptive thinking; lettore max5000,
+cache invalidata da modello/READER_VERSION2026-10-28.4. SDK esistente verificato
+sul payload HTTP simulato, nessuna nuova dipendenza/env/migration. Regole dati
+PDA/MNP/Energia/CSV/Reload/Cloud invariate. Motore2026-10-28.3: CF esatto resta
+prioritario, assenza CF non ripiega su nome/nascita; preview sostituisce il
+precedente popup che imponeva trascrizione CF/motivo. API legacy confirm resta
+compatibile. Pubblicazione ancora da richiedere, ultimo online58aec89.
+Guide ufficiali consultate: https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide
+Build e531/531test, inclusi68Python Backup, preview DOM/annullamento/file cambiati,
+riuso serale senza OCR e richieste modello via SDK simulato. Nessuna nuova
+chiamata AI live, modifica dati CRM, email o cambio modalita serale.
+
 ### Identita Business: CF del rappresentante dalla PDA (28/10/2026)
 
 Pubblicato `920f530`, CI `40728727037` riuscita, Netlify
@@ -600,8 +635,8 @@ Il controllo anticipato legge dalla PDA Business il CF personale nella sezione
 rappresentante legale/delegato, distinto da PIVA aziendale e pagatore SEPA.
 Prima riscontra CF/PIVA aziendale con l’anagrafica CRM; poi confronta esattamente
 CF del rappresentante con documento e scadenza alla firma. Con CF coincidente
-il nome OCR e informativo anche Business. Senza CF sul documento resta il
-riscontro Nome referente completo e nascita coerente; se incerto serve manuale.
+il nome OCR e informativo anche Business. Nel rilascio precedente, senza CF sul documento si usavano nome/nascita;
+la correzione locale sopra richiede ora conferma esplicita del CF.
 Per categorie senza PDA resta Nome referente, senza confrontare persona e PIVA.
 CF persona non leggibile nella PDA Mobile/Fisso/CB richiede copia completa.
 
@@ -632,8 +667,8 @@ richiede conferma manuale, scaduto alla firma blocca. Restano tipo riconosciuto,
 numero documento, parti necessarie e coerenza fra PDF: non approvare tessere
 sanitarie o allegati incompleti soltanto perche riportano un CF. Si verifica la
 coerenza documentale, non l’autenticita/identificazione biometrica da scansione.
-Senza CF restano nome completo e nascita riscontrata nel CF CRM, oppure controllo
-manuale se incerto. Business usa il CF personale dalla PDA come descritto sotto;
+Il precedente fallback senza CF su nome/nascita e superato dalla correzione
+locale sopra: assenza CF richiede conferma esplicita, mai blocco sul nome. Business usa il CF personale dalla PDA come descritto sotto;
 la PIVA aziendale non identifica la persona. Nessuna nuova colonna anagrafica.
 Motore successivo versione `2026-10-28.2` usa la medesima priorita; PDA/intestazione,
 MNP/ICCID, Energia/CSV e notifiche invariati. Ricevuta salva `criterio_identita`
@@ -683,9 +718,9 @@ riconosciute impediscono questa deduzione. Il percorso upload mantiene i control
 precedenti, senza il nuovo costo di scansione operatori. Nessun cambio DB; pubblicata con `a609019`.
 
 Controllo anticipato del solo documento di riconoscimento, confronto con anagrafica:
-Consumer CF esatto (nome/nascita se CF assente); Business CF rappresentante
+Consumer CF esatto (CF assente: conferma esplicita nella correzione locale); Business CF rappresentante
 dalla PDA, oppure Nome referente per categorie senza PDA. Data firma esplicita, tipo e fronte/retro; esiti
-coerente/da correggere/da confermare, manuale tracciato solo per incerto.
+coerente/da correggere/da confermare, conferma preview manuale tracciata dopo esito negativo/incerto, come sopra.
 Cittadinanza esplicita o confermata, mai dedotta da residenza/nascita/nome:
 permesso PDF obbligatorio solo Mobile Consumer + dispositivo VAR + extra UE.
 Nuova API `verifica-identita-upload` con JWT e permesso Upload, ricevuta HMAC

@@ -34,7 +34,7 @@ async function handler(event, deps = {}) {
     if (json) {
       const body = JSON.parse(event.body || '{}');
       const data = Identity.verify(body.token, { user, secret: deps.secret || process.env.SUPABASE_SERVICE_ROLE_KEY });
-      const confirmed = Identity.confirm(data, body);
+      const confirmed = body.action === 'confirm_preview' ? Identity.confirmPreview(data, body) : Identity.confirm(data, body);
       return reply(200, { success: true, token: Identity.sign(confirmed, deps.secret), result: confirmed.result });
     }
     const { files, fields } = await (deps.multipart || multipart)(event);

@@ -32,7 +32,7 @@ const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options
 const { readPdfFields } = require('./_lib/pda-pdf-text');
 
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024;
-const MODEL = 'claude-haiku-4-5-20251001';
+const MODEL = 'claude-haiku-5-5';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -330,7 +330,8 @@ exports.handler = async (event) => {
 
     const completion = await client.messages.create({
       model: MODEL,
-      max_tokens: 1200, // Include identificazione PDA, numerazioni e costo oltre ai campi cliente/device.
+      max_tokens: 2400, // Margine per adaptive thinking e JSON completo, senza cambiare i campi richiesti.
+      output_config: { effort: 'low' },
       system: SYSTEM_PROMPT,
       messages: [
         {

@@ -37,6 +37,12 @@ test('ricontrollo nome identita usa istruzione indipendente e un solo tentativo 
   await assert.rejects(Docs.extractDocument(d,Buffer.from('PDF sintetico'),{pdfText:async()=>'',client:{messages:{create:async r=>{request=r;calls++;return response({fields:{}});}}}}),/non_valida/);
   assert.equal(calls,1);assert.match(request.system,/RICONTROLLO NOME IDENTITA/);assert.match(request.system,/MRZ/);assert.match(request.system,/Nessun nome atteso/);
 });
+test('ricontrollo CF cerca il campo stampato sul retro senza nome o codice atteso e senza retry formato',async()=>{
+  const d={id:'identity',tipo_documento:'identita_upload',pages:1,identity_tax_review:true};let calls=0,request;
+  await assert.rejects(Docs.extractDocument(d,Buffer.from('PDF sintetico'),{pdfText:async()=>'',client:{messages:{create:async r=>{request=r;calls++;return response({fields:{}});}}}}),/non_valida/);
+  assert.equal(calls,1);assert.match(request.system,/RICONTROLLO CF IDENTITA/);assert.match(request.system,/retro della carta/);
+  assert.doesNotMatch(JSON.stringify(request),/RSSMRA80A01H501U|Mario Rossi/);
+});
 
 test('schema rifiuta prova fuori pagina, citazioni vuote, campi eseguibili e codici numerici', () => {
   for (const mutate of [r => { r.fields.codice_contratto = evidence(123); }, r => { r.fields.codice_contratto = { ...evidence('000123'), page: 3 }; },

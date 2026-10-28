@@ -69,11 +69,12 @@ test('PDF vero sintetico: recupera numero nella terza pagina mantenendo separato
 
 test('Function multipart recupera il numero omesso dall AI prima di restituire i dati al wizard',async()=>{
   const filename=path.join(__dirname,'../netlify/functions/ocr-pda.js'),nativeRequire=createRequire(filename),module={exports:{}};
+  let request;
   const raw={codice_contratto:'TEST-001',numero_sim:null,portabilita:false,cellulare:'3351234567'};
   vm.runInNewContext(fs.readFileSync(filename,'utf8'),{module,exports:module.exports,Buffer,
     console:{error(){}},process:{env:{ANTHROPIC_API_KEY:'test-only'}},require(name){
       if(name==='./_lib/require-auth')return {requireAuth:async()=>({ok:true})};
-      if(name==='@anthropic-ai/sdk')return {default:class{constructor(){this.messages={create:async()=>({content:[{type:'text',text:JSON.stringify(raw)}]})};}}};
+      if(name==='@anthropic-ai/sdk')return {default:class{constructor(){this.messages={create:async r=>{request=r;return {content:[{type:'thinking',thinking:''},{type:'text',text:JSON.stringify(raw)}]};}};}}};
       return nativeRequire(name);
     }},{filename});
   const boundary='pda-test-boundary',pdf=await fixturePdf();
@@ -82,4 +83,6 @@ test('Function multipart recupera il numero omesso dall AI prima di restituire i
   assert.equal(response.statusCode,200);const data=JSON.parse(response.body).data;
   assert.equal(data.numero_telefono,'3331234567');assert.equal(data.cellulare,'3351234567');assert.equal(data.codice_contratto,'TEST-001');
   assert.equal(data.portabilita,false);assert.equal(data.costo_offerta_mensile,null);
+  assert.equal(request.model,'claude-haiku-5-5');assert.equal(request.output_config.effort,'low');
+  assert.equal(request.max_tokens,2400);assert.equal(Object.hasOwn(request,'temperature'),false);
 });

@@ -4,7 +4,7 @@
   else root.MiroxVerificaCore = api;
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
-  const VERSION = '2026-10-28.2';
+  const VERSION = '2026-10-28.3';
   const LABELS = { da_controllare: 'Da controllare', controllato: 'Controllato', da_verificare: 'Da verificare', in_attesa_csv: 'In attesa CSV' };
   const FIELD_LABELS = { codice_contratto: 'Codice contratto', costo_offerta_mensile: 'Costo mensile base', portabilita: 'Portabilità', numero_telefono: 'Numero di telefono', numero_provvisorio: 'Numero provvisorio', numero_mnp: 'Numero da portare', operatore_provenienza: 'Gestore di provenienza', tipo_attivazione: 'Tipo attivazione Fisso', imei: 'IMEI', fascia_prezzo: 'Prezzo dispositivo', tipo_acquisto: 'Tipo acquisto', numero_contratto_energia: 'Numero contratto Energia', ex_fornitore: 'Gestore uscente' };
   const norm = v => String(v == null ? '' : v).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
@@ -116,7 +116,6 @@
     const business = norm(c.cluster_cliente || a.cluster) === 'BUSINESS';
     const targetTax = business ? field(pda, 'firmatario_fiscale') || identityPrecheck?.cf_rappresentante : a.cf_piva;
     const targetName = business ? a.nome_referente : a.ragione_sociale;
-    const targetBirth = null;
     const pdaName = field(pda, business ? 'firmatario_nome' : 'intestatario_nome');
     if (pdaName && targetName && (!business || !/^[A-Z0-9]{16}$/.test(compact(targetTax))) && name(pdaName) !== name(targetName)) fail('intestazione_nome', 'Il nome della persona nella PDA non coincide con l’anagrafica CRM.');
     if (business && isPda && !/^[A-Z0-9]{16}$/.test(compact(targetTax))) fail('cf_rappresentante', 'Il CF personale del rappresentante non è leggibile nella sezione dedicata della PDA Business.');
@@ -132,19 +131,22 @@
     if (business && !targetName && !targetTax) fail('firmatario', 'Completa Nome referente nell’anagrafica Business per controllare il documento di riconoscimento.');
     const identityMatches = identities.filter(d => {
       const tax = compact(field(d, 'fiscale')), n = name(field(d, 'nome')), birth = date(field(d, 'nascita'));
+      if (/^[A-Z0-9]{16}$/.test(compact(targetTax))) return Boolean(tax && tax === compact(targetTax));
       if (business) {
-        if (tax && targetTax) return tax === compact(targetTax);
         return Boolean(targetName && n && n.split(' ').length >= 2 && n === name(targetName) && (!targetTax || birthMatchesTax(birth, targetTax)));
       }
-      if (tax && targetTax) return tax === compact(targetTax);
-      return Boolean(targetName && n && n.split(' ').length >= 2 && n === name(targetName) && (birth && (birth === date(targetBirth) || birthMatchesTax(birth, targetTax))));
+      return false;
     });
     if (identityPrecheck) {
       if (business && compact(identityPrecheck.cf_rappresentante) !== compact(targetTax)) fail('cf_rappresentante', 'Il CF del rappresentante della PDA differisce dal controllo identita eseguito nell’upload.');
       if (!signed || !date(identityPrecheck.scadenza) || date(identityPrecheck.scadenza) < signed) fail('scadenza', 'Il documento già controllato nell’upload non è valido alla data di firma del contratto.');
-      else checks.push('Identità già controllata nell’upload rispetto all’anagrafica CRM; validità riscontrata alla data di firma');
+      else checks.push(identityPrecheck.manuale
+        ? 'Identità confermata manualmente nell’upload rispetto all’anagrafica CRM; validità riscontrata alla data di firma'
+        : 'Identità già controllata nell’upload rispetto all’anagrafica CRM; validità riscontrata alla data di firma');
     }
-    else if (!identityMatches.length) fail('identita', 'Il documento d’identità manca, non è leggibile oppure non corrisponde alla persona del contratto.');
+    else if (!identityMatches.length) fail('identita', /^[A-Z0-9]{16}$/.test(compact(targetTax)) && identities.length && identities.every(d => !field(d, 'fiscale'))
+      ? 'Il codice fiscale non è leggibile nel documento: serve un controllo manuale del CF o una copia leggibile. Il nome non sostituisce questo controllo.'
+      : 'Il documento d’identità manca, non è leggibile oppure non corrisponde alla persona del contratto.');
     else {
       const valid = identityMatches.filter(d => signed && date(field(d, 'scadenza')) && date(field(d, 'scadenza')) >= signed);
       if (!valid.length) fail('scadenza', 'Il documento d’identità era scaduto alla data di firma oppure la scadenza non è leggibile.');

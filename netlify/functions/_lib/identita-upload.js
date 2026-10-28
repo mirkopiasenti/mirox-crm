@@ -50,6 +50,26 @@ async function analyze(files, customer, signingDate, deps = {}) {
     documents.push({ sha256: doc.id, pages, reading });
   }));
   documents.sort((a, b) => a.sha256.localeCompare(b.sha256));
+  const taxTarget = Core.customer(customer).business ? customer.cf_rappresentante : customer.cf_piva;
+  if (/^[A-Z0-9]{16}$/.test(Core.norm(taxTarget)) && !documents.some(d => d.reading.fields?.fiscale?.value)
+    && Date.now() < (deps.nameRetryDeadline || started + 18000)) {
+    await Promise.all(documents.map(async doc => {
+      const file = files.find(f => hash(f.buffer) === doc.sha256);
+      try {
+        const repeated = await (deps.extract || Docs.extractDocument)({ id: doc.sha256, tipo_documento: 'identita_upload', pages: doc.pages, identity_tax_review: true }, file.buffer, { ...deps, client });
+        doc.seconda_lettura_cf = repeated;
+        const number = doc.reading.fields?.numero_documento?.value;
+        const sameNumber = number && Core.norm(number) === Core.norm(repeated.fields?.numero_documento?.value);
+        const conflicting = ['scadenza', 'tipo_identita', 'nascita'].some(key => {
+          const a = doc.reading.fields?.[key]?.value, b = repeated.fields?.[key]?.value;
+          return a && b && Core.norm(a) !== Core.norm(b);
+        });
+        if (sameNumber && !conflicting && repeated.fields?.fiscale?.value) {
+          doc.reading = { ...doc.reading, fields: { ...doc.reading.fields, fiscale: repeated.fields.fiscale } };
+        }
+      } catch { /* CF non recuperato: resta necessaria la conferma manuale. */ }
+    }));
+  }
   const first = Core.evaluate(documents.map(d => d.reading), customer, signingDate);
   // Ricontrollo soltanto il nome: altri errori certi restano bloccanti. Nessun dato CRM viene fornito all'AI.
   if (first.errors.length === 1 && first.errors[0] === 'Il nome sul documento non coincide con l’anagrafica.' && Date.now() < (deps.nameRetryDeadline || started + 18000)) {
@@ -85,7 +105,31 @@ function confirm(data, input) {
   if ((manual || !data.result.cittadinanza) && reason.length < 10) throw new Error('Descrivi il controllo manuale effettuato (almeno 10 caratteri).');
   const expiry = data.result.scadenza || require('../../../js/verifica-contratti-core').date(input.scadenza);
   if (!expiry || expiry < data.result.data_firma) throw new Error('Indica una scadenza verificata e valida alla data di firma.');
-  return { ...data, result: { ...data.result, stato: manual ? 'manuale' : 'coerente', cittadinanza: group || null, scadenza: expiry },
-    conferma: { at: new Date().toISOString(), user: data.user, motivo: reason.slice(0, 1000), manuale: manual || !data.result.cittadinanza } };
+  const tax = data.result.cf_da_confermare ? Core.norm(input.codice_fiscale_verificato) : null;
+  const expectedTax = Core.customer(data.customer).business ? data.business_identity?.cf_rappresentante : data.customer?.cf_piva;
+  if (data.result.cf_da_confermare && (!/^[A-Z0-9]{16}$/.test(tax) || tax !== Core.norm(expectedTax))) throw new Error('Il codice fiscale verificato manualmente deve coincidere con quello atteso. Rileggi il documento e l’anagrafica.');
+  return { ...data, result: { ...data.result, stato: manual ? 'manuale' : 'coerente', cf_da_confermare: false, cittadinanza: group || null, scadenza: expiry },
+    conferma: { at: new Date().toISOString(), user: data.user, motivo: reason.slice(0, 1000), manuale: manual || !data.result.cittadinanza,
+      ...(tax ? { codice_fiscale_verificato: tax } : {}) } };
 }
-module.exports = { Core, author, hash, sign, verify, approved, assertPractice, analyze, confirm };
+function confirmPreview(data, input) {
+  const needsConfirmation = ['da_correggere', 'da_confermare'].includes(data.result?.stato)
+    || data.result?.stato === 'coerente' && !data.result.cittadinanza;
+  if (!needsConfirmation || !data.documents?.length) throw new Error('La conferma con anteprima richiede un controllo automatico non concluso. Ripeti il controllo.');
+  const expected = [...new Set(data.documents.map(d => d.sha256))].sort();
+  const viewed = Array.isArray(input.preview_sha256) ? [...new Set(input.preview_sha256)].sort() : [];
+  if (input.preview_visualizzata !== true || JSON.stringify(viewed) !== JSON.stringify(expected)) throw new Error('Visualizza tutti i PDF del documento prima di confermare.');
+  const Verification = require('../../../js/verifica-contratti-core');
+  const signed = Verification.date(data.result.data_firma), expiry = Verification.date(input.scadenza);
+  if (!signed || signed > Verification.romeDay(new Date())) throw new Error('Indica una data effettiva di firma valida.');
+  if (!expiry || expiry < signed) throw new Error('Indica la scadenza verificata sul documento, valida alla data di firma.');
+  const group = input.cittadinanza || data.result.cittadinanza || null;
+  if (![null, 'ue', 'extra_ue'].includes(group)) throw new Error('Cittadinanza non valida.');
+  return { ...data, esito_automatico: data.result,
+    result: { ...data.result, stato: 'manuale', errors: [], uncertain: [], scadenza: expiry, cittadinanza: group,
+      criterio_identita: 'conferma_preview', cf_da_confermare: false },
+    conferma: { at: new Date().toISOString(), user: data.user, manuale: true, modalita: 'preview_manuale',
+      preview_visualizzata: true, preview_sha256: expected,
+      motivo: 'Operatore conferma che il documento visualizzato appartiene al cliente in anagrafica e ne verifica la validita alla firma.' } };
+}
+module.exports = { Core, author, hash, sign, verify, approved, assertPractice, analyze, confirm, confirmPreview };
