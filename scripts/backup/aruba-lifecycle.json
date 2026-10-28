@@ -1,0 +1,32 @@
+{
+  "Rules": [
+    {
+      "ID": "Expire-2-day-checkpoints",
+      "Status": "Enabled",
+      "Filter": {"Tag": {"Key": "retention-days", "Value": "2"}},
+      "Expiration": {"Days": 3},
+      "NoncurrentVersionExpiration": {"NoncurrentDays": 3}
+    },
+    {
+      "ID": "Expire-30-day-checkpoints",
+      "Status": "Enabled",
+      "Filter": {"Tag": {"Key": "retention-days", "Value": "30"}},
+      "Expiration": {"Days": 31},
+      "NoncurrentVersionExpiration": {"NoncurrentDays": 31}
+    },
+    {
+      "ID": "Expire-90-day-checkpoints",
+      "Status": "Enabled",
+      "Filter": {"Tag": {"Key": "retention-days", "Value": "90"}},
+      "Expiration": {"Days": 91},
+      "NoncurrentVersionExpiration": {"NoncurrentDays": 91}
+    },
+    {
+      "ID": "Expire-120-day-files",
+      "Status": "Enabled",
+      "Filter": {"Tag": {"Key": "retention-days", "Value": "120"}},
+      "Expiration": {"Days": 121},
+      "NoncurrentVersionExpiration": {"NoncurrentDays": 121}
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "project_ref": "lbgwamhjkjjfwgusafbi",
+  "region": "eu-central-1",
+  "snapshot_days": 90,
+  "daily_days": 30,
+  "hourly_days": 2,
+  "object_days": 120,
+  "minimum_buckets": [
+    "apri-chiudi-files", "comodato-files", "consensi-privacy",
+    "contratti-vendita", "disdette-files", "moduli-template",
+    "protecta-files", "rimborsi-files", "segnalazioni-files", "switch-sim-files"
+  ]
+}

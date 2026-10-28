@@ -1,0 +1,690 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Mirox backup indipendente EU: S3 protetto, CodeBuild, Scheduler e allarmi. Nessuna modifica al CRM.",
+  "Parameters": {
+    "RecoverySecretArn": {
+      "Type": "String",
+      "AllowedPattern": "arn:aws:secretsmanager:eu-central-1:[0-9]{12}:secret:.+",
+      "Description": "Secret esterno, regione Francoforte, schema in secret.example.json"
+    },
+    "NotificationEmail": {
+      "Type": "String",
+      "AllowedPattern": "[^@ ]+@[^@ ]+\\.[^@ ]+",
+      "Description": "Destinatario proprietario per soli avvisi backup"
+    },
+    "ProjectRef": {
+      "Type": "String",
+      "Default": "lbgwamhjkjjfwgusafbi",
+      "AllowedValues": [
+        "lbgwamhjkjjfwgusafbi"
+      ]
+    },
+    "ScheduleState": {
+      "Type": "String",
+      "Default": "DISABLED",
+      "AllowedValues": [
+        "DISABLED",
+        "ENABLED"
+      ]
+    }
+  },
+  "Resources": {
+    "BackupBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "IgnorePublicAcls": true,
+          "BlockPublicPolicy": true,
+          "RestrictPublicBuckets": true
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerEnforced"
+            }
+          ]
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "ObjectLockEnabled": true,
+        "ObjectLockConfiguration": {
+          "ObjectLockEnabled": "Enabled",
+          "Rule": {
+            "DefaultRetention": {
+              "Mode": "GOVERNANCE",
+              "Days": 120
+            }
+          }
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "Id": "Expire-2-day-checkpoints",
+              "Status": "Enabled",
+              "TagFilters": [
+                {
+                  "Key": "retention-days",
+                  "Value": "2"
+                }
+              ],
+              "ExpirationInDays": 3,
+              "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 3
+              }
+            },
+            {
+              "Id": "Expire-30-day-checkpoints",
+              "Status": "Enabled",
+              "TagFilters": [
+                {
+                  "Key": "retention-days",
+                  "Value": "30"
+                }
+              ],
+              "ExpirationInDays": 31,
+              "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 31
+              }
+            },
+            {
+              "Id": "Expire-90-day-checkpoints",
+              "Status": "Enabled",
+              "TagFilters": [
+                {
+                  "Key": "retention-days",
+                  "Value": "90"
+                }
+              ],
+              "ExpirationInDays": 91,
+              "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 91
+              }
+            },
+            {
+              "Id": "Expire-120-day-checkpoints",
+              "Status": "Enabled",
+              "TagFilters": [
+                {
+                  "Key": "retention-days",
+                  "Value": "120"
+                }
+              ],
+              "ExpirationInDays": 121,
+              "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 121
+              }
+            }
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": "MiroxBackup"
+          }
+        ]
+      }
+    },
+    "SourceBucket": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "IgnorePublicAcls": true,
+          "BlockPublicPolicy": true,
+          "RestrictPublicBuckets": true
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerEnforced"
+            }
+          ]
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "BackupBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "BackupBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "BackupBucket",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Sub": "${BackupBucket.Arn}/*"
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "SourceBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "SourceBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "SourceBucket",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Sub": "${SourceBucket.Arn}/*"
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "Alerts": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "Subscription": [
+          {
+            "Protocol": "email",
+            "Endpoint": {
+              "Ref": "NotificationEmail"
+            }
+          }
+        ]
+      }
+    },
+    "AlertsPolicy": {
+      "Type": "AWS::SNS::TopicPolicy",
+      "Properties": {
+        "Topics": [
+          {
+            "Ref": "Alerts"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "events.amazonaws.com",
+                  "cloudwatch.amazonaws.com"
+                ]
+              },
+              "Action": "sns:Publish",
+              "Resource": {
+                "Ref": "Alerts"
+              },
+              "Condition": {
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "Logs": {
+      "Type": "AWS::Logs::LogGroup",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Properties": {
+        "RetentionInDays": 30
+      }
+    },
+    "RunnerRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codebuild.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "BackupOnly",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetBucketLocation",
+                    "s3:GetBucketVersioning",
+                    "s3:GetBucketObjectLockConfiguration",
+                    "s3:GetBucketPublicAccessBlock",
+                    "s3:GetEncryptionConfiguration",
+                    "s3:ListBucket"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "BackupBucket",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:PutObject",
+                    "s3:PutObjectTagging",
+                    "s3:GetObject",
+                    "s3:GetObjectVersion",
+                    "s3:GetObjectRetention",
+                    "s3:PutObjectRetention"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "${BackupBucket.Arn}/${ProjectRef}/*"
+                  }
+                },
+                {
+                  "Effect": "Deny",
+                  "Action": [
+                    "s3:DeleteObject",
+                    "s3:DeleteObjectVersion",
+                    "s3:BypassGovernanceRetention"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "${BackupBucket.Arn}/*"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:GetObjectVersion"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "${SourceBucket.Arn}/runner.zip"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "s3:GetBucketLocation",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "SourceBucket",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "secretsmanager:GetSecretValue"
+                  ],
+                  "Resource": {
+                    "Ref": "RecoverySecretArn"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": ["Logs", "Arn"]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudwatch:PutMetricData"
+                  ],
+                  "Resource": "*",
+                  "Condition": {
+                    "StringEquals": {
+                      "cloudwatch:namespace": "MiroxBackup"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "Runner": {
+      "Type": "AWS::CodeBuild::Project",
+      "Properties": {
+        "Description": "Mirox backup DB/Storage, read-only source, no production deploy",
+        "ConcurrentBuildLimit": 1,
+        "TimeoutInMinutes": 60,
+        "QueuedTimeoutInMinutes": 5,
+        "ServiceRole": {
+          "Fn::GetAtt": [
+            "RunnerRole",
+            "Arn"
+          ]
+        },
+        "Artifacts": {
+          "Type": "NO_ARTIFACTS"
+        },
+        "Source": {
+          "Type": "S3",
+          "Location": {
+            "Fn::Sub": "${SourceBucket}/runner.zip"
+          },
+          "BuildSpec": "scripts/backup/buildspec.yml"
+        },
+        "Environment": {
+          "Type": "LINUX_CONTAINER",
+          "ComputeType": "BUILD_GENERAL1_SMALL",
+          "Image": "aws/codebuild/standard:7.0",
+          "PrivilegedMode": false,
+          "EnvironmentVariables": [
+            {
+              "Name": "BACKUP_BUCKET",
+              "Value": {
+                "Ref": "BackupBucket"
+              }
+            },
+            {
+              "Name": "BACKUP_SECRET_ARN",
+              "Value": {
+                "Ref": "RecoverySecretArn"
+              }
+            }
+          ]
+        },
+        "LogsConfig": {
+          "CloudWatchLogs": {
+            "Status": "ENABLED",
+            "GroupName": {
+              "Ref": "Logs"
+            }
+          }
+        },
+        "Tags": [
+          {
+            "Key": "Application",
+            "Value": "MiroxBackup"
+          }
+        ]
+      }
+    },
+    "SchedulerDLQ": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "MessageRetentionPeriod": 1209600,
+        "SqsManagedSseEnabled": true
+      }
+    },
+    "SchedulerRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "scheduler.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "StartBackup",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": "codebuild:StartBuild",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "Runner",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": "sqs:SendMessage",
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "SchedulerDLQ",
+                      "Arn"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "Schedule": {
+      "Type": "AWS::Scheduler::Schedule",
+      "Properties": {
+        "Description": "Backup orario, attivare soltanto dopo primo restore collaudato",
+        "ScheduleExpression": "cron(17 * * * ? *)",
+        "ScheduleExpressionTimezone": "UTC",
+        "FlexibleTimeWindow": {
+          "Mode": "OFF"
+        },
+        "State": {
+          "Ref": "ScheduleState"
+        },
+        "Target": {
+          "Arn": {
+            "Fn::Sub": "arn:${AWS::Partition}:scheduler:::aws-sdk:codebuild:startBuild"
+          },
+          "RoleArn": {
+            "Fn::GetAtt": [
+              "SchedulerRole",
+              "Arn"
+            ]
+          },
+          "Input": {
+            "Fn::Sub": "{\"projectName\":\"${Runner}\"}"
+          },
+          "RetryPolicy": {
+            "MaximumEventAgeInSeconds": 1800,
+            "MaximumRetryAttempts": 2
+          },
+          "DeadLetterConfig": {
+            "Arn": {
+              "Fn::GetAtt": [
+                "SchedulerDLQ",
+                "Arn"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "MissingSnapshot": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "Mancano due punti di recupero completi nelle ultime tre ore",
+        "Namespace": "MiroxBackup",
+        "MetricName": "CompleteSnapshot",
+        "Dimensions": [
+          {
+            "Name": "Project",
+            "Value": {
+              "Ref": "ProjectRef"
+            }
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 3600,
+        "EvaluationPeriods": 3,
+        "DatapointsToAlarm": 2,
+        "Threshold": 1,
+        "ComparisonOperator": "LessThanThreshold",
+        "TreatMissingData": "breaching",
+        "AlarmActions": [
+          {
+            "Ref": "Alerts"
+          }
+        ],
+        "OKActions": [
+          {
+            "Ref": "Alerts"
+          }
+        ]
+      }
+    },
+    "SchedulerFailure": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmDescription": "Scheduler non ha consegnato il job di backup",
+        "Namespace": "AWS/SQS",
+        "MetricName": "ApproximateNumberOfMessagesVisible",
+        "Dimensions": [
+          {
+            "Name": "QueueName",
+            "Value": {
+              "Fn::GetAtt": [
+                "SchedulerDLQ",
+                "QueueName"
+              ]
+            }
+          }
+        ],
+        "Statistic": "Maximum",
+        "Period": 300,
+        "EvaluationPeriods": 1,
+        "Threshold": 0,
+        "ComparisonOperator": "GreaterThanThreshold",
+        "TreatMissingData": "notBreaching",
+        "AlarmActions": [
+          {
+            "Ref": "Alerts"
+          }
+        ]
+      }
+    },
+    "BuildFailure": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "EventPattern": {
+          "source": [
+            "aws.codebuild"
+          ],
+          "detail-type": [
+            "CodeBuild Build State Change"
+          ],
+          "detail": {
+            "project-name": [
+              {
+                "Ref": "Runner"
+              }
+            ],
+            "build-status": [
+              "FAILED",
+              "FAULT",
+              "TIMED_OUT",
+              "STOPPED"
+            ]
+          }
+        },
+        "Targets": [
+          {
+            "Id": "BackupFailure",
+            "Arn": {
+              "Ref": "Alerts"
+            },
+            "Input": "{\"message\":\"Backup Mirox non completato: controllare CodeBuild. Nessun punto di recupero valido e stato pubblicato per questa esecuzione.\"}"
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "BackupBucket": {
+      "Value": {
+        "Ref": "BackupBucket"
+      }
+    },
+    "SourceBucket": {
+      "Value": {
+        "Ref": "SourceBucket"
+      }
+    },
+    "RunnerProject": {
+      "Value": {
+        "Ref": "Runner"
+      }
+    },
+    "AlertsTopic": {
+      "Value": {
+        "Ref": "Alerts"
+      }
+    }
+  }
+}

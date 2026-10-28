@@ -1,0 +1,18 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+    commands:
+      - apt-get update -qq
+      - apt-get install -y -qq ca-certificates curl gnupg lsb-release
+      - install -d /usr/share/postgresql-common/pgdg
+      - curl --fail --silent --show-error https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+      - '. /etc/os-release; printf "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt %s-pgdg main\n" "$VERSION_CODENAME" > /etc/apt/sources.list.d/pgdg.list'
+      - apt-get update -qq
+      - apt-get install -y -qq postgresql-client-17
+      - python -m pip install --require-hashes -r scripts/backup/requirements.lock
+  build:
+    commands:
+      - python -m unittest discover -s scripts/backup -p 'test_*.py'
+      - python scripts/backup/backup.py capture

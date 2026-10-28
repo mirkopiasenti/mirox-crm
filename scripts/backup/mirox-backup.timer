@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup Mirox ogni ora, da abilitare dopo il collaudo
+
+[Timer]
+OnCalendar=*-*-* *:17:00 UTC
+Persistent=true
+AccuracySec=30s
+Unit=mirox-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,26 @@
+[Unit]
+Description=Backup cifrato Mirox verso Aruba
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=mirox-backup
+Group=mirox-backup
+WorkingDirectory=/opt/mirox-backup
+LoadCredential=private.json:/etc/mirox-backup/private.json
+ExecStart=/opt/mirox-backup/venv/bin/python scripts/backup/aruba.py capture
+UMask=0077
+TimeoutStartSec=3h
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+LockPersonality=true
+Environment=PYTHONDONTWRITEBYTECODE=1
