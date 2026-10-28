@@ -19,7 +19,7 @@ contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 
 ## Professional Cloud Mobile e Fisso Business
 
-Verifica automatica e promemoria email (28/10, pubblicazione autorizzata in corso):
+Verifica automatica e promemoria email (28/10, pubblicati e migration applicata):
 il worker passa `cluster_cliente` alla validazione PDA condivisa, evitando falsi
 errori `dati_pda` su Mobile/Fisso Business. No e storico sconosciuto restano validi;
 Si richiede una gestione valida. Le scelte non sono dedotte o modificate dall’AI.
@@ -33,10 +33,10 @@ Prima di inviare vengono riletti stato controllato, esito definitivo e scelta:
 se non più valida, notifica superata. Riutilizzati retry SMTP certi e riconciliazione
 degli incerti; il pannello distingue «Promemoria Professional Cloud».
 Migration `database/20261028093837_verifica_professional_cloud_notifiche.sql`
-pronta, NON applicata: amplia il CHECK tipo dell’outbox e aggiorna soltanto la RPC
+applicata in produzione come `20261028095719`: amplia il CHECK tipo dell’outbox e aggiorna soltanto la RPC
 vendita `vendita_verifica_concludi`, INVOKER con grant/RLS invariati; nessun nuovo
-trigger o modifica a tabelle/RPC/permessi CC, nessun backfill. Pubblicare prima
-il worker compatibile, poi applicare la migration e rileggere i vincoli/grant.
+trigger o modifica a tabelle/RPC/permessi CC, nessun backfill. Worker pubblicato
+prima della migration; vincoli validati, grant service-only e INVOKER riletti.
 Non attivare il sistema: in collaudo restano esclusi approvazioni e invii.
 
 ## Funzionamento
@@ -278,7 +278,7 @@ La cache privata usa hash byte PDF + modello + hash prompt; un nuovo CSV riusa l
 letture invariate, mentre il collaudo richiesto dall'admin forza una nuova lettura.
 
 - CB Reload Disattivazione cliente dopo verifica positiva: `info@konatech.it`.
-- Professional Cloud Mobile/Fisso Business Si + Richiedi disattivazione: `mirko.piasenti@gmail.com`, stessi tempi di Reload, con promemoria dedicato (estensione locale 28/10, migration/pubblicazione ancora pendenti).
+- Professional Cloud Mobile/Fisso Business Si + Richiedi disattivazione: `mirko.piasenti@gmail.com`, stessi tempi di Reload, con promemoria dedicato (estensione pubblicata 28/10).
 - Esito Da verificare: motivi/azioni semplici in italiano a `mirko.piasenti@mail.com`.
 - La sola attesa CSV non invia l'email problemi. Nessun invio WhatsApp automatico.
 
@@ -329,3 +329,11 @@ invio singolo, collaudo/spenta, SMTP temporaneo/permanente/incerto. Harness SQL
 con migration reali: accodamento atomico Mobile/Fisso, destinatario, dedupe su
 riesame, No/Mantieni attiva/storico/collaudo esclusi, rollback e grant/RLS invariati.
 Nessuna email reale inviata, nessun contratto reale analizzato o modificato.
+
+Rilascio completo autorizzato 28/10: feature `830d8ad`, pubblicata con `63b8e3d`,
+CI `40668008246` verde 481/481 test versionati; deploy Netlify
+`6ae1c683d971bd720e2c580e` verificato per SHA e asset UI. Migration produzione
+`20261028095719` applicata dopo il worker compatibile, definizione/grant riletti:
+Cloud destinatario Gmail, vincolo valido, INVOKER e service_role invariati.
+Advisor sicurezza/performance invariati, modalità collaudo, zero notifiche e zero
+verifiche in corso; nessuna email di prova né analisi di contratti reali.

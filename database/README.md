@@ -118,7 +118,7 @@ DTO create ed editor conservano Cloud sul Fisso e azzerano solo i dati specifici
 Mobile. Consumer, Turista e Customer Base restano esclusi. Stessi popup, conferme
 e salvataggio di presenza/gestione; nessuna disattivazione o notifica automatica.
 
-Verifica automatica e promemoria email (28/10, pubblicazione autorizzata in corso):
+Verifica automatica e promemoria email (28/10, pubblicati e migration applicata):
 il worker passa `cluster_cliente` alla validazione PDA condivisa, evitando falsi
 errori `dati_pda` su Mobile/Fisso Business. No e storico sconosciuto restano validi;
 Si richiede una gestione valida. Le scelte non sono dedotte o modificate dall’AI.
@@ -132,10 +132,10 @@ Prima di inviare vengono riletti stato controllato, esito definitivo e scelta:
 se non più valida, notifica superata. Riutilizzati retry SMTP certi e riconciliazione
 degli incerti; il pannello distingue «Promemoria Professional Cloud».
 Migration `database/20261028093837_verifica_professional_cloud_notifiche.sql`
-pronta, NON applicata: amplia il CHECK tipo dell’outbox e aggiorna soltanto la RPC
+applicata in produzione come `20261028095719`: amplia il CHECK tipo dell’outbox e aggiorna soltanto la RPC
 vendita `vendita_verifica_concludi`, INVOKER con grant/RLS invariati; nessun nuovo
-trigger o modifica a tabelle/RPC/permessi CC, nessun backfill. Pubblicare prima
-il worker compatibile, poi applicare la migration e rileggere i vincoli/grant.
+trigger o modifica a tabelle/RPC/permessi CC, nessun backfill. Worker pubblicato
+prima della migration; vincoli validati, grant service-only e INVOKER riletti.
 Non attivare il sistema: in collaudo restano esclusi approvazioni e invii.
 
 ## Codici cliente WindTre anagrafici (27/10/2026, migration applicata)
