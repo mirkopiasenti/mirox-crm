@@ -78,7 +78,8 @@ async function analyze(db, id, deps = {}) {
   result.errors.push(...categoryErrors({ ...snapshot.contract, ...result.patch }));
   try {
     const merged = { ...snapshot.contract, ...result.patch };
-    Pda.validate(merged, merged.categoria_snapshot, { requireCode: Pda.isPda(merged.categoria_snapshot), allowLegacy: !Pda.hasMobileData(merged) });
+    Pda.validate(merged, merged.categoria_snapshot, { requireCode: Pda.isPda(merged.categoria_snapshot),
+      allowLegacy: !Pda.hasMobileData(merged), cluster: merged.cluster_cliente });
     if (result.patch.codice_contratto) await Pda.assertAvailable(db, result.patch.codice_contratto, id);
   } catch { result.errors.push({ code: 'dati_pda', message: 'I dati obbligatori della PDA sono incompleti, incoerenti o il codice contratto è già utilizzato.' }); }
   if (result.errors.length) result.esito = 'da_verificare';
@@ -119,9 +120,15 @@ async function processOne(db, { id = null, test = false } = {}, deps = {}) {
 const escape = value => String(value || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function email(job) {
   const reload = job.tipo === 'reload';
-  return { to: job.destinatario, subject: reload ? 'Mirox CRM: promemoria WhatsApp Reload' : 'Mirox CRM: contratto da verificare',
-    html: `<p>${escape(job.payload.cliente)}</p><p>${reload ? 'Contratto verificato. È stata scelta Disattivazione cliente per Smartphone Reload: ricorda di scrivere il promemoria al cliente su WhatsApp.' : 'La verifica ha riscontrato questi problemi:'}</p>`
-      + (reload ? '' : '<ul>' + (job.payload.motivi || []).map(m => `<li>${escape(m.message)}</li>`).join('') + '</ul>')
+  const cloud = job.tipo === 'professional_cloud';
+  if (!reload && !cloud && job.tipo !== 'problemi') throw new Error('tipo_notifica_non_valido');
+  const message = reload ? 'Contratto verificato. È stata scelta Disattivazione cliente per Smartphone Reload: ricorda di scrivere il promemoria al cliente su WhatsApp.'
+    : cloud ? 'Contratto verificato. È stata scelta Richiedi disattivazione per Professional Cloud: ricorda di scrivere il promemoria al cliente su WhatsApp.'
+      : 'La verifica ha riscontrato questi problemi:';
+  return { to: job.destinatario, subject: reload ? 'Mirox CRM: promemoria WhatsApp Reload'
+    : cloud ? 'Mirox CRM: promemoria WhatsApp Professional Cloud' : 'Mirox CRM: contratto da verificare',
+    html: `<p>${escape(job.payload.cliente)}</p><p>${message}</p>`
+      + (reload || cloud ? '' : '<ul>' + (job.payload.motivi || []).map(m => `<li>${escape(m.message)}</li>`).join('') + '</ul>')
       + `<p>Riferimento contratto: ${escape(job.contratto_id)}</p><p><a href="${ORIGIN}/moduli/verifica_contratti.html?contratto_id=${encodeURIComponent(job.contratto_id)}">Apri la pratica nel CRM</a></p>`,
     related_table: 'vendita_contratti', related_id: job.contratto_id };
 }
@@ -134,10 +141,13 @@ async function notifications(db, deps = {}) {
     const token = crypto.randomUUID();
     const claimed = checked(await db.from('vendita_verifica_notifiche').update({ stato: 'in_corso', lock_token: token, tentativi: job.tentativi + 1, updated_at: new Date().toISOString() }).eq('id', job.id).eq('stato', 'in_coda').select('id').maybeSingle());
     if (!claimed) continue;
-    const c = checked(await db.from('vendita_contratti').select('stato_controllo,smartphone_reload,smartphone_reload_modalita').eq('id', job.contratto_id).single());
+    const c = checked(await db.from('vendita_contratti').select('stato_controllo,smartphone_reload,smartphone_reload_modalita,categoria_snapshot,cluster_cliente,professional_cloud,professional_cloud_gestione').eq('id', job.contratto_id).single());
     const r = checked(await db.from('vendita_verifiche').select('esito,risultato,stato_job').eq('contratto_id', job.contratto_id).single());
     const current = job.tipo === 'reload' ? c.stato_controllo === 'controllato' && c.smartphone_reload === true && c.smartphone_reload_modalita === 'Disattivazione cliente'
-      : c.stato_controllo !== 'controllato' && r.esito === 'da_verificare' && r.stato_job === 'fermo' && JSON.stringify(r.risultato?.errors) === JSON.stringify(job.payload.motivi);
+      : job.tipo === 'professional_cloud' ? c.stato_controllo === 'controllato' && Pda.cloudScope(c.categoria_snapshot, c.cluster_cliente)
+        && c.professional_cloud === true && c.professional_cloud_gestione === 'Richiedi disattivazione'
+        && r.esito === 'controllato' && r.stato_job === 'fermo'
+      : job.tipo === 'problemi' && c.stato_controllo !== 'controllato' && r.esito === 'da_verificare' && r.stato_job === 'fermo' && JSON.stringify(r.risultato?.errors) === JSON.stringify(job.payload.motivi);
     if (!current) { checked(await db.from('vendita_verifica_notifiche').update({ stato: 'superata' }).eq('id', job.id).eq('lock_token', token)); continue; }
     let outcome;
     try { outcome = await (deps.sendEmail || sendEmail)(email(job)); }

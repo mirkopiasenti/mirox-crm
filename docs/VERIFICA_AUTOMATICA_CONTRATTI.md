@@ -5,6 +5,40 @@ Migration applicata e riletta a production, versione `20261027172616`.
 Configurazione confermata collaudo: nessuna conferma contratto o email automatica. Checklist e decisioni storiche:
 [analisi](VERIFICA_AUTOMATICA_CONTRATTI_ANALISI_2026-10-27.md).
 
+Ripresa27/10 circa22:15 dopo passaggio Nano->Micro effettuato dal proprietario:
+Auth/REST/SQL rispondono, modalità **collaudo riconfermata**, zero verifiche in
+corso e zero notifiche verifica. Il primo collaudo sui nuovi contratti resta
+previsto insieme per28/10 durante il giorno; nessuna attivazione automatica.
+
+Controllo successivo 27/10 alle 22:45: proprietario conferma Small e upgrade;
+PostgreSQL 17.11 (build Supabase 17.11.0.003) confermato SQL/metadati, progetto
+ACTIVE_HEALTHY e Auth/REST HTTP200 in circa 0,4s. Modalità collaudo confermata,
+zero verifiche in corso e zero notifiche verifica. Test completi sui nuovi
+contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
+`docs/INCIDENTE_ACCESSO_REPORT_2026-10-27.md`.
+
+## Professional Cloud Mobile e Fisso Business
+
+Verifica automatica e promemoria email (28/10, pubblicazione autorizzata in corso):
+il worker passa `cluster_cliente` alla validazione PDA condivisa, evitando falsi
+errori `dati_pda` su Mobile/Fisso Business. No e storico sconosciuto restano validi;
+Si richiede una gestione valida. Le scelte non sono dedotte o modificate dall’AI.
+Dopo esito automatico Controllato, Professional Cloud Si con Richiedi disattivazione
+accoda una email a `mirko.piasenti@gmail.com`, oggetto «Mirox CRM: promemoria WhatsApp
+Professional Cloud», con nome cliente, riferimento e link alla pratica. Il messaggio
+ricorda il WhatsApp manuale; nessun invio WhatsApp o disattivazione sul portale.
+Una notifica per contratto, con tipo `professional_cloud` e chiave dedicata;
+No/Mantieni attiva/Consumer/altre categorie/collaudo non accodano il promemoria.
+Prima di inviare vengono riletti stato controllato, esito definitivo e scelta:
+se non più valida, notifica superata. Riutilizzati retry SMTP certi e riconciliazione
+degli incerti; il pannello distingue «Promemoria Professional Cloud».
+Migration `database/20261028093837_verifica_professional_cloud_notifiche.sql`
+pronta, NON applicata: amplia il CHECK tipo dell’outbox e aggiorna soltanto la RPC
+vendita `vendita_verifica_concludi`, INVOKER con grant/RLS invariati; nessun nuovo
+trigger o modifica a tabelle/RPC/permessi CC, nessun backfill. Pubblicare prima
+il worker compatibile, poi applicare la migration e rileggere i vincoli/grant.
+Non attivare il sistema: in collaudo restano esclusi approvazioni e invii.
+
 ## Funzionamento
 
 - Primo turno alle **21:00 Europe/Rome**, tutti i giorni. Nuovi invii dopo il
@@ -106,7 +140,7 @@ automatico. Il controllo manuale finale resta disponibile in questa modalità.
 Scansioni alla migliore qualità disponibile nel CRM; copia WindTre separata,
 la cui generazione automatica non fa parte di questa preparazione.
 
-Correzioni locali preparate il27/10, ancora da pubblicare esplicitamente:
+Correzioni del27/10 pubblicate su richiesta con84bb310:
 
 - Lettura tramite tool forzato `trascrivi_documento`, schema per tipo allegato e
   validazione server di tutti i campi. Anche i booleani, incluso false, richiedono
@@ -130,7 +164,10 @@ Non attestano l'accuratezza OCR dei futuri documenti: nel primo fascicolo del28/
 controllare intestazione, data firma, identità/scadenza e SIM o bolletta/CSV.
 Qualsiasi lettura ambigua o discordante deve restare da verificare.
 
-Controllo live: sito Netlify ancora67e6de4/6ae0e6e182920c23340fd5cf; progetto
+Pubblicazione verificata: main84bb3100ecb971be5f95a162039199abf750f7e3, CI40563525900
+425/425 riusciti; Netlify6ae0f23563f8ffded0ed96e1 con SHA corretto, JS/CSS/script
+inline identici al commit e API gestisci-verifica-automatica/gestisci-vendita-contratto
+senza JWT401. Il push non modifica la modalità né accoda prove. Progetto
 Supabase dichiarato ACTIVE_HEALTHY e gateway pubblico raggiungibile, ma letture
 SQL/REST autorizzate in timeout, connessione diretta con errore risoluzione host.
 Nessuna configurazione modificata; ultima modalità confermata collaudo, da
@@ -241,6 +278,7 @@ La cache privata usa hash byte PDF + modello + hash prompt; un nuovo CSV riusa l
 letture invariate, mentre il collaudo richiesto dall'admin forza una nuova lettura.
 
 - CB Reload Disattivazione cliente dopo verifica positiva: `info@konatech.it`.
+- Professional Cloud Mobile/Fisso Business Si + Richiedi disattivazione: `mirko.piasenti@gmail.com`, stessi tempi di Reload, con promemoria dedicato (estensione locale 28/10, migration/pubblicazione ancora pendenti).
 - Esito Da verificare: motivi/azioni semplici in italiano a `mirko.piasenti@mail.com`.
 - La sola attesa CSV non invia l'email problemi. Nessun invio WhatsApp automatico.
 
@@ -284,3 +322,10 @@ Suite locale finale: 410/410 test (409 versionati + test backup preesistente),
 30 nuove regressioni del modulo. Nessun collaudo browser eseguito per preferenza
 del proprietario. Letture AI dei fascicoli reali e qualità dell'interfaccia ancora
 da verificare insieme dopo pubblicazione in modalità collaudo.
+
+Verifica estensione Cloud 28/10 (locale): build e 481/481 test (480 versionabili
++ Backup preesistente), inclusi analisi con cluster, email escaped, rilettura scelte,
+invio singolo, collaudo/spenta, SMTP temporaneo/permanente/incerto. Harness SQL
+con migration reali: accodamento atomico Mobile/Fisso, destinatario, dedupe su
+riesame, No/Mantieni attiva/storico/collaudo esclusi, rollback e grant/RLS invariati.
+Nessuna email reale inviata, nessun contratto reale analizzato o modificato.

@@ -16,13 +16,18 @@ async function main() {
       created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now(),categoria_snapshot text,stato_controllo text,codice_contratto text,
       numero_contratto_energia text,ex_fornitore text,controllato_da uuid,controllato_at timestamptz,updated_by uuid,note_controllo text,
       costo_offerta_mensile numeric,portabilita boolean,numero_telefono text,numero_provvisorio text,numero_mnp text,operatore_provenienza text,
-      tipo_attivazione text,imei text,fascia_prezzo text,tipo_acquisto text);
+      tipo_attivazione text,imei text,fascia_prezzo text,tipo_acquisto text,cluster_cliente text,
+      smartphone_reload boolean,smartphone_reload_modalita text);
     CREATE TABLE public.vendita_documenti(id uuid PRIMARY KEY,contratto_id uuid REFERENCES public.vendita_contratti);
     GRANT ALL ON public.vendita_contratti,public.vendita_pratiche,public.anagrafica,public.vendita_documenti TO service_role;
     INSERT INTO public.anagrafica(id,cf_piva,cluster,ragione_sociale,nome_referente) VALUES('${CUSTOMER}','RSSMRA80A01H501U','Consumer','Mario Rossi','Mario');
     INSERT INTO public.vendita_pratiche(id,stato_pratica,created_at) VALUES('${PRACTICE}','inviata','2026-10-27T12:00:00Z');
     INSERT INTO public.vendita_contratti(id,pratica_id,anagrafica_id,categoria_snapshot,stato_controllo,created_at) VALUES('${CONTRACT}','${PRACTICE}','${CUSTOMER}','Energia','da_controllare','2026-10-27T12:00:00Z');`);
   await db.exec(fs.readFileSync(path.join(__dirname, '../database/20261027172616_verifica_automatica_contratti.sql'), 'utf8'));
+  for (const file of ['20261028085821_professional_cloud_mobile_business.sql', '20261028091505_professional_cloud_fisso_business.sql',
+    '20261028093837_verifica_professional_cloud_notifiche.sql']) {
+    await db.exec(fs.readFileSync(path.join(__dirname, '../database', file), 'utf8'));
+  }
   const rows = async (sql, params = []) => (await db.query(sql, params)).rows;
   assert.equal((await rows('select modalita from public.vendita_verifica_config'))[0].modalita, 'collaudo');
   assert.equal((await rows('select primo_turno_at from public.vendita_verifiche'))[0].primo_turno_at.toISOString(), require('../js/verifica-contratti-core').firstDue(new Date()));
@@ -79,6 +84,60 @@ async function main() {
   assert.equal((await complete(live, false))[0].ok, false);
   assert.equal((await rows('select stato_job from public.vendita_verifiche'))[0].stato_job, 'in_coda');
   console.log('OK modifica anagrafica concorrente impedisce approvazione di un fascicolo obsoleto');
+  await db.exec('RESET ROLE');
+  assert.equal((await rows(`select prosecdef from pg_proc where oid='public.vendita_verifica_concludi(uuid,uuid,bigint,timestamptz,jsonb,jsonb,text,jsonb,text,boolean)'::regprocedure`))[0].prosecdef, false);
+  assert.equal((await rows(`select has_function_privilege('authenticated','public.vendita_verifica_concludi(uuid,uuid,bigint,timestamptz,jsonb,jsonb,text,jsonb,text,boolean)','EXECUTE') as allowed`))[0].allowed, false);
+  assert.equal((await rows(`select relrowsecurity from pg_class where oid='public.vendita_verifica_notifiche'::regclass`))[0].relrowsecurity, true);
+  await db.exec('SET ROLE service_role');
+  let scenarioId = 10;
+  for (const scenario of [
+    { category: 'Mobile', flag: true, action: 'Richiedi disattivazione', expected: 'professional_cloud', repeat: true },
+    { category: 'Fisso', flag: true, action: 'Richiedi disattivazione', expected: 'professional_cloud', rollback: true },
+    { category: 'Mobile', flag: true, action: 'Mantieni attiva' },
+    { category: 'Fisso', flag: false },
+    { category: 'Mobile', flag: null },
+    { category: 'Fisso', flag: true, action: 'Richiedi disattivazione', test: true },
+    { category: 'Mobile', flag: true, action: 'Richiedi disattivazione', outcome: 'da_verificare', expected: 'problemi' },
+    { category: 'Fisso', flag: true, action: 'Richiedi disattivazione', outcome: 'in_attesa_csv' },
+    { category: 'Mobile', flag: null, cluster: 'Consumer' },
+    { category: 'Customer Base', flag: null, reload: true, expected: 'reload' }
+  ]) {
+    const id = '00000000-0000-4000-8000-' + String(++scenarioId).padStart(12, '0');
+    await db.query(`INSERT INTO public.vendita_contratti(id,pratica_id,anagrafica_id,categoria_snapshot,cluster_cliente,stato_controllo,professional_cloud,professional_cloud_gestione)
+      VALUES($1,$2,$3,$4,$5,'da_controllare',$6,$7)`, [id, PRACTICE, CUSTOMER, scenario.category, scenario.cluster || 'Business', scenario.flag, scenario.action || null]);
+    await db.query(`UPDATE public.vendita_verifica_config SET modalita=$1`, [scenario.test ? 'collaudo' : 'attiva']);
+    await db.exec('SELECT public.vendita_verifica_sync()');
+    await db.query(`UPDATE public.vendita_verifiche SET prossimo_at=now(),modalita_job=$2 WHERE contratto_id=$1`, [id, scenario.test ? 'collaudo' : 'automatica']);
+    const claimFor = async () => (await rows('select * from public.vendita_verifica_claim($1,$2)', [id, !!scenario.test]))[0];
+    const run = async (claim, patch = {}) => {
+      const owner = (await rows('select to_jsonb(a) as value from public.anagrafica a'))[0].value;
+      const stamp = (await rows('select updated_at from public.vendita_contratti where id=$1', [id]))[0].updated_at;
+      return rows(`select public.vendita_verifica_concludi($1,$2,$3,$4,$5,$6,'hash','[]','test',$7) as ok`,
+        [id, claim.lock_token, claim.revisione, stamp, JSON.stringify(owner), JSON.stringify({ ...result, patch,
+          esito: scenario.outcome || 'controllato', notify_reload: !!scenario.reload }), !!scenario.test]);
+    };
+    const noticeRows = () => rows('select tipo,destinatario from public.vendita_verifica_notifiche where contratto_id=$1', [id]);
+    const v = await claimFor(); assert.ok(v);
+    if (scenario.rollback) {
+      await assert.rejects(run(v, { professional_cloud: false }), /Correzione non ammessa/);
+      assert.equal((await noticeRows()).length, 0);
+      assert.equal((await rows('select count(*) as n from public.vendita_verifica_esecuzioni where contratto_id=$1', [id]))[0].n, 0);
+    }
+    assert.equal((await run(v))[0].ok, true);
+    const notices = await noticeRows();
+    assert.equal(notices.length, scenario.expected ? 1 : 0, JSON.stringify(scenario));
+    if (scenario.expected) {
+      assert.equal(notices[0].tipo, scenario.expected);
+      assert.equal(notices[0].destinatario, scenario.expected === 'problemi' ? 'mirko.piasenti@mail.com' : scenario.expected === 'professional_cloud' ? 'mirko.piasenti@gmail.com' : 'info@konatech.it');
+    }
+    if (scenario.repeat) {
+      await db.query(`UPDATE public.vendita_contratti SET stato_controllo='da_controllare' WHERE id=$1`, [id]);
+      await db.query(`UPDATE public.vendita_verifiche SET prossimo_at=now() WHERE contratto_id=$1`, [id]);
+      assert.equal((await run(await claimFor()))[0].ok, true);
+      assert.equal((await noticeRows()).length, 1);
+    }
+  }
+  console.log('OK Cloud Mobile/Fisso: coda atomica, destinatario, dedupe, collaudo/No/Mantieni attiva/storico esclusi; Reload/problemi e grant invariati');
   await db.close();
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

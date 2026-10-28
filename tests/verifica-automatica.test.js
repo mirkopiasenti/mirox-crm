@@ -25,6 +25,36 @@ function fixture(category = 'Customer Base') {
 }
 const get = (f, id) => f.extracted.documents.find(d => d.id === id).fields;
 
+test('analisi automatica rispetta scope e gestione Cloud su Mobile e Fisso Business, incluso storico', async () => {
+  for (const category of ['Mobile', 'Fisso']) {
+    for (const choice of [
+      { cluster: 'Business', flag: true, action: 'Mantieni attiva', valid: true },
+      { cluster: 'Business', flag: true, action: 'Richiedi disattivazione', valid: true },
+      { cluster: 'Business', flag: false, action: null, valid: true },
+      { cluster: 'Business', flag: null, action: null, valid: true },
+      { cluster: 'Business', flag: true, action: null, valid: false },
+      { cluster: 'Consumer', flag: true, action: 'Mantieni attiva', valid: false }
+    ]) {
+      const f = fixture(category);
+      Object.assign(f.contract, { stato_controllo: 'da_controllare', cluster_cliente: choice.cluster,
+        professional_cloud: choice.flag, professional_cloud_gestione: choice.action });
+      const rows = { vendita_contratti: f.contract, anagrafica: f.customer,
+        vendita_pratiche: { stato_pratica: 'inviata' }, vendita_documenti: f.documents,
+        vendita_documenti_regole: [], vendita_verifica_csv: null, vendita_verifiche: null };
+      const db = { from(table) {
+        assert.ok(Object.hasOwn(rows, table), table);
+        const response = { data: rows[table] };
+        const q = { select() { return q; }, eq() { return q; }, order() { return q; }, limit() { return q; },
+          single: async () => response, maybeSingle: async () => response,
+          then(resolve, reject) { return Promise.resolve(response).then(resolve, reject); } };
+        return q;
+      } };
+      const { result } = await Worker.analyze(db, ID, { readDocuments: async () => ({ documents: f.documents, extracted: f.extracted, proofs: [] }) });
+      assert.equal(result.errors.some(e => e.code === 'dati_pda'), !choice.valid, JSON.stringify({ category, ...choice }));
+    }
+  }
+});
+
 test('documento valido alla data firma, anche se scaduto prima del controllo; scadenza inclusiva', () => {
   const f = fixture();
   assert.equal(Core.evaluate(f).esito, 'controllato');
@@ -210,6 +240,81 @@ test('email distingue destinatari, escape contenuti e nessun invio WhatsApp', ()
   assert.equal(mail.to, 'mirko.piasenti@mail.com'); assert.ok(mail.html.includes('&lt;script&gt;')); assert.ok(!mail.html.includes('<img'));
   assert.ok(mail.html.includes('contratto_id=' + ID));
   assert.ok(Worker.email({ ...job, tipo: 'reload', destinatario: 'info@konatech.it' }).html.includes('ricorda di scrivere'));
+  const cloud = Worker.email({ ...job, tipo: 'professional_cloud', destinatario: 'mirko.piasenti@gmail.com' });
+  assert.equal(cloud.to, 'mirko.piasenti@gmail.com');
+  assert.equal(cloud.subject, 'Mirox CRM: promemoria WhatsApp Professional Cloud');
+  assert.match(cloud.html, /Richiedi disattivazione per Professional Cloud/);
+  assert.match(cloud.html, /ricorda di scrivere il promemoria al cliente su WhatsApp/);
+  assert.match(cloud.html, /&lt;script&gt;/);
+  assert.ok(!cloud.html.includes('<img') && !cloud.html.includes('Smartphone Reload'));
+  assert.throws(() => Worker.email({ ...job, tipo: 'sconosciuto' }), /tipo_notifica/);
+});
+
+function notificationFixture({ mode = 'attiva', contract = {}, review = {}, state = 'in_coda' } = {}) {
+  const job = { id: ID, contratto_id: ID, tipo: 'professional_cloud', destinatario: 'mirko.piasenti@gmail.com',
+    stato: state, tentativi: 0, prossimo_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', payload: { cliente: 'Cliente esempio' } };
+  const tables = { vendita_verifica_config: [{ id: true, modalita: mode }], vendita_verifica_notifiche: [job],
+    vendita_contratti: [{ id: ID, stato_controllo: 'controllato', categoria_snapshot: 'Mobile', cluster_cliente: 'Business',
+      professional_cloud: true, professional_cloud_gestione: 'Richiedi disattivazione', ...contract }],
+    vendita_verifiche: [{ contratto_id: ID, esito: 'controllato', stato_job: 'fermo', ...review }] };
+  const db = { from(table) {
+    assert.ok(Object.hasOwn(tables, table), table);
+    const filters = []; let patch;
+    const execute = () => {
+      const rows = tables[table].filter(row => filters.every(f => f(row)));
+      if (patch) for (const row of rows) Object.assign(row, patch);
+      return { data: structuredClone(rows) };
+    };
+    const q = { select() { return q; }, update(value) { patch = value; return q; },
+      eq(key, value) { filters.push(row => row[key] === value); return q; },
+      lt(key, value) { filters.push(row => row[key] < value); return q; },
+      lte(key, value) { filters.push(row => row[key] <= value); return q; },
+      order() { return q; }, limit() { return q; },
+      async single() { return { data: execute().data[0] }; }, async maybeSingle() { return { data: execute().data[0] || null }; },
+      then(resolve, reject) { return Promise.resolve(execute()).then(resolve, reject); } };
+    return q;
+  } };
+  return { db, job };
+}
+
+test('promemoria Cloud invia solo dopo verifica positiva e annulla le scelte superate', async () => {
+  for (const scenario of [
+    { contract: { categoria_snapshot: 'Mobile' }, send: true },
+    { contract: { categoria_snapshot: 'Fisso' }, send: true },
+    { contract: { professional_cloud_gestione: 'Mantieni attiva' } },
+    { contract: { professional_cloud: false, professional_cloud_gestione: null } },
+    { contract: { professional_cloud: null, professional_cloud_gestione: null } },
+    { contract: { professional_cloud_gestione: null } },
+    { contract: { cluster_cliente: 'Consumer' } },
+    { contract: { categoria_snapshot: 'Customer Base' } },
+    { contract: { stato_controllo: 'da_controllare' } },
+    { review: { esito: 'da_verificare' } },
+    { review: { stato_job: 'in_corso' } }
+  ]) {
+    const { db, job } = notificationFixture(scenario); const sent = [];
+    await Worker.notifications(db, { sendEmail: async mail => { sent.push(mail); return { ok: true }; } });
+    assert.equal(sent.length, scenario.send ? 1 : 0, JSON.stringify(scenario));
+    assert.equal(job.stato, scenario.send ? 'inviata' : 'superata');
+    await Worker.notifications(db, { sendEmail: async () => { assert.fail('invio duplicato'); } });
+  }
+});
+
+test('promemoria Cloud: collaudo e spenta senza invii; SMTP ambiguo resta incerto, rifiuto temporaneo ritenta', async () => {
+  for (const mode of ['collaudo', 'spenta']) {
+    const { db, job } = notificationFixture({ mode });
+    await Worker.notifications(db, { sendEmail: async () => { assert.fail('invio in modalita non attiva'); } });
+    assert.equal(job.stato, 'in_coda'); assert.equal(job.tentativi, 0);
+  }
+  for (const [outcome, expected] of [[{ ok: false }, 'incerta'], [{ ok: false, rejected: true }, 'in_coda'],
+    [{ ok: false, rejected: true, permanent: true }, 'fallita']]) {
+    const { db, job } = notificationFixture();
+    await Worker.notifications(db, { sendEmail: async () => outcome });
+    assert.equal(job.stato, expected); assert.equal(job.tentativi, 1);
+    await Worker.notifications(db, { sendEmail: async () => { assert.fail('retry prematuro o ambiguo'); } });
+  }
+  const { db, job } = notificationFixture({ state: 'in_corso' });
+  await Worker.notifications(db, { sendEmail: async () => { assert.fail('invio incerto duplicato'); } });
+  assert.equal(job.stato, 'incerta');
 });
 test('lettura AI incompleta o risposta fuori schema non produce un esito', async () => {
   const doc = { id: 'x', tipo_documento: 'copia_sim_mnp', pages: 1 };
