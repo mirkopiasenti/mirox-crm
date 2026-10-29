@@ -1605,3 +1605,12 @@ production20261029202906, sorgente20261029201139. Nessuna modifica CC/env/schedu
 qrcode1.5.4, zxing-wasm3.1.6, @napi-rs/canvas1.0.13 fissati; WASM locale e PDF-lib
 browser vendorizzato dalla build. Nessun push; camera iPhone/Android da collaudare
 con proprietario dopo rilascio autorizzato. Fonte AGENTS e docs/SCANNER_DOCUMENTI_2026-10-29.md.
+
+### Debug scanner29/10 (locale)
+
+Fix asincronia facciate/abbandono pagina/riapertura QR; retry ricezione PC senza
+perdere QR/scansione,503 per errori servizio e rilettura DB prima di compensare
+un esito ambiguo (mai cancellare PDF gia pronto o di stato non rileggibile).
+Decoder verifica entrambe le scale per trovare CF discordanti anche sulla stessa
+pagina. Nessuna modifica schema/ambiente o nuovo test cliente; fonte AGENTS e
+sezione Debug di docs/SCANNER_DOCUMENTI_2026-10-29.md.

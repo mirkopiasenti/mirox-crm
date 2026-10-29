@@ -831,3 +831,12 @@ service_role CRUD=true,0sessioni. Advisor sicurezza stesse7categorie: solo INFO
 `rls_enabled_no_policy`31→32 atteso per nuova tabella esclusivamente server.
 Codice frontend/functions ancora locale; nessun push o test su documenti reali.
 [Flusso, sicurezza e verifiche](../docs/SCANNER_DOCUMENTI_2026-10-29.md).
+
+### Scanner29/10: recupero risposta ambigua, nessuna nuova migration
+
+Il backend rilegge vendita_scanner_sessioni prima della compensazione di un
+salvataggio con risposta persa: stato pronta/consumata e SHA del PDF corrispondente
+preservano il file e rendono riuscito il retry. Se la rilettura fallisce, conserva
+byte e riferimento per evitare cancellazioni di un commit forse riuscito. Gli errori
+servizio sono503 per consentire il recupero PC. Nessuna modifica a schema, ACL,
+RLS, bucket o dati production durante questo debug; prove su fixture/SQL isolato.

@@ -3,21 +3,21 @@
   const core=window.MiroxScannerCore,$=id=>document.getElementById(id);
   const params=new URLSearchParams(location.hash.slice(1)),id=params.get('id'),token=params.get('token');
   history.replaceState(null,'',location.pathname);
-  let stream=null,sides=[],photos=[],urls=[],sending=false,taking=false,starting=false,cameraRevision=0,expires=0,sideIndex=0,pendingPdf=null;
+  let stream=null,sides=[],photos=[],urls=[],sending=false,taking=false,starting=false,cameraRevision=0,lifecycle=0,expires=0,sideIndex=0,pendingPdf=null;
   const status=text=>{$('scanStatus').textContent=text;};
   async function request(body){
     const response=await window.MiroxApi.fetch('/.netlify/functions/scanner-documenti',{method:'POST',headers:{'X-Scanner-Token':token,'X-Scanner-Id':id,...(body instanceof FormData?{}:{'Content-Type':'application/json'})},body:body instanceof FormData?body:'{}'});
     const data=await response.json();if(!response.ok||!data.success)throw Error(data.error||'Invio non riuscito.');return data;
   }
   function stop(){cameraRevision++;if(stream)stream.getTracks().forEach(track=>track.stop());stream=null;$('scanVideo').srcObject=null;$('scanTake').disabled=true;}
-  function clear(){pendingPdf=null;stop();urls.forEach(url=>URL.revokeObjectURL(url));urls=[];photos=[];$('scanThumbnails').replaceChildren();}
+  function clear(){lifecycle++;pendingPdf=null;stop();urls.forEach(url=>URL.revokeObjectURL(url));urls=[];photos=[];$('scanThumbnails').replaceChildren();}
   function update(){
     $('scanSide').textContent=sideIndex<sides.length?sides[sideIndex]:'Controlla tutte le anteprime';
     $('scanTake').disabled=!stream||sideIndex>=sides.length||sending||taking;
     $('scanSend').hidden=photos.filter(Boolean).length!==sides.length;
     $('scanSend').disabled=sending;
     const container=$('scanThumbnails');container.replaceChildren();
-    photos.forEach((photo,index)=>{if(!photo)return;const fig=document.createElement('figure'),img=document.createElement('img'),caption=document.createElement('figcaption'),redo=document.createElement('button');img.src=urls[index];img.alt=sides[index];caption.textContent=sides[index];redo.type='button';redo.textContent='Ripeti scatto';redo.disabled=sending;redo.addEventListener('click',()=>{sideIndex=index;update();status('Ripeti '+sides[index].toLowerCase()+'.');});fig.append(img,caption,redo);container.append(fig);});
+    photos.forEach((photo,index)=>{if(!photo)return;const fig=document.createElement('figure'),img=document.createElement('img'),caption=document.createElement('figcaption'),redo=document.createElement('button');img.src=urls[index];img.alt=sides[index];caption.textContent=sides[index];redo.type='button';redo.textContent='Ripeti scatto';redo.disabled=sending||taking;redo.addEventListener('click',()=>{if(sending||taking)return;sideIndex=index;update();status('Ripeti '+sides[index].toLowerCase()+'.');});fig.append(img,caption,redo);container.append(fig);});
   }
   async function start(){if(starting||sending)return;starting=true;try{
     if(Date.now()>=expires)throw Error('QR scaduto. Generane uno nuovo dal CRM.');
@@ -27,7 +27,7 @@
   }catch(error){stop();status('Fotocamera non disponibile: '+error.message+' Puoi tornare al CRM e scegliere il caricamento PDF.');}finally{starting=false;}}
   async function take(){try{
     if(!stream||sending||taking||sideIndex>=sides.length)return;
-    taking=true;update();const stamp=cameraRevision;
+    taking=true;update();const stamp=cameraRevision,index=sideIndex;
     const video=$('scanVideo');if(!video.videoWidth)throw Error('Attendi la fotocamera.');
     const area=core.crop(video.videoWidth,video.videoHeight),canvas=document.createElement('canvas');
     // Il riquadro guida lascia un margine: si conserva l’intera area visibile per non tagliare dati.
@@ -37,24 +37,26 @@
     if(stamp!==cameraRevision)return;
     if(!blob)throw Error('Scatto non disponibile. Riprova.');
     pendingPdf=null;
-    if(urls[sideIndex])URL.revokeObjectURL(urls[sideIndex]);photos[sideIndex]=blob;urls[sideIndex]=URL.createObjectURL(blob);
+    if(urls[index])URL.revokeObjectURL(urls[index]);photos[index]=blob;urls[index]=URL.createObjectURL(blob);
     sideIndex=photos.findIndex(photo=>!photo);if(sideIndex<0)sideIndex=photos.length<sides.length?photos.length:sides.length;
     update();status(sideIndex>=sides.length?'Controlla fronte e retro, poi invia al CRM.':'Acquisisci '+sides[sideIndex].toLowerCase()+'.');
   }catch(error){status(error.message);}finally{taking=false;update();}}
   async function send(){
     if(sending||taking||photos.filter(Boolean).length!==sides.length)return;
-    sending=true;update();
+    sending=true;update();const stamp=lifecycle,active=()=>stamp===lifecycle;
     try{
       if(Date.now()>=expires)throw Error('QR scaduto. Generane uno nuovo dal CRM.');
       status('Preparazione e invio al CRM...');
       if(!pendingPdf){const pdf=await PDFLib.PDFDocument.create();
-      for(const blob of photos){const image=await pdf.embedJpg(await blob.arrayBuffer());const page=pdf.addPage([image.width,image.height]);page.drawImage(image,{x:0,y:0,width:image.width,height:image.height});}
-      pendingPdf=await pdf.save();}
+      for(const blob of photos){const photoBytes=await blob.arrayBuffer();if(!active())return;
+        const image=await pdf.embedJpg(photoBytes);if(!active())return;
+        const page=pdf.addPage([image.width,image.height]);page.drawImage(image,{x:0,y:0,width:image.width,height:image.height});}
+      const saved=await pdf.save();if(!active())return;pendingPdf=saved;}
       const bytes=pendingPdf;if(bytes.length>core.MAX_BYTES)throw Error('Le immagini superano 4 MB. Ripeti gli scatti evitando sfondi molto dettagliati.');
-      const form=new FormData();form.append('file',new Blob([bytes],{type:'application/pdf'}),'documento.pdf');await request(form);
+      const form=new FormData();form.append('file',new Blob([bytes],{type:'application/pdf'}),'documento.pdf');await request(form);if(!active())return;
       clear();$('scanCapture').hidden=true;status('Documento inviato al CRM. Puoi chiudere questa pagina e continuare dal computer.');
-    }catch(error){status(error.message+' Gli scatti restano disponibili in questa pagina per riprovare.');}
-    finally{sending=false;update();}
+    }catch(error){if(active())status(error.message+' Gli scatti restano disponibili in questa pagina per riprovare.');}
+    finally{sending=false;if(active())update();}
   }
   $('scanStart').addEventListener('click',start);$('scanTake').addEventListener('click',take);$('scanSend').addEventListener('click',send);
   window.addEventListener('pagehide',clear);

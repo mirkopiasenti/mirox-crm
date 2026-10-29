@@ -1068,3 +1068,17 @@ Struttura aggiunta: `moduli/scanner-documenti.html`, `css/scanner-documenti.css`
 Migration privata gia applicata il29/10, codice ancora locale e **non pubblicato**.
 Restano da collaudare fotocamera, nitidezza e limiti peso con iPhone/Android reali.
 [Guida tecnica, verifiche e limiti](docs/SCANNER_DOCUMENTI_2026-10-29.md).
+
+### Debug scanner29/10 — correzioni locali, non pubblicate
+
+Corretti scatti asincroni che potevano sostituire la facciata sbagliata, invii
+avviati dopo abbandono pagina durante la preparazione del PDF e riapertura QR
+bloccata da una creazione precedente ancora pendente. Ricezione PC ritentata fino
+a3volte dopo errori di rete/5xx, QR conservato visibile e pulsante Riprova ricezione
+sulla stessa sessione. Il backend rilegge lo stato dopo una risposta DB ambigua
+prima di eliminare file: un PDF gia registrato pronto viene preservato. Errori
+servizio503, conferme/scadenze/permessi invariati. Barcode cercati a entrambe le
+scale anche se il primo CF e gia leggibile, per rilevare discordanze.
+Test riproducono6bug prima del fix e verificano anche JPEG ruotato come PDF telefono;
+nessun browser, lettura cliente, email o nuovo schema production.
+Dettagli e risultati aggiornati nella [guida scanner](docs/SCANNER_DOCUMENTI_2026-10-29.md).

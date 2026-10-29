@@ -161,3 +161,40 @@ sessione reale creata. Vecchie scansioni compresse non diventano leggibili per
 l’aggiunta del decoder. Necessario collaudo fisico iPhone/Android dopo push
 richiesto: permesso fotocamera, fronte/retro, luce/riflessi,4facciate/4MiB,
 rinnovo QR, perdita rete, confronto CF/scadenza reali e fallback manuale.
+
+## Debug del29/10: correzioni successive, ancora locali
+
+Sei problemi riprodotti con test inizialmente falliti:
+
+1. Cambiare facciata con Ripeti durante la conversione dello scatto poteva
+   sovrascrivere il fronte con il retro. Indice acquisizione fissato all’avvio,
+   Ripeti bloccato durante elaborazione/invio e controllo anche sui click tardivi.
+2. Abbandonare la pagina durante preparazione PDF non fermava la continuazione
+   asincrona: poteva ricreare il PDF e avviare l’upload. Controlli di generazione
+   dopo ogni await fermano il lavoro prima dell’invio. Una richiesta gia inviata
+   puo essere stata accettata: questa correzione non annulla scritture gia avvenute.
+3. Chiudere il modal mentre create era pendente e riaprirlo restituiva la vecchia
+   promise senza aprire una nuova finestra. Controllo basato sul modal attuale,
+   creazione vecchia revocata senza interferire con la nuova.
+4. Errore di rete su stato/download fermava il polling, richiedendo rigenerazione
+   e perdita della scansione. Ora fino a3retry progressivi2/4/6secondi per rete/5xx,
+   poi Riprova ricezione sulla stessa sessione. QR preservato, errore in riga
+   separata;410/403 non ritentati automaticamente. Errori servizio API503.
+5. Risposta DB persa dopo commit dello stato pronta poteva attivare compensazione
+   e cancellare il PDF gia registrato. Rilettura prima della rimozione: pronto o
+   consumato con SHA atteso viene preservato e restituito come successo; se DB
+   non rileggibile, nessuna rimozione di un esito incerto. Scadenza e pulizia restano.
+6. Il primo CF leggibile interrompeva la ricerca sulla pagina; un secondo CF
+   discordante leggibile soltanto alla scala successiva veniva ignorato. Entrambe
+   le scale esaminate, budget controllato prima di ognuna, esito incerto se incompleto.
+
+Aggiunti anche test recupero manuale dopo retry esauriti, nessun retry per QR
+scaduto,503 ripulito e barcode su vera immagine JPEG ruotata incorporata nel PDF.
+Test interni/DOM/fixture senza browser o dati reali; nessuna chiamata AI, email,
+conferma contratto, modifica schema, migration o configurazione produzione.
+
+Verifica finale debug: build e suite su snapshot isolato con sole modifiche scanner
+561/561verdi; checkout con19test planning paralleli580/580verdi. Test mirati finali
+25/25verdi, inclusa rilettura DB non disponibile che conserva il file di esito incerto.
+Diff senza errori di whitespace. Nessun push: prima del rilascio resta necessario
+il consenso di pubblicazione, poi il collaudo fisico iPhone/Android con proprietario.

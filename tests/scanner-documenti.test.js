@@ -23,6 +23,13 @@ test('combinazioni scanner: CIE sola/facoltativa TS, cartacea e patente obbligan
 test('barcode Code39 e Code128 letti dai byte PDF reali con pagina, senza usare OCR o dati CRM',async()=>{
   for(const format of ['Code39','Code128']){const bytes=await pdfCodes([cf],format);const result=await Barcode.readPdf(bytes);assert.equal(result.complete,true);assert.equal(result.values[0].value,cf);assert.equal(result.values[0].page,1);assert.equal(result.conflict,false);}
 });
+test('barcode letto da fotografia JPEG ruotata incorporata nel PDF come sul telefono',async()=>{
+ const {createCanvas,loadImage}=require('@napi-rs/canvas');
+ const out=await Writer.writeBarcode(cf,{format:'Code39',scale:4}),source=await loadImage(Buffer.from(await out.image.arrayBuffer()));
+ const canvas=createCanvas(1600,1000),ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,1600,1000);ctx.translate(1600,1000);ctx.rotate(Math.PI);ctx.drawImage(source,100,300,1400,250);
+ const pdf=await PDFDocument.create(),jpg=await pdf.embedJpg(await canvas.encode('jpeg',94));pdf.addPage([1600,1000]).drawImage(jpg,{x:0,y:0,width:1600,height:1000});
+ const result=await Barcode.readPdf(Buffer.from(await pdf.save()));assert.equal(result.complete,true);assert.equal(result.values[0].value,cf);
+});
 test('barcode CF con checksum errato non diventa un dato corretto; barcode distinti sono discordanti',async()=>{
   assert.equal(Barcode.validTax(cf.slice(0,-1)+'A'),null);assert.equal(Barcode.validTax('01234567890'),null);
   const bad=await Barcode.readPdf(await pdfCodes([cf.slice(0,-1)+'A']));assert.equal(bad.values.length,0);assert.equal(bad.complete,true);
@@ -42,17 +49,19 @@ test('CF barcode prevale sulla lettera sbagliata AI, tessera sanitaria non impon
   const missing=Identity.Core.evaluate([Barcode.apply(reading({fiscale:cf}),{attempted:true,complete:true,values:[],conflict:false})],person,'2026-10-29');assert.equal(missing.stato,'da_confermare');
 });
 function dbFixture(){
- const rows=new Map(),files=new Map(),calls=[];let removedFail=false;
+ const rows=new Map(),files=new Map(),calls=[];let removedFail=false,ambiguousReady=false,blockedRead=false;
  const db={storage:{from:()=>({upload:async(path,bytes)=>{if(files.has(path))return {error:{message:'Exists'}};files.set(path,Buffer.from(bytes));return {data:{path}};},download:async path=>files.has(path)?{data:new Blob([files.get(path)])}:{error:{message:'Missing'}},remove:async paths=>{if(removedFail)return {error:{message:'Unavailable'}};paths.forEach(p=>files.delete(p));return {data:[]};}})},from(table){
   let filters=[],operation='select',payload,limit=Infinity;
   const q={select(){return q;},eq(k,v){filters.push(r=>r[k]===v);return q;},neq(k,v){filters.push(r=>r[k]!==v);return q;},in(k,v){filters.push(r=>v.includes(r[k]));return q;},gt(k,v){filters.push(r=>r[k]>v);return q;},lt(k,v){filters.push(r=>r[k]<v);return q;},ilike(){return q;},limit(n){limit=n;return q;},insert(v){operation='insert';payload=v;return q;},update(v){operation='update';payload=v;return q;},delete(){operation='delete';return q;},maybeSingle(){return execute(true);},then(resolve,reject){return execute(false).then(resolve,reject);}};
   async function execute(single){calls.push({table,operation});if(table==='anagrafica')return {data:[]};let values=[...rows.values()].filter(r=>filters.every(f=>f(r))).slice(0,limit);
+   if(operation==='select'&&blockedRead)return {error:{code:'NETWORK',message:'Rilettura non disponibile'}};
    if(operation==='insert'){rows.set(payload.id,{...payload,created_at:new Date().toISOString()});values=[payload];}
    if(operation==='update')values.forEach(r=>Object.assign(r,payload));if(operation==='delete')values.forEach(r=>rows.delete(r.id));
+   if(operation==='update'&&payload.stato==='pronta'&&ambiguousReady){ambiguousReady=false;return {error:{code:'NETWORK',message:'Risposta persa dopo commit'}};}
    return {data:single?(values[0]||null):values.map(r=>({...r}))};}
   return q;
  }};
- return {db,rows,files,calls,set removedFail(v){removedFail=v;}};
+ return {db,rows,files,calls,set removedFail(v){removedFail=v;},set ambiguousReady(v){ambiguousReady=v;},set blockedRead(v){blockedRead=v;}};
 }
 async function create(f,pacchetto={tipo:'cie'}){let link;const result=await Sessions.create(f.db,'user',person,pacchetto,{secret:'fixture',origin:'https://mirox-crm.it',qr:async url=>{link=url;return 'data:image/png;base64,fixture';}});const parts=new URLSearchParams(new URL(link).hash.slice(1));return {...result,token:parts.get('token')};}
 test('QR conserva token solo come hash, URL senza query e owner/anagrafica/TTL vincolati',async()=>{
@@ -81,10 +90,29 @@ test('tessera fronte/retro obbligatoria, cleanup non perde i riferimenti se Stor
  await assert.rejects(Sessions.cleanup(f.db));assert.equal(f.rows.size,1);assert.equal(f.files.size,1);
  f.removedFail=false;assert.equal(await Sessions.cleanup(f.db),1);assert.equal(f.files.size,0);assert.equal(f.rows.size,0);
 });
+test('risposta DB persa dopo commit upload non elimina il PDF gia registrato pronto',async()=>{
+ const f=dbFixture(),s=await create(f),row=await Sessions.get(f.db,s.id,{user:'user'}),bytes=await pdfCodes([cf,cf]);
+ f.ambiguousReady=true;await Sessions.upload(f.db,row,bytes,{pdfInfo:async()=>2});
+ const ready=await Sessions.get(f.db,s.id,{user:'user'});assert.equal(ready.stato,'pronta');assert.equal(f.files.size,1);
+ assert.deepEqual(await Sessions.download(f.db,ready,person),bytes);
+ const unknown=dbFixture(),u=await create(unknown),before=await Sessions.get(unknown.db,u.id,{user:'user'});unknown.ambiguousReady=true;unknown.blockedRead=true;
+ await assert.rejects(Sessions.upload(unknown.db,before,bytes,{pdfInfo:async()=>2}),/non disponibile/);
+ assert.equal(unknown.files.size,1);assert.equal(unknown.rows.get(u.id).stato,'pronta');
+});
+test('decoder esamina la seconda scala anche se la prima ha gia letto un CF',async()=>{
+ let calls=0;
+ const result=await Barcode.readPdf(await pdfCodes([cf]),{render:async()=>new Uint8Array([1]),decode:async()=>[{text:++calls===1?cf:other,format:'Code39'}]});
+ assert.equal(calls,2);assert.equal(result.conflict,true);
+});
 test('API scanner richiede JWT desktop e autorizzazione owner sul telefono; token non valido senza accessi DB',async()=>{
  const f=dbFixture();const denied=await Api.handler({httpMethod:'POST',headers:{},body:'{}'},{db:f.db,requireAuth:async()=>({ok:false,status:401,error:'No JWT'})});assert.equal(denied.statusCode,401);
  const bad=await Api.handler({httpMethod:'POST',headers:{'x-scanner-token':'invalido','x-scanner-id':'00000000-0000-0000-0000-000000000000'},body:'{}'},{db:f.db,secret:'fixture'});assert.equal(bad.statusCode,403);assert.equal(f.calls.length,0);
  const s=await create(f);const deniedOwner=await Api.handler({httpMethod:'POST',headers:{'x-scanner-token':s.token,'x-scanner-id':s.id},body:'{}'},{db:f.db,secret:'fixture',authorizeOwner:async()=>({ok:false,status:403,error:'Account disabilitato'})});assert.equal(deniedOwner.statusCode,403);
+});
+test('errore temporaneo database esposto come503 per consentire il retry del PC',async()=>{
+ const db={from(){return {select(){return this;},eq(){return this;},maybeSingle:async()=>({error:{code:'NETWORK'}})};}};
+ const result=await Api.handler({httpMethod:'POST',headers:{},body:JSON.stringify({action:'status',id:'11111111-1111-4111-8111-111111111111'})},{db,requireAuth:async()=>({ok:true,user:{id:'user'}})});
+ assert.equal(result.statusCode,503);assert.doesNotMatch(result.body,/NETWORK/);
 });
 test('pagina mobile senza storage locale, PDF vendorizzato e fotocamera limitata alla pagina scanner',()=>{
  const mobile=fs.readFileSync(require.resolve('../js/scanner-documenti-mobile.js'),'utf8'),html=fs.readFileSync(require.resolve('../moduli/scanner-documenti.html'),'utf8');

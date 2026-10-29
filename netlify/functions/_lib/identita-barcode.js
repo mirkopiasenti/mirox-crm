@@ -21,10 +21,10 @@ async function decodePdf(bytes,deps={}){
     for(let page=1;page<=Math.min(count,8);page++){
       if(Date.now()>deadline){complete=false;break;}
       for(const scale of [2,3.5]){
+        if(Date.now()>deadline){complete=false;break;}
         const image=await (deps.render||renderPageAsImage)(new Uint8Array(bytes),page,{canvasImport:()=>import('@napi-rs/canvas'),width:Math.min(sizes[page-1].width*scale,2600,Math.sqrt(8e6*sizes[page-1].width/sizes[page-1].height))});
         const codes=await (deps.decode||ZX.readBarcodes)(new Uint8Array(image),{formats:['Code39','Code128','DataMatrix','PDF417'],tryHarder:true,tryRotate:true,tryInvert:true,maxNumberOfSymbols:10});
         for(const item of codes){const value=validTax(item.text);if(value&&!values.some(v=>v.value===value&&v.page===page))values.push({value,page,format:item.format});}
-        if(codes.some(c=>validTax(c.text)))break;
       }
     }
     complete=complete&&count<=8;

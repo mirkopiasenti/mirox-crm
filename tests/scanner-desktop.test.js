@@ -2,9 +2,9 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 function fixture(respond){
  const calls=[],timers=new Map(),modals=[];let next=0;
- const element=()=>({innerHTML:'',textContent:'',listeners:{},addEventListener(k,f){this.listeners[k]=f;}});
+ const element=()=>({innerHTML:'',_text:'',get textContent(){return this._text;},set textContent(value){this._text=value;this.innerHTML='';},listeners:{},addEventListener(k,f){this.listeners[k]=f;}});
  const window={MiroxScannerCore:require('../js/scanner-documenti-core'),MiroxSafe:{escapeHtml:v=>v},MiroxApi:{fetch:async(_,options)=>{const input=JSON.parse(options.body);calls.push(input);return respond(input);}},MiroxUI:{_build(options){
-  const box=element(),pdf=element(),renew=element(),type=element(),health=element(),m={box,pdf,renew,type,health,body:{querySelector:selector=>selector==='[data-scan-type]'?type:selector==='[data-scan-health]'?health:box},foot:{querySelector:selector=>selector==='[data-scan-pdf]'?pdf:renew},closed:false,close(){this.closed=true;options.onClose();}};modals.push(m);return m;
+  const box=element(),info=element(),pdf=element(),renew=element(),retry=element(),type=element(),health=element(),m={box,info,pdf,renew,retry,type,health,body:{querySelector:selector=>selector==='[data-scan-type]'?type:selector==='[data-scan-health]'?health:selector==='[data-scan-status]'?info:box},foot:{querySelector:selector=>selector==='[data-scan-pdf]'?pdf:selector==='[data-scan-retry]'?retry:renew},closed:false,close(){this.closed=true;options.onClose();}};modals.push(m);return m;
  }}};
  vm.runInNewContext(fs.readFileSync(require.resolve('../js/scanner-documenti-ui'),'utf8'),{window,File,setTimeout(fn){const key=++next;timers.set(key,fn);return key;},clearTimeout:key=>timers.delete(key)});
  return {ui:window.MiroxScannerUI,calls,timers,modals,async poll(){const [key,fn]=timers.entries().next().value;timers.delete(key);await fn();}};
@@ -45,4 +45,27 @@ test('QR desktop: tipo documento modificabile nel popup, tessera obbligatoria e 
  const m=f.modals[0];m.type.value='patente';m.type.listeners.change();await tick();
  assert.equal(packet.tipo,'patente');assert.equal(packet.tessera_sanitaria,true);assert.equal(m.health.disabled,true);assert.equal(f.calls.filter(c=>c.action==='create').at(-1).pacchetto.tessera_sanitaria,true);
  m.type.value='passaporto';m.type.listeners.change();await tick();assert.equal(fallback,1);assert.equal(m.closed,true);assert.equal(n,2);
+});
+test('QR desktop: riapertura immediata mentre la vecchia creazione e ancora pendente',async()=>{
+ let release,n=0;
+ const f=fixture(async input=>input.action==='create'&&++n===1?new Promise(resolve=>{release=()=>resolve(response({id:'vecchia',qr:'data:image/png;base64,fixture'}));}):input.action==='create'?response({id:'nuova',qr:'data:image/png;base64,fixture'}):response({}));
+ const old=f.ui.open(options);f.ui.invalidate();const next=f.ui.open(options);
+ assert.equal(f.modals.length,2);await next;release();await old;
+ assert.equal(f.modals[1].closed,false);assert.equal(f.timers.size,1);
+ assert.equal((await f.ui.open(options)),f.modals[1]);
+});
+test('QR desktop: errore rete su stato o download ritentato senza perdere scansione o rigenerare QR',async()=>{
+ let states=0,downloads=0,attached;
+ const f=fixture(async input=>input.action==='create'?response({id:'uno',qr:'data:image/png;base64,fixture'}):input.action==='status'&&++states===1?{ok:false,status:503,json:async()=>({error:'Rete temporaneamente indisponibile'})}:input.action==='status'?response({stato:'pronta'}):input.action==='download'&&++downloads===1?Promise.reject(Error('Rete interrotta')):input.action==='download'?{ok:true,blob:async()=>new Blob(['%PDF-fixture'])}:response({}));
+ await f.ui.open({...options,onPdf:file=>{attached=file;}});await f.poll();assert.equal(f.timers.size,1);assert.match(f.modals[0].box.innerHTML,/<img/);assert.match(f.modals[0].info.textContent,/Rete/);
+ await f.poll();assert.equal(f.timers.size,1);await f.poll();
+ assert.equal(attached.name,'documento-smartphone.pdf');assert.equal(f.calls.filter(c=>c.action==='create').length,1);assert.equal(downloads,2);
+});
+test('QR desktop: dopo retry automatici esauriti si puo riprendere la stessa ricezione; scadenza non ritentata',async()=>{
+ let offline=true,attached;
+ const f=fixture(async input=>input.action==='create'?response({id:'uno',qr:'data:image/png;base64,fixture'}):input.action==='status'&&offline?{ok:false,status:503,json:async()=>({error:'Rete assente'})}:input.action==='status'?response({stato:'pronta'}):input.action==='download'?{ok:true,blob:async()=>new Blob(['%PDF-fixture'])}:response({}));
+ await f.ui.open({...options,onPdf:file=>{attached=file;}});for(let i=0;i<4;i++)await f.poll();assert.equal(f.timers.size,0);
+ offline=false;f.modals[0].retry.listeners.click();await tick();assert.equal(attached.name,'documento-smartphone.pdf');assert.equal(f.calls.filter(c=>c.action==='create').length,1);
+ const expired=fixture(async input=>input.action==='create'?response({id:'uno',qr:'data:image/png;base64,fixture'}):{ok:false,status:410,json:async()=>({error:'QR scaduto'})});
+ await expired.ui.open(options);await expired.poll();assert.equal(expired.timers.size,0);
 });

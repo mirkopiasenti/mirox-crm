@@ -5,7 +5,7 @@ const Identity=require('./identita-upload');
 const QR=require('qrcode');
 const TABLE='vendita_scanner_sessioni',BUCKET='contratti-vendita';
 const hash=v=>crypto.createHash('sha256').update(v).digest('hex');
-const checked=r=>{if(r.error)throw Object.assign(Error('Servizio scansione non disponibile. Riprova.'),{code:r.error.code});return r.data;};
+const checked=r=>{if(r.error)throw Object.assign(Error('Servizio scansione non disponibile. Riprova.'),{code:r.error.code,statusCode:503});return r.data;};
 const fail=(message,statusCode=400)=>{throw Object.assign(Error(message),{statusCode});};
 const pathFor=id=>'temp-scanner/'+id+'/documento.pdf';
 function signature(id,nonce,secret){return crypto.createHmac('sha256',secret).update('mirox-scanner-v1\n'+id+'\n'+nonce).digest('base64url');}
@@ -49,6 +49,13 @@ async function upload(db,row,bytes,deps={}){
     if(!saved)throw Error('La sessione è scaduta durante l’invio.');
     return {stato:'pronta'};
   }catch(error){
+    // Una risposta persa non dimostra un rollback: non rimuovere un file gia pronto.
+    const current=await db.from(TABLE).select('*').eq('id',row.id).maybeSingle();
+    if(current.error)throw error;
+    if(['pronta','consumata'].includes(current.data?.stato)){
+      if(current.data.sha256===digest)return {stato:current.data.stato};
+      throw error;
+    }
     const removed=await db.storage.from(BUCKET).remove([path]);
     if(!removed.error)await db.from(TABLE).update({stato:'aperta'}).eq('id',row.id).eq('stato','in_caricamento');
     throw error;
