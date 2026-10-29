@@ -17,7 +17,7 @@ Collaudo SQL PostgreSQL WASM isolato riuscito: ACL/RLS, RPC, ruolo, conflitti,
 snapshot e audit. Applicata production come20261029210434 dopo richiesta di push;
 privilegi/RLS/RPC riletti e tabelle inizialmente vuote. Tabelle condivise invariate.
 Advisor sicurezza: stesse7categorie, sole3INFO RLS senza policy attese;
-performance: solo nuovo indice audit inutilizzato. Deploy in corso di verifica. Dettagli: [Planning personale](../docs/PLANNING_PERSONALE.md).
+performance: solo nuovo indice audit inutilizzato. Deploy verificato online29/10. Dettagli: [Planning personale](../docs/PLANNING_PERSONALE.md).
 Debug29/10: migration invariata, ricollaudata isolata; corrette UI e PDF, inclusa
 la conservazione del documento/versione CAS dopo caricamento mensile fallito.
 Nessun nuovo DDL o applicazione production per il planning.

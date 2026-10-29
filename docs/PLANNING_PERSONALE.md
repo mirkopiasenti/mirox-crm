@@ -2,7 +2,7 @@
 
 Modulo richiesto dal proprietario per novembre 2026 in poi, solo Legnago.
 Rilascio autorizzato dal proprietario29/10: soltanto planning, esclusi i commit scanner.
-Migration production20261029210434 applicata; deploy in corso di verifica dal checkout isolato basato su origin/main7f9d930.
+Migration production20261029210434 applicata; deploy verificato dal checkout isolato basato su origin/main7f9d930.
 Nessuna modifica agli account, alle gare o alle tabelle condivise col Call Center.
 
 ## Accessi e pagine
@@ -90,6 +90,10 @@ SQL isolato, DOM Node e PDF nuovamente verificati. Test PDF controlla margini, n
 
 ## Rilascio autorizzato 29/10/2026
 
-Il proprietario ha richiesto il push del solo planning. Checkout isolato basato su origin/main7f9d930, senza f5c50d8/a789caa o modifiche scanner, dipendenze npm invariate. Suite del solo rilascio553/553verdi; gli580/580precedenti comprendevano anche lo scanner locale. Migration sorgente20261029200010 applicata come20261029210434, tre tabelle vuote e due RPC: RLS ON, nessun privilegio anon/authenticated, solo service_role; schema/trigger/RLS delle tabelle condivise identici (fingerprint a102deb709d5b66a73851dd50b40696e). Advisor sicurezza: stesse7categorie, INFO RLS senza policy32->35 atteso per le tre tabelle private; performance: solo unused_index104->105 per il nuovo indice audit ancora inutilizzato. Nessun dato dipendente o mese creato; nessun account collegato. Deploy/CI ancora da verificare.
+Il proprietario ha richiesto il push del solo planning. Checkout isolato basato su origin/main7f9d930, senza f5c50d8/a789caa o modifiche scanner, dipendenze npm invariate. Suite del solo rilascio553/553verdi; gli580/580precedenti comprendevano anche lo scanner locale. Migration sorgente20261029200010 applicata come20261029210434, tre tabelle vuote e due RPC: RLS ON, nessun privilegio anon/authenticated, solo service_role; schema/trigger/RLS delle tabelle condivise identici (fingerprint a102deb709d5b66a73851dd50b40696e). Advisor sicurezza: stesse7categorie, INFO RLS senza policy32->35 atteso per le tre tabelle private; performance: solo unused_index104->105 per il nuovo indice audit ancora inutilizzato. Nessun dato dipendente o mese creato; nessun account collegato. Deploy e CI verificati come descritto sotto.
 
 Dopo il rilascio: collegare gli account dalla UI, assegnare l'alternanza del 2 novembre e pubblicare soltanto dopo verifica del proprietario. Nessun profilo storico o tabella condivisa va alterato per attivare questo modulo.
+
+## Esito del rilascio
+
+Rilascio verificato29/10: commit f22e8fd, CI40954897311 riuscita, Netlify6ae3b5531570a3facff51c37 online; pagine HTTP200, API401 senza JWT, JS/CSS pubblici identici. Solo planning, scanner escluso (pagina/funzione404 e commit non antenati di origin/main). Suite rilascio553/553; nessun browser o dato dipendente creato. Migration production20261029210434 applicata e privilegi verificati. Prima configurazione: collegare account, scegliere02/11e approvare il mese.
