@@ -1,0 +1,22 @@
+const {PGlite}=require('@electric-sql/pglite');
+const fs=require('node:fs'),assert=require('node:assert/strict');
+(async()=>{
+ const db=new PGlite();
+ await db.exec("CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS; CREATE TABLE public.profili(id uuid PRIMARY KEY,attivo boolean,ruolo text); INSERT INTO public.profili VALUES ('00000000-0000-4000-8000-000000000001',true,'admin'),('00000000-0000-4000-8000-000000000002',true,'operatore'); GRANT SELECT ON public.profili TO service_role;");
+ await db.exec(fs.readFileSync('database/20261029200010_personale_planning.sql','utf8'));
+ const Core=require(process.cwd()+'/js/planning-core'),document=Core.generate('2026-11',Core.defaultConfig(),'matteo'),actor='00000000-0000-4000-8000-000000000001';
+ const call=(version,publish=false,data=document,who=actor)=>db.query('select public.personale_salva_mese($1,$2,$3,$4,$5) as result',[who,'2026-11-01',version,JSON.stringify(data),publish]);
+ await db.exec('SET ROLE authenticated');
+ await assert.rejects(()=>db.query('select * from public.personale_planning_mesi'),/permission denied/);
+ await assert.rejects(()=>call(0),/permission denied/);
+ await db.exec('RESET ROLE; SET ROLE service_role');
+ await assert.rejects(()=>call(0,false,document,'00000000-0000-4000-8000-000000000002'),/Accesso negato/);
+ await db.query('select public.personale_salva_config($1,0,$2)',[actor,JSON.stringify(Core.defaultConfig())]);
+ await assert.rejects(()=>db.query('select public.personale_salva_config($1,0,$2)',[actor,JSON.stringify(Core.defaultConfig())]),/Configurazione modificata/);
+ let saved=await call(0,true);assert.equal(saved.rows[0].result.versione,1);
+ document.entries[3].note='revisione';saved=await call(1,false);assert.equal(saved.rows[0].result.pubblicato.entries[3].note,'');assert.equal(saved.rows[0].result.bozza.entries[3].note,'revisione');
+ await assert.rejects(()=>call(1),/Planning modificato/);
+ await call(2,true);assert.equal((await db.query('select count(*)::int as n from public.personale_planning_audit')).rows[0].n,4);
+ const rows=await db.query("select relname, relrowsecurity from pg_class where relname in ('personale_planning_config','personale_planning_mesi','personale_planning_audit')");assert.ok(rows.rows.every(r=>r.relrowsecurity));
+ await db.close();console.log('SQL: migration eseguita, RLS/ACL, RPC service-only, revoca ruolo, CAS, snapshot e audit verificati.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

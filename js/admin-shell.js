@@ -17,6 +17,7 @@
   const pages = {
     'admin.html': { title: 'Pannello Admin', key: 'home' },
     'admin-utenti.html': { title: 'Gestione Utenti', key: 'utenti' },
+    'admin-planning.html': { title: 'Planning dipendenti', key: 'planning' },
     'admin-permessi.html': { title: 'Permessi pagine', key: 'permessi' },
     'admin-call-center-config.html': { title: 'Configurazione Call Center', key: 'call-center' },
     'admin-vendita-config.html': { title: 'Catalogo Vendita', key: 'vendita' },
@@ -29,6 +30,8 @@
   const currentFile = window.location.pathname.split('/').pop() || 'admin.html';
   const currentPage = pages[currentFile] || pages['admin.html'];
   const isKpiPage = currentPage.key.startsWith('kpi-');
+  const isPersonnelPage = currentPage.key === 'planning';
+  const isConfigPage = !isKpiPage && !isPersonnelPage;
 
   function navLink(href, key, label, icon) {
     const active = currentPage.key === key;
@@ -49,12 +52,12 @@
         '<nav class="mx-admin-nav">',
           '<div class="mx-admin-nav-label">Reparti</div>',
           '<section class="mx-admin-nav-group">',
-            '<button class="mx-admin-group-toggle" type="button" data-admin-group="configurazioni" aria-expanded="', String(!isKpiPage), '" aria-controls="mxAdminConfigNav">',
+            '<button class="mx-admin-group-toggle" type="button" data-admin-group="configurazioni" aria-expanded="', String(isConfigPage), '" aria-controls="mxAdminConfigNav">',
               '<span class="mx-admin-group-icon">', icons.settings, '</span>',
               '<span class="mx-admin-group-text">Configurazioni</span>',
               '<svg class="mx-admin-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"/></svg>',
             '</button>',
-            '<div class="mx-admin-subnav', isKpiPage ? '' : ' is-open', '" id="mxAdminConfigNav" aria-hidden="', String(isKpiPage), '">',
+            '<div class="mx-admin-subnav', isConfigPage ? ' is-open' : '', '" id="mxAdminConfigNav" aria-hidden="', String(!isConfigPage), '">',
               '<div class="mx-admin-subnav-inner"><div class="mx-admin-subnav-list">',
                 navLink('admin-utenti.html', 'utenti', 'Gestione Utenti', icons.users),
                 navLink('admin-permessi.html', 'permessi', 'Permessi pagine', icons.users),
@@ -70,11 +73,22 @@
               '<span class="mx-admin-group-text">KPI</span>',
               '<svg class="mx-admin-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"/></svg>',
             '</button>',
-            '<div class="mx-admin-subnav', isKpiPage ? ' is-open' : '', '" id="mxAdminKpiNav" aria-hidden="', String(!isKpiPage), '">',
+            '<div class="mx-admin-subnav', isKpiPage ? ' is-open' : '', '" id="mxAdminKpiNav" aria-hidden="', String(isConfigPage), '">',
               '<div class="mx-admin-subnav-inner"><div class="mx-admin-subnav-list">',
                 navLink('admin-kpi-vendita-consumer.html', 'kpi-vendita-consumer', 'Vendita - Consumer', icons.chart),
                 navLink('admin-kpi-vendita-business.html', 'kpi-vendita-business', 'Vendita - Business', icons.chart),
                 navLink('admin-kpi-call-center.html', 'kpi-call-center', 'Call Center', icons.phone),
+              '</div></div>',
+            '</div>',
+          '</section>',
+          '<section class="mx-admin-nav-group">',
+            '<button class="mx-admin-group-toggle" type="button" data-admin-group="personale" aria-expanded="', String(isPersonnelPage), '" aria-controls="mxAdminPersonnelNav">',
+              '<span class="mx-admin-group-icon">', icons.users, '</span><span class="mx-admin-group-text">Personale</span>',
+              '<svg class="mx-admin-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"/></svg>',
+            '</button>',
+            '<div class="mx-admin-subnav', isPersonnelPage ? ' is-open' : '', '" id="mxAdminPersonnelNav" aria-hidden="', String(!isPersonnelPage), '">',
+              '<div class="mx-admin-subnav-inner"><div class="mx-admin-subnav-list">',
+                navLink('admin-planning.html', 'planning', 'Planning dipendenti', icons.users),
               '</div></div>',
             '</div>',
           '</section>',

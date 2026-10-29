@@ -280,6 +280,8 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 
 Nuova function del28/10 `verifica-identita-upload.js`: JWT/permesso upload_contratti, lettura PDF e conferma manuale, ricevuta HMAC. Nessun cron, chiave o invio nuovo.
 
+Planning personale (locale29/10): `gestisci-planning.js` usa JWT/profilo freschi, distingue Admin/proprietario e serve PDFKit in memoria; `planning-pdf.js` include il logo ufficiale configurato in Netlify. Nessun cron/env/dipendenza runtime nuova; migration applicata production20261029210434; deploy autorizzato in corso.
+
 Verifica Contratti automatica (27/10, modalità collaudo): `gestisci-verifica-automatica.js` valida JWT e ruolo per collaudo/CSV/configurazione/riconciliazione notifiche; `verifica-contratti-background.js` usa HMAC/timestamp60s e coda privata; `cron-verifica-contratti.js` ogni minuto recupera prove assistite esplicite e, solo in modalità attiva, turni21:00Europe/Rome/riesami; le notifiche sono disponibili anche in collaudo con email_collaudo abilitato. Helper `_lib/verifica-documenti.js`, `_lib/verifica-worker.js`, `_lib/verifica-csv.js`; nessuna Edge Function. Default collaudo; conferma assistita separata e email con flag esplicito.
 
 Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per questo motivo **TUTTE le functions tranne i cron Netlify, `public-prenota`, `guardian-telegram-webhook`, `guardian-codex-worker`, `guardian-voice-background`, `target-telegram-webhook` e `target-worker-background` e `verifica-contratti-background`** richiedono `Authorization: Bearer <jwt>` valido (validato via `_lib/require-auth.js`). `guardian-telemetry-ingest` è autenticata e accetta soltanto eventi tecnici a schema chiuso; `guardian-codex-worker` è protetta da HMAC e da un lease server-only. Il webhook Guardian e' una seconda eccezione pubblica ma richiede sia il secret token Telegram sia il `chat_id` di Mirko. Nessuno degli endpoint è un endpoint anonimo generico. `admin-vendita-config`, `admin-kpi-vendita-consumer`, `admin-kpi-call-center`, `gestisci-controllo-fissi`, `elimina-vendita-contratto`, le action manuali di `gestisci-controllo-lg` e le action sensibili di `gestisci-operazioni-post-vendita` richiedono ulteriore check `ruolo='admin'`. Il client deve usare `MiroxApi.fetch()` o aggiungere l'header manualmente. Le funzioni Guardian condividono inoltre `guardian-telemetry`, `guardian-triage`, `with-telemetry` e l'outbox dell'Observer:
@@ -343,6 +345,11 @@ Le migration Guardian additive `065`–`068` sono applicate sul production `lbgw
 ---
 
 ## Mappa Supabase per dominio
+
+### Personale / planning (locale29/10, migration production20261029210434 applicata)
+
+`personale_planning_config` (singleton versionato, roster/orari/account), `personale_planning_mesi` (bozza e snapshot pubblicato distinto, versione CAS), `personale_planning_audit` (autore/azione/versione). RPC nuove INVOKER/service-only `personale_salva_config` e `personale_salva_mese`: admin attivo riletto e audit atomico. RLS ON, privilegi PUBLIC/anon/authenticated revocati; accesso esclusivo via `gestisci-planning` con autorizzazione Admin o proprieta' del singolo pubblicato. Migration `database/20261029200010_personale_planning.sql`, nessun FK/schema/policy/trigger/RPC delle tabelle condivise modificato.
+
 
 ### Permessi pagine Mirox (separati dal CC, migration sorgente 20261027221833, production 20261027224328 applicata)
 - `mirox_pagine`: catalogo canonico, lettura autenticata; modifiche solo service_role.
@@ -1176,12 +1183,21 @@ Form esterno per prenotazioni dal sito/social. **NON in dashboard** (non ha auth
 
 Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile dalla dashboard come bottone topbar "Admin" (disabilitato per operatori). Tutte le pagine riusano `css/admin-shell.css` + `js/admin-shell.js`: a sinistra compare la navigazione per reparti, a destra il contenuto della pagina. `Configurazioni` è aperto di default; `KPI` contiene `Vendita - Consumer`, `Vendita - Business` e `Call Center` e si apre automaticamente nelle relative pagine. Sotto gli 860 px la sidebar diventa un drawer. La shell deve mantenere continuità con il design system esistente: logo ufficiale `assets/logo.png`, palette chiara, arancione Mirox, variabili colore condivise, radius e ombre di `css/style.css`; non introdurre marchi o simboli sostitutivi.
 
+### Planning personale (rilascio 29/10/2026)
+
+Il nuovo reparto Personale usa `admin-planning.html`; `planning-personale.html` e' la consultazione autenticata del solo dipendente collegato. Accesso personale per proprieta' tramite collegamento esplicito account/dipendente, indipendente dal catalogo ACL Vendita/Post-Vendita; mai dedurre identita' dal nome o rinominare profili per avvicendamenti. Solo Admin gestisce dipendenti, turni, consuntivi e pubblicazione. Nuove tabelle `personale_planning_config`, `personale_planning_mesi`, `personale_planning_audit` private/service-only, RLS abilitata; API `gestisci-planning` con profilo attivo/ruolo riletti e selezione del solo snapshot pubblicato per il proprietario. Nessuna modifica schema/RLS/RPC delle tabelle condivise CC. Migration applicata production20261029210434 dopo richiesta di push, privilegi verificati; rilascio autorizzato in corso. Guida `docs/PLANNING_PERSONALE.md`.
+
+Avvio novembre2026, solo Legnago; dipendenti Matteo/Vincenzo full time40ore contrattuali, Isabella30ore contrattuali e35programmate confermate. Matteo09:30-12:30/15:30-19:30 feriali, sab09:30-12:30/15:30-19:00; Vincenzo09:00-12:00/15:30-19:30 feriali, sab09:00-12:30/15:30-19:00; Isabella lun-ven09:00-12:30/15:30-19:00. Alternanza settimanale lunedi mattina/sabato pomeriggio libero per Matteo e Vincenzo con assegnazione iniziale manuale, non ancora decisa per02/11; fasce e giorni sempre modificabili. Orari dei dipendenti e apertura negozio sono distinti; nessun riempimento automatico fino alle40ore, nessuno straordinario automatico o banca ore. Ferie/permessi/malattia per intera giornata o intervallo, codice malattia facoltativo, nessun saldo residuo. Consuntivo ordinario separato da straordinario manuale, minuti interi e intervalli senza sovrapposizioni. Festivita' segnalate, chiusure da confermare esplicitamente senza attribuire ferie.
+
+Bozza e snapshot approvato distinti; salvataggi/pubblicazioni atomici con versione ottimistica e audit. Il dipendente continua a vedere l'ultima pubblicazione durante le revisioni. PDF collettivo/personale senza causali, codici malattia e note; scheda ore dettagliata soltanto Admin. Nessun invio automatico. Export generati su richiesta e mai conservati in directory pubbliche. Motore condiviso `js/planning-core.js` per calendario, validazione e conteggi; PDF server `netlify/functions/_lib/planning-pdf.js`. Ogni modifica dello schema settimanale si applica ai mesi creati successivamente, non riscrive lo storico. Debug29/10: caricamento mensile atomico anche nella UI (documento/mese/versione CAS), errori o annullamento conservano il mese Admin gia aperto; nella vista personale errori svuotano i dati e bloccano il PDF. Mese selezionato non caricato o alternanza non applicata bloccano azioni sui vecchi turni; dopo errore configurazione Apri mese ritenta la lettura. PDF collettivo a gruppi di massimo4dipendenti con intestazioni ad altezza misurata e contesto ripetuto nelle continuazioni. Nessun cambio DB.
+
 ### Pagine
 
 | Pagina | Scopo |
 |---|---|
 | `admin.html` | Landing della shell Admin con riepilogo dei reparti Configurazioni e KPI |
 | `admin-permessi.html` | Permessi per utente di 19 pagine Vendita/Post-Vendita/Applicazioni, copia da altro operatore, riepilogo modifiche e ultimi 30 audit. Solo admin, accesso completo non modificabile per gli admin |
+| `admin-planning.html` | Reparto Personale: planning, schede ore, dipendenti/orari, bozza/approvazione e PDF; collegamento account esplicito |
 | `admin-utenti.html` | CRUD su `profili`: cambio ruolo admin↔operatore con conferma, abilita/disabilita, modale permessi granulari CC (9 chiavi operative). Un admin non può togliersi il ruolo né disabilitarsi |
 | `admin-call-center-config.html` | Configurazione CC (orari settimanali, blocchi/chiusure, parametri sistema). Spostata da `moduli/call-center/configurazione.html` (eliminata). NON dipende da `CcHeader` o dai JS del CC: usa solo `js/config.js` + `js/auth.js` + `js/mirox-ui.js` Mirox |
 | `admin-vendita-config.html` | CRUD cataloghi vendita. Check `ruolo='admin'`; la navigazione verso gli altri moduli passa dalla shell condivisa |

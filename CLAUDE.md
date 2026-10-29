@@ -1,5 +1,10 @@
 # CLAUDE.md — Guida per AI assistants
 
+
+## Planning personale (rilascio29/10/2026)
+
+Nuovo reparto Admin Personale: `admin-planning.html`, consultazione del solo proprio pubblicato in `planning-personale.html` dalla dashboard. Bozza e approvato separati, orari configurabili, alternanza settimanale con assegnazione iniziale manuale, assenze/codice malattia, consuntivo e straordinari manuali, PDF personali/collettivi senza causali e schede ore solo Admin. Tre tabelle `personale_planning_*` private con RPC INVOKER/service-only, CAS e audit; nessuna modifica a profili/CC o alle19ACL. Avvio novembre con Matteo/Vincenzo/Isabella, scelta02/11 aperta. Migration `20261029200010_personale_planning.sql` applicata production20261029210434; push del solo planning autorizzato, nessuna associazione account eseguita. Fonte primaria AGENTS e `docs/PLANNING_PERSONALE.md`. Debug29/10: UI conserva documento/versione nei fallimenti di cambio mese, svuota i dati personali su errore, ritenta configurazione e blocca alternanza non applicata; PDF con intestazioni dinamiche e gruppi di4dipendenti.580/580test e SQL/DOM/renderPDF riusciti, nessun DDL/deploy.
+
 ## Verifica automatica contratti (27/10/2026, modalità collaudo)
 
 Sviluppati motore puro, lettura PDF, CSV, pannello esiti/collaudo, worker, cron,

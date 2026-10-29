@@ -59,3 +59,7 @@
 # Font privati del renderer PNG Target; esclusi dalla pubblicazione statica.
 [functions."target-worker-background"]
   included_files = ["netlify/functions/_assets/target/*"]
+
+# Logo ufficiale per gli export PDF del personale.
+[functions."gestisci-planning"]
+  included_files = ["assets/logo.png"]

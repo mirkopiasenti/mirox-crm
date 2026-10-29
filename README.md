@@ -67,8 +67,11 @@ contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 |---|---|
 | `index.html` | Login Supabase Auth |
 | `imposta-password.html` | Accetta inviti Auth, crea la sessione dal link e consente di scegliere la password senza comunicarla agli amministratori |
-| `dashboard.html` | Home con tabs Vendita / Post-Vendita + topbar con bottoni Applicazioni / Appuntamenti Oggi / Ticket / Call Center / **Admin** (visibile solo se `ruolo='admin'`) + badge ticket aperti. Nell'angolo inferiore destro una mascotte KONA AI Guardian di dimensioni ridotte con nuvoletta di chat compatta apre la raccolta di problemi o migliorie; il bottone Applicazioni apre un pannello espandibile sopra il saluto e collega a `Compilatore disdette` e `Compilatore Subentri` |
+| `dashboard.html` | Home con tabs Vendita / Post-Vendita + topbar con bottoni Applicazioni / Appuntamenti Oggi / Ticket / Call Center / **Admin** (visibile solo se `ruolo='admin'`) + badge ticket aperti. Nell'angolo inferiore destro una mascotte KONA AI Guardian di dimensioni ridotte con nuvoletta di chat compatta apre la raccolta di problemi o migliorie; il bottone Applicazioni apre un pannello espandibile sopra il saluto e collega a `Il mio planning`, `Compilatore disdette` e `Compilatore Subentri` |
 | `admin.html` | **Hub Admin Mirox** — shell a due aree con sidebar dei reparti e area di lavoro. `Configurazioni` contiene 5 moduli, inclusi i Permessi pagine; `KPI` raccoglie i moduli di analisi. Accesso ristretto a `ruolo='admin'` |
+| `admin-planning.html` | Reparto Personale: planning mensile, assenze, consuntivi, straordinari manuali, bozza/approvazione e PDF. Rilascio29/10 autorizzato; migration20261029210434 applicata |
+| `planning-personale.html` | Consultazione autenticata del solo planning pubblicato del dipendente collegato al login, con PDF personale; collegamento da Applicazioni |
+| `js/planning-core.js`, `js/planning.js`, `css/planning.css` | Motore puro condiviso per calendario/conteggi/validazioni e UI delle due pagine Personale |
 | `admin-permessi.html` | Scelta per utente delle 19 pagine Vendita/Post-Vendita/Applicazioni, gruppi, copia permessi e storico modifiche. Solo admin; rilascio 27/10/2026, migration applicata |
 | `admin-utenti.html` | Gestione utenti: ruoli admin/operatore, abilita/disabilita, permessi granulari Call Center, flag `in_gara`, colonna **Alias di** (unifica due account della stessa persona con backfill guidato del pregresso). Solo admin |
 | `admin-call-center-config.html` | Orari, blocchi e parametri di sistema del Call Center (spostata da `moduli/call-center/configurazione.html`). Solo admin |
@@ -128,6 +131,7 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `verifica-contratti-background` | POST background | HMAC con contesto dedicato + timestamp | Legge PDF e applica regole; commit atomico se attiva, sola valutazione se collaudo, outbox email |
 | `cron-verifica-contratti` | scheduled ogni minuto | cron Netlify | Recupera collaudi richiesti e lavori automatici dovuti alle21:00Europe/Rome o dopo integrazione; modalità iniziale collaudo |
 | `vendita-config` | GET | authenticated | Carica catalogo per il wizard contratti |
+| `gestisci-planning` | GET/POST | admin / dipendente proprietario | Configurazione, bozza, pubblicazione atomica e PDF; dipendenti limitati al proprio snapshot pubblicato, senza causali/codici/note |
 | `admin-permessi-pagine` | GET/POST | admin | Utenti e ACL, audit e salvataggio atomico versionato |
 | `admin-vendita-config` | GET / POST | **admin** | CRUD admin del catalogo |
 | `admin-kpi-vendita-consumer` | GET | **admin** | Aggrega i KPI Consumer o Business, selezionati tramite parametro `cluster`, per Mobile, Fisso, Customer Base, Luce & Gas, Allarmi e Assicurazioni; la scheda Customer Base è mostrata soltanto nel Consumer |
@@ -745,6 +749,9 @@ Le pagine sono state copiate **mantenendo la loro logica interna** (testata in p
 - Dentro ogni pagina CC: bottone arancione "← Torna alla dashboard Mirox" in cima
 
 ## Pannello Admin Mirox
+
+Il nuovo reparto **Personale → Planning dipendenti** (`admin-planning.html`, rilascio29/10) gestisce turni da novembre2026 per Legnago: Matteo, Vincenzo e Isabella. Orari ricorrenti modificabili, alternanza lunedi mattina/sabato pomeriggio con assegnazione iniziale manuale, ferie/permessi/malattia a ore o giornata e codice malattia facoltativo, consuntivi e straordinari manuali. Ore contrattuali distinte dalle programmate (Isabella35programmate confermate), nessun saldo residuo o banca ore. La bozza resta separata dal planning approvato; login dipendente collegato esplicitamente, solo lettura del proprio pubblicato. PDF collettivo e personale senza causali, scheda ore dettagliata solo Admin; nessun invio automatico. Migration privata applicata20261029210434, rilascio autorizzato in corso; nessun account o tabella CC modificati. [Guida operativa e verifiche](docs/PLANNING_PERSONALE.md). Debug29/10 completato: cambio mese/annullamento ed errori preservano la versione corretta, letture personali fallite svuotano la vista, configurazione ritentabile e alternanza da applicare prima di pubblicare. PDF collettivi con nomi lunghi corretti; suite completa580/580, SQL/DOM/PDF verificati senza browser. Nessun deploy o DB modificato.
+
 
 - **Permessi pagine** (`admin-permessi.html`) — utenti identificati tramite nome/username del profilo; scegli un utente e abilita le pagine di Vendita, Post-Vendita e Applicazioni. Le pagine escluse scompaiono dalla navigazione, i reparti vuoti si nascondono e i link diretti sono bloccati. API, RLS e allegati applicano le stesse autorizzazioni; i dati condivisi necessari a Storico Cliente/Dashboard restano consultabili da chi ha quei moduli. Copia da altro operatore, riepilogo prima del salvataggio, controllo versione e audit atomico. Admin attivi con accesso completo; utenti gia presenti conservati al primo rilascio, nuovi utenti/pagine richiedono abilitazione esplicita. Non altera i permessi CC. Rilascio 27/10/2026; migration applicata e accessi iniziali conservati. Procedura e limiti in [`docs/PERMESSI_PAGINE.md`](docs/PERMESSI_PAGINE.md).
 

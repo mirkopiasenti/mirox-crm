@@ -2,6 +2,26 @@
 
 I file `.sql` nella root di questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via CLI) durante lo sviluppo. `staging/` contiene invece bootstrap one-shot destinati esclusivamente a database staging nuovi e vuoti.
 
+## Planning personale — migration applicata production29/10/2026
+
+`20261029200010_personale_planning.sql` aggiunge esclusivamente tre tabelle nuove:
+`personale_planning_config` (roster/orari/account e versione),
+`personale_planning_mesi` (mese/versione/bozza/snapshot pubblicato),
+`personale_planning_audit` (autore UUID, mese/versione/azione/data).
+RLS abilitata e privilegi PUBLIC/anon/authenticated revocati su tabelle e RPC;
+`personale_salva_config` e `personale_salva_mese` sono INVOKER/service-only,
+admin attivo riletto, CAS con errore40001 e audit/pubblicazione nella stessa transazione.
+Collegamento logico al profilo esistente, nessuna modifica o FK su profili/CC,
+nessun seed di account o associazione automatica. Configurazione iniziale tramite UI.
+Collaudo SQL PostgreSQL WASM isolato riuscito: ACL/RLS, RPC, ruolo, conflitti,
+snapshot e audit. Applicata production come20261029210434 dopo richiesta di push;
+privilegi/RLS/RPC riletti e tabelle inizialmente vuote. Tabelle condivise invariate.
+Advisor sicurezza: stesse7categorie, sole3INFO RLS senza policy attese;
+performance: solo nuovo indice audit inutilizzato. Deploy in corso di verifica. Dettagli: [Planning personale](../docs/PLANNING_PERSONALE.md).
+Debug29/10: migration invariata, ricollaudata isolata; corrette UI e PDF, inclusa
+la conservazione del documento/versione CAS dopo caricamento mensile fallito.
+Nessun nuovo DDL o applicazione production per il planning.
+
 ## Permessi pagine Mirox — migration applicata 27/10/2026
 
 La query Admin usa le colonne esistenti `nome`/`username` di profili, senza
