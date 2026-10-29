@@ -251,3 +251,15 @@ solo con dati/byte/PDA invariati. Nessuna attivazione verifica o invio nuovo.
 Codice non pubblicato; migration privata gia pronta. Test sintetici non convalidano
 qualita reale: collaudo iPhone/Android e documenti con proprietario ancora necessario.
 [Architettura, sicurezza, verifiche e limiti](SCANNER_DOCUMENTI_2026-10-29.md).
+
+### Secondo debug locale29/10: richieste pendenti e anteprime
+
+Cambio documento/dati chiude subito la preview obsoleta e libera gli URL; risposte
+tardive non vengono riusate per il nuovo file. Doppi click deduplicati soltanto
+sulla medesima revisione/cliente/cluster/data/PDA/pacchetto/cittadinanza/File. Una
+risposta vecchia non sblocca la nuova richiesta ancora pendente. Reset nuova pratica
+riporta CIE/QR/TS facoltativa, soltanto dopo conferma. Stream PDF interrotto gestito
+senza eccezioni non gestite. Passaporto riconosciuto con tipo CIE selezionato per
+errore richiede comunque preview manuale; dichiarato passaporto/Turista conserva
+il percorso senza OCR identita. Build/suite isolata571/571verdi, nessuna nuova
+migration o operazione production. Dettagli nella guida scanner del29/10.

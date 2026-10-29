@@ -840,3 +840,12 @@ preservano il file e rendono riuscito il retry. Se la rilettura fallisce, conser
 byte e riferimento per evitare cancellazioni di un commit forse riuscito. Gli errori
 servizio sono503 per consentire il recupero PC. Nessuna modifica a schema, ACL,
 RLS, bucket o dati production durante questo debug; prove su fixture/SQL isolato.
+
+### Secondo debug scanner29/10 — API, schema invariato
+
+Generazione QR prima della insert per evitare sessioni invisibili su errore locale;
+CAS aperta→in_caricamento include expires_at>now dopo validazione PDF. Cancellazione
+ripetibile del solo proprietario anche per sessioni annullate/scadute, mantenendo
+sempre revocata la capability telefono. Creazione/download confrontano anche il
+cluster e rifiutano UUID malformati prima di Postgres. Nessuna migration, RLS,
+privilegio, bucket o dato production modificato in questo secondo debug.

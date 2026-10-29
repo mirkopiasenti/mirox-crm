@@ -1082,3 +1082,18 @@ scale anche se il primo CF e gia leggibile, per rilevare discordanze.
 Test riproducono6bug prima del fix e verificano anche JPEG ruotato come PDF telefono;
 nessun browser, lettura cliente, email o nuovo schema production.
 Dettagli e risultati aggiornati nella [guida scanner](docs/SCANNER_DOCUMENTI_2026-10-29.md).
+
+### Secondo debug scanner29/10 — locale
+
+Nuova pratica ripristina CIE/QR e tessera facoltativa anche dopo invio o passaporto;
+annullare la conferma Nuova pratica conserva il lavoro corrente. Cambio file/dati
+chiude la vecchia preview e separa le richieste identita pendenti, mantenendo il
+blocco dei doppi click sulla stessa richiesta. Upload interrotto rifiutato senza
+errori stream non gestiti su scanner e PDF tradizionale. QR generato prima della
+registrazione DB, cancellazione proprietario ritentabile dopo scadenza/revoca,
+controllo scadenza prima di Storage, UUID validi e stesso cluster per trasferimento.
+Nessuna nuova migration o operazione cliente in produzione; dettagli nella guida scanner.
+
+Anche un passaporto riconosciuto dalla lettura, con CIE selezionata per errore,
+richiede la conferma manuale. Passaporto dichiarato e Turista mantengono il percorso
+PDF/manuale senza OCR identita.

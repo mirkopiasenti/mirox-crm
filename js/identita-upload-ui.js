@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  let cached = null, revision = 0, pending = null;
+  let cached = null, revision = 0, pending = null, preview = null;
   const e = value => window.MiroxSafe.escapeHtml(String(value || ''));
   function comparisonHtml(comparison) {
     if (!comparison) return '';
@@ -24,10 +24,11 @@
     if (!response.ok || !result.success) throw new Error(result.error || 'Controllo identita non disponibile.');
     return result;
   }
-  async function manualPreview(result, files, requireCitizenship) {
+  async function manualPreview(result, files, requireCitizenship, active) {
     const digests = await Promise.all(files.map(async file => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()))).map(b => b.toString(16).padStart(2, '0')).join('')));
-    const urls = [];
+    const urls = [];let ownPreview=null;
     try {
+      if(!active())return null;
       files.forEach(file => urls.push(URL.createObjectURL(file)));
       return await new Promise(resolve => {
         let done = false;
@@ -46,20 +47,22 @@
             + '<p>Con Sì confermi di aver controllato tutti i PDF, che il documento appartiene al cliente e che è completo e valido alla data di firma. La conferma viene registrata e sostituisce l’esito OCR dell’identità.</p>'
             + '<p data-identity-preview-status role="status">Caricamento anteprima...</p>',
           footerHtml: '<button type="button" class="mx-btn" data-identity-cancel>No, annulla</button><button type="button" class="mx-btn mx-btn-primary" data-identity-save disabled>Sì, confermo e proseguo</button>',
-          onClose: () => { if (!done) resolve(null); } });
+          onClose: () => { if (!done) { done=true;resolve(null); } } });
+        ownPreview=m;preview=m;
         m.body.style.maxHeight = '68vh'; m.body.style.overflowY = 'auto';
         const save = m.foot.querySelector('[data-identity-save]');
         const message = m.body.querySelector('[data-identity-preview-status]');
         m.body.querySelectorAll('[data-identity-preview]').forEach((frame, index) => {
           frame.addEventListener('load', () => {
+            if(done||!active())return;
             loaded.add(index);
             if (loaded.size === files.length) { save.disabled = false; message.textContent = 'Anteprima pronta: controlla il documento prima di confermare.'; }
           });
-          frame.addEventListener('error', () => { loaded.delete(index); save.disabled = true; message.textContent = 'Impossibile mostrare un PDF. Ricarica il documento prima di confermare.'; });
+          frame.addEventListener('error', () => { if(done||!active())return;loaded.delete(index); save.disabled = true; message.textContent = 'Impossibile mostrare un PDF. Ricarica il documento prima di confermare.'; });
         });
         m.foot.querySelector('[data-identity-cancel]').addEventListener('click', () => m.close());
         save.addEventListener('click', async () => {
-          if (loaded.size !== files.length) return;
+          if (done || !active() || loaded.size !== files.length) return;
           const scadenza = m.body.querySelector('[data-identity-expiry]').value;
           if (!scadenza || scadenza < result.data_firma) { await window.MiroxUI.alert('Indica una scadenza verificata e valida alla data di firma.'); return; }
           const cittadinanza = requireCitizenship ? m.body.querySelector('[data-identity-country]').value : result.cittadinanza || null;
@@ -68,7 +71,7 @@
           resolve({ action: 'confirm_preview', preview_visualizzata: true, preview_sha256: digests, scadenza, cittadinanza });
         });
       });
-    } finally { urls.forEach(url => URL.revokeObjectURL(url)); }
+    } finally { if(preview===ownPreview)preview=null;urls.forEach(url => URL.revokeObjectURL(url)); }
   }
   async function ensure({ files, customer, date, pdaPaths = [], pacchetto=null, requireCitizenship = false, current = () => true }) {
     if (!files.length) throw new Error('Carica il documento di riconoscimento.');
@@ -92,7 +95,8 @@
     if (!active()) throw new Error('Dati o documenti cambiati durante il controllo. Ripeti la verifica.');
     if (data.result.stato !== 'coerente' || requireCitizenship && !data.result.cittadinanza) {
       if (status) status.textContent = 'Controlla l’anteprima e conferma manualmente il documento per proseguire.';
-      const decision = await manualPreview(data.result, files, requireCitizenship);
+      const decision = await manualPreview(data.result, files, requireCitizenship, active);
+      if (!active()) throw new Error('Dati cambiati: ripeti il controllo identita.');
       if (!decision) {
         if (status && active()) status.textContent = 'Controllo manuale annullato: documento non confermato.';
         throw new Error('Conferma manuale del documento annullata.');
@@ -110,8 +114,13 @@
         : 'Identita coerente con l’anagrafica e valida alla data di firma indicata.';
     return cached;
   }
+  function invalidate(){cached=null;revision++;if(preview)preview.close();}
   window.MiroxIdentitaUpload = { ensure(options) {
-    if (pending) return pending;
-    pending = ensure(options).finally(() => { pending = null; }); return pending;
-  }, get: () => cached, showError, invalidate() { cached = null; revision++; } };
+    const files=Array.from(options.files||[]);
+    const key=JSON.stringify([window.MiroxIdentitaCore.customer(options.customer),options.customer?.cluster,options.date,options.pdaPaths||[],options.pacchetto||null,Boolean(options.requireCitizenship)]);
+    if(pending&&pending.revision===revision&&pending.key===key&&pending.files.length===files.length&&pending.files.every((f,i)=>f===files[i])&&pending.current())return pending.promise;
+    if(pending&&pending.revision===revision)invalidate();
+    const entry={revision,key,files,current:options.current||(()=>true)};
+    entry.promise=ensure({...options,files}).finally(()=>{if(pending===entry)pending=null;});pending=entry;return entry.promise;
+  }, get: () => cached, showError, invalidate };
 })();

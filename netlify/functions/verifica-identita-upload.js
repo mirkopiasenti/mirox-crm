@@ -13,6 +13,7 @@ function multipart(event) {
     parser.on('filesLimit', () => { invalid = true; });
     parser.on('file', (key, stream) => {
       const parts = [];
+      stream.on('error', reject);
       stream.on('data', bytes => { total += bytes.length; if (total <= 20 * 1024 * 1024) parts.push(bytes); else invalid = true; });
       stream.on('limit', () => { invalid = true; });
       stream.on('end', () => { files.push({ buffer: Buffer.concat(parts) }); });
@@ -59,7 +60,7 @@ async function handler(event, deps = {}) {
     const identityDeps=manualOnly?{...deps,extract:async doc=>({id:doc.id,fields:{},manuale_passaporto:true}),readBarcode:async()=>({attempted:false,complete:true,conflict:false,values:[]})}:deps;
     const analysis = await Identity.analyze(files, { ...target, cf_rappresentante: business?.cf_rappresentante }, fields.data_firma, { ...identityDeps, nameRetryDeadline: started + 18000 });
     analysis.result.pacchetto=pacchetto;
-    if(manualOnly){analysis.result.stato=analysis.result.errors.length?'da_correggere':'da_confermare';analysis.result.uncertain.push('Passaporto o cliente Turista: verifica manuale tramite anteprima richiesta.');}
+    if(manualOnly||analysis.documents.some(doc=>doc.reading.fields?.tipo_identita?.value==='passaporto')){analysis.result.stato=analysis.result.errors.length?'da_correggere':'da_confermare';analysis.result.uncertain.push('Passaporto o cliente Turista: verifica manuale tramite anteprima richiesta.');}
     const data = { pacchetto, version: 1, at: Date.now(), user, customer: { cf_piva: target.cf_piva, cluster: target.cluster,
       ragione_sociale: target.ragione_sociale, nome_referente: target.nome_referente }, business_identity: business, ...analysis };
     return reply(200, { success: true, token: Identity.sign(data, deps.secret), result: data.result });

@@ -49,11 +49,11 @@ test('CF barcode prevale sulla lettera sbagliata AI, tessera sanitaria non impon
   const missing=Identity.Core.evaluate([Barcode.apply(reading({fiscale:cf}),{attempted:true,complete:true,values:[],conflict:false})],person,'2026-10-29');assert.equal(missing.stato,'da_confermare');
 });
 function dbFixture(){
- const rows=new Map(),files=new Map(),calls=[];let removedFail=false,ambiguousReady=false,blockedRead=false;
- const db={storage:{from:()=>({upload:async(path,bytes)=>{if(files.has(path))return {error:{message:'Exists'}};files.set(path,Buffer.from(bytes));return {data:{path}};},download:async path=>files.has(path)?{data:new Blob([files.get(path)])}:{error:{message:'Missing'}},remove:async paths=>{if(removedFail)return {error:{message:'Unavailable'}};paths.forEach(p=>files.delete(p));return {data:[]};}})},from(table){
+ const rows=new Map(),files=new Map(),calls=[];let removedFail=false,ambiguousReady=false,blockedRead=false,uploadCount=0,savedCustomer=null;
+ const db={storage:{from:()=>({upload:async(path,bytes)=>{uploadCount++;if(files.has(path))return {error:{message:'Exists'}};files.set(path,Buffer.from(bytes));return {data:{path}};},download:async path=>files.has(path)?{data:new Blob([files.get(path)])}:{error:{message:'Missing'}},remove:async paths=>{if(removedFail)return {error:{message:'Unavailable'}};paths.forEach(p=>files.delete(p));return {data:[]};}})},from(table){
   let filters=[],operation='select',payload,limit=Infinity;
   const q={select(){return q;},eq(k,v){filters.push(r=>r[k]===v);return q;},neq(k,v){filters.push(r=>r[k]!==v);return q;},in(k,v){filters.push(r=>v.includes(r[k]));return q;},gt(k,v){filters.push(r=>r[k]>v);return q;},lt(k,v){filters.push(r=>r[k]<v);return q;},ilike(){return q;},limit(n){limit=n;return q;},insert(v){operation='insert';payload=v;return q;},update(v){operation='update';payload=v;return q;},delete(){operation='delete';return q;},maybeSingle(){return execute(true);},then(resolve,reject){return execute(false).then(resolve,reject);}};
-  async function execute(single){calls.push({table,operation});if(table==='anagrafica')return {data:[]};let values=[...rows.values()].filter(r=>filters.every(f=>f(r))).slice(0,limit);
+  async function execute(single){calls.push({table,operation});if(table==='anagrafica')return {data:savedCustomer?[savedCustomer]:[]};let values=[...rows.values()].filter(r=>filters.every(f=>f(r))).slice(0,limit);
    if(operation==='select'&&blockedRead)return {error:{code:'NETWORK',message:'Rilettura non disponibile'}};
    if(operation==='insert'){rows.set(payload.id,{...payload,created_at:new Date().toISOString()});values=[payload];}
    if(operation==='update')values.forEach(r=>Object.assign(r,payload));if(operation==='delete')values.forEach(r=>rows.delete(r.id));
@@ -61,7 +61,7 @@ function dbFixture(){
    return {data:single?(values[0]||null):values.map(r=>({...r}))};}
   return q;
  }};
- return {db,rows,files,calls,set removedFail(v){removedFail=v;},set ambiguousReady(v){ambiguousReady=v;},set blockedRead(v){blockedRead=v;}};
+ return {db,rows,files,calls,get uploadCount(){return uploadCount;},set savedCustomer(v){savedCustomer=v;},set removedFail(v){removedFail=v;},set ambiguousReady(v){ambiguousReady=v;},set blockedRead(v){blockedRead=v;}};
 }
 async function create(f,pacchetto={tipo:'cie'}){let link;const result=await Sessions.create(f.db,'user',person,pacchetto,{secret:'fixture',origin:'https://mirox-crm.it',qr:async url=>{link=url;return 'data:image/png;base64,fixture';}});const parts=new URLSearchParams(new URL(link).hash.slice(1));return {...result,token:parts.get('token')};}
 test('QR conserva token solo come hash, URL senza query e owner/anagrafica/TTL vincolati',async()=>{
@@ -118,4 +118,34 @@ test('pagina mobile senza storage locale, PDF vendorizzato e fotocamera limitata
  const mobile=fs.readFileSync(require.resolve('../js/scanner-documenti-mobile.js'),'utf8'),html=fs.readFileSync(require.resolve('../moduli/scanner-documenti.html'),'utf8');
  assert.doesNotMatch(mobile,/localStorage|sessionStorage|indexedDB|\.download\s*=/);assert.match(mobile,/history.replaceState/);assert.match(mobile,/getUserMedia/);assert.match(mobile,/getTracks\(\).forEach/);assert.match(mobile,/MiroxApi.fetch/);assert.doesNotMatch(html,/type="file"/);
  const config=fs.readFileSync(require.resolve('../netlify.toml'),'utf8');assert.match(config,/for = "\/moduli\/scanner-documenti.html"/);const headers=fs.readFileSync(require.resolve('../dist/_headers'),'utf8');assert.match(headers,/\/moduli\/scanner-documenti.html\n  Permissions-Policy: camera=\(self\)/);assert.match(headers,/\/dashboard.html\n  Permissions-Policy: camera=\(\)/);
+});
+test('errore generazione QR non lascia sessioni invisibili che impediscono nuovi tentativi',async()=>{
+ const f=dbFixture();await assert.rejects(Sessions.create(f.db,'user',person,{tipo:'cie'},{secret:'fixture',qr:async()=>{throw Error('Generatore non disponibile');}}));
+ assert.equal(f.rows.size,0);
+});
+test('cancellazione proprietario ritentabile anche dopo revoca o scadenza, nessuna riapertura telefono',async()=>{
+ const f=dbFixture(),s=await create(f);const row=f.rows.get(s.id);row.expires_at='2020-01-01T00:00:00Z';row.stato='annullata';f.files.set(Sessions.pathFor(s.id),Buffer.from('%PDF-test'));
+ const result=await Api.handler({httpMethod:'POST',headers:{},body:JSON.stringify({action:'cancel',id:s.id})},{db:f.db,requireAuth:async()=>({ok:true,user:{id:'user'}})});
+ assert.equal(result.statusCode,200);assert.equal(f.files.size,0);
+ await assert.rejects(Sessions.get(f.db,s.id,{token:s.token,secret:'fixture',allowInactive:true}),/scaduto|annullato/);
+ const otherOwner=await Api.handler({httpMethod:'POST',headers:{},body:JSON.stringify({action:'cancel',id:s.id})},{db:f.db,requireAuth:async()=>({ok:true,user:{id:'other'}})});assert.equal(otherOwner.statusCode,403);
+});
+test('download vincolato anche al cluster e UUID malformato rifiutato prima della query',async()=>{
+ const f=dbFixture(),s=await create(f),row=f.rows.get(s.id);await Sessions.upload(f.db,row,Buffer.from('%PDF-fixture'),{pdfInfo:async()=>2});
+ await assert.rejects(Sessions.download(f.db,row,{...person,cluster:'Turista'}),/anagrafica/);
+ const before=f.calls.length;await assert.rejects(Sessions.get(f.db,'-'.repeat(36),{user:'user'}));assert.equal(f.calls.length,before);
+ const saved=dbFixture();saved.savedCustomer={...person,cluster:'Turista'};await assert.rejects(create(saved),/anagrafica/);
+});
+test('scadenza durante validazione PDF blocca upload prima di scrivere lo Storage',async()=>{
+ const f=dbFixture(),s=await create(f),row=f.rows.get(s.id);
+ await assert.rejects(Sessions.upload(f.db,row,Buffer.from('%PDF-fixture'),{pdfInfo:async()=>{row.expires_at='2020-01-01T00:00:00Z';return 2;}}),/scadut/);
+ assert.equal(f.uploadCount,0);
+});
+test('multipart interrotto rifiutato senza errore stream non gestito su scanner e fallback identita',()=>{
+ const {spawnSync}=require('node:child_process');
+ for(const name of ['scanner-documenti','verifica-identita-upload']){
+   const code=`const api=require('./netlify/functions/${name}');const body='--b\\r\\nContent-Disposition: form-data; name="file"; filename="id.pdf"\\r\\nContent-Type: application/pdf\\r\\n\\r\\n%PDF-incompleto';api._test.multipart({headers:{'content-type':'multipart/form-data; boundary=b'},body}).then(()=>process.exit(2),()=>console.log('rifiutato'));`;
+   const child=spawnSync(process.execPath,['-e',code],{cwd:require('node:path').resolve(__dirname,'..'),encoding:'utf8'});
+   assert.equal(child.status,0,child.stderr);assert.match(child.stdout,/rifiutato/);
+ }
 });

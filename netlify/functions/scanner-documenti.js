@@ -8,7 +8,7 @@ const reply=(statusCode,data)=>({statusCode,headers,body:JSON.stringify(data)});
 function multipart(event){return new Promise((resolve,reject)=>{
   const parts=[];let invalid=false,count=0;
   const parser=Busboy({headers:{'content-type':event.headers?.['content-type']||event.headers?.['Content-Type']},limits:{files:1,fileSize:Sessions.Core.MAX_BYTES,fields:0}});
-  parser.on('file',(_,stream,info)=>{count++;if(info.mimeType!=='application/pdf')invalid=true;stream.on('data',p=>parts.push(p));stream.on('limit',()=>{invalid=true;});});
+  parser.on('file',(_,stream,info)=>{count++;if(info.mimeType!=='application/pdf')invalid=true;stream.on('error',reject);stream.on('data',p=>parts.push(p));stream.on('limit',()=>{invalid=true;});});
   parser.on('filesLimit',()=>{invalid=true;});parser.on('fieldsLimit',()=>{invalid=true;});parser.on('error',reject);
   parser.on('finish',()=>invalid||count!==1?reject(Error('Invia un solo PDF di massimo 4 MB.')):resolve(Buffer.concat(parts)));
   parser.end(Buffer.from(event.body||'',event.isBase64Encoded?'base64':'binary'));
@@ -30,7 +30,7 @@ async function handler(event,deps={}){
     }
     const input=JSON.parse(event.body||'{}'),user=auth.user.id;
     if(input.action==='create')return reply(200,{success:true,...await Sessions.create(db,user,input.cliente,input.pacchetto,deps)});
-    const row=await Sessions.get(db,input.id,{user});
+    const row=await Sessions.get(db,input.id,{user,allowInactive:input.action==='cancel'});
     if(input.action==='status')return reply(200,{success:true,stato:row.stato,pacchetto:row.pacchetto,expires_at:row.expires_at});
     if(input.action==='cancel'){await Sessions.cancel(db,row);return reply(200,{success:true});}
     if(input.action==='download')return {statusCode:200,headers:{...headers,'Content-Type':'application/pdf'},isBase64Encoded:true,body:(await Sessions.download(db,row,input.cliente)).toString('base64')};

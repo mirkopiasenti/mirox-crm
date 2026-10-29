@@ -3387,6 +3387,11 @@ Reload Forever
  }
 
  function resetFullPracticeForm() {
+ scannerChoice=null;window.MiroxScannerUI.invalidate();
+ document.getElementById('scannerTipoDocumento').value='cie';
+ const scannerTessera=document.getElementById('scannerTessera');scannerTessera.checked=false;scannerTessera.disabled=false;
+ refs.fieldDocumentoIdentita.style.display='';
+ document.getElementById('scannerDocumentoStato').textContent='Acquisizione guidata da smartphone.';
  window.MiroxIdentitaUpload.invalidate();
  document.getElementById('identita_data_firma').value = '';
  document.getElementById('identitaControlloEsito').textContent = 'Documento non ancora controllato.';
@@ -4745,7 +4750,6 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
 
  function startNuovaPraticaFromCart() {
- scannerChoice=null;window.MiroxScannerUI.invalidate();
  showConfirmOverlay({
  title: 'Avviare una nuova pratica?',
  text: 'La pratica attuale non inviata verrà cancellata.',

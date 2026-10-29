@@ -141,6 +141,12 @@ test('passaporto e Turista usano PDF e preview manuale senza chiamare OCR o barc
     assert.equal(response.statusCode,200);assert.equal(reads,0);assert.equal(JSON.parse(response.body).result.stato,'da_confermare');
   }
 });
+test('passaporto riconosciuto malgrado tipo CIE selezionato richiede comunque preview manuale',async()=>{
+ const response=await handler({httpMethod:'POST',headers:{}},{secret:'fixture',db:{from(){return {select(){return this;},ilike(){return this;},limit:async()=>({data:[person]})};}},
+  requireAuth:async()=>({ok:true,user:{id:'user'}}),pdfInfo:async()=>2,
+  multipart:async()=>({fields:{cliente:JSON.stringify(person),data_firma:'2026-10-27',pacchetto:JSON.stringify({tipo:'cie'})},files:[{buffer:Buffer.from('%PDF-fixture')}]}),extract:async()=>reading({tipo_identita:'passaporto'})});
+ assert.equal(response.statusCode,200);assert.equal(JSON.parse(response.body).result.stato,'da_confermare');
+});
 test('API produce ricevuta verificabile dei PDF e registra la conferma manuale della cittadinanza assente', async () => {
   const db = { from() { return { select() { return this; }, ilike() { return this; }, limit: async () => ({ data: [person] }) }; } };
   const deps = { db, secret: 'fixture', requireAuth: async () => ({ ok: true, user: { id: 'user' } }),
@@ -212,4 +218,27 @@ test('diagnostica legacy mostra nomi escaped senza inserirli nel messaggio error
   assert.equal(window.MiroxIdentitaUpload.showError(error),true);
   assert.match(modal.bodyHtml,/Mario Rossi/);assert.match(modal.bodyHtml,/&lt;img/);assert.doesNotMatch(modal.bodyHtml,/<img/);
   assert.doesNotMatch(error.message,/Mario|img/);
+});
+test('nuovo documento avvia il proprio controllo senza riusare la promise precedente, anche senza evento change',async()=>{
+ for(const explicit of [false,true]){
+  let release,calls=0;
+  const window={MiroxSafe:{escapeHtml:String},MiroxIdentitaCore:Core,MiroxApi:{fetch:async()=>{calls++;if(calls===1)return new Promise(resolve=>{release=()=>resolve({ok:true,json:async()=>({success:true,token:'vecchia',result:{stato:'coerente',cittadinanza:'ue'}})});});return {ok:true,json:async()=>({success:true,token:'nuova',result:{stato:'coerente',cittadinanza:'ue'}})};}}};
+  vm.runInNewContext(fs.readFileSync(require.resolve('../js/identita-upload-ui'),'utf8'),{window,crypto:require('node:crypto').webcrypto,Uint8Array,Date,FormData,document:{getElementById:()=>({textContent:''})}});
+  const old=window.MiroxIdentitaUpload.ensure({files:[new File(['%PDF-old'],'old.pdf')],customer:person,date:'2026-10-28'}),rejected=assert.rejects(old,/cambiati/);
+  for(let i=0;i<100&&!release;i++)await new Promise(resolve=>setImmediate(resolve));assert.ok(release);
+  if(explicit)window.MiroxIdentitaUpload.invalidate();
+  const next=window.MiroxIdentitaUpload.ensure({files:[new File(['%PDF-new'],'new.pdf')],customer:person,date:'2026-10-28'});const nextResult=next.catch(error=>({error}));release();
+  await rejected;assert.equal((await nextResult).token,'nuova');assert.equal(calls,2);
+ }
+});
+test('risposta vecchia non rimuove il blocco doppio click della nuova richiesta ancora pendente',async()=>{
+ const releases=[];let calls=0;
+ const window={MiroxSafe:{escapeHtml:String},MiroxIdentitaCore:Core,MiroxApi:{fetch:async()=>{const n=++calls;return new Promise(resolve=>{releases[n]=()=>resolve({ok:true,json:async()=>({success:true,token:'esito'+n,result:{stato:'coerente',cittadinanza:'ue'}})});});}}};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../js/identita-upload-ui'),'utf8'),{window,crypto:require('node:crypto').webcrypto,Uint8Array,Date,FormData,document:{getElementById:()=>({textContent:''})}});
+ const options={customer:person,date:'2026-10-28'},old=window.MiroxIdentitaUpload.ensure({...options,files:[new File(['%PDF-old'],'old.pdf')]}),rejected=assert.rejects(old,/cambiati/);
+ for(let i=0;i<100&&!releases[1];i++)await new Promise(resolve=>setImmediate(resolve));
+ const files=[new File(['%PDF-new'],'new.pdf')],next=window.MiroxIdentitaUpload.ensure({...options,files});
+ for(let i=0;i<100&&!releases[2];i++)await new Promise(resolve=>setImmediate(resolve));
+ assert.ok(releases[1]);assert.ok(releases[2]);releases[1]();await rejected;
+ assert.equal(window.MiroxIdentitaUpload.ensure({...options,files}),next);assert.equal(calls,2);releases[2]();assert.equal((await next).token,'esito2');
 });

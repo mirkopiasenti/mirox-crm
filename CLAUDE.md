@@ -1614,3 +1614,12 @@ un esito ambiguo (mai cancellare PDF gia pronto o di stato non rileggibile).
 Decoder verifica entrambe le scale per trovare CF discordanti anche sulla stessa
 pagina. Nessuna modifica schema/ambiente o nuovo test cliente; fonte AGENTS e
 sezione Debug di docs/SCANNER_DOCUMENTI_2026-10-29.md.
+
+### Secondo debug scanner29/10 (locale)
+
+Reset completo CIE/TS/QR, preview obsolete chiuse e richieste identita distinte con
+deduplica dei doppi click; stream multipart interrotti gestiti nei due ingressi.
+QR prima della insert, cancel proprietario idempotente anche dopo scadenza, CAS
+con scadenza prima di Storage, cluster e UUID verificati. Nessun nuovo schema o
+test cliente. Prima di pubblicare scanner integrare il planning gia su origin/main,
+senza force-push del main locale divergente. Fonte AGENTS e guida scanner.

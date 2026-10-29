@@ -198,3 +198,43 @@ Verifica finale debug: build e suite su snapshot isolato con sole modifiche scan
 25/25verdi, inclusa rilettura DB non disponibile che conserva il file di esito incerto.
 Diff senza errori di whitespace. Nessun push: prima del rilascio resta necessario
 il consenso di pubblicazione, poi il collaudo fisico iPhone/Android con proprietario.
+
+## Secondo debug29/10: reset, preview, sessioni e interruzioni
+
+Ulteriori casi riprodotti con test inizialmente falliti e corretti:
+
+- Reset completo nuova pratica ripristina CIE/QR/TS facoltativa anche dopo invio o
+  passaporto. Annullare la conferma Nuova pratica non revoca il QR corrente.
+- Una richiesta identita pendente non viene riusata per un altro file/cliente/
+  data/PDA/pacchetto. Cambio documento chiude l’anteprima obsoleta e libera gli
+  URL; eventi e conferme tardivi ignorati. La risposta vecchia non rimuove la
+  deduplica dei doppi click della nuova richiesta ancora in corso.
+- Stream multipart troncati generavano errori non gestiti: listener error sui
+  singoli file in scanner-documenti e verifica-identita-upload. Provati anche
+  in processi Node separati, senza crash o scritture.
+- Generatore QR fallito non lascia sessioni invisibili a DB: QR pronto prima
+  della insert, nessun token mostrato se registrazione non riesce.
+- Proprietario puo ritentare cancel dopo annullamento/scadenza, ad esempio dopo
+  una rimozione Storage fallita; nessun bypass per telefono, stato o download.
+- Scadenza ricontrollata nel CAS dopo la validazione PDF, prima dell’upload su
+  Storage. Scadenza/annullamento non producono scritture tardive di file.
+- Creazione e ricezione richiedono stesso cluster oltre ai dati identita; UUID
+  completo verificato prima della query, evitando errori Postgres ritentabili
+  per input malformati. Turista resta PDF/manuale.
+
+Nessuna nuova migration, schema/RLS/ACL/env o chiamata production, nessuna AI,
+email, verifica contratto o automazione browser. Modifiche planning preservate.
+Origin/main contiene il planning pubblicato f22e8fd mentre questo checkout scanner
+resta su una linea locale diversa: integrare quel rilascio prima di un eventuale
+push autorizzato, mai usare force-push per sostituirlo.
+
+Passaporto riconosciuto dalla lettura visiva impone preview manuale anche se era
+stato dichiarato CIE: il tipo selezionato per errore non basta per approvarlo
+automaticamente. Se dichiarato passaporto o cliente Turista non si avvia OCR
+identita, come gia previsto. Nessuna modifica alla conferma umana tracciata.
+
+Verifica finale secondo debug: build/suite isolata571/571verdi sul codice finale,
+10nuovi test aggiunti; precedente suite checkout589/589verdi prima dell’ultimo
+caso passaporto, poi coperto dal rilascio isolato. Prove mirate51/51verdi prima
+dell’ultimo caso. Le fixture riproducono bug con risultati falliti prima del fix.
+Nessun browser, lettura reale o push; collaudo fisico resta da eseguire.

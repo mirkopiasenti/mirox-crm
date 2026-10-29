@@ -52,7 +52,7 @@ test('conferma preview riusata nella verifica successiva senza OCR identita solo
   changed=true;assert.equal((await Docs.readDocuments(db,snapshot,deps)).identityPrecheck,null);assert.equal(reads,2);
 });
 function fixture({responseResult=result,count=2}={}){
-  let builtResolve,modal,calls=0,alerts=0,posted;const revoked=[],handlers={};
+  let builtResolve,modal,calls=0,alerts=0,posted,closed=0;const revoked=[],handlers={};
   const built=new Promise(resolve=>{builtResolve=resolve;});
   const controls={
     '[data-identity-expiry]':{value:'2030-01-01'},'[data-identity-country]':{value:'extra_ue'},
@@ -62,11 +62,11 @@ function fixture({responseResult=result,count=2}={}){
   const frames=Array.from({length:count},()=>({events:{},addEventListener(key,fn){this.events[key]=fn;}}));
   const escape=v=>String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const window={MiroxSafe:{escapeHtml:escape},MiroxIdentitaCore:Identity.Core,
-    MiroxUI:{alert:async()=>{alerts++;},_build:options=>{modal=options;builtResolve();return {body:{style:{},querySelector:key=>controls[key],querySelectorAll:()=>frames},foot:{querySelector:key=>controls[key]},close(){options.onClose();}};}},
+    MiroxUI:{alert:async()=>{alerts++;},_build:options=>{modal=options;builtResolve();return {body:{style:{},querySelector:key=>controls[key],querySelectorAll:()=>frames},foot:{querySelector:key=>controls[key]},close(){closed++;options.onClose();}};}},
     MiroxApi:{fetch:async(_,options)=>{calls++;if(calls===1)return {ok:true,json:async()=>({success:true,token:'first',result:responseResult})};posted=JSON.parse(options.body);return {ok:true,json:async()=>({success:true,token:'manual',result:{...responseResult,stato:'manuale'}})};}}
   };
   vm.runInNewContext(fs.readFileSync(require.resolve('../js/identita-upload-ui'),'utf8'),{window,crypto:require('node:crypto').webcrypto,Uint8Array,Date,FormData,URL:{createObjectURL:file=>'blob:'+file.name,revokeObjectURL:url=>revoked.push(url)},document:{getElementById:()=>({textContent:''})}});
-  return {window,built,frames,controls,revoked,get modal(){return modal;},get calls(){return calls;},get alerts(){return alerts;},get posted(){return posted;},save:()=>handlers['[data-identity-save]'](),cancel:()=>handlers['[data-identity-cancel]']()};
+  return {window,built,frames,controls,revoked,get closed(){return closed;},get modal(){return modal;},get calls(){return calls;},get alerts(){return alerts;},get posted(){return posted;},save:()=>handlers['[data-identity-save]'](),cancel:()=>handlers['[data-identity-cancel]']()};
 }
 test('UI mostra preview di tutti gli originali, conferma solo dopo caricamento e prosegue senza nuova OCR',async()=>{
   const f=fixture();const pending=f.window.MiroxIdentitaUpload.ensure({files,customer:person,date:'2026-10-28',requireCitizenship:true});
@@ -98,6 +98,11 @@ test('preview non caricata resta bloccata anche dopo errore iframe e non aggira 
   f.frames.forEach(frame=>frame.events.load());f.frames[1].events.error();await f.save();assert.equal(f.calls,1);
   f.frames[1].events.load();f.controls['[data-identity-country]'].value='';await f.save();assert.equal(f.alerts,1);assert.equal(f.calls,1);
   f.cancel();await assert.rejects(pending,/annullata/);
+});
+test('cambio documento chiude subito la vecchia anteprima e libera URL senza dover confermare',async()=>{
+ const f=fixture(),pending=f.window.MiroxIdentitaUpload.ensure({files,customer:person,date:'2026-10-28'});const rejected=assert.rejects(pending,/cambiati/);
+ await f.built;f.window.MiroxIdentitaUpload.invalidate();assert.equal(f.closed,1);await rejected;
+ assert.equal(f.revoked.length,2);f.frames.forEach(frame=>frame.events.load());await f.save();assert.equal(f.calls,1);
 });
 test('SDK Anthropic installato trasmette Haiku5.5 e tool forzato senza sampling obsoleto',async()=>{
   const Anthropic=require('@anthropic-ai/sdk').default;let request;
