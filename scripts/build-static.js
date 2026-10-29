@@ -219,6 +219,11 @@ function buildStatic(env = process.env) {
     copyDirectory(directory);
   }
 
+  const vendor=path.join(OUTPUT,'js','vendor');
+  fs.mkdirSync(vendor,{recursive:true});
+  fs.copyFileSync(path.join(ROOT,'node_modules/pdf-lib/dist/pdf-lib.min.js'),path.join(vendor,'pdf-lib.min.js'));
+  fs.copyFileSync(path.join(ROOT,'node_modules/pdf-lib/LICENSE.md'),path.join(vendor,'pdf-lib.LICENSE.txt'));
+
   fs.writeFileSync(
     path.join(OUTPUT, 'js', 'config.js'),
     renderFrontendConfig(frontendConfig),
@@ -229,6 +234,21 @@ function buildStatic(env = process.env) {
     renderSecurityHeaders(frontendConfig),
     'utf8'
   );
+  // Policy fotocamera per documento: evita direttive camera duplicate fra wildcard e route specifica.
+  let cameraHeaders='\n/\n  Permissions-Policy: camera=()\n';
+  function cameraPolicies(directory){
+    for(const entry of fs.readdirSync(directory,{withFileTypes:true})){
+      const full=path.join(directory,entry.name);
+      if(entry.isDirectory())cameraPolicies(full);
+      else if(entry.name.endsWith('.html')){
+        const relative=path.relative(OUTPUT,full).split(path.sep).join('/');
+        const scanner=relative==='moduli/scanner-documenti.html';
+        for(const route of ['/'+relative,'/'+relative.replace(/\.html$/,'')])cameraHeaders+=route+'\n  Permissions-Policy: camera='+(scanner?'(self)':'()')+'\n'+(scanner?'  Cache-Control: no-store\n  Referrer-Policy: no-referrer\n':'')+'\n';
+      }
+    }
+  }
+  cameraPolicies(OUTPUT);
+  fs.appendFileSync(path.join(OUTPUT,'_headers'),cameraHeaders);
   injectTelemetryScript();
 
   assertPrivateSourcesExcluded();

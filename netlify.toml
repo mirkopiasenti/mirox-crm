@@ -14,7 +14,7 @@
   # pdfkit: ha font AFM e asset binari interni che esbuild non riesce a
   #   bundlare correttamente (a runtime fallirebbe con ENOENT su Helvetica.afm).
   # unpdf: conserva il modulo ESM PDF.js importato dinamicamente e import.meta.url.
-  external_node_modules = ["@supabase/supabase-js", "nodemailer", "pdfkit", "@resvg/resvg-js", "unpdf"]
+  external_node_modules = ["@supabase/supabase-js", "nodemailer", "pdfkit", "@resvg/resvg-js", "unpdf", "@napi-rs/canvas", "zxing-wasm"]
 
 # Headers di sicurezza statici. La CSP e' generata in dist/_headers dalla build,
 # cosi' consente esclusivamente il progetto Supabase dell'ambiente corrente.
@@ -25,7 +25,7 @@
     X-Content-Type-Options   = "nosniff"
     Referrer-Policy          = "strict-origin-when-cross-origin"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
-    Permissions-Policy       = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()"
+    Permissions-Policy       = "microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()"
 
 # =============================================================================
 # Scheduled functions
@@ -59,6 +59,13 @@
 # Font privati del renderer PNG Target; esclusi dalla pubblicazione statica.
 [functions."target-worker-background"]
   included_files = ["netlify/functions/_assets/target/*"]
+
+# La build assegna camera=(self) solo allo scanner e camera=() alle altre pagine HTML.
+[[headers]]
+  for = "/moduli/scanner-documenti.html"
+  [headers.values]
+    Referrer-Policy = "no-referrer"
+    Cache-Control = "no-store"
 
 # Logo ufficiale per gli export PDF del personale.
 [functions."gestisci-planning"]

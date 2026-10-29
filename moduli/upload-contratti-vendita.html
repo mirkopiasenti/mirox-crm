@@ -1057,6 +1057,8 @@
 <script src="../js/verifica-contratti-core.js"></script>
 <script src="../js/identita-upload-core.js"></script>
 <script src="../js/identita-upload-ui.js"></script>
+<script src="../js/scanner-documenti-core.js"></script>
+<script src="../js/scanner-documenti-ui.js"></script>
 <script> // Auth guard: blocca rendering se non loggato
  (async () => {
  const profilo = await Auth.richiediAuth();
@@ -1354,6 +1356,7 @@ Reload Forever
 <h2>Upload Documenti Cliente</h2>
 <p class="hint" style="margin:0 0 10px;">Carica il documento di riconoscimento una sola volta: sara associato a ogni contratto del carrello. Controllalo rispetto all'anagrafica prima di proseguire. Per Mobile Consumer con dispositivo VAR e cittadinanza extra UE comparira anche il permesso di soggiorno. Il PDA e' gia stato caricato nello step 1.</p>
 <div class="grid">
+<div class="field half"><label for="scannerTipoDocumento">Documento di riconoscimento</label><select id="scannerTipoDocumento"><option value="cie">Carta d’identità elettronica</option><option value="cartacea">Carta d’identità cartacea + tessera sanitaria</option><option value="patente">Patente + tessera sanitaria</option><option value="passaporto">Passaporto: PDF e controllo manuale</option></select><label><input id="scannerTessera" type="checkbox"> Includi tessera sanitaria fronte e retro</label><button type="button" id="btnScannerDocumento">Acquisisci da smartphone</button><button type="button" id="btnScannerPdf">Non è possibile acquisire da smartphone: carica PDF</button><p id="scannerDocumentoStato" class="hint" role="status">Acquisizione guidata da smartphone.</p></div>
 <div id="fieldDocumentoIdentita" class="field half">
 <label for="file_documento_identita">Documento identita *</label>
 <input id="file_documento_identita" type="file" accept="application/pdf" multiple>
@@ -2616,16 +2619,33 @@ Reload Forever
  if (refs.cluster.value !== 'Business') return [];
  return [...new Set([...(state.cart.contratti || []).filter(c => c.temp_id !== runtimeState.editingTempId).map(c => c.pda_temp_path), runtimeState.pendingPda?.storage_path].filter(Boolean))].sort();
  }
+ let scannerChoice=null;
+ function scannerPackage(){return window.MiroxScannerCore.manifest({tipo:document.getElementById('scannerTipoDocumento').value,tessera_sanitaria:document.getElementById('scannerTessera').checked});}
+ function scannerPdf(){scannerChoice='pdf';refs.fieldDocumentoIdentita.style.display='';document.getElementById('scannerDocumentoStato').textContent='Carica i PDF di fronte e retro, includendo la tessera sanitaria quando richiesta.';}
+ async function openScanner(){
+   const cliente=getClienteFormData(),pacchetto=scannerPackage();
+   if(cliente.cluster==='Turista'||pacchetto.tipo==='passaporto'){scannerPdf();return;}
+   scannerChoice='smartphone';refs.fieldDocumentoIdentita.style.display='none';
+   const stamp=JSON.stringify([window.MiroxIdentitaCore.customer(cliente),cliente.cluster]);
+   await window.MiroxScannerUI.open({customer:cliente,pacchetto,current:packet=>stamp===JSON.stringify([window.MiroxIdentitaCore.customer(getClienteFormData()),refs.cluster.value])&&JSON.stringify(packet)===JSON.stringify(scannerPackage()),onPackageChange:packet=>{document.getElementById('scannerTipoDocumento').value=packet.tipo;const ts=document.getElementById('scannerTessera');ts.checked=packet.tessera_sanitaria;ts.disabled=['cartacea','patente'].includes(packet.tipo);window.MiroxIdentitaUpload.invalidate();},onFallback:scannerPdf,onPdf:file=>{setInputFiles(refs.fileDocumentoIdentita,[file]);refs.fieldDocumentoIdentita.style.display='';document.getElementById('scannerDocumentoStato').textContent='Documento ricevuto dallo smartphone. Completa il controllo identita.';}});
+ }
+ function offerScanner(){
+   if(getIdentityFiles().length||scannerChoice)return;
+   if(refs.cluster.value==='Turista'){document.getElementById('scannerTipoDocumento').value='passaporto';scannerPdf();return;}
+   openScanner().catch(error=>{scannerPdf();showUserError(error.message,'Scanner documento');});
+ }
  async function ensureIdentityUpload() {
  const files = getIdentityFiles();
  const cliente = getClienteFormData();
  const date = document.getElementById('identita_data_firma').value;
- const snapshot = JSON.stringify(window.MiroxIdentitaCore.customer(cliente));
+ const snapshot = JSON.stringify([window.MiroxIdentitaCore.customer(cliente),cliente.cluster]);
  const pdaPaths = getBusinessPdaPaths();
- return window.MiroxIdentitaUpload.ensure({ files, customer: cliente, date, pdaPaths,
+ const pacchetto=scannerPackage();
+ return window.MiroxIdentitaUpload.ensure({ files, customer: cliente, date, pdaPaths,pacchetto,
  requireCitizenship: window.MiroxIdentitaCore.needsPermit({ cluster: cliente.cluster, categoria_nome: getCategoriaName(), dispositivo_associato: refs.dispositivoAssociato.value === 'true', tipo_acquisto: refs.tipoAcquisto.value }, 'extra_ue')
  || state.cart.contratti.some(c => window.MiroxIdentitaCore.needsPermit({ ...c, cluster_cliente: cliente.cluster }, 'extra_ue')),
- current: () => snapshot === JSON.stringify(window.MiroxIdentitaCore.customer(getClienteFormData()))
+ current: () => snapshot === JSON.stringify([window.MiroxIdentitaCore.customer(getClienteFormData()),refs.cluster.value])
+ && JSON.stringify(pacchetto)===JSON.stringify(scannerPackage())
  && date === document.getElementById('identita_data_firma').value
  && JSON.stringify(pdaPaths) === JSON.stringify(getBusinessPdaPaths())
  && files.length === getIdentityFiles().length && files.every((file, index) => file === getIdentityFiles()[index]) });
@@ -2872,6 +2892,7 @@ Reload Forever
  renderDynamicSections();
  renderWizardLayout();
  queueDraftSave();
+ if(uiState.step===5)offerScanner();
  // Migration 033: all'apertura dello step 3 verifica se questo cliente ha
  // pratiche precedenti non finalizzate nella stessa categoria. Fire-and-forget
  // (l'overlay e' modale e blocca l'UI finche' l'operatore non risponde).
@@ -4724,6 +4745,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
 
  function startNuovaPraticaFromCart() {
+ scannerChoice=null;window.MiroxScannerUI.invalidate();
  showConfirmOverlay({
  title: 'Avviare una nuova pratica?',
  text: 'La pratica attuale non inviata verrà cancellata.',
@@ -6404,12 +6426,19 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
  });
 
+ document.getElementById('btnScannerDocumento').addEventListener('click',()=>openScanner().catch(error=>showUserError(error.message,'Scanner documento')));
+ document.getElementById('btnScannerPdf').addEventListener('click',()=>{window.MiroxScannerUI.invalidate();scannerPdf();});
+ for(const id of ['scannerTipoDocumento','scannerTessera'])document.getElementById(id).addEventListener('change',()=>{
+   window.MiroxScannerUI.invalidate();window.MiroxIdentitaUpload.invalidate();scannerChoice=null;
+   const m=scannerPackage(),tessera=document.getElementById('scannerTessera');tessera.checked=m.tessera_sanitaria;tessera.disabled=m.tipo==='cartacea'||m.tipo==='patente';
+   if(getIdentityFiles().length)scannerPdf();else offerScanner();
+ });
  document.getElementById('btnControllaIdentita').addEventListener('click', async () => {
  window.MiroxIdentitaUpload.invalidate();
  try { await ensureIdentityUpload(); updateUploadVisibility(); } catch (error) { if (!window.MiroxIdentitaUpload?.showError?.(error)) showUserError(error.message, 'Controllo identita'); }
  });
- for (const input of [refs.fileDocumentoIdentita, document.getElementById('identita_data_firma'), refs.cfPiva, refs.ragioneSociale, refs.nomeReferente]) {
- input.addEventListener('change', () => { window.MiroxIdentitaUpload.invalidate(); document.getElementById('identitaControlloEsito').textContent = 'Dati o documento cambiati: ripeti il controllo identita.'; });
+  for (const input of [refs.fileDocumentoIdentita, document.getElementById('identita_data_firma'), refs.cfPiva, refs.ragioneSociale, refs.nomeReferente,refs.cluster]) {
+ input.addEventListener('change', () => { window.MiroxScannerUI.invalidate();scannerChoice=null;window.MiroxIdentitaUpload.invalidate(); document.getElementById('identitaControlloEsito').textContent = 'Dati o documento cambiati: ripeti il controllo identita.'; });
  }
  refs.btnAddToCart.addEventListener('click', () => addContrattoToCart({ goToCart: false }));
  refs.btnOpenCarrello.addEventListener('click', () => addContrattoToCart({ goToCart: true }));

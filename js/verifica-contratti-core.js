@@ -4,7 +4,7 @@
   else root.MiroxVerificaCore = api;
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
-  const VERSION = '2026-10-28.3';
+  const VERSION = '2026-10-29.1';
   const LABELS = { da_controllare: 'Da controllare', controllato: 'Controllato', da_verificare: 'Da verificare', in_attesa_csv: 'In attesa CSV' };
   const FIELD_LABELS = { codice_contratto: 'Codice contratto', costo_offerta_mensile: 'Costo mensile base', portabilita: 'Portabilità', numero_telefono: 'Numero di telefono', numero_provvisorio: 'Numero provvisorio', numero_mnp: 'Numero da portare', operatore_provenienza: 'Gestore di provenienza', tipo_attivazione: 'Tipo attivazione Fisso', imei: 'IMEI', fascia_prezzo: 'Prezzo dispositivo', tipo_acquisto: 'Tipo acquisto', numero_contratto_energia: 'Numero contratto Energia', ex_fornitore: 'Gestore uscente' };
   const norm = v => String(v == null ? '' : v).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
@@ -129,8 +129,12 @@
     if (!signed) fail('data_firma', 'La data di firma del contratto non è leggibile o non è disponibile. Serve per controllare la scadenza del documento.');
     if (signed && signed > romeDay(new Date())) fail('data_firma_futura', 'La data di firma letta è futura: verifica la data effettiva del contratto.');
     if (business && !targetName && !targetTax) fail('firmatario', 'Completa Nome referente nell’anagrafica Business per controllare il documento di riconoscimento.');
+    const barcodeTaxes=[...new Set(identities.flatMap(d=>d.barcode?.complete?d.barcode.values.map(v=>compact(v.value)):[]))];
+    if(!identityPrecheck&&(barcodeTaxes.length>1||identities.some(d=>d.barcode?.conflict)))fail('identita_barcode','I codici a barre dei documenti indicano persone diverse.');
+    if(!identityPrecheck&&identities.some(d=>d.barcode?.attempted)&&(barcodeTaxes.length!==1||identities.some(d=>!d.barcode?.complete)))fail('identita_barcode','Il codice a barre non è stato decodificato completamente: serve una verifica manuale.');
     const identityMatches = identities.filter(d => {
-      const tax = compact(field(d, 'fiscale')), n = name(field(d, 'nome')), birth = date(field(d, 'nascita'));
+      if(field(d,'tipo_identita')==='tessera_sanitaria')return false;
+      const tax = barcodeTaxes.length===1?barcodeTaxes[0]:compact(field(d, 'fiscale')), n = name(field(d, 'nome')), birth = date(field(d, 'nascita'));
       if (/^[A-Z0-9]{16}$/.test(compact(targetTax))) return Boolean(tax && tax === compact(targetTax));
       if (business) {
         return Boolean(targetName && n && n.split(' ').length >= 2 && n === name(targetName) && (!targetTax || birthMatchesTax(birth, targetTax)));

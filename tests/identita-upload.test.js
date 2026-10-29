@@ -1,4 +1,5 @@
 'use strict';
+require('node:test').mock.method(require('../netlify/functions/_lib/identita-barcode'),'readPdf',async()=>({attempted:false,complete:true,conflict:false,values:[]}));
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -129,6 +130,16 @@ test('nuova API richiede permessi; confronto con CRM prima di AI e nessuna scrit
     requireAuth: async () => ({ ok: true, user: { id: 'user' } }), multipart: async () => ({ fields: { cliente: JSON.stringify(person), data_firma: '2026-10-27' }, files: [] }),
     extract: async () => { reads++; } });
   assert.equal(response.statusCode, 400); assert.match(JSON.parse(response.body).error, /anagrafica CRM/); assert.equal(reads, 0);
+});
+test('passaporto e Turista usano PDF e preview manuale senza chiamare OCR o barcode',async()=>{
+  for(const [cluster,tipo]of[['Consumer','passaporto'],['Turista','cie']]){
+    const cliente={...person,cluster};let reads=0;
+    const response=await handler({httpMethod:'POST',headers:{}},{secret:'fixture',db:{from(){return {select(){return this;},ilike(){return this;},limit:async()=>({data:[cliente]})};}},
+      requireAuth:async()=>({ok:true,user:{id:'user'}}),pdfInfo:async()=>2,
+      multipart:async()=>({fields:{cliente:JSON.stringify(cliente),data_firma:'2026-10-27',pacchetto:JSON.stringify({tipo})},files:[{buffer:Buffer.from('%PDF-fixture')}]}),
+      extract:async()=>{reads++;return reading();},readBarcode:async()=>{reads++;return {};}});
+    assert.equal(response.statusCode,200);assert.equal(reads,0);assert.equal(JSON.parse(response.body).result.stato,'da_confermare');
+  }
 });
 test('API produce ricevuta verificabile dei PDF e registra la conferma manuale della cittadinanza assente', async () => {
   const db = { from() { return { select() { return this; }, ilike() { return this; }, limit: async () => ({ data: [person] }) }; } };

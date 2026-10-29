@@ -8,7 +8,7 @@ function multipart(event) {
   return new Promise((resolve, reject) => {
     const fields = {}, files = []; let total = 0, invalid = false;
     const parser = Busboy({ headers: { 'content-type': event.headers?.['content-type'] || event.headers?.['Content-Type'] },
-      limits: { files: 4, fileSize: 20 * 1024 * 1024, fields: 3, fieldSize: 12000 } });
+      limits: { files: 4, fileSize: 20 * 1024 * 1024, fields: 4, fieldSize: 12000 } });
     parser.on('field', (key, value) => { fields[key] = value; });
     parser.on('filesLimit', () => { invalid = true; });
     parser.on('file', (key, stream) => {
@@ -54,8 +54,13 @@ async function handler(event, deps = {}) {
     if (!Identity.Core.sameCustomer(target, cliente)) throw new Error('I dati inseriti differiscono dall’anagrafica CRM: correggi prima l’anagrafica o ricarica i dati.');
     const paths = JSON.parse(fields.pda_paths || '[]');
     const business = Identity.Core.customer(target).business ? await Business.load(db, paths, target, deps) : null;
-    const analysis = await Identity.analyze(files, { ...target, cf_rappresentante: business?.cf_rappresentante }, fields.data_firma, { ...deps, nameRetryDeadline: started + 18000 });
-    const data = { version: 1, at: Date.now(), user, customer: { cf_piva: target.cf_piva, cluster: target.cluster,
+    const pacchetto=fields.pacchetto?require('../../js/scanner-documenti-core').manifest(JSON.parse(fields.pacchetto)):null;
+    const manualOnly=pacchetto?.tipo==='passaporto'||target.cluster==='Turista';
+    const identityDeps=manualOnly?{...deps,extract:async doc=>({id:doc.id,fields:{},manuale_passaporto:true}),readBarcode:async()=>({attempted:false,complete:true,conflict:false,values:[]})}:deps;
+    const analysis = await Identity.analyze(files, { ...target, cf_rappresentante: business?.cf_rappresentante }, fields.data_firma, { ...identityDeps, nameRetryDeadline: started + 18000 });
+    analysis.result.pacchetto=pacchetto;
+    if(manualOnly){analysis.result.stato=analysis.result.errors.length?'da_correggere':'da_confermare';analysis.result.uncertain.push('Passaporto o cliente Turista: verifica manuale tramite anteprima richiesta.');}
+    const data = { pacchetto, version: 1, at: Date.now(), user, customer: { cf_piva: target.cf_piva, cluster: target.cluster,
       ragione_sociale: target.ragione_sociale, nome_referente: target.nome_referente }, business_identity: business, ...analysis };
     return reply(200, { success: true, token: Identity.sign(data, deps.secret), result: data.result });
   } catch (error) { return reply(error.statusCode || 400, { success: false, error: error.message || 'Controllo identita non disponibile' }); }

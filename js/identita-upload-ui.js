@@ -15,7 +15,7 @@
     window.MiroxUI._build({ title: 'Controllo identita', bodyHtml: '<p>' + e(error.message) + '</p>' + comparisonHtml(error.identityComparison) });
     return true;
   }
-  const keyFor = async (files, customer, date, pdaPaths) => JSON.stringify([window.MiroxIdentitaCore.customer(customer), date, pdaPaths,
+  const keyFor = async (files, customer, date, pdaPaths, pacchetto) => JSON.stringify([window.MiroxIdentitaCore.customer(customer),customer.cluster, date, pdaPaths,pacchetto,
     await Promise.all(files.map(async file => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()))).map(b => b.toString(16).padStart(2, '0')).join('')))]);
   async function call(body) {
     const response = await window.MiroxApi.fetch('/.netlify/functions/verifica-identita-upload', body instanceof FormData
@@ -36,7 +36,7 @@
         const m = window.MiroxUI._build({ title: 'Anteprima e conferma manuale del documento', large: true,
           bodyHtml: '<p>Il controllo automatico richiede una verifica manuale.</p><ul>'
             + [...(result.errors || []), ...(result.uncertain || [])].map(text => '<li>' + e(text) + '</li>').join('') + '</ul>'
-            + comparisonHtml(result.confronto)
+            + comparisonHtml(result.confronto) + (result.pacchetto?.tessera_sanitaria?'<p>Verifica anche la presenza della tessera sanitaria fronte e retro della stessa persona.</p>':'')
             + files.map((file, index) => '<section><h3>Documento ' + (index + 1) + ': ' + e(file.name || 'Documento di riconoscimento') + '</h3>'
               + '<iframe data-identity-preview="' + index + '" title="Anteprima documento ' + (index + 1) + '" src="' + e(urls[index]) + '#view=FitH" style="display:block;width:100%;height:480px;border:1px solid #E3E8EE"></iframe>'
               + '<p><a href="' + e(urls[index]) + '" target="_blank" rel="noopener">Apri il documento a dimensione intera</a></p></section>').join('')
@@ -70,16 +70,17 @@
       });
     } finally { urls.forEach(url => URL.revokeObjectURL(url)); }
   }
-  async function ensure({ files, customer, date, pdaPaths = [], requireCitizenship = false, current = () => true }) {
+  async function ensure({ files, customer, date, pdaPaths = [], pacchetto=null, requireCitizenship = false, current = () => true }) {
     if (!files.length) throw new Error('Carica il documento di riconoscimento.');
     if (!date) throw new Error('Indica la data effettiva di firma per il controllo identita.');
     const stamp = revision;
-    const key = await keyFor(files, customer, date, pdaPaths);
+    const key = await keyFor(files, customer, date, pdaPaths,pacchetto);
     if (stamp !== revision || !current()) throw new Error('Dati o documenti cambiati durante il controllo. Ripeti la verifica.');
     if (cached?.key === key && Date.now() - cached.at < 3.5 * 3600000 && (!requireCitizenship || cached.result.cittadinanza)) return cached;
     cached = null;
     const form = new FormData();
     form.append('cliente', JSON.stringify(customer)); form.append('data_firma', date);
+    if(pacchetto)form.append('pacchetto',JSON.stringify(pacchetto));
     if (window.MiroxIdentitaCore.customer(customer).business) form.append('pda_paths', JSON.stringify(pdaPaths));
     files.forEach(file => form.append('file', file));
     const active = () => stamp === revision && current();
@@ -103,6 +104,7 @@
     if (!active()) throw new Error('Dati cambiati: ripeti il controllo identita.');
     cached = { key, at: Date.now(), token: data.token, result: data.result };
     if (status) status.textContent = data.result.stato === 'manuale' ? 'Controllo identita confermato manualmente e registrato.'
+      : data.result.criterio_identita === 'barcode_fiscale' ? 'Codice fiscale decodificato dal codice a barre coincidente e documento valido alla firma.'
       : data.result.criterio_identita === 'cf_rappresentante_pda' ? 'Codice fiscale del documento coincidente con il rappresentante della PDA Business e documento valido alla firma.'
         : data.result.criterio_identita === 'codice_fiscale' ? 'Codice fiscale coincidente con l’anagrafica e documento valido alla data di firma indicata.'
         : 'Identita coerente con l’anagrafica e valida alla data di firma indicata.';

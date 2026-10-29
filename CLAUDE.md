@@ -1590,3 +1590,18 @@ al successivo di procedere. Timeout/429 restano ritentabili e in ordine.
 “Aprimi una nuova richiesta” crea subito il caso e collega la sessione prima del
 vocale successivo; il primo dettaglio sostituisce il testo provvisorio. Nessuna
 modifica di schema, segreti, modello predefinito o conferme di pubblicazione.
+
+## Scanner documenti guidato (locale29/10/2026)
+
+QR automatico nello step Documenti Upload, acquisizione web fronte/retro in memoria
+senza galleria, PDF massimo4MiB e sessione10minuti revocabile. CIE sola o con TS
+facoltativa; cartacea/patente con TS fronte/retro; passaporto/Turista soltanto PDF e
+preview manuale, senza OCR identita. Fallback PDF esplicito e conferma preview
+esistenti. Lettore reale barcode server ZXing+checksum CF, AI resta per scadenza e
+parti; TS non impone numero/tipo/scadenza identita. CF Business dalla PDA invariato.
+Nuova POST scanner-documenti: JWT desktop, capability HMAC limitata telefono con
+owner ACL fresche, tabella vendita_scanner_sessioni privata/service-only gia applicata
+production20261029202906, sorgente20261029201139. Nessuna modifica CC/env/schedule.
+qrcode1.5.4, zxing-wasm3.1.6, @napi-rs/canvas1.0.13 fissati; WASM locale e PDF-lib
+browser vendorizzato dalla build. Nessun push; camera iPhone/Android da collaudare
+con proprietario dopo rilascio autorizzato. Fonte AGENTS e docs/SCANNER_DOCUMENTI_2026-10-29.md.

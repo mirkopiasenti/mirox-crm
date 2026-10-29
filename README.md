@@ -5,7 +5,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 ## Stack
 
 - **Frontend**: HTML statico + JavaScript vanilla (no bundler), Inter via Google Fonts, client Supabase `@supabase/supabase-js@2.110.8` da CDN con Subresource Integrity
-- **Backend serverless**: Netlify Functions (Node >=22 + esbuild), librerie versionate esattamente (`@supabase/supabase-js@2.110.8`, `nodemailer@9.0.3`, `busboy`, `pdfkit`, `pdf-lib@1.17.1`, `unpdf@1.9.1` per il recupero testuale PDA, `fflate@0.8.2` per gli export `.xlsx`, `@resvg/resvg-js@2.6.2` per i report PNG Target)
+- **Backend serverless**: Netlify Functions (Node >=22 + esbuild), librerie versionate esattamente (`@supabase/supabase-js@2.110.8`, `nodemailer@9.0.3`, `busboy`, `pdfkit`, `pdf-lib@1.17.1`, `unpdf@1.9.1` per il recupero testuale PDA, `fflate@0.8.2` per gli export `.xlsx`, `@resvg/resvg-js@2.6.2` per i report PNG Target, `qrcode@1.5.4` per QR, `zxing-wasm@3.1.6` e `@napi-rs/canvas@1.0.13` per decodificare barcode dai PDF)
 - **Database**: Supabase Postgres (Auth + Storage + RLS + RPC + Trigger), 10 bucket Storage (`moduli-template` pubblico + 9 privati con signed URL on-demand)
 - **Backup Aruba attivo**: VPS IT1 e Object Storage R1-IT, copie automatiche ogni ora anche a Mac spento, AES-256-GCM/versioni/Compliance. Prima copia: 10 bucket/6.579 oggetti; tutti i 6.584 file verificati da Aruba e restore DB isolato riuscito (100 tabelle/51.252 righe). Monitor esterno con avvisi di errore/mancata esecuzione collaudato; chiave custodita separatamente. 68 test Linux e 128 npm superati. Netlify: 20/28 valori Production esportati con autorizzazione, salvati privatamente e cifrati su Aruba; readback/confronto verificati. 8 Secret write-only mancanti, senza copie originali: serve futura riemissione coordinata. Inventario configurazioni statico da aggiornare dopo modifiche; copertura esterna ancora parziale. API/ACL del recupero su progetto Supabase gestito e scadenza lifecycle da collaudare. Guida: [`docs/BACKUP_RIPRISTINO.md`](docs/BACKUP_RIPRISTINO.md)
 - **Verifica storico 23/10**: ultima copia integra (7.298 file/11 bucket), ma 23/441 copie automatiche fallite e un intervallo massimo di circa 8 ore; full/checkpoint giornalieri del 20-23/10 mancanti. Nessuna correzione applicata; dettagli e interventi necessari nel [rapporto](docs/BACKUP_VERIFICA_STORICO_2026-10-23.md).
@@ -1031,3 +1031,40 @@ Convenzione materiale locale (28/10): `/tmp/`, `/output/` e `ed.hup` sono
 ignorati da Git; contengono elaborati, documenti e scratchpad locali, mai
 parte del codice da pubblicare. Dati di recupero e credenziali restano
 esclusivamente in `.backup-private/`.
+
+## Scanner documenti guidato — sviluppo locale 29/10/2026
+
+Nello step Documenti dell’Upload Contratti compare prima il QR per il telefono.
+La pagina web acquisisce fronte e retro con la fotocamera, senza salvare nella
+galleria o nello storage locale del browser, e invia un PDF alla stessa pratica.
+CIE sola o con tessera sanitaria facoltativa; carta cartacea e patente con tessera
+sanitaria obbligatoria, sempre fronte/retro. Passaporto e Turista restano PDF e
+anteprima manuale. Il pulsante «Non è possibile acquisire la scansione da smartphone:
+carica PDF» mantiene il percorso con scanner tradizionale e conferma tramite preview.
+
+Il CF viene decodificato realmente dal barcode sui byte del PDF con ZXing e checksum;
+non viene indovinato dall’AI. Codice assente/illeggibile, lettura incompleta o dati
+incerti richiedono la preview manuale. La scadenza del documento d’identita continua
+ad essere letta e confrontata con la data firma; la tessera sanitaria non sostituisce
+il documento. Business mantiene CF del rappresentante dalla PDA e riscontro azienda.
+Gli altri controlli successivi e le notifiche esistenti conservano le loro regole.
+
+Sessione revocabile di 10 minuti, PDF smartphone massimo 4 MiB, massimo 5 sessioni
+aperte per operatore. Telefono con collegamento temporaneo, PC autenticato per
+ricevere il file. Camera abilitata soltanto sulla pagina scanner; WASM e PDF-lib
+serviti localmente, nessun CDN nuovo. Nessuna env var o nuova schedulazione:
+la pulizia temporanei usa il cron operativo esistente.
+
+Struttura aggiunta: `moduli/scanner-documenti.html`, `css/scanner-documenti.css`,
+`js/scanner-documenti-{core,mobile,ui}.js`, helper server
+`_lib/scanner-sessioni.js` e `_lib/identita-barcode.js`; la build genera
+`dist/js/vendor/pdf-lib.min.js` con relativa licenza dalla dipendenza fissata.
+
+| Pagina / function | Accesso | Scopo |
+|---|---|---|
+| `moduli/scanner-documenti.html` | QR temporaneo | Acquisizione web guidata iPhone/Android, scatti in memoria |
+| `scanner-documenti` (POST) | JWT e permesso Upload sul PC; capability limitata sul telefono | Crea, stato, invia PDF, ricevi e annulla sessione; nessuna API anonima di lettura CRM |
+
+Migration privata gia applicata il29/10, codice ancora locale e **non pubblicato**.
+Restano da collaudare fotocamera, nitidezza e limiti peso con iPhone/Android reali.
+[Guida tecnica, verifiche e limiti](docs/SCANNER_DOCUMENTI_2026-10-29.md).

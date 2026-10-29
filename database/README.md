@@ -810,3 +810,24 @@ al successivo di procedere. Timeout/429 restano ritentabili e in ordine.
 “Aprimi una nuova richiesta” crea subito il caso e collega la sessione prima del
 vocale successivo; il primo dettaglio sostituisce il testo provvisorio. Nessuna
 modifica di schema, segreti, modello predefinito o conferme di pubblicazione.
+
+## Scanner documenti — migration applicata 29/10/2026
+
+Sorgente `20261029201139_scanner_documenti.sql`, registrazione production
+`20261029202906` (`scanner_documenti`). Aggiunge soltanto
+`vendita_scanner_sessioni`: operatore UUID senza FK, snapshot cliente/pacchetto JSONB,
+hash token e PDF, stato e scadenza; indici per operatore/scadenza e scadenza globale.
+RLS ON, REVOKE PUBLIC/anon/authenticated, CRUD solo service_role. Nessuna RPC,
+policy permissiva, modifica a tabelle condivise, nuovo bucket o dato cliente creato.
+Temporanei nel bucket privato PDF-only esistente `contratti-vendita`, con path
+derivato server; pulizia elimina il record soltanto dopo rimozione Storage riuscita.
+
+CLI locale e versione ufficiale2.122.0 falliscono prima della generazione con
+`ProfileLoadError: Unsupported Config Type ""`: timestamp UTC generato localmente,
+SQL versionato ed eseguito tramite `apply_migration`, senza riparare lo storico.
+Harness SQL PGlite isolato: ACL/RLS/vincoli/CAS e rifiuto authenticated verificati.
+Live riletti RLS=true, anon SELECT=false, authenticated INSERT=false,
+service_role CRUD=true,0sessioni. Advisor sicurezza stesse7categorie: solo INFO
+`rls_enabled_no_policy`31→32 atteso per nuova tabella esclusivamente server.
+Codice frontend/functions ancora locale; nessun push o test su documenti reali.
+[Flusso, sicurezza e verifiche](../docs/SCANNER_DOCUMENTI_2026-10-29.md).

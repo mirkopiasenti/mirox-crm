@@ -236,3 +236,18 @@ Accuratezza OCR e collaudo grafico con scansioni reali restano da fare insieme.
 Ordine di rilascio: migration additiva applicata prima del push; endpoint, client
 e backend pubblicati insieme per il nuovo formato ricevuta. Modalita serale
 `collaudo` riconfermata dopo la migration; nessuna verifica/email avviata.
+
+## Evoluzione locale 29/10: scanner guidato e barcode reale
+
+QR automatico nello step Documenti con acquisizione smartphone fronte/retro in
+memoria; fallback PDF e preview manuale esistenti. CIE sola/TS facoltativa,
+cartacea o patente con TS fronte/retro; passaporto/Turista PDF e manuale senza OCR
+identita. Decoder server ZXing sui byte PDF e checksum CF: valore univoco completo
+prevale sulle lettere AI; assenza/incompletezza/conflitti richiedono manuale. TS
+fonte CF, distinta da numero/tipo/scadenza identita. Business mantiene CF personale
+dalla PDA e riscontro azienda. Modello AI invariato, ancora usato per scadenza/parti
+e altri documenti; versione lettore e core serale2026-10-29.1. Riuso ricevuta upload
+solo con dati/byte/PDA invariati. Nessuna attivazione verifica o invio nuovo.
+Codice non pubblicato; migration privata gia pronta. Test sintetici non convalidano
+qualita reale: collaudo iPhone/Android e documenti con proprietario ancora necessario.
+[Architettura, sicurezza, verifiche e limiti](SCANNER_DOCUMENTI_2026-10-29.md).

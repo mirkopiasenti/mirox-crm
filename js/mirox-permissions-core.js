@@ -67,6 +67,7 @@
   }
   function pageForPath(pathname) {
     const path = String(pathname || '').split(/[?#]/)[0].replace(/^\//, '');
+    if(path==='moduli/scanner-documenti.html')return pages.find(p=>p.key==='upload_contratti');
     return pages.find(p => path === p.path);
   }
   function normalize(value) {
@@ -87,6 +88,7 @@
       'ocr-pda': ['upload_contratti'], 'vendita-config': ['upload_contratti'],
       'upload-vendita-documento': ['upload_contratti'],
       'verifica-identita-upload': ['upload_contratti'],
+      'scanner-documenti': ['upload_contratti'],
       'richiedi-otp-privacy': ['upload_contratti'], 'verifica-otp-privacy': ['upload_contratti'],
       'upload-consenso-cartaceo': ['upload_contratti'], 'genera-pdf-consenso-cartaceo': ['upload_contratti'],
       'garantisci-anagrafica': ['upload_contratti'], 'search-anagrafica': ['upload_contratti'],

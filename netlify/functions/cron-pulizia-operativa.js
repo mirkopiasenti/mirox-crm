@@ -169,6 +169,10 @@ const handler = async () => {
         errors.push(`guardian telemetry retention: ${error?.message || error}`);
     }
 
+    let scannerDeleted=0;
+    try{scannerDeleted=await require('./_lib/scanner-sessioni').cleanup(supabase,nowIso);}
+    catch(error){if(!['42P01','PGRST205'].includes(error.code))errors.push('scanner: '+error.message);}
+
     if (errors.length) console.error('cron-pulizia-operativa:', errors.join(' | '));
 
     return {
@@ -178,6 +182,7 @@ const handler = async () => {
             otp_scaduti: expiredOtps?.length || 0,
             rate_limit_eliminati: expiredLimits?.length || 0,
             bozze_eliminate: deletedDrafts,
+            scanner_sessioni_eliminate: scannerDeleted,
             dettagli_guardian_eliminati: guardianDetailsDeleted,
             eventi_guardian_eliminati: guardianTelemetryDeleted,
             errori: errors

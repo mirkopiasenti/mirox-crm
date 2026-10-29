@@ -1,4 +1,5 @@
 'use strict';
+require('node:test').mock.method(require('../netlify/functions/_lib/identita-barcode'),'readPdf',async()=>({attempted:false,complete:true,conflict:false,values:[]}));
 const test=require('node:test'),assert=require('node:assert/strict');
 const Business=require('../netlify/functions/_lib/pda-business-identity');
 const Identity=require('../netlify/functions/_lib/identita-upload');

@@ -25,6 +25,17 @@ function fixture(category = 'Customer Base') {
 }
 const get = (f, id) => f.extracted.documents.find(d => d.id === id).fields;
 
+test('serale: CF barcode della tessera sanitaria con scadenza del documento identita, senza confondere la tessera',()=>{
+  const f=fixture(),id=f.extracted.documents.find(d=>d.id==='identity');
+  Object.assign(id.fields,{fiscale:evidence('OCRERRATO'),tipo_identita:evidence('carta_identita')});
+  id.barcode={attempted:true,complete:true,conflict:false,values:[]};
+  const ts={id:'tessera',barcode:{attempted:true,complete:true,conflict:false,values:[{value:f.customer.cf_piva,page:2,format:'Code39'}]},fields:{tipo_identita:evidence('tessera_sanitaria'),scadenza:evidence('2020-01-01')}};
+  f.documents.push({id:'tessera',tipo_documento:'documento_identita',pages:2});f.extracted.documents.push(ts);
+  assert.equal(Core.evaluate(f).esito,'controllato');
+  ts.barcode.values[0].value='VRDLGI80A01H501Z';assert.equal(Core.evaluate(f).esito,'da_verificare');
+  ts.barcode.values=[];assert.equal(Core.evaluate(f).errors.some(e=>e.code==='identita_barcode'),true);
+});
+
 test('analisi automatica rispetta scope e gestione Cloud su Mobile e Fisso Business, incluso storico', async () => {
   for (const category of ['Mobile', 'Fisso']) {
     for (const choice of [

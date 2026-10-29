@@ -2,6 +2,15 @@
 
 Aggiornato: 2026-10-29. Promemoria di ripresa, non autorizza deploy o attivazioni.
 
+## Scanner documenti QR e barcode: implementato locale29/10, non pubblicato
+
+- Richiesta confermata: QR automatico a step Documenti, CIE sola/TS facoltativa, cartacea/patente+TS obbligatoria, fronte/retro di ogni documento. Passaporto/Turista PDF e preview manuale senza OCR identita. Fallback PDF esplicito e preview dopo errori preservati; nessun salvataggio intenzionale galleria/storage locale telefono.
+- Implementati pagina mobile, core/UI scanner, POST scanner-documenti e sessioni private HMAC10minuti/hash token, proprietario/ACL Upload fresche, snapshot cliente, CAS/upload immutabile/idempotenza,4MiB/2o4pagine. QR rigenerabile/revocabile, risposte tardive scartate, camera/foto liberate. CF decodificato realmente con ZXing+checksum sul PDF; TS solo CF, scadenza del documento distinta. Barcode incerto/incompleto/conflict richiede manuale; Business e controlli successivi invariati. Nuove dipendenze fissate qrcode1.5.4/zxing-wasm3.1.6/@napi-rs/canvas1.0.13, WASM locale, PDF-lib browser copiato con licenza in build. Camera consentita soltanto scanner, cron pulizia gia esistente.
+- Migration nuova privata20261029201139 applicata production20261029202906: vendita_scanner_sessioni RLS/service-only, nessun FK/RPC/schema/ACL CC o nuovo bucket. Live0sessioni, privilegi verificati; advisor7categorie invariate, solo INFO RLSsenzaPolicy31→32 atteso. CLI locale/ufficiale falliscono ProfileLoadError, fallback timestamp UTC documentato. SQL isolato ACL/vincoli/CAS verificato. Nessuna sessione/documento reale, chiamata AI, email, conferma contratto o attivazione serale eseguita.
+- Build/suite scanner isolata552/552verdi e checkout570/570verdi, SQL e DOM verdi. Barcode Code39/128 da PDF sintetici realmente renderizzati/decodificati, CF errato/checksum/conflitti, owner/TTL/idempotenza/cleanup, DOM PC rinnovo/fallback/stale e telefono scatti/invio/retry/memoria. Nessun browser. Guide README/AGENTS/CLAUDE/databaseREADME/identita/verifica e docs/SCANNER_DOCUMENTI_2026-10-29.md aggiornate.
+- Modifiche planning parallele preservate/separate, non includerle nel commit scanner. Nessun push autorizzato per questo task. Prossimo: richiesta esplicita di push, poi collaudo iPhone/Android reali e nuove scansioni con proprietario; non presumere accuratezza reale dai test sintetici.
+
+
 
 ## Planning dipendenti: pubblicato29/10, solo planning
 
