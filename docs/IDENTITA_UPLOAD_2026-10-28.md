@@ -263,3 +263,21 @@ senza eccezioni non gestite. Passaporto riconosciuto con tipo CIE selezionato pe
 errore richiede comunque preview manuale; dichiarato passaporto/Turista conserva
 il percorso senza OCR identita. Build/suite isolata571/571verdi, nessuna nuova
 migration o operazione production. Dettagli nella guida scanner del29/10.
+
+### Revisione finale30/10 — preparazione, non pubblicato
+
+CF collegato all’identita tramite barcode su pagina fronte/retro identita oppure
+medesimo CF esplicito stampato su quella pagina. Quando il CF e solo sulla tessera
+sanitaria, la scelta del proprietario30/10 prevede confronto di nome e nascita
+fra i due documenti: ordine/diacritici normalizzati, data identica ed evidenze sulle
+rispettive pagine. Dati mancanti/discordanti o CF diverso stampato sull’identita
+richiedono conferma manuale della coppia. Nome OCR non torna blocco generale contro
+l’anagrafica. I campi tessera_nome, tessera_nascita e tessera_fiscale sono separati
+dai dati dell’identita, senza dedurre l’uno dall’altro.
+Tessera richiesta: evidenza di entrambe le facciate, altrimenti manuale. Stesso
+cluster nelle ricevute; compatibilita legacy senza cluster. Budget condiviso
+lettura42s, poi fallback manuale; prima del trasferimento massimo4MiB complessivi
+per identita, senza cancellare o ricomprimere i file selezionati. Lettore/cache
+2026-10-30.1. Copie definitive preservate su commit DB con risposta persa e stream
+interrotti gestiti. Build/suite601test Node22 e flusso completo con byte sintetici,
+mai documenti clienti. Vedi rapporto SCANNER_COLLAUDO_RILASCIO_2026-10-30.md.

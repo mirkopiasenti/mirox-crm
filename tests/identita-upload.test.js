@@ -67,7 +67,7 @@ test('ricevuta HMAC legata a utente, anagrafica e tempo; manomissioni rifiutate'
   const options = { user: 'user', customer: person, now: 100100, secret: 'fixture-secret' };
   assert.equal(Identity.verify(token, options).user, 'user');
   for (const patch of [{ user: 'other' }, { customer: { ...person, ragione_sociale: 'Altro Cliente' } },
-    { now: 100000 + 5 * 3600000 }, { secret: 'wrong' }]) assert.throws(() => Identity.verify(token, { ...options, ...patch }), /Ripeti il controllo/);
+    { customer:{...person,cluster:'Turista'} },{ now: 100000 + 5 * 3600000 }, { secret: 'wrong' }]) assert.throws(() => Identity.verify(token, { ...options, ...patch }), /Ripeti il controllo/);
   assert.throws(() => Identity.verify(token + 'x', options), /Ripeti il controllo/);
   assert.throws(() => Identity.assertPractice(data, { ...person, cf_piva: 'ALTRO' }), /anagrafica/);
 });
@@ -241,4 +241,14 @@ test('risposta vecchia non rimuove il blocco doppio click della nuova richiesta 
  for(let i=0;i<100&&!releases[2];i++)await new Promise(resolve=>setImmediate(resolve));
  assert.ok(releases[1]);assert.ok(releases[2]);releases[1]();await rejected;
  assert.equal(window.MiroxIdentitaUpload.ensure({...options,files}),next);assert.equal(calls,2);releases[2]();assert.equal((await next).token,'esito2');
+});
+test('PDF identita troppo grandi rifiutati prima di chiamare la function, senza perdere i file selezionati',async()=>{
+ let calls=0;const window={MiroxSafe:{escapeHtml:String},MiroxIdentitaCore:Core,MiroxApi:{fetch:async()=>{calls++;}}};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../js/identita-upload-ui'),'utf8'),{window});
+ const files=[new File([new Uint8Array(4*1024*1024+1)],'originale.pdf')];
+ await assert.rejects(window.MiroxIdentitaUpload.ensure({files,customer:person,date:'2026-10-29'}),/4 MB/);assert.equal(calls,0);assert.equal(files[0].name,'originale.pdf');
+});
+test('budget identita esaurito produce preview manuale senza nuove chiamate AI',async()=>{
+ let calls=0;const result=await Identity.analyze([{buffer:Buffer.from('%PDF-sintetico')}],person,'2026-10-29',{deadline:Date.now()-1,pdfInfo:async()=>1,pdfText:async()=>'',client:{messages:{create:async()=>{calls++;throw Error('Non deve chiamare');}}}});
+ assert.equal(calls,0);assert.equal(result.result.stato,'da_confermare');
 });

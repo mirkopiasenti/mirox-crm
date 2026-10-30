@@ -48,7 +48,7 @@ async function analyze(files, customer, signingDate, deps = {}) {
     try { reading = await (deps.extract || Docs.extractDocument)(doc, file.buffer, { ...deps, client }); }
     catch { reading = { id: doc.id, fields: {}, lettura_non_disponibile: true }; }
     const Barcode=require('./identita-barcode');
-    reading=Barcode.apply(reading,await (deps.readBarcode || Barcode.readPdf)(file.buffer));
+    reading=Barcode.apply(reading,await (deps.readBarcode || Barcode.readPdf)(file.buffer,{deadline:Math.min(deps.deadline||Infinity,Date.now()+12000)}));
     documents.push({ sha256: doc.id, pages, reading });
   }));
   documents.sort((a, b) => a.sha256.localeCompare(b.sha256));

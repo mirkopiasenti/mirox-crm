@@ -75,6 +75,7 @@
   }
   async function ensure({ files, customer, date, pdaPaths = [], pacchetto=null, requireCitizenship = false, current = () => true }) {
     if (!files.length) throw new Error('Carica il documento di riconoscimento.');
+    if(files.reduce((sum,file)=>sum+(Number(file.size)||0),0)>4*1024*1024)throw new Error('I PDF identita superano il limite di trasferimento di 4 MB complessivi. I file restano selezionati: usa lo smartphone o prepara una copia piu leggera.');
     if (!date) throw new Error('Indica la data effettiva di firma per il controllo identita.');
     const stamp = revision;
     const key = await keyFor(files, customer, date, pdaPaths,pacchetto);

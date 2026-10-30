@@ -169,6 +169,7 @@ function readMultipart(event) {
     });
 
     busboy.on('file', (fieldName, file, infoOrFilename, encodingMaybe, mimetypeMaybe) => {
+      file.on('error', reject);
       if (fieldName !== 'file') {
         file.resume();
         return;
@@ -298,6 +299,7 @@ async function storeIdentityForContracts({ supabase, contracts, payload, buffer 
   }
   const storage = supabase.storage.from(STORAGE_BUCKET);
   const createdPaths = [];
+  let insertAttempted=false;
   const rows = contracts.map(c => {
     if (c.pratica_id !== payload.pratica_id || c.anagrafica_id !== payload.anagrafica_id) {
       throw new Error('Contratto non coerente con pratica e anagrafica');
@@ -319,10 +321,20 @@ async function storeIdentityForContracts({ supabase, contracts, payload, buffer 
       if (copyError) throw copyError;
       createdPaths.push(row.storage_path);
     }
+    insertAttempted=true;
     const { data, error: insertError } = await supabase.from('vendita_documenti').insert(rows).select('*');
     if (insertError) throw insertError;
     return data;
   } catch (error) {
+    if(insertAttempted&&createdPaths.length){
+      const saved=await supabase.from('vendita_documenti').select('*').eq('pratica_id',payload.pratica_id).in('storage_path',createdPaths);
+      if(saved.error)throw new Error('Esito salvataggio identita incerto: file conservati. Verifica la pratica prima di riprovare.');
+      if(saved.data?.length){
+        const recovered=rows.map(expected=>saved.data.find(actual=>actual.storage_path===expected.storage_path&&actual.contratto_id===expected.contratto_id&&actual.anagrafica_id===expected.anagrafica_id&&actual.tipo_documento===expected.tipo_documento&&actual.sha256===expected.sha256));
+        if(recovered.every(Boolean))return recovered;
+        throw new Error('Esito salvataggio identita discordante: file conservati. Verifica la pratica prima di riprovare.');
+      }
+    }
     if (createdPaths.length) {
       const { error: cleanupError } = await storage.remove(createdPaths);
       if (cleanupError) throw new Error(`Upload identita fallito; pulizia file non riuscita: ${cleanupError.message}`);
@@ -577,6 +589,7 @@ exports.handler = async (event) => {
 };
 
 exports._test = {
+  readMultipart,
   storeIdentityForContracts,
   authenticatedUploaderId,
   canManagePractice,

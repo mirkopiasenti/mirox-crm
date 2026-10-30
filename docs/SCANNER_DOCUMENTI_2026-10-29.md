@@ -238,3 +238,14 @@ Verifica finale secondo debug: build/suite isolata571/571verdi sul codice finale
 caso passaporto, poi coperto dal rilascio isolato. Prove mirate51/51verdi prima
 dell’ultimo caso. Le fixture riproducono bug con risultati falliti prima del fix.
 Nessun browser, lettura reale o push; collaudo fisico resta da eseguire.
+
+## Stato finale30/10: preparazione rilascio
+
+Ramo integrato con planning pubblicato,601test Node22 e pacchetti reali Netlify
+verificati. Correzioni ulteriori, matrice completa, limiti effettivi di trasferimento
+e procedura operativa nel [rapporto finale](SCANNER_COLLAUDO_RILASCIO_2026-10-30.md).
+Le sezioni precedenti descrivono lo storico: prevalgono CF legato all’identita,
+confronto nome/nascita fra i due documenti quando CF solo tessera (scelta esplicita
+proprietario30/10, preview se incerto), TS fronte/retro, limite browser4MiB e budget
+condiviso42s/versione2026-10-30.1. Nessun blocco generale nome contro anagrafica.
+Codice ancora non pubblicato; nessuna pratica reale testata o confermata.

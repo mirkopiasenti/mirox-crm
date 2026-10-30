@@ -42,10 +42,11 @@ test('budget barcode esaurito forza manuale senza avviare il renderer',async()=>
 });
 test('CF barcode prevale sulla lettera sbagliata AI, tessera sanitaria non impone tipo/scadenza/numero tessera',async()=>{
   const codes=await Barcode.readPdf(await pdfCodes([cf]));
-  const id=Barcode.apply(reading(),{attempted:true,complete:true,values:[],conflict:false});
+  const id=Barcode.apply(reading({fiscale:cf}),{attempted:true,complete:true,values:[],conflict:false});
   const ts=Barcode.apply(reading({tipo_identita:'tessera_sanitaria',numero_documento:'NUMEROTESSERA',scadenza:'2020-01-01'}),codes);
   const result=Identity.Core.evaluate([id,ts],person,'2026-10-29');assert.equal(result.stato,'coerente');assert.equal(result.criterio_identita,'barcode_fiscale');
   assert.equal(Identity.Core.evaluate([ts],person,'2026-10-29').stato,'da_confermare');
+  assert.equal(Identity.Core.evaluate([Barcode.apply(reading(),{attempted:true,complete:true,values:[],conflict:false}),ts],person,'2026-10-29').stato,'da_confermare');
   const missing=Identity.Core.evaluate([Barcode.apply(reading({fiscale:cf}),{attempted:true,complete:true,values:[],conflict:false})],person,'2026-10-29');assert.equal(missing.stato,'da_confermare');
 });
 function dbFixture(){
@@ -143,9 +144,37 @@ test('scadenza durante validazione PDF blocca upload prima di scrivere lo Storag
 });
 test('multipart interrotto rifiutato senza errore stream non gestito su scanner e fallback identita',()=>{
  const {spawnSync}=require('node:child_process');
- for(const name of ['scanner-documenti','verifica-identita-upload']){
-   const code=`const api=require('./netlify/functions/${name}');const body='--b\\r\\nContent-Disposition: form-data; name="file"; filename="id.pdf"\\r\\nContent-Type: application/pdf\\r\\n\\r\\n%PDF-incompleto';api._test.multipart({headers:{'content-type':'multipart/form-data; boundary=b'},body}).then(()=>process.exit(2),()=>console.log('rifiutato'));`;
+ for(const name of ['scanner-documenti','verifica-identita-upload','upload-vendita-documento']){
+   const code=`const api=require('./netlify/functions/${name}');const body='--b\\r\\nContent-Disposition: form-data; name="file"; filename="id.pdf"\\r\\nContent-Type: application/pdf\\r\\n\\r\\n%PDF-incompleto';(api._test.multipart||api._test.readMultipart)({headers:{'content-type':'multipart/form-data; boundary=b'},body}).then(()=>process.exit(2),()=>console.log('rifiutato'));`;
    const child=spawnSync(process.execPath,['-e',code],{cwd:require('node:path').resolve(__dirname,'..'),encoding:'utf8'});
    assert.equal(child.status,0,child.stderr);assert.match(child.stdout,/rifiutato/);
  }
+});
+test('CF solo sulla tessera non approva un diverso documento; CIE con barcode proprio resta automatica',()=>{
+ const empty={attempted:true,complete:true,conflict:false,values:[]},tax={attempted:true,complete:true,conflict:false,values:[{value:cf,page:1,format:'Code39'}]};
+ const id=Barcode.apply(reading({fiscale:other,nome:'Luigi Verdi'}),empty),ts=Barcode.apply(reading({tipo_identita:'tessera_sanitaria'}),tax);
+ assert.equal(Identity.Core.evaluate([id,ts],person,'2026-10-29').stato,'da_confermare');
+ assert.equal(Identity.Core.evaluate([Barcode.apply(reading(),tax)],person,'2026-10-29').stato,'coerente');
+});
+test('CF solo tessera: confronto nome e nascita tra i due documenti, ordine/accenti normalizzati; dubbio manuale',()=>{
+ const f=(value,page=1)=>({value,page,quote:'Dato sintetico indipendente'});
+ const id={fields:{nome:f('Mario Rossi'),nascita:f('1980-01-01'),fiscale:null,tipo_identita:f('patente'),numero_documento:f('AB123456'),scadenza:f('2030-01-01'),fronte_presente:f(true),retro_presente:f(true,2),cittadinanza:f('IT')},barcode:{attempted:true,complete:true,conflict:false,values:[]}};
+ const ts={fields:{tipo_identita:f('tessera_sanitaria'),tessera_nome:f('Ròssi Màrio'),tessera_nascita:f('1980-01-01'),tessera_fiscale:f(cf),tessera_fronte_presente:f(true),tessera_retro_presente:f(true,2)},barcode:{attempted:true,complete:true,conflict:false,values:[{value:cf,page:2,format:'Code39'}]}};
+ assert.equal(Identity.Core.evaluate([id,ts],person,'2026-10-29').stato,'coerente');
+ for(const patch of [{nome:f('Mario Rosi')},{nascita:f('1980-01-02')},{nascita:null},{fiscale:f(other)}])assert.equal(Identity.Core.evaluate([{...id,fields:{...id.fields,...patch}},ts],person,'2026-10-29').stato,'da_confermare');
+ const missing=structuredClone(ts);missing.fields.tessera_nascita=null;assert.equal(Identity.Core.evaluate([id,missing],person,'2026-10-29').stato,'da_confermare');
+ const combined={fields:{...id.fields,tessera_nome:f('Rossi Mario',3),tessera_nascita:f('1980-01-01',3),tessera_fiscale:f(cf,3),tessera_fronte_presente:f(true,3),tessera_retro_presente:f(true,4)},barcode:{attempted:true,complete:true,conflict:false,values:[{value:cf,page:4,format:'Code39'}]}};
+ assert.equal(Identity.Core.evaluate([combined],person,'2026-10-29').stato,'coerente');
+});
+test('tessera obbligatoria con fronte incerto richiede preview, non basta il numero di pagine',async()=>{
+ const readingId=reading({fiscale:cf,tessera_fronte_presente:false,tessera_retro_presente:true});
+ const api=require('../netlify/functions/verifica-identita-upload'),f=dbFixture();
+ const out=await api.handler({httpMethod:'POST',headers:{}},{db:f.db,secret:'fixture',requireAuth:async()=>({ok:true,user:{id:'user'}}),pdfInfo:async()=>4,
+ multipart:async()=>({files:[{buffer:Buffer.from('%PDF-fixture')}],fields:{cliente:JSON.stringify(person),data_firma:'2026-10-29',pacchetto:JSON.stringify({tipo:'cie',tessera_sanitaria:true})}}),extract:async()=>readingId,readBarcode:async()=>({attempted:true,complete:true,conflict:false,values:[{value:cf,page:1,format:'Code39'}]})});
+ assert.equal(JSON.parse(out.body).result.stato,'da_confermare');
+});
+test('PDF fotografico usa due risoluzioni distinte nel decoder, anche con pagina larga2400punti',async()=>{
+ const pdf=await PDFDocument.create();pdf.addPage([2400,1500]);const widths=[];
+ await Barcode.readPdf(Buffer.from(await pdf.save()),{render:async(_,__,opts)=>{widths.push(opts.width);return new Uint8Array([1]);},decode:async()=>[]});
+ assert.deepEqual(widths,[1800,2600]);
 });

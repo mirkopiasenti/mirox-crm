@@ -34,9 +34,11 @@ function uploadFixture(failure) {
     return { async select() {
       if (failure === 'insert') return { error: new Error('vincolo DB') };
       assert.equal(new Set(batch.map(r => r.storage_path)).size, batch.length);
-      rows.push(...batch.map((r,i) => ({ ...r, id: `doc-${i}` }))); return { data: rows };
+      rows.push(...batch.map((r,i) => ({ ...r, id: `doc-${i}` })));
+      if(['insert_lost','read_lost'].includes(failure))return {error:new Error('Risposta persa dopo commit')};
+      return { data: rows };
     } };
-  } }) };
+  },select(){return {eq(){return this;},in:async()=>failure==='read_lost'?{error:new Error('Rilettura non disponibile')}:{data:rows}};} }) };
   return { db, files, rows, removed };
 }
 
@@ -70,6 +72,13 @@ test('un contratto di un altro cliente/pratica e rifiutato prima di scrivere', a
   await assert.rejects(storeIdentityForContracts({ supabase: fixture.db,
     contracts: [contracts[0], { ...contracts[1], anagrafica_id: 'altro' }], payload, buffer: Buffer.from('%PDF-test') }));
   assert.equal(fixture.files.size, 0);
+});
+test('copia identita permanente: commit riuscito con risposta persa non cancella gli originali registrati',async()=>{
+ const bytes=Buffer.from('%PDF-sintetico'),sha256=require('node:crypto').createHash('sha256').update(bytes).digest('hex');
+ const f=uploadFixture('insert_lost');const docs=await storeIdentityForContracts({supabase:f.db,contracts,payload:{...payload,sha256},buffer:bytes});
+ assert.equal(docs.length,3);assert.equal(f.files.size,3);assert.equal(f.removed.length,0);
+ const unknown=uploadFixture('read_lost');await assert.rejects(storeIdentityForContracts({supabase:unknown.db,contracts,payload:{...payload,sha256},buffer:bytes}));
+ assert.equal(unknown.files.size,3);assert.equal(unknown.removed.length,0);
 });
 
 test('retroattivo conserva fronte/retro e ignora documenti di altre pratiche/clienti', () => {

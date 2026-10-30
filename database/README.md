@@ -849,3 +849,14 @@ ripetibile del solo proprietario anche per sessioni annullate/scadute, mantenend
 sempre revocata la capability telefono. Creazione/download confrontano anche il
 cluster e rifiutano UUID malformati prima di Postgres. Nessuna migration, RLS,
 privilegio, bucket o dato production modificato in questo secondo debug.
+
+### Preflight scanner30/10 — nessuna nuova migration
+
+Riletti live vendita_scanner_sessioni:0righe,RLS ON,anon SELECT negato,authenticated
+INSERT negato,service_role CRUD consentito; bucket contratti-vendita privato.
+Configurazione verifica ancora collaudo,email_collaudo=true,0prove in coda e0in
+corso al controllo. Nessun test cliente o scrittura production. Harness SQL locale
+PGlite0.5.13/Node22 conferma ACL, vincoli e CAS. Il salvataggio delle copie in
+vendita_documenti ora rilegge gli esiti insert incerti prima di compensare: righe
+con SHA/perimetro corrispondenti vengono recuperate, nessuna eliminazione su
+stato non rileggibile. Nessuna modifica a schema, RLS, RPC o tabelle CC.

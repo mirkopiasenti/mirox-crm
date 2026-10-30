@@ -12,3 +12,8 @@ test('nuova pratica ripristina CIE/QR e tessera facoltativa, annullare la confer
  vm.runInNewContext(declaration('resetFullPracticeForm','renderDynamicSections')+';resetFullPracticeForm();',context);
  assert.equal(context.scannerChoice,null);assert.equal(invalidations,1);assert.equal(element('scannerTipoDocumento').value,'cie');assert.equal(element('scannerTessera').checked,false);assert.equal(element('scannerTessera').disabled,false);
 });
+test('allegati oltre limite fermati prima della creazione pratica, limite esatto ammesso',()=>{
+ const source=declaration('assertValidFile','formatFileSize'),context={File};vm.runInNewContext(source,context);
+ const accepted=new File([new Uint8Array(4*1024*1024)],'documento.pdf',{type:'application/pdf'}),large=new File([new Uint8Array(4*1024*1024+1)],'originale.pdf',{type:'application/pdf'});
+ context.assertValidFile(accepted,'Documento');assert.throws(()=>context.assertValidFile(large,'Documento'),/4 MB/);
+});

@@ -1623,3 +1623,13 @@ QR prima della insert, cancel proprietario idempotente anche dopo scadenza, CAS
 con scadenza prima di Storage, cluster e UUID verificati. Nessun nuovo schema o
 test cliente. Prima di pubblicare scanner integrare il planning gia su origin/main,
 senza force-push del main locale divergente. Fonte AGENTS e guida scanner.
+
+### Scanner: ramo di rilascio30/10
+
+Codex prepara codex/scanner-rilascio da origin/main01a8470 con planning conservato.
+601test Node22, workflow sintetico completo e4bundle Netlify/Canvas/WASM verificati.
+Preservazione copie dopo insert ambiguo, collegamento CF-tessera/identita con
+nome/nascita fra i due documenti quando CF solo tessera (scelta proprietario30/10),
+fallback manuale se incerto, TS fronte/retro, cluster ricevute,4MiB trasferimento browser,
+budget lettura42s e motore/cache2026-10-30.1. Nessuna nuova migration/env/cron,
+nessun push o cliente reale analizzato. Rapporto docs/SCANNER_COLLAUDO_RILASCIO_2026-10-30.md.

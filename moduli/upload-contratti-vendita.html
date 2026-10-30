@@ -1984,6 +1984,7 @@ Reload Forever
  if (!file.size || file.size<= 0) {
  throw new Error(`${label}: file vuoto`);
  }
+ if(file.size>4*1024*1024)throw new Error(`${label}: il PDF supera il limite di trasferimento di 4 MB. Prepara una copia piu leggera prima di inviare la pratica.`);
  const isPdf = file.type === 'application/pdf' || String(file.name || '').toLowerCase().endsWith('.pdf');
  if (!isPdf) {
  throw new Error(`${label}: il file deve essere PDF`);
@@ -7179,6 +7180,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
      });
 
      function handleFile(f) {
+       scannedFile=null;refreshConfirmEnabled();
        if (!f) {
          scannedFile = null;
          fileInfo.style.display = 'none';
@@ -7190,8 +7192,8 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
          setStatus('Solo file PDF accettati', 'err');
          return;
        }
-       if (f.size > 20 * 1024 * 1024) {
-         setStatus('File troppo grande (max 20 MB)', 'err');
+       if (f.size > 4 * 1024 * 1024) {
+         setStatus('File troppo grande (max 4 MB per il trasferimento)', 'err');
          return;
        }
        scannedFile = f;

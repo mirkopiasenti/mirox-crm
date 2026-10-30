@@ -523,3 +523,16 @@ solo con dati/byte/PDA invariati. Nessuna attivazione verifica o invio nuovo.
 Codice non pubblicato; migration privata gia pronta. Test sintetici non convalidano
 qualita reale: collaudo iPhone/Android e documenti con proprietario ancora necessario.
 [Architettura, sicurezza, verifiche e limiti](SCANNER_DOCUMENTI_2026-10-29.md).
+
+### Preparazione scanner30/10
+
+Motore/lettore2026-10-30.1: CF della sola tessera richiede confronto indipendente
+di nome e nascita fra identita e tessera, come scelto dal proprietario30/10.
+Nessun blocco generale nome OCR contro anagrafica. Dati mancanti/discordanti o
+CF diverso stampato sull’identita richiedono controllo manuale della coppia.
+Tessera richiesta incompleta comporta controllo manuale quando la ricevuta upload
+non e riusabile. Ricevuta manuale valida con medesimi byte/cliente/cluster/PDA
+continua a evitare OCR identita serale. Altri controlli e notifiche invariati.
+Preflight read-only: modalita collaudo,email_collaudo=true,0collaudi pendenti o
+verifiche in corso. Nessuna nuova verifica/email/scrittura avviata. Rilascio da
+pubblicare solo su richiesta; rapporto SCANNER_COLLAUDO_RILASCIO_2026-10-30.md.

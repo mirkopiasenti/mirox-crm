@@ -4,7 +4,7 @@
   else root.MiroxVerificaCore = api;
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
-  const VERSION = '2026-10-29.1';
+  const VERSION = '2026-10-30.1';
   const LABELS = { da_controllare: 'Da controllare', controllato: 'Controllato', da_verificare: 'Da verificare', in_attesa_csv: 'In attesa CSV' };
   const FIELD_LABELS = { codice_contratto: 'Codice contratto', costo_offerta_mensile: 'Costo mensile base', portabilita: 'Portabilità', numero_telefono: 'Numero di telefono', numero_provvisorio: 'Numero provvisorio', numero_mnp: 'Numero da portare', operatore_provenienza: 'Gestore di provenienza', tipo_attivazione: 'Tipo attivazione Fisso', imei: 'IMEI', fascia_prezzo: 'Prezzo dispositivo', tipo_acquisto: 'Tipo acquisto', numero_contratto_energia: 'Numero contratto Energia', ex_fornitore: 'Gestore uscente' };
   const norm = v => String(v == null ? '' : v).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
@@ -53,8 +53,34 @@
     const months = 'ABCDEHLMPRST';
     return decode(cf.slice(6, 8)) === Number(b.slice(2, 4)) && months.indexOf(cf[8]) + 1 === Number(b.slice(5, 7)) && decode(cf.slice(9, 11)) % 40 === Number(b.slice(8, 10));
   }
+  function identityTaxLinked(readings,tax){
+    const direct=readings.some(r=>{
+      const f=r.fields||{};
+      if(!['carta_identita','patente','passaporto'].includes(f.tipo_identita?.value))return false;
+      const pages=new Set(['fronte_presente','retro_presente'].filter(k=>f[k]?.value===true).map(k=>f[k].page));
+      if(r.barcode?.complete&&r.barcode.values.some(v=>compact(v.value)===compact(tax)&&pages.has(v.page)))return true;
+      const printed=r.fiscale_ocr||(f.fiscale?.source!=='barcode'?f.fiscale:null);
+      return Boolean(printed&&compact(printed.value)===compact(tax)&&pages.has(printed.page));
+    });
+    if(direct)return true;
+    const fullName=v=>norm(v).split(/[^A-Z0-9]+/).filter(Boolean).sort().join(' ');
+    const health=readings.filter(r=>{
+      const f=r.fields||{},pages=new Set(['tessera_fronte_presente','tessera_retro_presente'].filter(k=>f[k]?.value===true).map(k=>f[k].page));
+      const printed=f.tessera_fiscale;
+      const linked=r.barcode?.complete&&r.barcode.values.some(v=>compact(v.value)===compact(tax)&&pages.has(v.page))||printed&&compact(printed.value)===compact(tax)&&pages.has(printed.page);
+      return linked&&fullName(f.tessera_nome?.value)&&date(f.tessera_nascita?.value)&&pages.has(f.tessera_nome.page)&&pages.has(f.tessera_nascita.page);
+    });
+    return readings.some(r=>{
+      const f=r.fields||{},pages=new Set(['fronte_presente','retro_presente'].filter(k=>f[k]?.value===true).map(k=>f[k].page));
+      if(!['carta_identita','patente','passaporto'].includes(f.tipo_identita?.value)||!pages.has(f.nome?.page)||!pages.has(f.nascita?.page))return false;
+      const printed=r.fiscale_ocr||(f.fiscale?.source!=='barcode'?f.fiscale:null);
+      if(printed?.value&&pages.has(printed.page)&&compact(printed.value)!==compact(tax))return false;
+      const n=fullName(f.nome?.value),birth=date(f.nascita?.value);
+      return Boolean(n&&birth&&health.some(h=>fullName(h.fields.tessera_nome.value)===n&&date(h.fields.tessera_nascita.value)===birth));
+    });
+  }
   // AI output is evidence only: no model-provided approval or executable patch is accepted.
-  function evaluate({ contract: c, customer: a, documents, extracted, csv = null, signingDate = null, identityPrecheck = null }) {
+  function evaluate({ contract: c, customer: a, documents, extracted, csv = null, signingDate = null, identityPrecheck = null, identityPackage = null }) {
     const errors = [], waiting = [], checks = [], patch = {};
     const fail = (code, message) => { if (!errors.some(x => x.code === code)) errors.push({ code, message }); };
     const docs = new Map(documents.map(d => [d.id, d]));
@@ -132,6 +158,8 @@
     const barcodeTaxes=[...new Set(identities.flatMap(d=>d.barcode?.complete?d.barcode.values.map(v=>compact(v.value)):[]))];
     if(!identityPrecheck&&(barcodeTaxes.length>1||identities.some(d=>d.barcode?.conflict)))fail('identita_barcode','I codici a barre dei documenti indicano persone diverse.');
     if(!identityPrecheck&&identities.some(d=>d.barcode?.attempted)&&(barcodeTaxes.length!==1||identities.some(d=>!d.barcode?.complete)))fail('identita_barcode','Il codice a barre non è stato decodificato completamente: serve una verifica manuale.');
+    if(!identityPrecheck&&barcodeTaxes.length===1&&!identityTaxLinked(identities,barcodeTaxes[0]))fail('identita_abbinamento','Il CF è leggibile sulla tessera sanitaria, ma non è dimostrato il legame con il documento di riconoscimento: verifica la coppia manualmente.');
+    if(!identityPrecheck&&identityPackage?.tessera_sanitaria&&['fronte','retro'].some(part=>!identities.some(d=>field(d,'tessera_'+part+'_presente')===true)))fail('tessera_incompleta','Non sono riconoscibili entrambe le facciate della tessera sanitaria richiesta: verifica gli allegati.');
     const identityMatches = identities.filter(d => {
       if(field(d,'tipo_identita')==='tessera_sanitaria')return false;
       const tax = barcodeTaxes.length===1?barcodeTaxes[0]:compact(field(d, 'fiscale')), n = name(field(d, 'nome')), birth = date(field(d, 'nascita'));
@@ -200,5 +228,5 @@
     return { version: VERSION, esito: errors.length ? 'da_verificare' : waiting.length ? 'in_attesa_csv' : 'controllato', errors, waiting, checks, patch,
       signature_date: signed, notify_reload: cat === 'CUSTOMER BASE' && c.smartphone_reload === true && c.smartphone_reload_modalita === 'Disattivazione cliente' };
   }
-  return { VERSION, LABELS, FIELD_LABELS, norm, compact, date, firstDue, romeDay, label, csvMatch, birthMatchesTax, evaluate };
+  return { VERSION, LABELS, FIELD_LABELS, norm, compact, date, firstDue, romeDay, label, csvMatch, birthMatchesTax, identityTaxLinked, evaluate };
 });

@@ -29,6 +29,7 @@ async function handler(event, deps = {}) {
   if (!auth.ok) return reply(auth.status, { success: false, error: auth.error });
   try {
     const started = Date.now();
+    deps={...deps,deadline:Math.min(deps.deadline||Infinity,started+42000)};
     const user = Identity.author(auth);
     if (!user) throw new Error('Account non valido');
     const json = /application\/json/i.test(event.headers?.['content-type'] || event.headers?.['Content-Type'] || '');
@@ -60,6 +61,10 @@ async function handler(event, deps = {}) {
     const identityDeps=manualOnly?{...deps,extract:async doc=>({id:doc.id,fields:{},manuale_passaporto:true}),readBarcode:async()=>({attempted:false,complete:true,conflict:false,values:[]})}:deps;
     const analysis = await Identity.analyze(files, { ...target, cf_rappresentante: business?.cf_rappresentante }, fields.data_firma, { ...identityDeps, nameRetryDeadline: started + 18000 });
     analysis.result.pacchetto=pacchetto;
+    if(pacchetto?.tessera_sanitaria){
+      for(const part of ['fronte','retro'])if(!analysis.documents.some(d=>d.reading.fields?.['tessera_'+part+'_presente']?.value===true))analysis.result.uncertain.push('Verifica nell’anteprima che sia presente anche il '+part+' della tessera sanitaria della stessa persona.');
+      if(analysis.result.stato==='coerente'&&analysis.result.uncertain.length)analysis.result.stato='da_confermare';
+    }
     if(manualOnly||analysis.documents.some(doc=>doc.reading.fields?.tipo_identita?.value==='passaporto')){analysis.result.stato=analysis.result.errors.length?'da_correggere':'da_confermare';analysis.result.uncertain.push('Passaporto o cliente Turista: verifica manuale tramite anteprima richiesta.');}
     const data = { pacchetto, version: 1, at: Date.now(), user, customer: { cf_piva: target.cf_piva, cluster: target.cluster,
       ragione_sociale: target.ragione_sociale, nome_referente: target.nome_referente }, business_identity: business, ...analysis };

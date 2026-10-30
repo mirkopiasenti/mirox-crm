@@ -5,7 +5,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 ## Stack
 
 - **Frontend**: HTML statico + JavaScript vanilla (no bundler), Inter via Google Fonts, client Supabase `@supabase/supabase-js@2.110.8` da CDN con Subresource Integrity
-- **Backend serverless**: Netlify Functions (Node >=22 + esbuild), librerie versionate esattamente (`@supabase/supabase-js@2.110.8`, `nodemailer@9.0.3`, `busboy`, `pdfkit`, `pdf-lib@1.17.1`, `unpdf@1.9.1` per il recupero testuale PDA, `fflate@0.8.2` per gli export `.xlsx`, `@resvg/resvg-js@2.6.2` per i report PNG Target, `qrcode@1.5.4` per QR, `zxing-wasm@3.1.6` e `@napi-rs/canvas@1.0.13` per decodificare barcode dai PDF)
+- **Backend serverless**: Netlify Functions (Node >=22 + esbuild), librerie versionate esattamente (`@supabase/supabase-js@2.110.8`, `nodemailer@10.3.1`, `busboy`, `pdfkit`, `pdf-lib@1.17.1`, `unpdf@1.9.1` per il recupero testuale PDA, `fflate@0.8.3` per gli export `.xlsx`, `@resvg/resvg-js@2.6.2` per i report PNG Target, `qrcode@1.5.4` per QR, `zxing-wasm@3.1.6` e `@napi-rs/canvas@1.0.13` per decodificare barcode dai PDF)
 - **Database**: Supabase Postgres (Auth + Storage + RLS + RPC + Trigger), 10 bucket Storage (`moduli-template` pubblico + 9 privati con signed URL on-demand)
 - **Backup Aruba attivo**: VPS IT1 e Object Storage R1-IT, copie automatiche ogni ora anche a Mac spento, AES-256-GCM/versioni/Compliance. Prima copia: 10 bucket/6.579 oggetti; tutti i 6.584 file verificati da Aruba e restore DB isolato riuscito (100 tabelle/51.252 righe). Monitor esterno con avvisi di errore/mancata esecuzione collaudato; chiave custodita separatamente. 68 test Linux e 128 npm superati. Netlify: 20/28 valori Production esportati con autorizzazione, salvati privatamente e cifrati su Aruba; readback/confronto verificati. 8 Secret write-only mancanti, senza copie originali: serve futura riemissione coordinata. Inventario configurazioni statico da aggiornare dopo modifiche; copertura esterna ancora parziale. API/ACL del recupero su progetto Supabase gestito e scadenza lifecycle da collaudare. Guida: [`docs/BACKUP_RIPRISTINO.md`](docs/BACKUP_RIPRISTINO.md)
 - **Verifica storico 23/10**: ultima copia integra (7.298 file/11 bucket), ma 23/441 copie automatiche fallite e un intervallo massimo di circa 8 ore; full/checkpoint giornalieri del 20-23/10 mancanti. Nessuna correzione applicata; dettagli e interventi necessari nel [rapporto](docs/BACKUP_VERIFICA_STORICO_2026-10-23.md).
@@ -1097,3 +1097,28 @@ Nessuna nuova migration o operazione cliente in produzione; dettagli nella guida
 Anche un passaporto riconosciuto dalla lettura, con CIE selezionata per errore,
 richiede la conferma manuale. Passaporto dichiarato e Turista mantengono il percorso
 PDF/manuale senza OCR identita.
+
+### Preparazione rilascio scanner30/10/2026
+
+Revisione completa e integrazione con origin/main01a8470 (planning gia pubblicato)
+nel ramo codex/scanner-rilascio. Nessun push eseguito. Build/suite Node22:601test
+verdi; flusso sintetico completo QR→PDF→barcode→ricevuta→3contratti→finalize con
+risposta persa→recupero→verifica successiva. Quattro pacchetti Netlify costruiti e
+API identita eseguita dal bundle isolato con Canvas/WASM, senza AI o CRM reali.
+
+Correzioni finali: preservazione copie identita dopo insert con risposta persa,
+stream interrotto anche nell’upload definitivo, vincolo cluster nelle ricevute,
+scale barcode realmente distinte per fotografie, tessera fronte/retro controllata
+e collegamento CF all’identita. Se il CF e solo sulla tessera, si confrontano nome
+e data di nascita fra i due documenti, come richiesto dal proprietario; dati
+mancanti, discordanti o CF diverso stampato sull’identita richiedono preview manuale.
+Il nome OCR non torna un blocco generale contro l’anagrafica.
+Limite trasferimento browser4MiB (complessivo per il controllo identita), verifica
+prima dell’invio, originali non ricompressi automaticamente. Budget condiviso
+lettura42s con fallback manuale; native PDF/render con controlli cooperativi.
+Versione lettore/cache e motore2026-10-30.1. Nessuna nuova migration/env/schedule.
+[Rapporto finale e procedura di pubblicazione/collaudo](docs/SCANNER_COLLAUDO_RILASCIO_2026-10-30.md).
+
+Nel rilascio preparato sono aggiornati Nodemailer10.3.1 e fflate0.8.3 per correggere
+gli avvisi preesistenti: npm audit0, API SMTP/ZIP e suite completa verificate.
+Nessuna email esterna inviata durante i test.

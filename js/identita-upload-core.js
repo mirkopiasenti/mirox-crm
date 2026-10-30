@@ -12,7 +12,8 @@
     const business = norm(c.cluster) === 'BUSINESS';
     return { fiscale: norm(c.cf_piva), nome: name(business ? c.nome_referente : c.ragione_sociale), business };
   }
-  const sameCustomer = (a, b) => JSON.stringify(customer(a)) === JSON.stringify(customer(b));
+  const sameCustomer = (a, b) => JSON.stringify(customer(a)) === JSON.stringify(customer(b))
+    && (!norm(a?.cluster)||!norm(b?.cluster)||norm(a.cluster)===norm(b.cluster));
   function citizenship(value) {
     const codes = String(value || '').toUpperCase().split(/[,;/\s]+/).filter(Boolean);
     if (!codes.length || codes.some(c => !/^[A-Z]{2}$/.test(c))) return null;
@@ -36,6 +37,7 @@
     if(barcodeTaxes.length>1||readings.some(r=>r.barcode?.conflict))errors.push('I codici a barre dei documenti indicano codici fiscali diversi.');
     if(readings.some(r=>r.barcode?.attempted)&&!readings.some(r=>r.barcode?.complete&&!r.barcode?.conflict&&r.barcode.values?.length))uncertain.push('Il codice a barre del codice fiscale non è leggibile: serve il controllo tramite anteprima.');
     if(readings.some(r=>r.barcode?.attempted&&!r.barcode.complete))uncertain.push('La decodifica dei codici a barre non è completa: verifica tutte le pagine nell’anteprima.');
+    if(barcodeTaxes.length===1&&!Verification.identityTaxLinked(readings,barcodeTaxes[0]))uncertain.push('Il CF è leggibile sulla tessera sanitaria, ma non è dimostrato il legame con carta o patente. Controlla la coppia nell’anteprima.');
     const targetTax = expected.business ? norm(target.cf_rappresentante) : expected.fiscale;
     const taxRequired = /^[A-Z0-9]{16}$/.test(targetTax);
     const taxMatch = taxRequired && tax.length > 0 && tax.every(t => t === targetTax);

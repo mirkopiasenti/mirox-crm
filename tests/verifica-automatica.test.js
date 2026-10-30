@@ -27,7 +27,7 @@ const get = (f, id) => f.extracted.documents.find(d => d.id === id).fields;
 
 test('serale: CF barcode della tessera sanitaria con scadenza del documento identita, senza confondere la tessera',()=>{
   const f=fixture(),id=f.extracted.documents.find(d=>d.id==='identity');
-  Object.assign(id.fields,{fiscale:evidence('OCRERRATO'),tipo_identita:evidence('carta_identita')});
+  Object.assign(id.fields,{fiscale:evidence(f.customer.cf_piva),tipo_identita:evidence('carta_identita'),fronte_presente:evidence(true),retro_presente:evidence(true)});
   id.barcode={attempted:true,complete:true,conflict:false,values:[]};
   const ts={id:'tessera',barcode:{attempted:true,complete:true,conflict:false,values:[{value:f.customer.cf_piva,page:2,format:'Code39'}]},fields:{tipo_identita:evidence('tessera_sanitaria'),scadenza:evidence('2020-01-01')}};
   f.documents.push({id:'tessera',tipo_documento:'documento_identita',pages:2});f.extracted.documents.push(ts);
