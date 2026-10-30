@@ -81,12 +81,13 @@ test('conferma manuale tracciata solo per lettura incerta; problemi certi non ag
   assert.equal(confirmed.result.cittadinanza, 'extra_ue');
   assert.throws(() => Identity.confirm({ ...data, result: { ...result, stato: 'da_correggere' } }, { motivo: 'Controllo manuale' }), /Correggi/);
 });
-test('lettura non disponibile diventa conferma manuale, PDF invalido resta bloccante', async () => {
+test('OCR e parser non disponibili portano alla preview; un file che non e PDF viene rifiutato', async () => {
   const files = [{ buffer: Buffer.from('%PDF-front') }, { buffer: Buffer.from('%PDF-back') }];
   const result = await Identity.analyze(files, person, '2026-10-27', { pdfInfo: async () => 1, extract: async () => { throw new Error('provider offline'); } });
   assert.equal(result.documents.length, 2); assert.equal(result.result.stato, 'da_confermare');
   assert.notEqual(result.documents[0].sha256, result.documents[1].sha256);
-  await assert.rejects(Identity.analyze(files, person, '2026-10-27', { pdfInfo: async () => { throw new Error('PDF invalido'); } }), /PDF invalido/);
+  assert.equal((await Identity.analyze(files, person, '2026-10-27', { pdfInfo: async () => { throw new Error('PDF non leggibile dal parser'); } })).result.stato,'da_confermare');
+  await assert.rejects(Identity.analyze([{buffer:Buffer.from('file non PDF')}],person,'2026-10-27'),/file PDF/);
 });
 test('CF non letto recuperato da seconda lettura indipendente: il nome discordante non blocca', async () => {
   let calls=0;
@@ -121,15 +122,19 @@ test('CF identico e scadenza valida evitano il ricontrollo nome; CF diverso o sc
   assert.equal(calls,1);assert.equal(out.result.stato,'coerente');assert.equal(out.result.criterio_identita,'codice_fiscale');assert.equal(out.result.confronto.nome_informativo,true);
   assert.equal(Core.evaluate([reading({scadenza:'2020-01-01',nome:null})],person,'2026-10-27').stato,'da_correggere');
 });
-test('nuova API richiede permessi; confronto con CRM prima di AI e nessuna scrittura anagrafica', async () => {
+test('differenza modulo/CRM porta alla preview prima della AI, senza scrivere anagrafica', async () => {
   assert.equal((await handler({ httpMethod: 'POST' }, { requireAuth: async () => ({ ok: false, status: 403 }) })).statusCode, 403);
   let reads = 0;
   const db = { from(table) { assert.equal(table, 'anagrafica'); return { select() { return this; }, ilike() { return this; },
     async limit() { return { data: [{ ...person, ragione_sociale: 'Nome CRM differente' }] }; } }; } };
-  const response = await handler({ httpMethod: 'POST', headers: {} }, { db,
-    requireAuth: async () => ({ ok: true, user: { id: 'user' } }), multipart: async () => ({ fields: { cliente: JSON.stringify(person), data_firma: '2026-10-27' }, files: [] }),
+  const response = await handler({ httpMethod: 'POST', headers: {} }, { db,secret:'fixture',
+    requireAuth: async () => ({ ok: true, user: { id: 'user' } }), multipart: async () => ({ fields: { cliente: JSON.stringify(person), data_firma: '2026-10-27' }, files: [{buffer:Buffer.from('%PDF-fixture')}] }),
     extract: async () => { reads++; } });
-  assert.equal(response.statusCode, 400); assert.match(JSON.parse(response.body).error, /anagrafica CRM/); assert.equal(reads, 0);
+  assert.equal(response.statusCode, 200);const body=JSON.parse(response.body);assert.equal(body.result.stato,'da_confermare');assert.equal(reads,0);
+  assert.equal(body.result.confronto_crm.nome_crm,'Nome CRM differente');
+  const data=Identity.verify(body.token,{user:'user',customer:person,secret:'fixture'});
+  assert.equal(data.crm_customer.ragione_sociale,'Nome CRM differente');
+  assert.equal(data.customer.ragione_sociale,person.ragione_sociale);
 });
 test('passaporto e Turista usano PDF e preview manuale senza chiamare OCR o barcode',async()=>{
   for(const [cluster,tipo]of[['Consumer','passaporto'],['Turista','cie']]){
@@ -251,4 +256,26 @@ test('PDF identita troppo grandi rifiutati prima di chiamare la function, senza 
 test('budget identita esaurito produce preview manuale senza nuove chiamate AI',async()=>{
  let calls=0;const result=await Identity.analyze([{buffer:Buffer.from('%PDF-sintetico')}],person,'2026-10-29',{deadline:Date.now()-1,pdfInfo:async()=>1,pdfText:async()=>'',client:{messages:{create:async()=>{calls++;throw Error('Non deve chiamare');}}}});
  assert.equal(calls,0);assert.equal(result.result.stato,'da_confermare');
+});
+test('errore decoder e anagrafica temporaneamente indisponibile producono esito da confermare',async()=>{
+ const decoded=await Identity.analyze([{buffer:Buffer.from('%PDF-id')}],person,'2026-10-28',{pdfInfo:async()=>1,extract:async()=>reading(),readBarcode:async()=>{throw Error('Decoder non disponibile');}});
+ assert.equal(decoded.result.stato,'da_confermare');assert.equal(decoded.documents[0].reading.barcode.complete,false);
+ for(const lookup of [{error:{code:'NETWORK'}},{data:[person,person]}]){
+  const out=await handler({httpMethod:'POST',headers:{}},{secret:'fixture',requireAuth:async()=>({ok:true,user:{id:'user'}}),
+   db:{from:()=>({select(){return this;},ilike(){return this;},limit:async()=>lookup})},
+   multipart:async()=>({fields:{cliente:JSON.stringify(person),data_firma:'2026-10-28'},files:[{buffer:Buffer.from('%PDF-id')}]}),
+   extract:async()=>assert.fail('Passa al manuale senza AI')});
+  assert.equal(out.statusCode,200);assert.equal(JSON.parse(out.body).result.stato,'da_confermare');
+ }
+});
+test('richiesta di recupero manuale senza conferma, con file sostituito o scadenza errata non approva',async()=>{
+ const file=Buffer.from('%PDF-id');
+ const input={preview_visualizzata:true,preview_sha256:[Identity.hash(file)],scadenza:'2030-01-01'};
+ for(const patch of [{preview_visualizzata:false},{preview_sha256:['f'.repeat(64)]},{scadenza:'2020-01-01'}]){
+  const out=await handler({httpMethod:'POST',headers:{}},{secret:'fixture',requireAuth:async()=>({ok:true,user:{id:'user'}}),
+   db:{from:()=>({select(){return this;},ilike(){return this;},limit:async()=>({data:[person]})})},
+   multipart:async()=>({fields:{cliente:JSON.stringify(person),data_firma:'2026-10-28',action:'manual_preview',conferma:JSON.stringify({...input,...patch})},files:[{buffer:file}]}),
+   extract:async()=>assert.fail('Nessuna lettura nel recupero')});
+  assert.equal(out.statusCode,400);assert.equal(JSON.parse(out.body).success,false);
+ }
 });

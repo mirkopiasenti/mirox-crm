@@ -540,3 +540,10 @@ pubblicare solo su richiesta; rapporto SCANNER_COLLAUDO_RILASCIO_2026-10-30.md.
 Richiesta di push ricevuta30/10: codice0fbf10d online, CI Linux601/601 e deploy
 verificati. Modalita collaudo/email_collaudo=true riconfermata via SELECT dopo il
 push. Nessuna verifica, conferma cliente o notifica avviata durante il rilascio.
+
+Correzione locale successiva30/10: recupero manuale anticipato anche dopo errore
+tecnico o differenza modulo/CRM, con ricevuta ancora legata a cliente e byte.
+La conferma manuale su stessi file resta riusabile se il parser identita fallisce;
+nessuna pagina o numero di pagina viene inventato. Business mantiene la fonte PDA
+e il CF rappresentante confermato dall’operatore. Altri controlli/notifiche/modalita
+invariati; nessuna verifica reale avviata. docs/IDENTITA_RECUPERO_MANUALE_2026-10-30.md.

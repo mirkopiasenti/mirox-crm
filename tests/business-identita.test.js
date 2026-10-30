@@ -81,3 +81,38 @@ test('riuso Business dell’identita richiede anche gli stessi byte della PDA de
   assert.equal((await Docs.readDocuments(db,snapshot,deps)).identityPrecheck.cf_rappresentante,person);assert.equal(reads,1);
   changed=true;const next=await Docs.readDocuments(db,snapshot,deps);assert.equal(next.identityPrecheck,null);assert.equal(next.extracted.documents.length,2);
 });
+test('PDA Business non leggibile passa a conferma manuale con CF rappresentante e mantiene vincoli create/finalize',async()=>{
+ const id=Buffer.from('%PDF-id');let ocr=0;
+ const db={...dbFor(),from:()=>({select(){return this;},ilike(){return this;},limit:async()=>({data:[company]})})};
+ const deps={db,secret:'fixture',requireAuth:async()=>({ok:true,user:{id:'user'}}),
+  multipart:async()=>({fields:{cliente:JSON.stringify(company),data_firma:'2026-10-28',pda_paths:JSON.stringify([path])},files:[{buffer:id}]}),
+  pdfInfo:async()=>1,pdfText:async()=>'',extractBusiness:async()=>{ocr++;throw Error('Provider non disponibile');},extract:async()=>assert.fail('Passa al manuale senza OCR identita')};
+ const out=await handler({httpMethod:'POST',headers:{}},deps);assert.equal(out.statusCode,200);assert.equal(ocr,1);
+ const body=JSON.parse(out.body),pending=Identity.verify(body.token,{user:'user',customer:company,secret:'fixture'});
+ assert.equal(body.result.stato,'da_confermare');assert.equal(body.result.richiede_cf_rappresentante,true);
+ const decision={preview_visualizzata:true,preview_sha256:[Identity.hash(id)],scadenza:'2030-01-01'};
+ assert.throws(()=>Identity.confirmPreview(pending,decision),/CF del rappresentante/);
+ const confirmed=Identity.confirmPreview(pending,{...decision,cf_rappresentante_verificato:person,rappresentante_verificato:true});
+ assert.equal(confirmed.business_identity.cf_rappresentante,person);assert.equal(confirmed.business_identity.manuale,true);
+ const contracts=[{id:'c',categoria_snapshot:'Mobile',codice_contratto:'C001',pda_temp_path:path}];
+ await assert.rejects(Business.assertSources(db,pending,company,contracts),/tutte le PDA/);
+ await Business.assertSources(db,confirmed,company,contracts);assert.equal(confirmed.business_identity.pdas[0].codice_contratto,'C001');
+ const documents=[{contratto_id:'c',tipo_documento:'contratto',sha256:Identity.hash(bytes),storage_bucket:'contratti-vendita',storage_path:'final/pda.pdf'}];
+ await Business.assertSources(db,confirmed,company,contracts,documents);
+ await assert.rejects(Business.assertSources(dbFor(Buffer.from('%PDF-altra')),confirmed,company,contracts,documents),/cambiata/);
+ await assert.rejects(Business.assertSources(db,confirmed,company,[{...contracts[0],codice_contratto:'C002'}]),/codici contratto diversi/);
+ await assert.rejects(Business.loadManual(db,['../file.pdf'],company),/Riferimenti/);
+});
+test('recupero Business attraversa multipart reale con tutti i sei campi, senza alcuna lettura automatica',async()=>{
+ const id=Buffer.from('%PDF-documento');const form=new FormData();
+ for(const [key,value] of Object.entries({cliente:JSON.stringify(company),data_firma:'2026-10-28',pda_paths:JSON.stringify([path]),pacchetto:JSON.stringify({tipo:'cie'}),action:'manual_preview',conferma:JSON.stringify({preview_visualizzata:true,preview_sha256:[Identity.hash(id)],scadenza:'2030-01-01',cf_rappresentante_verificato:person,rappresentante_verificato:true})}))form.append(key,value);
+ form.append('file',new Blob([id],{type:'application/pdf'}),'id.pdf');
+ const request=new Request('https://fixture.invalid',{method:'POST',body:form});
+ const event={httpMethod:'POST',headers:{'content-type':request.headers.get('content-type')},body:Buffer.from(await request.arrayBuffer()).toString('base64'),isBase64Encoded:true};
+ const db={...dbFor(),from:()=>({select(){return this;},ilike(){return this;},limit:async()=>({data:[company]})})};
+ const deps={db,secret:'fixture',requireAuth:async()=>({ok:true,user:{id:'user'}}),pdfInfo:async()=>assert.fail('Nessun parser'),extract:async()=>assert.fail('Nessuna OCR')};
+ const out=await handler(event,deps);assert.equal(out.statusCode,200);
+ const signed=Identity.verify(JSON.parse(out.body).token,{user:'user',customer:company,secret:'fixture'});
+ assert.equal(signed.result.stato,'manuale');assert.equal(signed.business_identity.cf_rappresentante,person);assert.equal(signed.business_identity.pdas[0].sha256,Identity.hash(bytes));
+ assert.equal((await handler(event,{...deps,requireAuth:async()=>({ok:false,status:403,error:'Non autorizzato'})})).statusCode,403);
+});

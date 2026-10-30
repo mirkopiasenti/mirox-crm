@@ -1134,3 +1134,18 @@ Deploy6ae4bb2618ffddc7ea3b1a45 verificato via HTTP: asset corrispondenti,
 camera=self sullo scanner anche senza estensione, camera negata su Upload,
 API401 senza login. Modalita collaudo/email collaudo attive confermate in sola
 lettura. Collaudo fisico iPhone/Android con proprietario ancora necessario.
+
+### Recupero manuale identita dopo errori30/10 (correzione locale)
+
+Gli errori di lettura, barcode, parser PDF, HTTP/rete o risposta non valida aprono
+l’anteprima degli originali; anche il timeout del client (45s) passa al controllo
+manuale. La differenza fra i dati del modulo e quelli gia salvati nel CRM e mostrata
+come avviso, con entrambi i nominativi, senza bloccare prima dell’OCR. La ricevuta
+resta vincolata ai dati del modulo, autore, file esatti e data di firma.
+
+La conferma puo essere registrata con una richiesta autenticata senza OCR, anche
+se la prima lettura non aveva prodotto una ricevuta. Se il viewer non funziona,
+si apre ciascun PDF a dimensione intera e si attesta di averlo verificato. Un errore
+di registrazione conserva la finestra e i file per riprovare. Business: CF personale
+verificato su documento/PDA, fonti legate ai byte e al contratto. Nessuna migration,
+env o modifica alla modalita serale. [Dettagli e prove](docs/IDENTITA_RECUPERO_MANUALE_2026-10-30.md).

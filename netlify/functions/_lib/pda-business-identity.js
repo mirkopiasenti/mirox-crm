@@ -28,6 +28,18 @@ function evidence(text) {
     ambiguous: Object.entries(values).filter(([, list]) => new Set(list.map(v => v.value)).size > 1).map(([key]) => key) };
 }
 const fields = text => evidence(text).fields;
+async function loadManual(db, paths, customer) {
+  if (!Array.isArray(paths) || paths.length > 20 || paths.some(p => typeof p !== 'string' || !/^temp\/[0-9a-f-]{36}\/[a-z0-9_.-]+\.pdf$/i.test(p))) throw new Error('Riferimenti PDA Business non validi. Ricarica la PDA.');
+  const pdas=[];let total=0;
+  for(const path of [...new Set(paths)].sort()){
+    const download=await db.storage.from('contratti-vendita').download(path);
+    if(download.error||!download.data)throw new Error('PDA Business non disponibile. Riprova la conferma senza ricaricare i documenti.');
+    const bytes=Buffer.from(await download.data.arrayBuffer());total+=bytes.length;
+    if(total>30*1024*1024||!bytes.subarray(0,1024).includes(Buffer.from('%PDF-')))throw new Error('PDA Business non valida o troppo grande.');
+    pdas.push({path,sha256:hash(bytes),fiscale_azienda:norm(customer.cf_piva),cf_rappresentante:null});
+  }
+  return pdas.length?{manuale:true,cf_rappresentante:null,pdas}:null;
+}
 async function load(db, paths, customer, deps = {}) {
   const Docs = require('./verifica-documenti');
   const Anthropic = require('@anthropic-ai/sdk').default;
@@ -62,9 +74,14 @@ async function load(db, paths, customer, deps = {}) {
 }
 async function assertSources(db, check, customer, contracts, documents = null) {
   if (norm(customer.cluster) !== 'BUSINESS') return;
+  const manual=check.result?.stato==='manuale'&&check.conferma?.preview_visualizzata===true&&check.business_identity?.manuale===true&&personalTax(check.business_identity.cf_rappresentante);
   for (const c of contracts.filter(c => Pda.isPda(c.categoria_snapshot || c.categoria_nome))) {
-    const source = check.business_identity?.pdas?.find(p => p.codice_contratto === Pda.code(c.codice_contratto)
+    const source = check.business_identity?.pdas?.find(p => (manual&&!documents?p.path===c.pda_temp_path:p.codice_contratto===Pda.code(c.codice_contratto))
       && (!documents ? p.path === c.pda_temp_path : true));
+    if(manual&&source&&!documents){
+      if(source.codice_contratto&&source.codice_contratto!==Pda.code(c.codice_contratto))throw new Error('La stessa PDA Business non puo coprire codici contratto diversi.');
+      source.codice_contratto=Pda.code(c.codice_contratto);
+    }
     if (!source || source.fiscale_azienda !== norm(customer.cf_piva) || source.cf_rappresentante !== check.business_identity.cf_rappresentante) throw new Error('Ripeti il controllo identita con tutte le PDA Business del carrello.');
     const doc = documents?.find(d => d.contratto_id === c.id && d.tipo_documento === 'contratto' && d.sha256 === source.sha256);
     if (documents && !doc) throw new Error('La PDA Business inviata non coincide con quella controllata.');
@@ -76,4 +93,4 @@ async function assertSources(db, check, customer, contracts, documents = null) {
     if (hash(bytes) !== source.sha256) throw new Error('La PDA Business è cambiata: ripeti il controllo identita.');
   }
 }
-module.exports = { fields, evidence, personalTax, load, assertSources };
+module.exports = { fields, evidence, personalTax, load, loadManual, assertSources };

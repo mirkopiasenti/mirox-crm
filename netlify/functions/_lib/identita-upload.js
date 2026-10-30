@@ -34,24 +34,27 @@ function assertPractice(data, customer) {
   }
 }
 async function analyze(files, customer, signingDate, deps = {}) {
-  if (!files.length || files.length > 4) throw new Error('Carica da uno a quattro PDF del medesimo documento di riconoscimento.');
-  let total = 0;
-  const documents = [];
-  for (const file of files) total += file.buffer.length;
-  if (total > 20 * 1024 * 1024) throw new Error('I PDF identita superano complessivamente 20 MB.');
+  const prepared = prepareManual(files, customer, signingDate);
   const started = Date.now();
-  const client = deps.client || (deps.extract ? null : new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 20000, maxRetries: 0 }));
-  await Promise.all(files.map(async file => {
-    const pages = await (deps.pdfInfo || Docs.pdfInfo)(file.buffer);
-    const doc = { id: hash(file.buffer), tipo_documento: 'identita_upload', pages };
-    let reading;
-    try { reading = await (deps.extract || Docs.extractDocument)(doc, file.buffer, { ...deps, client }); }
-    catch { reading = { id: doc.id, fields: {}, lettura_non_disponibile: true }; }
-    const Barcode=require('./identita-barcode');
-    reading=Barcode.apply(reading,await (deps.readBarcode || Barcode.readPdf)(file.buffer,{deadline:Math.min(deps.deadline||Infinity,Date.now()+12000)}));
-    documents.push({ sha256: doc.id, pages, reading });
+  let client = deps.client;
+  try { if (!client && !deps.extract) client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 20000, maxRetries: 0 }); } catch { /* Lettura indisponibile: resta il controllo manuale. */ }
+  const documents = await Promise.all(files.map(async file => {
+    const doc = { id: hash(file.buffer), tipo_documento: 'identita_upload', pages: null };
+    let reading = { id: doc.id, fields: {}, lettura_non_disponibile: true };
+    try { doc.pages = await (deps.pdfInfo || Docs.pdfInfo)(file.buffer); } catch { /* Il visualizzatore e l'operatore possono ancora controllare il PDF. */ }
+    if (doc.pages) {
+      try { reading = await (deps.extract || Docs.extractDocument)(doc, file.buffer, { ...deps, client }); }
+      catch { /* Errori OCR e timeout non impediscono la conferma tramite anteprima. */ }
+      const Barcode=require('./identita-barcode');
+      let barcode;
+      try { barcode = await (deps.readBarcode || Barcode.readPdf)(file.buffer,{deadline:Math.min(deps.deadline||Infinity,Date.now()+12000)}); }
+      catch { barcode = { attempted:true, complete:false, conflict:false, values:[] }; }
+      reading=Barcode.apply(reading,barcode);
+    }
+    return { sha256: doc.id, pages: doc.pages, reading };
   }));
   documents.sort((a, b) => a.sha256.localeCompare(b.sha256));
+  if (documents.some(d => !d.pages)) return { ...prepared, documents };
   const taxTarget = Core.customer(customer).business ? customer.cf_rappresentante : customer.cf_piva;
   if (/^[A-Z0-9]{16}$/.test(Core.norm(taxTarget)) && !documents.some(d => d.reading.fields?.fiscale?.value)
     && Date.now() < (deps.nameRetryDeadline || started + 18000)) {
@@ -73,7 +76,7 @@ async function analyze(files, customer, signingDate, deps = {}) {
     }));
   }
   const first = Core.evaluate(documents.map(d => d.reading), customer, signingDate);
-  // Ricontrollo soltanto il nome: altri errori certi restano bloccanti. Nessun dato CRM viene fornito all'AI.
+  // Ricontrollo soltanto il nome: gli altri rilievi restano nell'esito da mostrare all'operatore. Nessun dato CRM viene fornito all'AI.
   if (first.errors.length === 1 && first.errors[0] === 'Il nome sul documento non coincide con l’anagrafica.' && Date.now() < (deps.nameRetryDeadline || started + 18000)) {
     await Promise.all(documents.map(async doc => {
       const initial = doc.reading.fields?.nome;
@@ -97,6 +100,13 @@ async function analyze(files, customer, signingDate, deps = {}) {
     }));
   }
   return { documents, result: Core.evaluate(documents.map(d => d.reading), customer, signingDate) };
+}
+function prepareManual(files, customer, signingDate, reason = 'La lettura automatica non e disponibile: verifica personalmente tutti i documenti nell’anteprima.') {
+  if (!Array.isArray(files) || !files.length || files.length > 4) throw new Error('Carica da uno a quattro PDF del medesimo documento di riconoscimento.');
+  if (files.some(f => !Buffer.isBuffer(f.buffer) || !f.buffer.subarray(0,1024).includes(Buffer.from('%PDF-')))) throw new Error('Carica un file PDF del documento.');
+  if (files.reduce((sum,f) => sum+f.buffer.length,0) > 20*1024*1024) throw new Error('I PDF identita superano complessivamente 20 MB.');
+  const documents=files.map(f=>({sha256:hash(f.buffer),pages:null,reading:{fields:{},lettura_non_disponibile:true}}));
+  return {documents,result:{...Core.evaluate(documents.map(d=>d.reading),customer,signingDate),stato:'da_confermare',errors:[],uncertain:[reason]}};
 }
 function confirm(data, input) {
   if (data.result.stato === 'da_correggere') throw new Error('Correggi i dati o sostituisci il documento prima di procedere.');
@@ -127,11 +137,17 @@ function confirmPreview(data, input) {
   if (!expiry || expiry < signed) throw new Error('Indica la scadenza verificata sul documento, valida alla data di firma.');
   const group = input.cittadinanza || data.result.cittadinanza || null;
   if (![null, 'ue', 'extra_ue'].includes(group)) throw new Error('Cittadinanza non valida.');
-  return { ...data, esito_automatico: data.result,
+  let business=data.business_identity;
+  if(business?.pdas?.length&&(business.manuale||input.rappresentante_verificato===true)){
+    const tax=Core.norm(input.cf_rappresentante_verificato);
+    if(!require('./pda-business-identity').personalTax(tax)||input.rappresentante_verificato!==true)throw new Error('Verifica il CF del rappresentante su documento e PDA Business e riportalo nel campo dedicato.');
+    business={...business,manuale:true,cf_rappresentante:tax,pdas:business.pdas.map(p=>({...p,cf_rappresentante:tax}))};
+  }
+  return { ...data, business_identity:business, esito_automatico: data.result,
     result: { ...data.result, stato: 'manuale', errors: [], uncertain: [], scadenza: expiry, cittadinanza: group,
       criterio_identita: 'conferma_preview', cf_da_confermare: false },
     conferma: { at: new Date().toISOString(), user: data.user, manuale: true, modalita: 'preview_manuale',
       preview_visualizzata: true, preview_sha256: expected,
       motivo: 'Operatore conferma che il documento visualizzato appartiene al cliente in anagrafica e ne verifica la validita alla firma.' } };
 }
-module.exports = { Core, author, hash, sign, verify, approved, assertPractice, analyze, confirm, confirmPreview };
+module.exports = { Core, author, hash, sign, verify, approved, assertPractice, analyze, prepareManual, confirm, confirmPreview };

@@ -189,7 +189,10 @@ async function readDocuments(db, snapshot, deps = {}) {
     const blob = checked(await db.storage.from(doc.storage_bucket).download(doc.storage_path));
     const bytes = Buffer.from(await blob.arrayBuffer()); totalBytes += bytes.length;
     if (totalBytes > 50 * 1024 * 1024) throw new Error('fascicolo_troppo_grande');
-    const pages = await (deps.pdfInfo || pdfInfo)(bytes), sha256 = hash(bytes);
+    const sha256=hash(bytes);
+    const acceptedIdentity=doc.tipo_documento==='documento_identita'&&reusableIdentity&&identity.documents?.some(d=>d.sha256===sha256);
+    let pages;
+    try{pages=await (deps.pdfInfo || pdfInfo)(bytes);}catch(error){if(!acceptedIdentity)throw error;pages=identity.documents.find(d=>d.sha256===sha256).pages||null;}
     documents.push({ ...doc, pages }); proofs.push({ id: doc.id, sha256, pages });
     if (doc.tipo_documento === 'permesso_soggiorno') continue;
     if (doc.tipo_documento === 'documento_identita' && reusableIdentity && identity.documents?.some(d => d.sha256 === sha256)) {

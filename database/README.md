@@ -860,3 +860,14 @@ PGlite0.5.13/Node22 conferma ACL, vincoli e CAS. Il salvataggio delle copie in
 vendita_documenti ora rilegge gli esiti insert incerti prima di compensare: righe
 con SHA/perimetro corrispondenti vengono recuperate, nessuna eliminazione su
 stato non rileggibile. Nessuna modifica a schema, RLS, RPC o tabelle CC.
+
+### Recupero manuale identita30/10 — soltanto codice/JSON esistente
+
+Nessuna migration o scrittura production durante il fix. Nella ricevuta JSON
+identita_verifica_upload, crm_customer conserva lo snapshot letto prima dell’invio;
+customer resta il payload del modulo. Il normale salvataggio anagrafica del create
+non cambia. Conferma manuale senza OCR dopo errore mantiene autore/HMAC/hash dei PDF.
+Business puo registrare business_identity.manuale=true, CF rappresentante verificato
+dall’operatore e path/hash PDA; assertSources completa l’abbinamento codice contratto
+prima dell’insert e verifica i file definitivi al finalize. Nessuna policy o colonna
+aggiunta, nessuna modifica alle tabelle condivise CC o alla configurazione verifica.

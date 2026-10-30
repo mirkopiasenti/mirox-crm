@@ -286,3 +286,15 @@ Pubblicato su richiesta30/10 con codice0fbf10d: CI Linux601/601, asset e API401
 verificati; header fotocamera corretti anche sullo scanner senza estensione.
 Modalita collaudo ed email collaudo attive preservate; nessun collaudo cliente reale
 eseguito durante il push. Rapporto di rilascio aggiornato con esiti e limiti.
+
+### Correzione locale successiva30/10: ogni lettura fallita passa al manuale
+
+Lo screenshot «I dati inseriti differiscono dall’anagrafica CRM» riguarda un guard
+prima dell’OCR. Diventa un avviso in anteprima, con nominativo modulo e CRM; la
+ricevuta usa il modulo corrente e conserva lo snapshot CRM, senza nuove scritture.
+HTTP/rete, timeout45s, JSON errato, OCR/barcode/parser non disponibili aprono preview
+e recupero manuale senza OCR anche in assenza del primo token. File/autore/date e
+permesso VAR restano controllati; firma non ottenuta non equivale a pratica salvata.
+Il modal resta aperto su errore di registrazione; viewer assente gestito con apertura
+dei PDF originali e attestazione esplicita. Business manuale conserva fonte PDA e CF
+del rappresentante verificato personalmente. [Procedura e prove](IDENTITA_RECUPERO_MANUALE_2026-10-30.md).

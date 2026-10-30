@@ -1641,3 +1641,11 @@ generati per pagina, camera scanner/self e altre pagine/deny, altri divieti cons
 0fbf10d pubblicato, CI41083344587Linux601/601 e Netlify6ae4bb2618ffddc7ea3b1a45
 verificati: header camera corretti, asset identici e API401 senzaJWT. Modalita
 collaudo/email attive preservate, nessuna pratica reale o invio esterno avviati.
+
+Correzione locale successiva30/10: differenza modulo/CRM non blocca prima OCR,
+ma apre preview con avviso e snapshot CRM. Errori OCR/parser/barcode/HTTP/rete e
+timeout client45s hanno recupero manuale autenticato multipart senza precedente
+token, stesso autore/cliente/file/data. Modal retry e apertura originali se viewer
+non disponibile. Business manuale con CF rappresentante verificato e PDA/hash/codice
+vincolati; controlli serali invariati. Nessun push o nuovo dato production.
+Fonte AGENTS e docs/IDENTITA_RECUPERO_MANUALE_2026-10-30.md.
