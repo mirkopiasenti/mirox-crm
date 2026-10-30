@@ -235,7 +235,8 @@ function buildStatic(env = process.env) {
     'utf8'
   );
   // Policy fotocamera per documento: evita direttive camera duplicate fra wildcard e route specifica.
-  let cameraHeaders='\n/\n  Permissions-Policy: camera=()\n';
+  const restrictedFeatures='microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()';
+  let cameraHeaders='\n/\n  Permissions-Policy: camera=(), '+restrictedFeatures+'\n';
   function cameraPolicies(directory){
     for(const entry of fs.readdirSync(directory,{withFileTypes:true})){
       const full=path.join(directory,entry.name);
@@ -243,7 +244,7 @@ function buildStatic(env = process.env) {
       else if(entry.name.endsWith('.html')){
         const relative=path.relative(OUTPUT,full).split(path.sep).join('/');
         const scanner=relative==='moduli/scanner-documenti.html';
-        for(const route of ['/'+relative,'/'+relative.replace(/\.html$/,'')])cameraHeaders+=route+'\n  Permissions-Policy: camera='+(scanner?'(self)':'()')+'\n'+(scanner?'  Cache-Control: no-store\n  Referrer-Policy: no-referrer\n':'')+'\n';
+        for(const route of ['/'+relative,'/'+relative.replace(/\.html$/,'')])cameraHeaders+=route+'\n  Permissions-Policy: camera='+(scanner?'(self)':'()')+', '+restrictedFeatures+'\n'+(scanner?'  Cache-Control: no-store\n  Referrer-Policy: no-referrer\n':'')+'\n';
       }
     }
   }

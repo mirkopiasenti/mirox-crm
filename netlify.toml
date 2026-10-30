@@ -25,7 +25,6 @@
     X-Content-Type-Options   = "nosniff"
     Referrer-Policy          = "strict-origin-when-cross-origin"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains"
-    Permissions-Policy       = "microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()"
 
 # =============================================================================
 # Scheduled functions
@@ -60,7 +59,9 @@
 [functions."target-worker-background"]
   included_files = ["netlify/functions/_assets/target/*"]
 
-# La build assegna camera=(self) solo allo scanner e camera=() alle altre pagine HTML.
+# Permissions-Policy completa generata in dist/_headers per ciascuna pagina:
+# camera=(self) solo scanner, camera=() altrove. Non duplicarla qui: Netlify
+# sovrascrive la policy generata se lo stesso header compare nel TOML globale.
 [[headers]]
   for = "/moduli/scanner-documenti.html"
   [headers.values]

@@ -1106,6 +1106,12 @@ verdi; flusso sintetico completo QR→PDF→barcode→ricevuta→3contratti→fi
 risposta persa→recupero→verifica successiva. Quattro pacchetti Netlify costruiti e
 API identita eseguita dal bundle isolato con Canvas/WASM, senza AI o CRM reali.
 
+Nel controllo del primo deploy sono state corrette due attese dei test dipendenti
+dal numero di cicli evento durante gli hash WebCrypto (CI Linux601/601verde dopo
+la correzione). La Permissions-Policy completa e generata per ogni pagina in
+dist/_headers, senza omonima dichiarazione globale TOML che la sovrascriverebbe:
+camera solo scanner, microfono/geolocalizzazione e altre funzioni restano negate.
+
 Correzioni finali: preservazione copie identita dopo insert con risposta persa,
 stream interrotto anche nell’upload definitivo, vincolo cluster nelle ricevute,
 scale barcode realmente distinte per fotografie, tessera fronte/retro controllata

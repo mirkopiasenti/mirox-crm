@@ -119,6 +119,9 @@ test('pagina mobile senza storage locale, PDF vendorizzato e fotocamera limitata
  const mobile=fs.readFileSync(require.resolve('../js/scanner-documenti-mobile.js'),'utf8'),html=fs.readFileSync(require.resolve('../moduli/scanner-documenti.html'),'utf8');
  assert.doesNotMatch(mobile,/localStorage|sessionStorage|indexedDB|\.download\s*=/);assert.match(mobile,/history.replaceState/);assert.match(mobile,/getUserMedia/);assert.match(mobile,/getTracks\(\).forEach/);assert.match(mobile,/MiroxApi.fetch/);assert.doesNotMatch(html,/type="file"/);
  const config=fs.readFileSync(require.resolve('../netlify.toml'),'utf8');assert.match(config,/for = "\/moduli\/scanner-documenti.html"/);const headers=fs.readFileSync(require.resolve('../dist/_headers'),'utf8');assert.match(headers,/\/moduli\/scanner-documenti.html\n  Permissions-Policy: camera=\(self\)/);assert.match(headers,/\/dashboard.html\n  Permissions-Policy: camera=\(\)/);
+ assert.doesNotMatch(config,/^\s*Permissions-Policy\s*=/m);
+ const policies=[...headers.matchAll(/^(\/[^\n]*)\n  Permissions-Policy: ([^\n]+)/gm)];assert.ok(policies.length>10);
+ for(const [,route,policy] of policies){assert.equal((policy.match(/camera=/g)||[]).length,1);assert.match(policy,/microphone=\(\), geolocation=\(\), payment=\(\), usb=\(\), browsing-topics=\(\)/);assert.match(policy,route.startsWith('/moduli/scanner-documenti')?/^camera=\(self\),/:/^camera=\(\),/);}
 });
 test('errore generazione QR non lascia sessioni invisibili che impediscono nuovi tentativi',async()=>{
  const f=dbFixture();await assert.rejects(Sessions.create(f.db,'user',person,{tipo:'cie'},{secret:'fixture',qr:async()=>{throw Error('Generatore non disponibile');}}));

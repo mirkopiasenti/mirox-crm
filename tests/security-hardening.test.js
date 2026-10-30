@@ -74,7 +74,8 @@ test('Netlify pubblica solo la build statica e applica gli header di sicurezza p
   assert.doesNotMatch(config, /publish\s*=\s*"\."/);
   assert.match(generatedHeaders, /Content-Security-Policy/);
   assert.match(config, /Strict-Transport-Security/);
-  assert.match(config, /Permissions-Policy/);
+  assert.match(generatedHeaders, /Permissions-Policy/);
+  assert.doesNotMatch(config, /^\s*Permissions-Policy\s*=/m);
   assert.match(generatedHeaders, /frame-ancestors 'self'/);
   assert.match(generatedHeaders, /object-src 'none'/);
   assert.match(generatedHeaders, /https:\/\/lbgwamhjkjjfwgusafbi\.supabase\.co/);

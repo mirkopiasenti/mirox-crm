@@ -1633,3 +1633,8 @@ nome/nascita fra i due documenti quando CF solo tessera (scelta proprietario30/1
 fallback manuale se incerto, TS fronte/retro, cluster ricevute,4MiB trasferimento browser,
 budget lettura42s e motore/cache2026-10-30.1. Nessuna nuova migration/env/cron,
 nessun push o cliente reale analizzato. Rapporto docs/SCANNER_COLLAUDO_RILASCIO_2026-10-30.md.
+
+Push autorizzato30/10: eecf513 pubblicato, test asincroni resi deterministici in
+5ab9fc6 (CI Linux601/601verde). Controllo HTTP ha rilevato override della
+Permissions-Policy dal TOML globale: policy completa spostata nei soli header
+generati per pagina, camera scanner/self e altre pagine/deny, altri divieti conservati.

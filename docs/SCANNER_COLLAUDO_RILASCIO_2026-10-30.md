@@ -131,3 +131,19 @@ nulla all’esterno, ZIP/UTF8 e601test complessivi Node22. Bundle isolato verifi
 anche la composizione email senza rete. Configurazioni SMTP, destinatari, template
 e logiche di invio invariati. In produzione restano le versioni precedenti fino
 al push; nessuna env o credenziale cambiata.
+
+## Verifiche durante la pubblicazione autorizzata30/10
+
+Primo push eecf513: deploy Netlify6ae4b978976ab2e768dea319 risponde con asset
+corrispondenti e API401 senza JWT. Modalita collaudo ed email_collaudo=true
+riconfermati via SELECT, senza modifiche o prove clienti.
+La prima CI Linux41082262500 ha rilevato una race del test: cento cicli
+setImmediate non garantiscono che l’hash WebCrypto sia finito sul runner.
+5ab9fc6 sostituisce le attese a tentativi con segnali espliciti delle richieste
+simulate e timeout di test; nessun cambio runtime. CI41082804799 verde601/601.
+
+Il controllo HTTP ha rilevato che la Permissions-Policy globale in netlify.toml
+sovrascrive la direttiva camera generata in _headers: rimossa la duplicazione,
+policy completa generata per pagina, camera self solo scanner e negata altrove.
+Gli altri divieti sono presenti in ogni policy HTML; test di build rafforzati.
+Il comportamento effettivo va confermato dagli header del deploy definitivo.
