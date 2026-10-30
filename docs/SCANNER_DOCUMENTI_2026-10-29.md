@@ -248,4 +248,7 @@ Le sezioni precedenti descrivono lo storico: prevalgono CF legato all’identita
 confronto nome/nascita fra i due documenti quando CF solo tessera (scelta esplicita
 proprietario30/10, preview se incerto), TS fronte/retro, limite browser4MiB e budget
 condiviso42s/versione2026-10-30.1. Nessun blocco generale nome contro anagrafica.
-Codice ancora non pubblicato; nessuna pratica reale testata o confermata.
+Pubblicato su richiesta30/10, codice0fbf10d: CI Linux601/601 e deploy HTTP/asset/
+policy fotocamera/API401 verificati. La policy completa vive nei soli _headers
+generati, senza duplicazione TOML. Modalita collaudo conservata; nessuna pratica
+reale testata o confermata. Collaudo fisico iPhone/Android col proprietario da fare.

@@ -281,3 +281,8 @@ per identita, senza cancellare o ricomprimere i file selezionati. Lettore/cache
 2026-10-30.1. Copie definitive preservate su commit DB con risposta persa e stream
 interrotti gestiti. Build/suite601test Node22 e flusso completo con byte sintetici,
 mai documenti clienti. Vedi rapporto SCANNER_COLLAUDO_RILASCIO_2026-10-30.md.
+
+Pubblicato su richiesta30/10 con codice0fbf10d: CI Linux601/601, asset e API401
+verificati; header fotocamera corretti anche sullo scanner senza estensione.
+Modalita collaudo ed email collaudo attive preservate; nessun collaudo cliente reale
+eseguito durante il push. Rapporto di rilascio aggiornato con esiti e limiti.

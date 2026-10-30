@@ -536,3 +536,7 @@ continua a evitare OCR identita serale. Altri controlli e notifiche invariati.
 Preflight read-only: modalita collaudo,email_collaudo=true,0collaudi pendenti o
 verifiche in corso. Nessuna nuova verifica/email/scrittura avviata. Rilascio da
 pubblicare solo su richiesta; rapporto SCANNER_COLLAUDO_RILASCIO_2026-10-30.md.
+
+Richiesta di push ricevuta30/10: codice0fbf10d online, CI Linux601/601 e deploy
+verificati. Modalita collaudo/email_collaudo=true riconfermata via SELECT dopo il
+push. Nessuna verifica, conferma cliente o notifica avviata durante il rilascio.

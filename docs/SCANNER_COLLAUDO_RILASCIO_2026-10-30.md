@@ -1,6 +1,7 @@
 # Scanner e controllo identita — rapporto di rilascio30/10/2026
 
-Stato: preparato localmente, non pubblicato. Ramo `codex/scanner-rilascio`, worktree
+Stato: pubblicato su richiesta esplicita30/10/2026. Codice `0fbf10d` online,
+deploy Netlify `6ae4bb2618ffddc7ea3b1a45`. Ramo `codex/scanner-rilascio`, worktree
 `/Users/mirkopiasenti/.codex/worktrees/scanner-rilascio/Mirox CRM`.
 Base `origin/main`01a8470: planning gia pubblicato conservato integralmente.
 Nessuna modifica ai suoi file, dashboard, shell o API; checkout originale preservato.
@@ -12,7 +13,8 @@ Build/suite finale **601/601test verdi su Node22.22.0**, inclusi19planning.
 SQL isolato PGlite0.5.13: ACL/RLS/vincoli/CAS verificati. Quattro pacchetti creati
 con il bundler ufficiale Netlify zisi16.6.0, asset Canvas/WASM presenti; API identita
 eseguita dal bundle estratto isolato con PDF e barcode reali sintetici.
-QA nativa su macOS/darwin-arm64; il build Linux di CI resta da eseguire al push.
+Packaging QA su macOS/darwin-arm64; suite completa anche su LinuxNode22,
+[CI41083344587 verde601/601](https://github.com/mirkopiasenti/mirox-crm/actions/runs/41083344587).
 Nessuna automazione browser, nuova chiamata AI, email, documento cliente analizzato,
 verifica/approvazione contratto o scrittura production durante questa revisione.
 
@@ -129,8 +131,8 @@ che richiede Node20 gia soddisfatto dal progetto>=22 e conserva CommonJS.
 Provati autenticazione/destinatari/MIME con SMTP su127.0.0.1 che non consegna
 nulla all’esterno, ZIP/UTF8 e601test complessivi Node22. Bundle isolato verifica
 anche la composizione email senza rete. Configurazioni SMTP, destinatari, template
-e logiche di invio invariati. In produzione restano le versioni precedenti fino
-al push; nessuna env o credenziale cambiata.
+e logiche di invio invariati. Le versioni corrette sono incluse nel rilascio
+pubblicato; nessuna env o credenziale cambiata.
 
 ## Verifiche durante la pubblicazione autorizzata30/10
 
@@ -146,4 +148,9 @@ Il controllo HTTP ha rilevato che la Permissions-Policy globale in netlify.toml
 sovrascrive la direttiva camera generata in _headers: rimossa la duplicazione,
 policy completa generata per pagina, camera self solo scanner e negata altrove.
 Gli altri divieti sono presenti in ogni policy HTML; test di build rafforzati.
-Il comportamento effettivo va confermato dagli header del deploy definitivo.
+0fbf10d pubblicato con CI41083344587 verde601/601,0skip. Risposta pubblica del
+deploy6ae4bb2618ffddc7ea3b1a45 confermata: camera=(self) sia scanner.html sia
+scanner senza estensione, camera=() in Upload; ogni risposta ha una sola direttiva
+camera e conserva gli altri divieti. Scanner no-store,8asset JS/CSS/vendor identici
+ai sorgenti e3API(scanner/identita/upload)401 senza JWT. Nessuna creazione sessione,
+pratica, verifica reale o email avviata. Resta il collaudo fisico col proprietario.

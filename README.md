@@ -1098,10 +1098,11 @@ Anche un passaporto riconosciuto dalla lettura, con CIE selezionata per errore,
 richiede la conferma manuale. Passaporto dichiarato e Turista mantengono il percorso
 PDF/manuale senza OCR identita.
 
-### Preparazione rilascio scanner30/10/2026
+### Rilascio scanner30/10/2026
 
 Revisione completa e integrazione con origin/main01a8470 (planning gia pubblicato)
-nel ramo codex/scanner-rilascio. Nessun push eseguito. Build/suite Node22:601test
+nel ramo codex/scanner-rilascio. Push autorizzato ed eseguito: codice0fbf10d online,
+planning conservato. Build/suite Node22 locale e CI Linux:601test
 verdi; flusso sintetico completo QR→PDF→barcode→ricevuta→3contratti→finalize con
 risposta persa→recupero→verifica successiva. Quattro pacchetti Netlify costruiti e
 API identita eseguita dal bundle isolato con Canvas/WASM, senza AI o CRM reali.
@@ -1128,3 +1129,8 @@ Versione lettore/cache e motore2026-10-30.1. Nessuna nuova migration/env/schedul
 Nel rilascio preparato sono aggiornati Nodemailer10.3.1 e fflate0.8.3 per correggere
 gli avvisi preesistenti: npm audit0, API SMTP/ZIP e suite completa verificate.
 Nessuna email esterna inviata durante i test.
+
+Deploy6ae4bb2618ffddc7ea3b1a45 verificato via HTTP: asset corrispondenti,
+camera=self sullo scanner anche senza estensione, camera negata su Upload,
+API401 senza login. Modalita collaudo/email collaudo attive confermate in sola
+lettura. Collaudo fisico iPhone/Android con proprietario ancora necessario.

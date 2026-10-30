@@ -1638,3 +1638,6 @@ Push autorizzato30/10: eecf513 pubblicato, test asincroni resi deterministici in
 5ab9fc6 (CI Linux601/601verde). Controllo HTTP ha rilevato override della
 Permissions-Policy dal TOML globale: policy completa spostata nei soli header
 generati per pagina, camera scanner/self e altre pagine/deny, altri divieti conservati.
+0fbf10d pubblicato, CI41083344587Linux601/601 e Netlify6ae4bb2618ffddc7ea3b1a45
+verificati: header camera corretti, asset identici e API401 senzaJWT. Modalita
+collaudo/email attive preservate, nessuna pratica reale o invio esterno avviati.
