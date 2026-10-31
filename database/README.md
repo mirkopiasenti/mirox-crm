@@ -32,6 +32,10 @@ Verifica PostgreSQL WASM isolata: backfill, atomicita, retry, tentativi successi
 duplicati, upload abortito, stati concorrenti, carrello annullato e ACL/RLS:
 `NODE_PATH=/private/tmp/mirox-reinserimenti-qa/node_modules node scripts/check-reinserimenti-fisso-sql.cjs`.
 
+Rilascio completato31/10: codice `f9b6476`, CI41201937570 e Netlify
+6ae5e106dec3fe1281bcb3f2 verificati. Core e script inline pubblici identici, API
+401 senza JWT; nessun test cliente, verifica o invio email avviati.
+
 ## Planning personale — migration applicata production29/10/2026
 
 `20261029200010_personale_planning.sql` aggiunge esclusivamente tre tabelle nuove:

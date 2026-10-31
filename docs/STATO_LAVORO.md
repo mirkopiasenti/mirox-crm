@@ -2,13 +2,14 @@
 
 Aggiornato:2026-10-31. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Reinserimenti Fisso: rilascio autorizzato31/10, in corso
+## Reinserimenti Fisso: pubblicati31/10
 
 - Richiesta: precedente automaticamente KO all'invio del reinserimento; nuovo Fisso inviato contato nel mensile Standard/P.IVA/Extra secondo stato/tecnologia, KO escluso. Risposta esplicita Day by Day: solo originale nel giorno iniziale. Gare Individuali e altre categorie conservate. FTTC resta soloAttivo/mese attivazione.
 - Migration sorgente20261031122329/live20261031123549 applicata e verificata: flag finalizzato, UNIQUE su origine, trigger INVOKER, invio/KO origine/audit/flag atomici, rollback senza alterare origine. Tentativi successivi sull'ultimo Fisso idoneo. Contesto transazionale verifica ripristinato: aggiornare il flag non invalida documenti o accoda verifiche.
 - Backfill3reinserimenti inviati nello storico, tutte le origini gia KO conservate. Ottobre2ConsumerLegnago/FTTH in attivazione:2pezzi/2,50punti recuperabili dal nuovo codice. Fingerprint contratti (eccetto flag/updated_at), verifiche, notifiche0 e schema/colonne/policy/trigger CC identici. EXECUTEanon/authfalse/serviceTrue, CHECK/UNIQUE validi. Advisor sicurezza7categorie preesistenti invariate; performance101->100indici inutilizzati, nessun nuovo rilievo.
 - Integrato sul main aggiornato nel worktree scanner-rilascio: planning locale identico al gia pubblicato; scanner/manuale recenti e policy camera preservati. Build/suite615/615verdi,4nuovi test regressione inclusi; SQL PGlite isolato su migration aggiornata: atomicita, backfill, catene, UNIQUE, rifiuto storico incoerente, rollback carrello/upload, zero invalidazioni e ripristino contesto. Nessun browser/testcliente/email/attivazione automatica.
-- Guide README/AGENTS/CLAUDE/databaseREADME aggiornate. Prossimo: commit/push senza force, verifica CI e deploy HTTP; aggiornare esito qui. Non pushare direttamente il main originale divergente.
+- Push richiesto31/10 e completato: `f9b6476`, CI41201937570LinuxNode22 verde, Netlify6ae5e106dec3fe1281bcb3f2 online. HTTP200/core e script inline Dashboard/Upload/Scanner identici, API401 senza JWT, policycamera scanner=self/altre=deny preservata. Guide README/AGENTS/CLAUDE/databaseREADME aggiornate. Nessun test cliente o invio di prova.
+- Checkout principale riallineato al main pubblicato e pulito; versione locale precedente archiviata in stash5646ce9 e ramo `codex/backup-main-prima-fissi-20261031`, inventario/diff in `.backup-private/git-sync-reinserimenti-20261031/`. Archivio di recupero, non riapplicarlo al main aggiornato. Planning/scanner gia pubblicati conservati. Prossimo: ricaricare Avanzamento ottobre per vedere i2pezzi/2,50punti recuperati; collaudo smartphone resta da fare col proprietario.
 
 ## Recupero manuale identita: pubblicato31/10
 
