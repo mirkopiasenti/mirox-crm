@@ -2,6 +2,14 @@
 
 Aggiornato:2026-10-31. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
+## Reinserimenti Fisso: rilascio autorizzato31/10, in corso
+
+- Richiesta: precedente automaticamente KO all'invio del reinserimento; nuovo Fisso inviato contato nel mensile Standard/P.IVA/Extra secondo stato/tecnologia, KO escluso. Risposta esplicita Day by Day: solo originale nel giorno iniziale. Gare Individuali e altre categorie conservate. FTTC resta soloAttivo/mese attivazione.
+- Migration sorgente20261031122329/live20261031123549 applicata e verificata: flag finalizzato, UNIQUE su origine, trigger INVOKER, invio/KO origine/audit/flag atomici, rollback senza alterare origine. Tentativi successivi sull'ultimo Fisso idoneo. Contesto transazionale verifica ripristinato: aggiornare il flag non invalida documenti o accoda verifiche.
+- Backfill3reinserimenti inviati nello storico, tutte le origini gia KO conservate. Ottobre2ConsumerLegnago/FTTH in attivazione:2pezzi/2,50punti recuperabili dal nuovo codice. Fingerprint contratti (eccetto flag/updated_at), verifiche, notifiche0 e schema/colonne/policy/trigger CC identici. EXECUTEanon/authfalse/serviceTrue, CHECK/UNIQUE validi. Advisor sicurezza7categorie preesistenti invariate; performance101->100indici inutilizzati, nessun nuovo rilievo.
+- Integrato sul main aggiornato nel worktree scanner-rilascio: planning locale identico al gia pubblicato; scanner/manuale recenti e policy camera preservati. Build/suite615/615verdi,4nuovi test regressione inclusi; SQL PGlite isolato su migration aggiornata: atomicita, backfill, catene, UNIQUE, rifiuto storico incoerente, rollback carrello/upload, zero invalidazioni e ripristino contesto. Nessun browser/testcliente/email/attivazione automatica.
+- Guide README/AGENTS/CLAUDE/databaseREADME aggiornate. Prossimo: commit/push senza force, verifica CI e deploy HTTP; aggiornare esito qui. Non pushare direttamente il main originale divergente.
+
 ## Recupero manuale identita: pubblicato31/10
 
 - Segnalazione IMG_2864: blocco prima OCR per differenza modulo/CRM. Ora e avviso in preview con nominativi/CF, ricevuta legata al modulo e snapshot CRM conservato. sameCustomer rimane stretto; nessuna scrittura anagrafica nella verifica e create commerciale invariato.
@@ -53,7 +61,7 @@ Aggiornato:2026-10-31. Promemoria di ripresa, non autorizza ulteriori push o att
 - ACL19pagine/7account iniziali, admin sempre ammessi, permessi freschi/84policy20tabelle; sorgente20261027221833/live20261027224328, CC/profili invariati. ea74741+3a8132a username/453test. Codici cliente multipli WindTre registro privato20261027220802 append senza backfill/colonne anagrafica. docs/PERMESSI_PAGINE.md.
 - PDA27/10: codici unici Mobile/Fisso/CB, blocchi globali/carrello/bozze/UNIQUE, reinserimenti nuovo codice; OTP prima PDA e cliente condiviso, editor Verifica/Storico/Fissi. Migration20261027110402 solo vendita/Fisso. Coordinateunpdf60pagine/100mila elementi/5s, MNP/dispositivo espliciti, override confermati, Fisso da casella. CODPOS Legnago9001415852 nuovi, catalogo/punti invariati. docs/UPLOAD_PDA_2026-10-27.md.
 - Gare28/10 d575e5c/7f9d930: contributo personale e squadra distinti, PARTITA IVA compenso su squadra37→150EURciascuno alla prova; Assicurazioni5punti, bonus50EURa10squadra. Nessun DB/regole mensili cambiati. Gare ottobre solo compenso_regola; CAMBI PIANO metrica23 con target separato.
-- FISSI Standard Legnago+Cerea Consumer/Business: nonFTTC mese firma con stati ammessi o pendenti senza postvendita, FTTC soloAttivo mese attivazione, noKO/reinserimenti. LuceGas PIVA esclude Annullato/Rifiutato; Standard soloRifiutato. Netto Standard stato utile e ultimoCSVglobale; popup aggregati senza dati cliente. Altri avanzamenti/Day soloLegnago.
+- FISSI Standard Legnago+Cerea Consumer/Business: nonFTTC mese firma con stati ammessi o pendenti senza postvendita, FTTC soloAttivo mese attivazione, noKO; reinserimenti Fisso finalizzati inclusi dal31/10. LuceGas PIVA esclude Annullato/Rifiutato; Standard soloRifiutato. Netto Standard stato utile e ultimoCSVglobale; popup aggregati senza dati cliente. Altri avanzamenti/Day soloLegnago.
 - Subentri: Microbusiness→Privato invia pratica3gruppi, Standard soloPDF, altre4procedure da raccogliere;417090e19/10. Disdette prima modulo poi ricercaCRM, manuale dopoassenza;565023418/10. Guide specifiche.
 
 ## Backup e punti aperti

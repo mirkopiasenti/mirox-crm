@@ -683,7 +683,7 @@ async function caricaDatiMensili() {
         categoria_snapshot, nome_offerta_snapshot, nome_opzione_snapshot, nome_reload_snapshot,
         tipo_attivazione, apri_chiudi, intestatario, switch_sim, modalita_pagamento,
         dispositivo_associato, tipo_acquisto, fascia_prezzo, finanziaria, kolme,
-        reload_exchange, data_contratto, created_at, stato_controllo, stato_inserimento,
+        reload_exchange, data_contratto, created_at, stato_controllo, stato_inserimento, reinserimento_fisso_finalizzato,
         codice_rivenditore,
         punteggio_gara_offerta, punteggio_gara_opzione, punteggio_gara_totale,
         punteggio_extra_gara_offerta, punteggio_extra_gara_opzione, punteggio_extra_gara_totale,
@@ -702,7 +702,7 @@ async function caricaDatiMensili() {
   if (rUltimoCsvLg.error) throw rUltimoCsvLg.error;
   DPState.ultimoCsvLgAt = rUltimoCsvLg.data?.[0]?.ultimo_csv_upload_at || null;
 
-  DPState.contrattiMese = (rContratti.data || []).filter(c => c.stato_inserimento !== 'reinserimento');
+  DPState.contrattiMese = (rContratti.data || []).filter(MiroxDashboardReport.isMonthlyCandidate);
 
   // Stati post-vendita per i filtri Avanzamento (P.IVA + Energia/Fisso Standard).
   // Carichiamo per TUTTI i contratti Fisso/Energia/Allarmi del mese (senza filtro cluster)
@@ -744,10 +744,10 @@ async function caricaDatiMensili() {
   const fttcIds = (rFttcPv.data || []).map(r => r.contratto_id);
   if (fttcIds.length) {
     const rFttcContr = await sb.from('vendita_contratti')
-      .select('id, operatore_id, cluster_cliente, categoria_snapshot, data_contratto, stato_inserimento, punteggio_gara_totale, codice_rivenditore')
+      .select('id, operatore_id, cluster_cliente, categoria_snapshot, data_contratto, stato_inserimento, reinserimento_fisso_finalizzato, punteggio_gara_totale, codice_rivenditore')
       .in('id', fttcIds);
     if (rFttcContr.error) throw rFttcContr.error;
-    // FISSI Standard: attivazioni FTTC di entrambi i punti vendita, senza reinserimenti.
+    // FISSI Standard: attivazioni FTTC di entrambi i punti vendita, inclusi reinserimenti finalizzati.
     DPState.fissoFTTCAttivatiMese = (rFttcContr.data || []).filter(c =>
       MiroxDashboardReport.inMonthlyScope(c, true)
     );
@@ -800,10 +800,10 @@ function getObiettivoMese(metricaId, operatoreId) {
   return DPState.obiettivi.find(o => o.metrica_id === metricaId && (o.operatore_id || null) === (operatoreId || null)) || null;
 }
 function contrattiMatchPerOperatore(metrica, operatoreId) {
-  return DPState.contrattiMese.filter(c => DPState.resolveOperatore(c.operatore_id) === operatoreId && matchRegola(c, metrica.regola));
+  return DPState.contrattiMese.filter(c => c.stato_inserimento !== 'reinserimento' && DPState.resolveOperatore(c.operatore_id) === operatoreId && matchRegola(c, metrica.regola));
 }
 function contrattiMatchTotali(metrica) {
-  return DPState.contrattiMese.filter(c => matchRegola(c, metrica.regola));
+  return DPState.contrattiMese.filter(c => c.stato_inserimento !== 'reinserimento' && matchRegola(c, metrica.regola));
 }
 // Varianti "Legnago-only" per l'Avanzamento Mensile (migration 050). Le funzioni
 // senza suffisso restano usate dalla tab Gare Individuali, che conteggia entrambi

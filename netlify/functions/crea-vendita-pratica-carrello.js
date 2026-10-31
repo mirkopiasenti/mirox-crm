@@ -724,6 +724,8 @@ exports.handler = async (event) => {
       } catch (error) { return response(409, { success: false, error: error.message }); }
     }
 
+    // Il trigger Fisso chiude in KO l'origine e abilita il nuovo conteggio
+    // nella stessa transazione: un errore lascia entrambi i record invariati.
     const { data: finalizedPractice, error: finalizeError } = await supabase
       .from('vendita_pratiche')
       .update({ stato_pratica: 'inviata' })
@@ -733,7 +735,7 @@ exports.handler = async (event) => {
       .maybeSingle();
 
     if (finalizeError) {
-      return response(500, {
+      return response(['23505', 'P0001'].includes(finalizeError.code) ? 409 : 500, {
         success: false,
         error: readableError(finalizeError, 'Errore finalizzazione pratica')
       });

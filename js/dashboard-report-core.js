@@ -7,8 +7,12 @@
 const LEGNAGO = '9001415852';
 const CEREA = '9000822241';
 const DAY_OPERATORS = ['MATTEO', 'MIRKO', 'FRANCESCA', 'CEREA'];
+function isMonthlyCandidate(c) {
+  return c.stato_inserimento !== 'reinserimento'
+    || (c.categoria_snapshot === 'Fisso' && c.reinserimento_fisso_finalizzato === true);
+}
 function inMonthlyScope(c, includeCereaFissi=false) {
-  return c.stato_inserimento!=='reinserimento' && (c.codice_rivenditore===LEGNAGO
+  return isMonthlyCandidate(c) && (c.codice_rivenditore===LEGNAGO
     || (includeCereaFissi && c.codice_rivenditore===CEREA && c.categoria_snapshot==='Fisso'));
 }
 function matchRegola(contratto, regola) {
@@ -236,5 +240,5 @@ function dailyRows(contracts,rows,profiles) {
     return {nome:r.nome,gruppo:r.gruppo,operatori:operators,totale:Object.values(operators).reduce((a,b)=>a+b,0)};
   }).filter(r=>r.totale>0);
 }
-return {LEGNAGO,CEREA,DAY_OPERATORS,inMonthlyScope,matchRegola,pesoContratto,calcolaCompenso,valutaGara,easter,isWorkday,workingDays,progress,dettaglioEnergiaMensile,monthlyRows,dailyRows};
+return {LEGNAGO,CEREA,DAY_OPERATORS,isMonthlyCandidate,inMonthlyScope,matchRegola,pesoContratto,calcolaCompenso,valutaGara,easter,isWorkday,workingDays,progress,dettaglioEnergiaMensile,monthlyRows,dailyRows};
 }));

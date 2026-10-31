@@ -229,7 +229,7 @@ test('popup L&G: solo esiti e conteggi aggregati, senza dettagli dei contratti e
   assert.equal([...popup.body.matchAll(/<strong>(\d+)<\/strong>/g)].reduce((sum,m)=>sum+Number(m[1]),0),contracts.length);
   assert.match(popup.body,/&lt;img/);assert.doesNotMatch(popup.body,/<img/);
 });
-test('FISSI Standard: Cerea e pendenti anche prima della verifica, KO/reinserimenti esclusi, pagina e Target coerenti',async()=> {
+test('FISSI Standard: Cerea e pendenti anche prima della verifica, KO e reinserimenti non finalizzati esclusi, pagina e Target coerenti',async()=> {
   const f=fixture();
   f.gara_obiettivi_mensili.push({id:2,anno:2026,mese:10,metrica_id:2,operatore_id:null,obiettivo:13});
   f.vendita_contratti.find(c=>c.id==='d').cluster_cliente='Business';
@@ -280,6 +280,54 @@ test('FISSI Standard: Cerea e pendenti anche prima della verifica, KO/reinserime
   const byName=(a,b)=>a.nome.localeCompare(b.nome);
   assert.deepEqual(JSON.parse(JSON.stringify(browser.map(({nome,tabella,attuale,punteggio,obiettivo,andamento,eccedenza})=>
     ({nome,tabella,pezzi:attuale,punteggio,obiettivo,andamento,eccedenza})).sort(byName))),[...p.mensile].sort(byName));
+});
+test('reinserimento Fisso inviato: mensile conta il nuovo, Day by Day solo originale, pagina e Target concordano',async()=> {
+  const f=fixture();
+  f.dashboard_righe_giornaliera=[{id:'fixed',nome:'FISSI',attiva:true,ordine:1,regola:{categoria:'Fisso'}}];
+  f.vendita_contratti=[contract('original','Fisso',{punteggio_gara_totale:2}),
+    contract('replacement','Fisso',{data_contratto:'2026-10-19T10:00:00Z',stato_inserimento:'reinserimento',
+      reinserimento_fisso_finalizzato:true,reinserimento_di_contratto_id:'original',punteggio_gara_totale:2.5})];
+  f.post_vendita_controllo_fissi=[{id:'old',contratto_id:'original',stato:'KO',tecnologia:'FWA OUT'},
+    {id:'new',contratto_id:'replacement',stato:'In Attivazione',tecnologia:'FTTH_OF'}];
+  const report=await reports.buildReports(fakeDb(f),'2026-10-19',new Date('2026-10-31T12:00:00Z'));
+  assert.equal(report.mensile.find(r=>r.nome==='Fisso').pezzi,1);
+  assert.equal(report.mensile.find(r=>r.nome==='Fisso').punteggio,2.5);
+  assert.equal(report.vendite.totale,0);
+  const originalDay=await reports.buildReports(fakeDb(f),'2026-10-05',new Date('2026-10-31T12:00:00Z'));
+  assert.equal(originalDay.vendite.totale,1);
+  const html=fs.readFileSync(require('node:path').join(__dirname,'../moduli/dashboard_pezzi.html'),'utf8');
+  const script=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(s=>s.includes('const sb'));
+  const ctx=vm.createContext({db:fakeDb(f),MiroxDashboardReport:core});
+  vm.runInContext(script.split('(function init()')[0],ctx);
+  vm.runInContext('DPState.anno=2026; DPState.mese=10;',ctx);
+  await vm.runInContext('caricaDatiMensili()',ctx);
+  const state=vm.runInContext('DPState',ctx);
+  const fixed=core.monthlyRows(state,'2026-10-31').find(r=>r.nome==='Fisso');
+  assert.equal(fixed.attuale,1);assert.equal(fixed.punteggio,2.5);
+  assert.equal(core.valutaGara({regola:{categoria:'Fisso'}},null,state.contrattiMese,'op').attuale,1);
+});
+test('reinserimenti Fisso: stati, P.IVA/extra, bozze, alias, Cerea e regola FTTC conservata',()=> {
+  const profiles=[{id:'op',nome:'MIRKO',attivo:true,in_gara:true},{id:'alias',nome:'Vecchio',attivo:true,alias_di:'op'}];
+  const metrics=['avanzamento_standard','avanzamento_piva','avanzamento_extra_piva'].map((tabella,i)=>
+    ({id:i,nome:tabella,tabella,regola:{categoria:'Fisso'}}));
+  for(const status of ['In Attivazione','Attivo','KO']) for(const finalized of [true,false]) {
+    const c=contract('r','Fisso',{operatore_id:'alias',stato_inserimento:'reinserimento',reinserimento_fisso_finalizzato:finalized,
+      punteggio_gara_totale:2.5,punteggio_extra_gara_totale:0.75});
+    const state=reports.monthlyState([c],metrics,[],profiles,{fisso:[{contratto_id:'r',stato:status,tecnologia:'FTTH_OF'}],energia:[],allarmi:[]},[],2026,10);
+    const rows=core.monthlyRows(state,'2026-10-31');
+    const valid=finalized && status!=='KO';
+    assert.equal(rows[0].attuale,valid?1:0);assert.equal(rows[0].punteggio,valid?2.5:0);
+    assert.equal(rows[1].punteggio,valid?0.75:0);assert.equal(rows[2].punteggio,valid?0.75:0);
+    c.codice_rivenditore=core.CEREA;
+    assert.equal(core.inMonthlyScope(c,true),finalized);assert.equal(core.inMonthlyScope(c),false);
+  }
+  const c=contract('fttc','Fisso',{stato_inserimento:'reinserimento',reinserimento_fisso_finalizzato:true});
+  const state=reports.monthlyState([c],metrics,[],profiles,{fisso:[{contratto_id:'fttc',stato:'In Attivazione',tecnologia:'FTTC'}],energia:[],allarmi:[]},[],2026,10);
+  assert.equal(core.monthlyRows(state,'2026-10-31')[0].attuale,0);
+  state.fissoFTTCAttivatiMese=[c];
+  assert.equal(core.monthlyRows(state,'2026-10-31')[0].attuale,1);
+  for(const categoria_snapshot of ['Energia','Allarmi','Assicurazioni','Mobile'])
+    assert.equal(core.isMonthlyCandidate({...c,categoria_snapshot}),false);
 });
 test('errore di lettura controlli nel browser blocca il conteggio invece di includere i KO come pendenti',async()=> {
   const html=fs.readFileSync(require('node:path').join(__dirname,'../moduli/dashboard_pezzi.html'),'utf8');

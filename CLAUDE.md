@@ -1651,3 +1651,4 @@ vincolati; controlli serali invariati. ff1737a pubblicato, CI41179390259verde611
 Netlify6ae593db85cb755b0859a322 verificato via HTTP/asset/API401; collaudo/email
 attive preservate, nessun nuovo dato cliente o invio di prova.
 Fonte AGENTS e docs/IDENTITA_RECUPERO_MANUALE_2026-10-30.md.
+Correzione31/10/2026 reinserimenti Fisso: Avanzamento Mensile include il nuovo Fisso finalizzato secondo stato/tecnologia; Day by Day conserva solo l’originale nel giorno iniziale. Invio, KO origine e flag `reinserimento_fisso_finalizzato` atomici tramite migration `20261031122329_reinserimenti_fisso.sql` (applicata production come20261031123549). Gare e altre categorie conservate. Dettagli in AGENTS/databaseREADME e promemoria rilascio; backfill3flag senza invalidare verifiche o notifiche, dati/CC invariati.

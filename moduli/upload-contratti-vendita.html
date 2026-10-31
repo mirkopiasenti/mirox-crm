@@ -2311,7 +2311,7 @@ Reload Forever
  // SOLARE CORRENTE (Europe/Rome). Un contratto di giugno NON e' un
  // reinserimento per un contratto inserito a luglio: il mese e' cambiato,
  // sara' contato come nuovo. Esclude i contratti gia' classificati come
- // reinserimento (per evitare catene di reinserimenti dello stesso evento).
+ // reinserimento per le altre categorie; Fisso permette un nuovo tentativo sull'ultimo contratto.
  async function checkReinserimento(anagraficaId, categoriaId, categoriaNome) {
  const dbgPrefix = '[REINS query]';
  console.log(dbgPrefix, 'start', { anagraficaId, categoriaId, categoriaNome });
@@ -2323,15 +2323,16 @@ Reload Forever
  console.log(dbgPrefix, 'finestra mese corrente Europe/Rome:', { startIso, endIso });
 
  try {
- const { data: contratti, error: e1 } = await db
+ let query = db
  .from('vendita_contratti')
- .select('id, data_contratto, nome_offerta_snapshot, numero_contratto_energia, pod_pdr')
+ .select('id, data_contratto, nome_offerta_snapshot, numero_contratto_energia, pod_pdr, reinserimento_di_contratto_id, reinserimento_fisso_finalizzato')
  .eq('anagrafica_id', anagraficaId)
  .eq('categoria_id', categoriaId)
- .eq('stato_inserimento', 'inserimento')
  .gte('data_contratto', startIso)
  .lt('data_contratto', endIso)
  .order('data_contratto', { ascending: false });
+ if (categoriaNome !== 'Fisso') query = query.eq('stato_inserimento', 'inserimento');
+ const { data: contratti, error: e1 } = await query;
  if (e1) { console.error(dbgPrefix, 'errore query contratti', e1); return []; }
  console.log(dbgPrefix, 'contratti trovati (pre-filtro post-vendita):', contratti?.length, contratti);
  if (!contratti || contratti.length === 0) return [];
@@ -2346,8 +2347,11 @@ Reload Forever
  console.log(dbgPrefix, 'post-vendita match:', postRows);
 
  const statoMap = new Map((postRows || []).map((r) => [r.contratto_id, r.stato]));
+ const originiSostituite = new Set(categoriaNome === 'Fisso'
+ ? contratti.filter(c => c.reinserimento_fisso_finalizzato).map(c => c.reinserimento_di_contratto_id) : []);
  return contratti
- .filter((c) => statoMap.has(c.id))
+ .filter((c) => statoMap.has(c.id) && !originiSostituite.has(c.id)
+   && (!c.reinserimento_di_contratto_id || c.reinserimento_fisso_finalizzato))
  .map((c) => ({
  contratto_id: c.id,
  data_contratto: c.data_contratto,

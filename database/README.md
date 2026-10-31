@@ -2,6 +2,36 @@
 
 I file `.sql` nella root di questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via CLI) durante lo sviluppo. `staging/` contiene invece bootstrap one-shot destinati esclusivamente a database staging nuovi e vuoti.
 
+## Reinserimenti Fisso — migration applicata production31/10/2026
+
+`20261031122329_reinserimenti_fisso.sql` aggiunge a `vendita_contratti`
+`reinserimento_fisso_finalizzato` (boolean, default false), CHECK di coerenza e
+UNIQUE parziale sull'origine per i successori finalizzati. Il nuovo trigger
+`trg_vendita_finalizza_reinserimenti_fisso` su `vendita_pratiche`, tramite funzione
+INVOKER/service-only, al passaggio bozza -> inviata valida origine cliente/categoria/
+mese Europe/Rome/stato e la blocca, mette in KO solo l'origine idonea e abilita
+il nuovo conteggio nella stessa transazione. Conserva motivo e audit dei KO gia
+presenti; nuovi KO registrati in `vendita_log_modifiche`. Errori e carrelli parziali
+annullano tutto. Un ulteriore tentativo puo riferirsi all'ultimo reinserimento;
+UNIQUE impedisce due successori finalizzati della stessa origine.
+Backfill delle sole pratiche Fisso gia inviate, previa validazione dello storico;
+applicata come `20261031123549`. Backfill di 3 flag, origini gia KO invariate. SELECT31/10: 3 reinserimenti Fisso
+inviati nello storico, tutti con origine gia KO; 2 a ottobre, validi non-FTTC,
+2,50 punti complessivi recuperati dal nuovo mensile. Nessun nominativo nei file.
+Nessun cambio a tabelle/RPC/policy CC, RLS o privilegi delle tabelle esistenti.
+Migration applicata prima del codice che seleziona il nuovo flag. Il contesto
+transazionale `mirox.verifica_commit` protegge il solo aggiornamento del flag e
+viene ripristinato prima degli altri trigger: nessuna invalidazione documentale.
+Fingerprint prima/dopo identici per contratti (esclusi flag/updated_at), verifiche,
+notifiche e schema/colonne/policy/trigger CC. Nuova funzione INVOKER, EXECUTE solo
+service_role; CHECK e indice UNIQUE validi. Advisor sicurezza7categorie invariate,
+nessun nuovo rilievo; performance solo variazione101->100 indici inutilizzati.
+CLI `supabase migration new reinserimenti_fisso` fallisce prima del comando su
+telemetry EPERM: usato timestamp UTC reale, come fallback gia documentato.
+Verifica PostgreSQL WASM isolata: backfill, atomicita, retry, tentativi successivi,
+duplicati, upload abortito, stati concorrenti, carrello annullato e ACL/RLS:
+`NODE_PATH=/private/tmp/mirox-reinserimenti-qa/node_modules node scripts/check-reinserimenti-fisso-sql.cjs`.
+
 ## Planning personale — migration applicata production29/10/2026
 
 `20261029200010_personale_planning.sql` aggiunge esclusivamente tre tabelle nuove:
@@ -552,8 +582,8 @@ Nessuna migration o modifica DB, al catalogo o agli obiettivi.
 ## Conteggio FISSI Standard (08/10/2026)
 
 Regola applicata dal motore condiviso, senza SQL/migration o modifiche ai dati.
-Metrica FISSI Standard: Legnago e Cerea, Consumer/Business, senza KO e
-reinserimenti. Non-FTTC: mese `data_contratto`, stati `Da completare`,
+Metrica FISSI Standard: Legnago e Cerea, Consumer/Business, senza KO.
+Correzione31/10: include reinserimenti Fisso finalizzati, vedi migration sopra. Non-FTTC: mese `data_contratto`, stati `Da completare`,
 `In Attivazione`, `Attivo`; FTTC: solo Attivo e mese `data_attivazione`.
 I contratti ancora da verificare, senza riga post-vendita, contano come
 pendenti nel mese di firma: il trigger crea la riga solo dopo la verifica.
