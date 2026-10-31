@@ -1642,10 +1642,12 @@ generati per pagina, camera scanner/self e altre pagine/deny, altri divieti cons
 verificati: header camera corretti, asset identici e API401 senzaJWT. Modalita
 collaudo/email attive preservate, nessuna pratica reale o invio esterno avviati.
 
-Correzione locale successiva30/10: differenza modulo/CRM non blocca prima OCR,
+Correzione successiva30/10, pubblicata31/10: differenza modulo/CRM non blocca prima OCR,
 ma apre preview con avviso e snapshot CRM. Errori OCR/parser/barcode/HTTP/rete e
 timeout client45s hanno recupero manuale autenticato multipart senza precedente
 token, stesso autore/cliente/file/data. Modal retry e apertura originali se viewer
 non disponibile. Business manuale con CF rappresentante verificato e PDA/hash/codice
-vincolati; controlli serali invariati. Nessun push o nuovo dato production.
+vincolati; controlli serali invariati. ff1737a pubblicato, CI41179390259verde611/611,
+Netlify6ae593db85cb755b0859a322 verificato via HTTP/asset/API401; collaudo/email
+attive preservate, nessun nuovo dato cliente o invio di prova.
 Fonte AGENTS e docs/IDENTITA_RECUPERO_MANUALE_2026-10-30.md.

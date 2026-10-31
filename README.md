@@ -1135,7 +1135,7 @@ camera=self sullo scanner anche senza estensione, camera negata su Upload,
 API401 senza login. Modalita collaudo/email collaudo attive confermate in sola
 lettura. Collaudo fisico iPhone/Android con proprietario ancora necessario.
 
-### Recupero manuale identita dopo errori30/10 (correzione locale)
+### Recupero manuale identita dopo errori30/10 (pubblicato31/10)
 
 Gli errori di lettura, barcode, parser PDF, HTTP/rete o risposta non valida aprono
 l’anteprima degli originali; anche il timeout del client (45s) passa al controllo
@@ -1149,3 +1149,7 @@ si apre ciascun PDF a dimensione intera e si attesta di averlo verificato. Un er
 di registrazione conserva la finestra e i file per riprovare. Business: CF personale
 verificato su documento/PDA, fonti legate ai byte e al contratto. Nessuna migration,
 env o modifica alla modalita serale. [Dettagli e prove](docs/IDENTITA_RECUPERO_MANUALE_2026-10-30.md).
+
+Codiceff1737a pubblicato31/10: CI Linux611/611verde, deploy Netlify e asset/API
+verificati; modalita collaudo ed email collaudo attive preservate. Nessuna pratica
+cliente o email di prova avviata durante il rilascio.

@@ -871,3 +871,6 @@ Business puo registrare business_identity.manuale=true, CF rappresentante verifi
 dall’operatore e path/hash PDA; assertSources completa l’abbinamento codice contratto
 prima dell’insert e verifica i file definitivi al finalize. Nessuna policy o colonna
 aggiunta, nessuna modifica alle tabelle condivise CC o alla configurazione verifica.
+
+Pubblicato31/10 con ff1737a, senza DDL o migrazioni. SELECT post-push conferma
+modalita collaudo,email_collaudo=true; nessuna pratica o sessione di prova creata.

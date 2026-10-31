@@ -1,7 +1,7 @@
-# Recupero manuale identita — correzione locale30/10/2026
+# Recupero manuale identita — correzione30/10/2026, pubblicata31/10
 
-Stato: sviluppato e verificato localmente, non pubblicato. Produzione rimane al
-rilascio49cb5c3. Nessuna richiesta di push dedotta dalla nuova segnalazione.
+Stato: pubblicato su richiesta esplicita31/10/2026. Codiceff1737a su main,
+deploy Netlify6ae593db85cb755b0859a322 verificato online.
 
 ## Problema riprodotto
 
@@ -56,8 +56,14 @@ Nessun documento cliente, browser, provider AI, email o DB production coinvolto.
 
 Non sono richieste migration, nuove env o cambi di modalita. Frontend e function
 vanno pubblicati insieme; rimane la modalita collaudo gia scelta dal proprietario.
-Dopo richiesta esplicita di push: verificare CI/deploy, poi col proprietario ripetere
-una pratica bloccata. Nessuna verifica o conferma cliente automatica in questo fix.
+Push richiesto ed eseguito31/10: [CI41179390259](https://github.com/mirkopiasenti/mirox-crm/actions/runs/41179390259)
+LinuxNode22 verde611/611,0skip. Il file pubblico di configurazione conferma commit
+ff1737a e deploy6ae593db85cb755b0859a322;7asset JS/CSS identici ai sorgenti,
+pagina scanner/extensionless/Upload HTTP200 e policy fotocamera corrette.
+API identita/upload/scanner restituiscono401 senza JWT. SELECT in sola lettura
+conferma modalita collaudo,email_collaudo=true. Nessuna migration/env/schedule,
+verifica cliente o email avviata. Prossimo: col proprietario ripetere una pratica
+bloccata con la nuova pagina. Nessuna approvazione cliente automatica in questo fix.
 
 Il recupero elimina il blocco da lettura, non sostituisce i servizi di salvataggio:
 se rete/backend non rispondono anche alla registrazione, la conferma resta aperta

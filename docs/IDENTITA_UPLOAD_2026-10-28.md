@@ -287,7 +287,7 @@ verificati; header fotocamera corretti anche sullo scanner senza estensione.
 Modalita collaudo ed email collaudo attive preservate; nessun collaudo cliente reale
 eseguito durante il push. Rapporto di rilascio aggiornato con esiti e limiti.
 
-### Correzione locale successiva30/10: ogni lettura fallita passa al manuale
+### Correzione30/10 pubblicata31/10: ogni lettura fallita passa al manuale
 
 Lo screenshot «I dati inseriti differiscono dall’anagrafica CRM» riguarda un guard
 prima dell’OCR. Diventa un avviso in anteprima, con nominativo modulo e CRM; la
@@ -298,3 +298,6 @@ permesso VAR restano controllati; firma non ottenuta non equivale a pratica salv
 Il modal resta aperto su errore di registrazione; viewer assente gestito con apertura
 dei PDF originali e attestazione esplicita. Business manuale conserva fonte PDA e CF
 del rappresentante verificato personalmente. [Procedura e prove](IDENTITA_RECUPERO_MANUALE_2026-10-30.md).
+
+Codiceff1737a online31/10, CI Linux611/611 e controlli HTTP/asset/API401 verdi.
+Modalita collaudo/email attive preservate, nessuna verifica cliente avviata.

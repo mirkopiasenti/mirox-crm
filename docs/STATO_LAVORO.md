@@ -1,14 +1,15 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-10-30. Promemoria di ripresa, non autorizza push o attivazioni.
+Aggiornato:2026-10-31. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Recupero manuale identita: correzione locale successiva, da pubblicare
+## Recupero manuale identita: pubblicato31/10
 
 - Segnalazione IMG_2864: blocco prima OCR per differenza modulo/CRM. Ora e avviso in preview con nominativi/CF, ricevuta legata al modulo e snapshot CRM conservato. sameCustomer rimane stretto; nessuna scrittura anagrafica nella verifica e create commerciale invariato.
 - OCR/barcode/parser non disponibili→manuale; HTTP/rete/JSON malformato o richiesta/corpo risposta fermi→preview locale entro45s. Multipart action=manual_preview registra conferma autenticata senza OCR ne primo token, hash server dei file confrontati con quelli visualizzati, HMAC/autore/data/scadenza/cittadinanza/permesso invariati. PDF non-PDF e dati obbligatori non vengono finti.
 - Viewer assente: aprire ciascun PDF originale e attestarlo. Errore registrazione: modal/file restano, retry senza nuova lettura; nessuna ricevuta incompleta in cache. Risposte obsolete e cambio file/dati ancora invalidati. Business manuale con CF persona verificato su PDA/documento e fonti path/hash/codice; stessi byte richiesti anche al finalize. Serale riusa ricevuta valida anche su errore parser identita, altri controlli invariati.
 - QA611/611Node22.22.0,0skip;10nuovi test (rispetto ai601pubblicati) incluse regressioni CRM, rete/HTTP/JSON/timeout, viewer/retry, API multipart reale Consumer e Business6campi, firma/autore/hash e vincoli create/finalize. Quattro bundle Netlify zisi16.6.0 e PDF/Canvas/WASM/ricevuta dal bundle isolato verdi. Solo sintetici/fixture, nessun browser, cliente, providerAI, email o DB production.
-- Guide README/AGENTS/CLAUDE/databaseREADME/identita/verifica e docs/IDENTITA_RECUPERO_MANUALE_2026-10-30.md aggiornate. Nessuna migration/env/schedule/modalita cambiata. Nessun push della nuova correzione; produzione resta49cb5c3. Prossimo: richiesta esplicita di push, CI/deploy, riprovare con proprietario una pratica bloccata. Non promettere invio riuscito se anche il salvataggio backend e irraggiungibile: preview conserva e consente retry.
+- Push richiesto ed eseguito31/10: codiceff1737a su main, CI41179390259LinuxNode22 verde611/611,0skip; Netlify6ae593db85cb755b0859a322 online. HTTP200,7asset identici, policy camera corrette,3API401 senzaJWT. SELECT conferma modalita collaudo/email_collaudo=true; nessuna migration/env/schedule, verifica cliente o email avviata.
+- Guide README/AGENTS/CLAUDE/databaseREADME/identita/verifica e docs/IDENTITA_RECUPERO_MANUALE_2026-10-30.md aggiornate. Prossimo: col proprietario riprovare una pratica bloccata con la nuova pagina, conservando la scheda aperta finche non completata. Non promettere invio riuscito se anche il salvataggio backend e irraggiungibile: preview conserva e consente retry.
 
 ## Scanner: pubblicato30/10, collaudo fisico da eseguire
 
