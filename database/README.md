@@ -38,10 +38,10 @@ Rilascio completato31/10: codice `f9b6476`, CI41201937570 e Netlify
 
 ## Planning personale — migration applicata production29/10/2026
 
-Aggiornamento01/11 intestazioni e caratteri dei PDF personali: cognomi confermati
+Aggiornamento online01/11 intestazioni e caratteri dei PDF personali: cognomi confermati
 nel solo renderer, nessuna rinomina dei profili o variazione a snapshot, schema/RPC o dati.
 
-Aggiornamento01/11: sola annotazione `Mezza giornata` nei PDF personali di
+Aggiornamento online01/11: sola annotazione `Mezza giornata` nei PDF personali di
 Matteo/Vincenzo; nessuna variazione schema, RPC, dati o conteggi e nessuna migration.
 
 `20261029200010_personale_planning.sql` aggiunge esclusivamente tre tabelle nuove:

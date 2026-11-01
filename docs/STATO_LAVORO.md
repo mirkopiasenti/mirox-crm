@@ -4,10 +4,10 @@ Aggiornato:2026-11-01. Promemoria di ripresa, non autorizza ulteriori push o att
 
 
 
-## Titoli PDF planning01/11: push richiesto, verifica rilascio in corso
+## Titoli PDF planning01/11: pubblicati
 
 - Nuova richiesta: titolo Planning mensile - Nome Cognome (Matteo Milanese/Vincenzo Di Pietro); sottotitolo Legnago | Mese Anno con iniziale maiuscola e senza ripetere nome; testi piu grandi. Implementato solo renderer: titolo22pt/sottotitolo12pt/tabella10pt/intestazioni9pt personali, altezza titolo misurata; mesi salvati col solo nome coperti via ID canonico, altri dipendenti usano nome configurato. Nessun DB/account/turno/conteggio cambiato.
-- Verifica21/21test planning riuscita: nomi e mese, nome presente una sola volta, dimensioni reali testo PDF, novembre e dicembre31giorni in1pagina, mezze giornate/privacy preservate. Due PDF sintetici renderizzati per controllo visivo. README/AGENTS/CLAUDE/databaseREADME e guida planning aggiornati; nessun browser o DB. Push richiesto esplicitamente dal proprietario; prossimo: verifica CI e deploy. Base7a759d6 inizialmente pulita.
+- Verifica21/21test planning riuscita: nomi/mese, nome una sola volta, dimensioni reali testo, novembre/dicembre31giorni in1pagina e privacy/mezze giornate preservate. Due PDF sintetici renderizzati/visti. Push richiesto01/11 e completato:5b8eaa7, CI41309234450 verde, Netlify6ae738289f662938dee06d1e online, API401 senzaJWT. Controllo HTTP senza cache dopo iniziale risposta del vecchio commit. README/AGENTS/CLAUDE/databaseREADME e guida planning aggiornati; nessun browser/DB/account/turno modificato. Basta riscaricare PDF personali; nessuna rigenerazione/pubblicazione mese necessaria. Prossimo: altri riscontri del proprietario, nessun ulteriore push automatico.
 
 ## Modifica PDF planning01/11: pubblicata
 

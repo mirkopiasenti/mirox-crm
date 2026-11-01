@@ -3,7 +3,7 @@
 
 ## Planning personale (rilascio29/10/2026)
 
-Aggiornamento01/11 successivo: titolo PDF personale con Nome Cognome confermato Matteo Milanese/Vincenzo Di Pietro, sottotitolo Legnago | Mese Anno senza nome ripetuto, mese maiuscolo e caratteri personali ingranditi. Solo renderer, nessuna modifica DB/account; push richiesto dal proprietario.
+Aggiornamento online01/11 successivo: titolo PDF personale con Nome Cognome confermato Matteo Milanese/Vincenzo Di Pietro, sottotitolo Legnago | Mese Anno senza nome ripetuto, mese maiuscolo e caratteri personali ingranditi. Solo renderer, nessuna modifica DB/account; pubblicato01/11, CI e deploy verificati.
 
 Aggiornamento online01/11: PDF personali Matteo/Vincenzo con `Mezza giornata` nei turni previsti entro4ore di sola mattina o pomeriggio, distinta da ferie/permessi e assenze totali. Solo renderer PDF, nessun DB o turno modificato, pubblicato01/11, CI e deploy verificati.
 
