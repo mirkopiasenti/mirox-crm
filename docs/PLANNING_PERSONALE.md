@@ -41,6 +41,8 @@ Il cambio degli orari ricorrenti non riscrive i mesi esistenti. Il roster mensil
 
 ## PDF e riservatezza
 
+Aggiornamento01/11 successivo alla dicitura Mezza giornata: i PDF personali mostrano `Planning mensile - Matteo Milanese` o `Planning mensile - Vincenzo Di Pietro` anche per mesi salvati con solo il nome. Gli altri dipendenti conservano il nome configurato, senza cognomi inventati. Sottotitolo `Legnago | Novembre 2026` (mese selezionato con iniziale maiuscola), senza ripetere il dipendente. Titolo22pt, sottotitolo12pt, tabella10pt e intestazioni9pt; altezza titolo misurata per evitare sovrapposizioni. Nomi completi solo nel renderer: nessuna modifica ad account o dati salvati. Pubblicazione richiesta dal proprietario; esito deploy da verificare.
+
 - Planning collettivo: fasce effettivamente disponibili dopo le assenze, riposi e chiusure; nessuna causale, codice o nota.
 - Planning personale: un dipendente, fasce disponibili e indicazione generica dell'assenza; nessuna causale, codice o nota. Scaricabile anche dal dipendente, solo dalla versione pubblicata. Aggiornamento online01/11: per Matteo e Vincenzo aggiunge `Mezza giornata` sui turni previsti entro4ore, interamente prima o dopo le14:00 e con presenza residua. Un permesso che dimezza un turno pieno non cambia la classificazione; un'assenza parziale si aggiunge alla dicitura, mentre assenza totale, chiusura e riposo non sono etichettati come mezza giornata. Pubblicata01/11 con il commit3213480; CI41308296243 riuscita, Netlify6ae7354e91e0f34527718721 online.
 - Scheda ore: solo Admin, previsto/ordinario/extra/ferie/permessi/malattia e codici malattia, totali mensili e numero di giorni ordinari ancora stimati. L'export dalla vista Schede ore usa la bozza salvata, come il riepilogo a schermo.

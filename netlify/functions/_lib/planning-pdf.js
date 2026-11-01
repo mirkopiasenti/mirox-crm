@@ -20,9 +20,12 @@ async function generatePdf(input, { type = 'personal', employeeId, draft = true 
   const data = Core.validateDocument(input);
   const employees = type === 'collective' ? data.employees : data.employees.filter(e => e.id === employeeId);
   if (!employees.length) throw new Error('Dipendente non presente');
+  const personalNames = { matteo: 'Matteo Milanese', vincenzo: 'Vincenzo Di Pietro' };
+  const employeeName = printable(personalNames[employees[0].id] || employees[0].name);
+  const title = type === 'personal' ? `Planning mensile - ${employeeName}` : type === 'hours' ? 'Scheda ore mensili' : 'Planning mensile';
   const doc = new PDFDocument({
     size: 'A4', layout: type === 'personal' ? 'portrait' : 'landscape', margin: 32, bufferPages: true,
-    info: { Title: 'Mirox - Planning personale', Author: 'Mirox CRM' }
+    info: { Title: `Mirox - ${title}`, Author: 'Mirox CRM' }
   });
   const chunks = [];
   const ready = new Promise((resolve, reject) => {
@@ -32,20 +35,23 @@ async function generatePdf(input, { type = 'personal', employeeId, draft = true 
   });
   const width = doc.page.width - 64;
   const logo = [path.join(process.cwd(), 'assets/logo.png'), path.resolve(__dirname, '../../../assets/logo.png'), path.resolve(__dirname, '../../assets/logo.png')].find(file => fs.existsSync(file));
-  const label = new Date(`${data.month}-01T12:00:00Z`).toLocaleDateString('it-IT', { month: 'long', year: 'numeric', timeZone: 'Europe/Rome' });
+  const monthLabel = new Date(`${data.month}-01T12:00:00Z`).toLocaleDateString('it-IT', { month: 'long', year: 'numeric', timeZone: 'Europe/Rome' });
+  const label = monthLabel.charAt(0).toLocaleUpperCase('it-IT') + monthLabel.slice(1);
   const groups = [];
   for (let i = 0; i < employees.length; i += 4) groups.push(employees.slice(i, i + 4));
 
   function pageHeading() {
     if (logo) doc.image(logo, 30, 19, { fit: [72, 42], align: 'left' });
-    doc.fillColor('#0a2540').font('Helvetica-Bold').fontSize(20)
-      .text(type === 'hours' ? 'Scheda ore mensili' : 'Planning mensile', 112, 28, { width: width - 90 });
-    const subtitle = printable(`Legnago | ${label}${type === 'collective' ? '' : ` | ${employees[0].name}`}`);
-    doc.font('Helvetica').fontSize(10).fillColor('#697386');
+    doc.fillColor('#0a2540').font('Helvetica-Bold').fontSize(type === 'personal' ? 22 : 20);
+    const titleHeight = doc.heightOfString(title, { width: width - 90 });
+    doc.text(title, 112, 28, { width: width - 90 });
+    const subtitleY = Math.max(77, 28 + titleHeight + 14);
+    const subtitle = printable(`Legnago | ${label}${type === 'hours' ? ` | ${employees[0].name}` : ''}`);
+    doc.font('Helvetica').fontSize(type === 'personal' ? 12 : 10).fillColor('#697386');
     const subtitleHeight = doc.heightOfString(subtitle, { width });
-    doc.text(subtitle, 32, 77, { width });
-    const badgeY = 77 + subtitleHeight + 6;
-    doc.font('Helvetica-Bold').fontSize(8).fillColor(draft ? '#b34a00' : '#177245')
+    doc.text(subtitle, 32, subtitleY, { width });
+    const badgeY = subtitleY + subtitleHeight + 6;
+    doc.font('Helvetica-Bold').fontSize(type === 'personal' ? 9 : 8).fillColor(draft ? '#b34a00' : '#177245')
       .text(draft ? 'BOZZA - NON APPROVATA' : 'PLANNING APPROVATO', 32, badgeY, { width });
     let y = badgeY + 22;
     if (type === 'hours') {
@@ -65,7 +71,7 @@ async function generatePdf(input, { type = 'personal', employeeId, draft = true 
     const widths = type === 'collective' ? [106, ...group.map(() => (width - 106) / group.length)]
       : type === 'hours' ? [110, 65, 75, 55, 55, 65, 65, width - 490] : [110, 255, width - 365];
     function tableHeader() {
-      doc.font('Helvetica-Bold').fontSize(8);
+      doc.font('Helvetica-Bold').fontSize(type === 'personal' ? 9 : 8);
       const height = Math.max(20, ...headings.map((text, i) => doc.heightOfString(text, { width: widths[i] - 14 }) + 12));
       doc.rect(32, y, width, height).fill('#0a2540');
       let x = 32;
@@ -87,7 +93,7 @@ async function generatePdf(input, { type = 'personal', employeeId, draft = true 
         values = [dayLabel, Core.hours(planned), `${Core.hours(ordinary)}${d.workedMinutes === null && ordinary ? ' S' : ''}`, Core.hours(d.extraMinutes), ...Core.TYPES.map(t => Core.hours(Core.absenceMinutes(d, t))), d.absences.filter(a => a.type === 'malattia' && a.code).map(a => a.code).join(', ')];
       }
       values = values.map(printable);
-      const fontSize = type === 'hours' ? 7.5 : type === 'collective' ? 8 : 9;
+      const fontSize = type === 'hours' ? 7.5 : type === 'collective' ? 8 : 10;
       doc.font('Helvetica').fontSize(fontSize);
       const rowHeight = Math.max(type === 'personal' ? 16 : 11, ...values.map((value, i) => doc.heightOfString(value, { width: widths[i] - 14 }) + (type === 'personal' ? 8 : 3)));
       if (y + rowHeight > doc.page.height - 58) { doc.addPage(); y = pageHeading(); tableHeader(); }

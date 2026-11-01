@@ -3,6 +3,8 @@
 
 ## Planning personale (rilascio29/10/2026)
 
+Aggiornamento01/11 successivo: titolo PDF personale con Nome Cognome confermato Matteo Milanese/Vincenzo Di Pietro, sottotitolo Legnago | Mese Anno senza nome ripetuto, mese maiuscolo e caratteri personali ingranditi. Solo renderer, nessuna modifica DB/account; push richiesto dal proprietario.
+
 Aggiornamento online01/11: PDF personali Matteo/Vincenzo con `Mezza giornata` nei turni previsti entro4ore di sola mattina o pomeriggio, distinta da ferie/permessi e assenze totali. Solo renderer PDF, nessun DB o turno modificato, pubblicato01/11, CI e deploy verificati.
 
 Nuovo reparto Admin Personale: `admin-planning.html`, consultazione del solo proprio pubblicato in `planning-personale.html` dalla dashboard. Bozza e approvato separati, orari configurabili, alternanza settimanale con assegnazione iniziale manuale, assenze/codice malattia, consuntivo e straordinari manuali, PDF personali/collettivi senza causali e schede ore solo Admin. Tre tabelle `personale_planning_*` private con RPC INVOKER/service-only, CAS e audit; nessuna modifica a profili/CC o alle19ACL. Avvio novembre con Matteo/Vincenzo/Isabella, scelta02/11 aperta. Migration `20261029200010_personale_planning.sql` applicata production20261029210434; push del solo planning autorizzato, nessuna associazione account eseguita. Fonte primaria AGENTS e `docs/PLANNING_PERSONALE.md`. Debug29/10: UI conserva documento/versione nei fallimenti di cambio mese, svuota i dati personali su errore, ritenta configurazione e blocca alternanza non applicata; PDF con intestazioni dinamiche e gruppi di4dipendenti.580/580test e SQL/DOM/renderPDF riusciti, nessun DDL/deploy.

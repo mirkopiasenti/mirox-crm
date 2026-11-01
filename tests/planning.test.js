@@ -175,3 +175,26 @@ test('PDF collettivo con piu dipendenti e nomi lunghi resta nei margini di stamp
   for(const employee of document.employees)assert.ok(content.replace(/\s/g,'').includes(employee.name.replace(/\s/g,'')),`Nome troncato nel PDF: ${employee.name}`);
   await pdf.destroy?.();
 });
+
+test('PDF personale: titolo completo, mese maiuscolo senza nome ripetuto e testi ingranditi',async()=>{
+  const {getDocumentProxy,extractText}=require('unpdf');
+  for(const [id,name] of [['matteo','Matteo Milanese'],['vincenzo','Vincenzo Di Pietro'],['isabella','Isabella']]){
+    const pdf=await getDocumentProxy(new Uint8Array(await generatePdf(doc(),{type:'personal',employeeId:id})));
+    assert.equal(pdf.numPages,1);
+    const text=(await extractText(pdf,{mergePages:true})).text;
+    assert.ok(text.includes(`Planning mensile - ${name}`));
+    assert.ok(text.includes('Legnago | Novembre 2026'));assert.ok(!text.includes('Novembre 2026 |'));
+    assert.equal(text.split(name).length-1,1);
+    const page=await pdf.getPage(1),content=await page.getTextContent();
+    const title=content.items.find(i=>i.str===`Planning mensile - ${name}`);
+    const subtitle=content.items.find(i=>i.str==='Legnago | Novembre 2026');
+    const day=content.items.find(i=>i.str==='Dom 01/11');
+    assert.equal(title.height,22);assert.equal(subtitle.height,12);assert.equal(day.height,10);
+    assert.ok(title.transform[5]>subtitle.transform[5]+12);
+    await pdf.destroy?.();
+  }
+  const december=Core.generate('2026-12',Core.defaultConfig(),'matteo');
+  const pdf=await getDocumentProxy(new Uint8Array(await generatePdf(december,{type:'personal',employeeId:'vincenzo'})));
+  assert.equal(pdf.numPages,1);assert.match((await extractText(pdf,{mergePages:true})).text,/Legnago \| Dicembre 2026/);
+  await pdf.destroy?.();
+});

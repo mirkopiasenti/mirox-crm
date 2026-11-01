@@ -3,6 +3,12 @@
 Aggiornato:2026-11-01. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
 
+
+## Titoli PDF planning01/11: push richiesto, verifica rilascio in corso
+
+- Nuova richiesta: titolo Planning mensile - Nome Cognome (Matteo Milanese/Vincenzo Di Pietro); sottotitolo Legnago | Mese Anno con iniziale maiuscola e senza ripetere nome; testi piu grandi. Implementato solo renderer: titolo22pt/sottotitolo12pt/tabella10pt/intestazioni9pt personali, altezza titolo misurata; mesi salvati col solo nome coperti via ID canonico, altri dipendenti usano nome configurato. Nessun DB/account/turno/conteggio cambiato.
+- Verifica21/21test planning riuscita: nomi e mese, nome presente una sola volta, dimensioni reali testo PDF, novembre e dicembre31giorni in1pagina, mezze giornate/privacy preservate. Due PDF sintetici renderizzati per controllo visivo. README/AGENTS/CLAUDE/databaseREADME e guida planning aggiornati; nessun browser o DB. Push richiesto esplicitamente dal proprietario; prossimo: verifica CI e deploy. Base7a759d6 inizialmente pulita.
+
 ## Modifica PDF planning01/11: pubblicata
 
 - Primi test proprietario: aggiungere `Mezza giornata` in Indicazioni dei PDF personali di Matteo/Vincenzo quando lavorano solo una mezza giornata. Implementato solo in planning-pdf.js: turni previsti entro4ore e interamente mattina/pomeriggio, con presenza residua. Un permesso su un turno pieno non diventa mezza giornata; assenze parziali conservano entrambe le diciture, assenza totale/chiusura/riposo no.
