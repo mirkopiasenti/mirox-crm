@@ -4,16 +4,11 @@ Aggiornato:2026-11-01. Promemoria di ripresa, non autorizza ulteriori push o att
 
 
 
-## Titoli PDF planning01/11: pubblicati
+## PDF personali planning01/11: giorni estesi e centrati, rilascio in corso
 
-- Nuova richiesta: titolo Planning mensile - Nome Cognome (Matteo Milanese/Vincenzo Di Pietro); sottotitolo Legnago | Mese Anno con iniziale maiuscola e senza ripetere nome; testi piu grandi. Implementato solo renderer: titolo22pt/sottotitolo12pt/tabella10pt/intestazioni9pt personali, altezza titolo misurata; mesi salvati col solo nome coperti via ID canonico, altri dipendenti usano nome configurato. Nessun DB/account/turno/conteggio cambiato.
-- Verifica21/21test planning riuscita: nomi/mese, nome una sola volta, dimensioni reali testo, novembre/dicembre31giorni in1pagina e privacy/mezze giornate preservate. Due PDF sintetici renderizzati/visti. Push richiesto01/11 e completato:5b8eaa7, CI41309234450 verde, Netlify6ae738289f662938dee06d1e online, API401 senzaJWT. Controllo HTTP senza cache dopo iniziale risposta del vecchio commit. README/AGENTS/CLAUDE/databaseREADME e guida planning aggiornati; nessun browser/DB/account/turno modificato. Basta riscaricare PDF personali; nessuna rigenerazione/pubblicazione mese necessaria. Prossimo: altri riscontri del proprietario, nessun ulteriore push automatico.
-
-## Modifica PDF planning01/11: pubblicata
-
-- Primi test proprietario: aggiungere `Mezza giornata` in Indicazioni dei PDF personali di Matteo/Vincenzo quando lavorano solo una mezza giornata. Implementato solo in planning-pdf.js: turni previsti entro4ore e interamente mattina/pomeriggio, con presenza residua. Un permesso su un turno pieno non diventa mezza giornata; assenze parziali conservano entrambe le diciture, assenza totale/chiusura/riposo no.
-- Verifiche20/20test planning e suite completa616/616riuscite sul main aggiornato a c2c29a4, due PDF sintetici renderizzati e visti. Test SMTP solo localhost fuori sandbox, nessun invio esterno/browser/DB o cambio turni/conteggi. Push richiesto01/11 e completato:3213480, CI41308296243 verde, Netlify6ae7354e91e0f34527718721 online; API401 senzaJWT. README/AGENTS/CLAUDE/databaseREADME e guida planning aggiornate. Nessun mese da rigenerare o ripubblicare: basta scaricare nuovamente il PDF. Worktree codex/planning-mensile riallineato al main remoto, rilasci scanner/manuale/Fisso31/10 preservati. Prossimo: altri riscontri del proprietario; nessun ulteriore push autorizzato automaticamente.
-
+- Richiesta attuale: giorni per esteso e testo centrato in tutte e tre le colonne, push diretto esplicito. Implementato solo planning-pdf.js: Giorno/Orario/Indicazioni centrati, intestazioni incluse; altri export conservati.22/22test planning verdi, inclusa misura delle coordinate dei centri e tutti i7giorni estesi, novembre/dicembre31giorni1pagina. Due PDF sintetici renderizzati per controllo visivo; nessun browser/DB/account/turno/conteggio modificato.
+- Precedenti ritocchi online:3213480/7a759d6 Mezza giornata Matteo/Vincenzo (no falsi positivi da permessi su giornate piene, assenze/chiusure conservate),616test/CI41308296243/Netlify6ae7354e91e0f34527718721. Titoli5b8eaa7/b74eb8a: Planning mensile - Matteo Milanese/Vincenzo Di Pietro, Legnago | Mese Anno senza nome ripetuto, titolo22/sottotitolo12/tabella10/header9pt; CI41309234450/Netlify6ae738289f662938dee06d1e verificati. Nomi solo renderer, mesi salvati invariati; altri dipendenti usano nome configurato.
+- README/AGENTS/CLAUDE/databaseREADME e guida planning aggiornati. Baseb74eb8a inizialmente pulita e pari a origin/main. Prossimo: commit/push diretto gia autorizzato e verifica CI/Netlify/HTTP. Per vedere il risultato basta riscaricare il PDF; non serve rigenerare o approvare il mese.
 
 ## Reinserimenti Fisso: pubblicati31/10
 

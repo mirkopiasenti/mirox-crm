@@ -38,6 +38,9 @@ Rilascio completato31/10: codice `f9b6476`, CI41201937570 e Netlify
 
 ## Planning personale — migration applicata production29/10/2026
 
+Aggiornamento01/11 giorni estesi e testo centrato nei PDF personali: sola
+presentazione nel renderer, nessuna modifica schema/RPC, dati o migration.
+
 Aggiornamento online01/11 intestazioni e caratteri dei PDF personali: cognomi confermati
 nel solo renderer, nessuna rinomina dei profili o variazione a snapshot, schema/RPC o dati.
 

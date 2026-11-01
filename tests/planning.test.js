@@ -188,7 +188,7 @@ test('PDF personale: titolo completo, mese maiuscolo senza nome ripetuto e testi
     const page=await pdf.getPage(1),content=await page.getTextContent();
     const title=content.items.find(i=>i.str===`Planning mensile - ${name}`);
     const subtitle=content.items.find(i=>i.str==='Legnago | Novembre 2026');
-    const day=content.items.find(i=>i.str==='Dom 01/11');
+    const day=content.items.find(i=>i.str==='Domenica 01/11');
     assert.equal(title.height,22);assert.equal(subtitle.height,12);assert.equal(day.height,10);
     assert.ok(title.transform[5]>subtitle.transform[5]+12);
     await pdf.destroy?.();
@@ -196,5 +196,21 @@ test('PDF personale: titolo completo, mese maiuscolo senza nome ripetuto e testi
   const december=Core.generate('2026-12',Core.defaultConfig(),'matteo');
   const pdf=await getDocumentProxy(new Uint8Array(await generatePdf(december,{type:'personal',employeeId:'vincenzo'})));
   assert.equal(pdf.numPages,1);assert.match((await extractText(pdf,{mergePages:true})).text,/Legnago \| Dicembre 2026/);
+  await pdf.destroy?.();
+});
+
+test('PDF personale: giorni per esteso e testi centrati nelle tre colonne',async()=>{
+  const {getDocumentProxy}=require('unpdf');
+  const pdf=await getDocumentProxy(new Uint8Array(await generatePdf(doc(),{type:'personal',employeeId:'matteo'})));
+  assert.equal(pdf.numPages,1);
+  const page=await pdf.getPage(1),content=await page.getTextContent(),items=content.items;
+  for(const day of ['Domenica 01/11','Lunedì 02/11','Martedì 03/11','Mercoledì 04/11','Giovedì 05/11','Venerdì 06/11','Sabato 07/11'])assert.ok(items.some(i=>i.str===day),day);
+  assert.ok(!items.some(i=>i.str==='Dom 01/11'));
+  const width=page.getViewport({scale:1}).width-64;
+  const centers=[32+55,32+110+255/2,32+365+(width-365)/2];
+  for(const [text,column] of [['Giorno',0],['Orario',1],['Indicazioni',2],['Lunedì 02/11',0],['15:30-19:30',1],['Mezza giornata',2]]){
+    const item=items.find(i=>i.str===text);assert.ok(item,text);
+    assert.ok(Math.abs(item.transform[4]+item.width/2-centers[column])<0.5,`Testo non centrato: ${text}`);
+  }
   await pdf.destroy?.();
 });

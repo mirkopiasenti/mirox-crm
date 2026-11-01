@@ -41,6 +41,8 @@ Il cambio degli orari ricorrenti non riscrive i mesi esistenti. Il roster mensil
 
 ## PDF e riservatezza
 
+Aggiornamento01/11 con push diretto richiesto: nel PDF personale i giorni sono per esteso (es. Domenica, Lunedì, Mercoledì); intestazioni e contenuti di Giorno, Orario e Indicazioni sono centrati orizzontalmente. Dimensioni del testo e altri export conservati. Test sulle coordinate effettive del testo nel PDF, oltre al controllo visivo dei due dipendenti. Nessuna modifica DB o ai turni.
+
 Aggiornamento online01/11 successivo alla dicitura Mezza giornata: i PDF personali mostrano `Planning mensile - Matteo Milanese` o `Planning mensile - Vincenzo Di Pietro` anche per mesi salvati con solo il nome. Gli altri dipendenti conservano il nome configurato, senza cognomi inventati. Sottotitolo `Legnago | Novembre 2026` (mese selezionato con iniziale maiuscola), senza ripetere il dipendente. Titolo22pt, sottotitolo12pt, tabella10pt e intestazioni9pt; altezza titolo misurata per evitare sovrapposizioni. Nomi completi solo nel renderer: nessuna modifica ad account o dati salvati. Pubblicato01/11:5b8eaa7, CI41309234450 riuscita, Netlify6ae738289f662938dee06d1e online.
 
 - Planning collettivo: fasce effettivamente disponibili dopo le assenze, riposi e chiusure; nessuna causale, codice o nota.

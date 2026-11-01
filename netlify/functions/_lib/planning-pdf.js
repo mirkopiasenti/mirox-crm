@@ -76,7 +76,7 @@ async function generatePdf(input, { type = 'personal', employeeId, draft = true 
       doc.rect(32, y, width, height).fill('#0a2540');
       let x = 32;
       headings.forEach((text, i) => {
-        doc.fillColor('#ffffff').text(text, x + 7, y + 6, { width: widths[i] - 14 });
+        doc.fillColor('#ffffff').text(text, x + 7, y + 6, { width: widths[i] - 14, align: type === 'personal' ? 'center' : 'left' });
         x += widths[i];
       });
       y += height;
@@ -84,7 +84,8 @@ async function generatePdf(input, { type = 'personal', employeeId, draft = true 
     tableHeader();
     for (const date of Core.dates(data.month)) {
       const days = group.map(e => data.entries.find(d => d.date === date && d.employeeId === e.id));
-      const dayLabel = `${Core.WEEKDAYS[Core.weekday(date)].slice(0, 3)} ${date.slice(8)}/${date.slice(5, 7)}`;
+      const weekday = Core.WEEKDAYS[Core.weekday(date)];
+      const dayLabel = `${type === 'personal' ? weekday : weekday.slice(0, 3)} ${date.slice(8)}/${date.slice(5, 7)}`;
       let values;
       if (type === 'collective') values = [dayLabel, ...days.map(d => Core.formatSlots(Core.availableSlots(d)) || (d.absences.length ? 'Assente' : d.closed ? 'Chiusura' : 'Riposo'))];
       else if (type === 'personal') values = [dayLabel, Core.formatSlots(Core.availableSlots(days[0])) || '-', personalIndications(days[0])];
@@ -102,7 +103,7 @@ async function generatePdf(input, { type = 'personal', employeeId, draft = true 
       let x = 32;
       values.forEach((value, i) => {
         doc.font(i === 0 ? 'Helvetica-Bold' : 'Helvetica').fontSize(fontSize).fillColor('#0a2540')
-          .text(value, x + 7, y + (type === 'personal' ? 4 : 1.5), { width: widths[i] - 14 });
+          .text(value, x + 7, y + (type === 'personal' ? 4 : 1.5), { width: widths[i] - 14, align: type === 'personal' ? 'center' : 'left' });
         x += widths[i];
       });
       y += rowHeight;
