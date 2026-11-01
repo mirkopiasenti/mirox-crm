@@ -41,7 +41,7 @@ Il cambio degli orari ricorrenti non riscrive i mesi esistenti. Il roster mensil
 
 ## PDF e riservatezza
 
-Aggiornamento01/11 con push diretto richiesto: nel PDF personale i giorni sono per esteso (es. Domenica, Lunedì, Mercoledì); intestazioni e contenuti di Giorno, Orario e Indicazioni sono centrati orizzontalmente. Dimensioni del testo e altri export conservati. Test sulle coordinate effettive del testo nel PDF, oltre al controllo visivo dei due dipendenti. Nessuna modifica DB o ai turni.
+Aggiornamento pubblicato01/11: nel PDF personale i giorni sono per esteso (es. Domenica, Lunedì, Mercoledì); intestazioni e contenuti di Giorno, Orario e Indicazioni sono centrati orizzontalmente. Dimensioni del testo e altri export conservati. Test sulle coordinate effettive del testo nel PDF, oltre al controllo visivo dei due dipendenti. Nessuna modifica DB o ai turni.
 
 Aggiornamento online01/11 successivo alla dicitura Mezza giornata: i PDF personali mostrano `Planning mensile - Matteo Milanese` o `Planning mensile - Vincenzo Di Pietro` anche per mesi salvati con solo il nome. Gli altri dipendenti conservano il nome configurato, senza cognomi inventati. Sottotitolo `Legnago | Novembre 2026` (mese selezionato con iniziale maiuscola), senza ripetere il dipendente. Titolo22pt, sottotitolo12pt, tabella10pt e intestazioni9pt; altezza titolo misurata per evitare sovrapposizioni. Nomi completi solo nel renderer: nessuna modifica ad account o dati salvati. Pubblicato01/11:5b8eaa7, CI41309234450 riuscita, Netlify6ae738289f662938dee06d1e online.
 
@@ -101,3 +101,5 @@ Dopo il rilascio: collegare gli account dalla UI, assegnare l'alternanza del 2 n
 ## Esito del rilascio
 
 Rilascio verificato29/10: commit f22e8fd, CI40954897311 riuscita, Netlify6ae3b5531570a3facff51c37 online; pagine HTTP200, API401 senza JWT, JS/CSS pubblici identici. Solo planning, scanner escluso (pagina/funzione404 e commit non antenati di origin/main). Suite rilascio553/553; nessun browser o dato dipendente creato. Migration production20261029210434 applicata e privilegi verificati. Prima configurazione: collegare account, scegliere02/11e approvare il mese.
+
+Pubblicazione giorni estesi/colonne centrate01/11: commit67772f1, CI41309810960 riuscita e Netlify6ae739d13430536274efe342 online, API401 senzaJWT.22test planning e controllo visivo dei PDF riusciti; basta riscaricare il PDF, senza rigenerare il mese.

@@ -1188,7 +1188,7 @@ Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile
 
 ### Planning personale (rilascio 29/10/2026)
 
-PDF personale01/11/2026: giorni della settimana per esteso nella colonna Giorno e allineamento orizzontale centrato per intestazioni e contenuto di tutte e tre le colonne (Giorno/Orario/Indicazioni). Gli altri export conservano i propri layout. Sola presentazione PDF; richiesta del proprietario include push diretto dopo verifica.
+PDF personale01/11/2026: giorni della settimana per esteso nella colonna Giorno e allineamento orizzontale centrato per intestazioni e contenuto di tutte e tre le colonne (Giorno/Orario/Indicazioni). Gli altri export conservano i propri layout. Sola presentazione PDF; push diretto richiesto e completato01/11, CI e deploy verificati.
 
 Intestazione PDF personale, pubblicata01/11/2026: titolo `Planning mensile - Nome Cognome`, con nomi confermati `matteo`=Matteo Milanese e `vincenzo`=Vincenzo Di Pietro anche per mesi gia salvati con solo il nome. Gli altri dipendenti usano il nome configurato, senza inventare cognomi. Sottotitolo `Legnago | Mese Anno`, iniziale del mese maiuscola e nessuna ripetizione del dipendente. Testi personali ingranditi (titolo22pt, sottotitolo12pt, tabella10pt/intestazioni9pt); impaginazione misurata, titoli lunghi senza sovrapposizioni. Solo presentazione PDF, nessuna rinomina di account/roster o modifica DB; push richiesto e completato01/11, CI e deploy verificati.
 

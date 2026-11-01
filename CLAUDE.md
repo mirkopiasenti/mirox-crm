@@ -3,7 +3,7 @@
 
 ## Planning personale (rilascio29/10/2026)
 
-Aggiornamento01/11: PDF personali con giorni per esteso e allineamento centrato di intestazioni/contenuti delle tre colonne; solo renderer,22test planning verdi e push diretto richiesto.
+Aggiornamento online01/11: PDF personali con giorni per esteso e allineamento centrato di intestazioni/contenuti delle tre colonne; solo renderer,22test planning verdi, CI e deploy verificati.
 
 Aggiornamento online01/11 successivo: titolo PDF personale con Nome Cognome confermato Matteo Milanese/Vincenzo Di Pietro, sottotitolo Legnago | Mese Anno senza nome ripetuto, mese maiuscolo e caratteri personali ingranditi. Solo renderer, nessuna modifica DB/account; pubblicato01/11, CI e deploy verificati.
 

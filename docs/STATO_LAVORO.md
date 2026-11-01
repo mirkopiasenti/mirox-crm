@@ -4,11 +4,11 @@ Aggiornato:2026-11-01. Promemoria di ripresa, non autorizza ulteriori push o att
 
 
 
-## PDF personali planning01/11: giorni estesi e centrati, rilascio in corso
+## PDF personali planning01/11: giorni estesi e centrati pubblicati
 
 - Richiesta attuale: giorni per esteso e testo centrato in tutte e tre le colonne, push diretto esplicito. Implementato solo planning-pdf.js: Giorno/Orario/Indicazioni centrati, intestazioni incluse; altri export conservati.22/22test planning verdi, inclusa misura delle coordinate dei centri e tutti i7giorni estesi, novembre/dicembre31giorni1pagina. Due PDF sintetici renderizzati per controllo visivo; nessun browser/DB/account/turno/conteggio modificato.
 - Precedenti ritocchi online:3213480/7a759d6 Mezza giornata Matteo/Vincenzo (no falsi positivi da permessi su giornate piene, assenze/chiusure conservate),616test/CI41308296243/Netlify6ae7354e91e0f34527718721. Titoli5b8eaa7/b74eb8a: Planning mensile - Matteo Milanese/Vincenzo Di Pietro, Legnago | Mese Anno senza nome ripetuto, titolo22/sottotitolo12/tabella10/header9pt; CI41309234450/Netlify6ae738289f662938dee06d1e verificati. Nomi solo renderer, mesi salvati invariati; altri dipendenti usano nome configurato.
-- README/AGENTS/CLAUDE/databaseREADME e guida planning aggiornati. Baseb74eb8a inizialmente pulita e pari a origin/main. Prossimo: commit/push diretto gia autorizzato e verifica CI/Netlify/HTTP. Per vedere il risultato basta riscaricare il PDF; non serve rigenerare o approvare il mese.
+- README/AGENTS/CLAUDE/databaseREADME e guida planning aggiornati. Baseb74eb8a inizialmente pulita e pari a origin/main. Push diretto completato:67772f1, CI41309810960 riuscita, Netlify6ae739d13430536274efe342 online, API401 senzaJWT; nessun browser o DB. Prossimo: ulteriori riscontri del proprietario, nessun altro push automatico. Per vedere il risultato basta riscaricare il PDF; non serve rigenerare o approvare il mese.
 
 ## Reinserimenti Fisso: pubblicati31/10
 
