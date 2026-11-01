@@ -1,6 +1,13 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-10-31. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+Aggiornato:2026-11-01. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+
+
+## Modifica PDF planning01/11: push richiesto, rilascio in corso
+
+- Primi test proprietario: aggiungere `Mezza giornata` in Indicazioni dei PDF personali di Matteo/Vincenzo quando lavorano solo una mezza giornata. Implementato solo in planning-pdf.js: turni previsti entro4ore e interamente mattina/pomeriggio, con presenza residua. Un permesso su un turno pieno non diventa mezza giornata; assenze parziali conservano entrambe le diciture, assenza totale/chiusura/riposo no.
+- Verifiche20/20test planning riuscite, compresa regressione PDF Matteo/Vincenzo/Isabella, turni pieni, assenze e chiusure; due PDF sintetici renderizzati per controllo visivo. Nessun browser, accesso DB, cambio turni/conteggi o pubblicazione. README/AGENTS/CLAUDE/databaseREADME e guida planning aggiornate. Push richiesto esplicitamente01/11; prossimo: riallineamento ai rilasci remoti, verifica CI/deploy. Ramo codex/planning-mensile inizialmente pulito a01a8470; modifiche correnti solo questo intervento.
+
 
 ## Reinserimenti Fisso: pubblicati31/10
 

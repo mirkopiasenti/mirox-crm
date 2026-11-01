@@ -136,6 +136,29 @@ test('migration nuova privata, RPC INVOKER, audit atomico e nessuna modifica tab
   assert.doesNotMatch(sql,/ALTER TABLE public\.(?:profili|anagrafica|orari_standard)\b|SECURITY DEFINER|CREATE POLICY/i);
 });
 
+test('PDF personale indica le mezze giornate previste di Matteo e Vincenzo e conserva assenze e chiusure',async()=>{
+  const {getDocumentProxy,extractText}=require('unpdf');
+  async function textOf(document,employeeId){
+    const pdf=await getDocumentProxy(new Uint8Array(await generatePdf(document,{type:'personal',employeeId})));
+    assert.equal(pdf.numPages,1);
+    const text=(await extractText(pdf,{mergePages:true})).text;
+    await pdf.destroy?.();return text;
+  }
+  const d=doc();
+  for(const [id,count] of [['matteo',5],['vincenzo',4],['isabella',0]]){
+    const text=await textOf(d,id);assert.equal((text.match(/Mezza giornata/g)||[]).length,count,id);
+  }
+  entry(d,'2026-11-02').absences=[absence({start:'16:00',end:'17:00'})];
+  entry(d,'2026-11-03').absences=[absence({start:'09:30',end:'12:30'})];
+  entry(d,'2026-11-14').absences=[absence({type:'ferie',fullDay:true,start:null,end:null})];
+  Object.assign(entry(d,'2026-11-28'),{closed:true,slots:[]});
+  entry(d,'2026-11-30').slots=[['09:00','18:00']];
+  const text=await textOf(d,'matteo');
+  assert.equal((text.match(/Mezza giornata/g)||[]).length,2);
+  assert.match(text,/Mezza giornata; Assenza 1:00/);
+  assert.match(text,/Assenza 3:00/);assert.match(text,/Chiusura/);assert.match(text,/Riposo/);
+});
+
 test('PDF collettivo con piu dipendenti e nomi lunghi resta nei margini di stampa', async()=>{
   const config=Core.defaultConfig();
   for(let i=0;i<5;i++)config.employees.push({...Core.clone(config.employees[2]),id:`persona-${i}`,name:`Dipendente ${i} ${'W'.repeat(60)}`});

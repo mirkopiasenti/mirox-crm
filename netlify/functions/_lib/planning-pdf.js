@@ -5,6 +5,16 @@ const path = require('node:path');
 const fs = require('node:fs');
 const printable = value => String(value).replace(/\s+/g, ' ');
 
+function personalIndications(day) {
+  if (day.closed) return 'Chiusura';
+  if (!day.slots.length) return 'Riposo';
+  const available = Core.availableSlots(day);
+  const halfDay = ['matteo', 'vincenzo'].includes(day.employeeId) && available.length > 0
+    && Core.slotMinutes(day.slots) <= 240
+    && (day.slots.every(pair => Core.minutes(pair[1]) <= 840) || day.slots.every(pair => Core.minutes(pair[0]) >= 840));
+  return [halfDay ? 'Mezza giornata' : '', day.absences.length ? `Assenza ${Core.hours(Core.absenceMinutes(day))}` : ''].filter(Boolean).join('; ');
+}
+
 async function generatePdf(input, { type = 'personal', employeeId, draft = true } = {}) {
   if (!['personal', 'collective', 'hours'].includes(type)) throw new Error('Tipo PDF non valido');
   const data = Core.validateDocument(input);
@@ -71,7 +81,7 @@ async function generatePdf(input, { type = 'personal', employeeId, draft = true 
       const dayLabel = `${Core.WEEKDAYS[Core.weekday(date)].slice(0, 3)} ${date.slice(8)}/${date.slice(5, 7)}`;
       let values;
       if (type === 'collective') values = [dayLabel, ...days.map(d => Core.formatSlots(Core.availableSlots(d)) || (d.absences.length ? 'Assente' : d.closed ? 'Chiusura' : 'Riposo'))];
-      else if (type === 'personal') values = [dayLabel, Core.formatSlots(Core.availableSlots(days[0])) || '-', days[0].closed ? 'Chiusura' : days[0].absences.length ? `Assenza ${Core.hours(Core.absenceMinutes(days[0]))}` : !days[0].slots.length ? 'Riposo' : ''];
+      else if (type === 'personal') values = [dayLabel, Core.formatSlots(Core.availableSlots(days[0])) || '-', personalIndications(days[0])];
       else {
         const d = days[0], planned = Core.slotMinutes(d.slots), ordinary = d.workedMinutes ?? planned - Core.absenceMinutes(d);
         values = [dayLabel, Core.hours(planned), `${Core.hours(ordinary)}${d.workedMinutes === null && ordinary ? ' S' : ''}`, Core.hours(d.extraMinutes), ...Core.TYPES.map(t => Core.hours(Core.absenceMinutes(d, t))), d.absences.filter(a => a.type === 'malattia' && a.code).map(a => a.code).join(', ')];

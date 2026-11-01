@@ -38,6 +38,9 @@ Rilascio completato31/10: codice `f9b6476`, CI41201937570 e Netlify
 
 ## Planning personale — migration applicata production29/10/2026
 
+Modifica locale01/11: sola annotazione `Mezza giornata` nei PDF personali di
+Matteo/Vincenzo; nessuna variazione schema, RPC, dati o conteggi e nessuna migration.
+
 `20261029200010_personale_planning.sql` aggiunge esclusivamente tre tabelle nuove:
 `personale_planning_config` (roster/orari/account e versione),
 `personale_planning_mesi` (mese/versione/bozza/snapshot pubblicato),
