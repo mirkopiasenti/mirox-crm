@@ -2,12 +2,12 @@
 
 Aggiornato:2026-11-02. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Avvicendamento Francesca / Vincenzo: rilascio autorizzato02/11, in corso
+## Avvicendamento Francesca / Vincenzo: pubblicato e verificato02/11
 
 - Proprietario conferma Vincenzo Di Pietro (refuso Vincenza). Auth `c8c45da2-0cda-41eb-86cc-0272b8baa200` esisteva, profilo CRM assente: creato nomeUI Vincenzo/username v.dipietro, operatore attivo/in gara, ordine20 e colore/permessiCC come Francesca.19ACL tramite RPC esistente, versione1/audit proprietario. Francesca `attivo=false/in_gara=false`, mai eliminata/rinominata/alias del nuovo.
 - Script dati `database/configura_avvicendamento_vincenzo.sql` default preflight, preflight e prova ROLLBACK riusciti, poi applicato/riletto production.75tabelle pubbliche restanti identiche per hash/conteggi nello stesso snapshot;802contratti ancora a Francesca, altri profili/ACL invariati. Gate DB con identita authenticated: Vincenzo ammesso, Francesca negata; nessuna sessione creata/credenziale cambiata/schema/RLS/RPC/trigger modificato.
-- Gare e Avanzamento usano subito i profili attivi. Day by Day locale ora condivide `DAY_OPERATORS` del core/Target: Matteo/Mirko/Vincenzo/Cerea. Regressione esegue caricamento/render delle3schede e report Target, esclude Francesca senza riassegnare dati; novembre senza obiettivi (nessuna copia dei vecchi). Planning non modificato/collegato.
-- QA build/suite619/619test Node26.5.0verdi dopo integrazione dei6commit remoti planning (finof4f96f9), preservati; SMTP sintetico solo localhost. Regressione3schede/Target verde; SQL preflight/rollback/applicazione/rilettura/retry-rollback e gate autenticati riusciti. Test cifraturaAruba non eseguiti(mancaPython dedicato, fuori ambito). README/AGENTS/CLAUDE/databaseREADME aggiornati. Push autorizzato02/11: preparazione commit avvicendamento separato dai WIP Seconda linea, poi verifica CI/Netlify/HTTP.
+- Gare e Avanzamento usano subito i profili attivi. Day by Day ora condivide `DAY_OPERATORS` del core/Target: Matteo/Mirko/Vincenzo/Cerea. Regressione esegue caricamento/render delle3schede e report Target, esclude Francesca senza riassegnare dati; novembre senza obiettivi (nessuna copia dei vecchi). Planning non modificato/collegato.
+- QA build/suite619/619test Node26.5.0verdi dopo integrazione dei6commit remoti planning (finof4f96f9), preservati; SMTP sintetico solo localhost. Regressione3schede/Target verde; SQL preflight/rollback/applicazione/rilettura/retry-rollback e gate autenticati riusciti. Test cifraturaAruba non eseguiti(mancaPython dedicato, fuori ambito). README/AGENTS/CLAUDE/databaseREADME aggiornati. Push autorizzato02/11 ed eseguito: `b1f97c2`, CI41453438636LinuxNode22 verde, Netlify6ae890405b1fba61d721e409 online. HTTP200,3asset/scriptDashboard identici e APIplanning401senzaJWT. WIP Seconda linea esclusi/preservati, script identici allo stash recupero. Prossimo: ricaricare Dashboard; obiettivi novembre da configurare su indicazioni del proprietario.
 
 ## PDF personali planning01/11: giorni estesi e centrati pubblicati
 

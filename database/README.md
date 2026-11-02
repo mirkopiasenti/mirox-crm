@@ -17,7 +17,8 @@ profili/ACL invariati. Nessun cambio schema/RLS/RPC/trigger o credenziale Auth.
 Retry idempotente solo sul risultato atteso, rifiuta profilo/ACL discordanti.
 Obiettivi precedenti invariati; novembre2026ancora senza configurazione.
 Gare/Avanzamento leggono subito il DB; Day/Target richiedono il codice locale
-aggiornato, con push autorizzato02/11/2026 e rilascio in corso. Planning non modificato.
+aggiornato, pubblicato02/11/2026 (`b1f97c2`, CI41453438636 verde,
+Netlify6ae890405b1fba61d721e409 e asset HTTP verificati). Planning non modificato.
 
 ## Reinserimenti Fisso — migration applicata production31/10/2026
 
