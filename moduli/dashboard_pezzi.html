@@ -342,8 +342,8 @@ table.avanz td.lg-netto span + span { margin-left: 16px; }
 <script>
 const sb = db;
 
-// Colonne operatori HARDCODED per la Day by Day (compatibilita' col codice esistente).
-const OPERATORI = ['MATTEO', 'MIRKO', 'FRANCESCA', 'CEREA'];
+// Stesse colonne del report Target; i contratti mantengono il loro autore storico.
+const OPERATORI = MiroxDashboardReport.DAY_OPERATORS;
 const MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 
 // Day by Day e Avanzamento Mensile: Legnago; FISSI Standard include anche Cerea.

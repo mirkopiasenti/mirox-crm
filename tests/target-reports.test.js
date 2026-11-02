@@ -87,6 +87,47 @@ test('report completi: Legnago, zero omessi, FTTC fuori mese contratto, stati, p
   assert.doesNotMatch(JSON.stringify(p),/anagrafica_id|imei|cf_piva|voice_id/);
   assert.ok(db.log.every(q=>q.action==='read'));
 });
+test('avvicendamento: Vincenzo nelle tre schede e Target, storico Francesca senza riassegnazioni',async()=> {
+  const f=fixture();
+  f.profili.push({id:'francesca',nome:'Francesca',attivo:false,in_gara:false,alias_di:null},
+    {id:'vincenzo',nome:'Vincenzo',attivo:true,in_gara:true,alias_di:null});
+  f.vendita_contratti.push(contract('storico-francesca','Mobile',{operatore_id:'francesca'}),
+    contract('nuovo-vincenzo','Mobile',{operatore_id:'vincenzo'}));
+  const db=fakeDb(f),before=JSON.stringify(db.tables);
+  const p=await reports.buildReports(db,'2026-10-05',NOW);
+  assert.equal(p.vendite.totale,2);
+  assert.equal(p.vendite.categorie[0].operatori.VINCENZO,1);
+  assert.equal(p.vendite.categorie[0].operatori.FRANCESCA,undefined);
+  assert.equal(p.mensile.find(r=>r.nome==='Mobile').pezzi,2);
+
+  const html=fs.readFileSync(require('node:path').join(__dirname,'../moduli/dashboard_pezzi.html'),'utf8');
+  const script=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(s=>s.includes('const sb'));
+  const nodes=new Map();
+  const document={getElementById(id){if(!nodes.has(id))nodes.set(id,{innerHTML:'',textContent:'',querySelectorAll:()=>[]});return nodes.get(id);}};
+  const ctx=vm.createContext({db,document,MiroxDashboardReport:core,MiroxSafe:{escapeHtml:v=>String(v??'')}});
+  vm.runInContext(script.split('(function init()')[0],ctx);
+  vm.runInContext('DPState.anno=2026; DPState.mese=10;',ctx);
+  await vm.runInContext('caricaDatiMensili()',ctx);
+  const state=vm.runInContext('DPState',ctx);
+  assert.deepEqual(Array.from(state.operatoriInGara,p=>p.id),['op','vincenzo']);
+  assert.deepEqual(Array.from(state.operatoriAttiviMese,p=>p.id).sort(),['op','vincenzo']);
+  Object.assign(state,{righeDay:f.dashboard_righe_giornaliera,contrattiDay:f.vendita_contratti.filter(c=>
+    c.data_contratto.startsWith('2026-10-05') && c.codice_rivenditore===core.LEGNAGO && c.stato_inserimento!=='reinserimento'),dataSelezionata:'2026-10-05'});
+  // Include deliberatamente il profilo storico nel Day: non deve essere attribuito al nuovo.
+  state.profiliMap=new Map(f.profili.map(p=>[p.id,p]));
+  vm.runInContext('renderGrigliaDay(); renderGare(); renderAvanzamento();',ctx);
+  const day=nodes.get('pezziTable').innerHTML;
+  assert.match(day,/>VINCENZO<\/th>/);
+  assert.doesNotMatch(day,/FRANCESCA/i);
+  assert.equal(nodes.get('infoRiepilogo').textContent.includes('2026'),true);
+  for(const id of ['tabContentGare','tabContentAvanzamento']) {
+    assert.match(nodes.get(id).innerHTML,/Vincenzo/);
+    assert.doesNotMatch(nodes.get(id).innerHTML,/Francesca/i);
+  }
+  assert.equal(JSON.stringify(db.tables),before);
+  assert.ok(db.log.every(q=>q.action==='read'));
+  assert.equal(db.tables.vendita_contratti.find(c=>c.id==='storico-francesca').operatore_id,'francesca');
+});
 test('paginazione oltre 1000 e errori post-vendita non diventano report parziali',async()=> {
   const db=fakeDb({x:Array.from({length:1501},(_,i)=>({id:String(i).padStart(5,'0')}))});
   assert.equal((await reports.paged(db,'x','id')).length,1501);

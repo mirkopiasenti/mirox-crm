@@ -6,7 +6,7 @@
 'use strict';
 const LEGNAGO = '9001415852';
 const CEREA = '9000822241';
-const DAY_OPERATORS = ['MATTEO', 'MIRKO', 'FRANCESCA', 'CEREA'];
+const DAY_OPERATORS = ['MATTEO', 'MIRKO', 'VINCENZO', 'CEREA'];
 function isMonthlyCandidate(c) {
   return c.stato_inserimento !== 'reinserimento'
     || (c.categoria_snapshot === 'Fisso' && c.reinserimento_fisso_finalizzato === true);

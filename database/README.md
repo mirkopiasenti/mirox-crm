@@ -2,6 +2,23 @@
 
 I file `.sql` nella root di questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via CLI) durante lo sviluppo. `staging/` contiene invece bootstrap one-shot destinati esclusivamente a database staging nuovi e vuoti.
 
+## Avvicendamento Francesca / Vincenzo — dati applicati02/11/2026
+
+`configura_avvicendamento_vincenzo.sql` conserva il default `applica=false`.
+Applicato/riletto production dopo preflight e prova con rollback: Francesca
+disabilitata/fuori gara, nuovo profilo `Vincenzo` per Vincenzo Di Pietro sul suo
+UUID Auth `c8c45da2-0cda-41eb-86cc-0272b8baa200`, attivo/operatore/in gara,
+ordine20. Copiati colore e permessi CC di Francesca;19permessi Mirox via RPC
+esistente `mirox_salva_permessi_pagine`, con versione1 e audit proprietario.
+Nessun alias, eliminazione o trasferimento storico; gli802contratti di Francesca
+restano attribuiti al suo UUID. Impronte prima/dopo identiche su tutte le75altre
+tabelle pubbliche (contratti, documenti, CC, gare, verifiche e planning); altri
+profili/ACL invariati. Nessun cambio schema/RLS/RPC/trigger o credenziale Auth.
+Retry idempotente solo sul risultato atteso, rifiuta profilo/ACL discordanti.
+Obiettivi precedenti invariati; novembre2026ancora senza configurazione.
+Gare/Avanzamento leggono subito il DB; Day/Target richiedono il codice locale
+aggiornato, con push autorizzato02/11/2026 e rilascio in corso. Planning non modificato.
+
 ## Reinserimenti Fisso — migration applicata production31/10/2026
 
 `20261031122329_reinserimenti_fisso.sql` aggiunge a `vendita_contratti`
