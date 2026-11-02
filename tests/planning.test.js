@@ -58,6 +58,24 @@ test('fasce: rifiuta overlap, inversioni, orari inesistenti; conserva minuti',()
   assert.equal(Core.slotMinutes(Core.parseSlots('09:30-12:30;15:30-19:00')),390);
   for(const text of ['12:00-09:00','09:00-12:30;12:00-13:00','25:00-26:00','09:00'])assert.throws(()=>Core.parseSlots(text));
 });
+test('formazione: accetta fasce fuori apertura e formati di scrittura comuni, salvando HH:mm',()=>{
+  for(const input of ['9:00-18:00','9.00–18.00','9 — 18','09:00−18:00'])assert.deepEqual(Core.parseSlots(input),[['09:00','18:00']]);
+  const split=[['08:00','13:00'],['14:00','20:00']];
+  for(const input of ['8-13 / 14-20','8:00-13:00; 14:00-20:00','8.00-13.00\n14.00-20.00'])assert.deepEqual(Core.parseSlots(input),split);
+  assert.deepEqual(Core.parseSlots(Core.formatSlots(split)),split);
+  const d=doc();entry(d,'2026-11-09','vincenzo').slots=Core.parseSlots('8-13 / 14-20');
+  assert.equal(Core.slotMinutes(entry(Core.validateDocument(d),'2026-11-09','vincenzo').slots),660);
+  for(const input of ['24:00-25:00','9:65-18:00','9:5-18:00','9-18-20','9-13 / 12-18','18-9','9-9','9:00-18:00 formazione'])assert.throws(()=>Core.parseSlots(input),input);
+});
+test('dettagli condivisi: compatibilità storico, limite e separazione dalle note interne',()=>{
+  const d=doc();for(const e of d.entries)delete e.details;
+  assert.equal(entry(Core.validateDocument(d)).details,'');
+  entry(d).details='  Formazione - Via Roma 10\nSala 2  ';entry(d).note='RISERVATO';
+  entry(d,'2026-11-03','vincenzo').details='ALTRO-DIPENDENTE';
+  const own=Core.publicDocument(d,'matteo');assert.equal(own.entries[2].details,'Formazione - Via Roma 10\nSala 2');
+  assert.ok(!JSON.stringify(own).includes('RISERVATO'));assert.ok(!JSON.stringify(own).includes('ALTRO-DIPENDENTE'));
+  for(const invalid of ['x'.repeat(501),null,{},42]){entry(d).details=invalid;assert.throws(()=>Core.validateDocument(d),/Dettagli/);}
+});
 test('assenza parziale: sottrae solo il turno, senza contare pausa o straordinari automatici',()=>{
   const d=doc(),e=entry(d);e.absences=[absence({start:'12:00',end:'16:00'})];
   const valid=Core.validateDocument(d);assert.equal(Core.absenceMinutes(entry(valid)),60);
@@ -113,6 +131,16 @@ test('API salva e pubblica con CAS; una revisione conserva snapshot precedente e
   assert.equal((await handle(post({action:'save',month:d.month,version:1,document:d}),f.deps)).statusCode,200);
   assert.equal(JSON.stringify(f.state.row.pubblicato),before);
   assert.equal((await handle(post({action:'save',month:d.month,version:1,document:d}),f.deps)).statusCode,409);
+});
+test('API conserva dettagli e orari formazione solo nello snapshot pubblicato del proprietario',async()=>{
+  const f=fixture(),d=doc();entry(d).slots=Core.parseSlots('8-13 / 14-18');entry(d).details='Formazione - Via Roma 10';entry(d).note='SOLO-ADMIN';
+  assert.equal((await handle(post({action:'publish',month:d.month,version:0,document:d}),f.deps)).statusCode,200);
+  entry(d).details='Indirizzo aggiornato in bozza';
+  assert.equal((await handle(post({action:'save',month:d.month,version:1,document:d}),f.deps)).statusCode,200);
+  f.state.profile={id:ID(2),ruolo:'operatore',attivo:true};
+  const res=await handle(get({month:d.month}),f.deps),own=body(res).document.entries[2];
+  assert.equal(res.statusCode,200);assert.equal(own.details,'Formazione - Via Roma 10');assert.deepEqual(own.slots,[['08:00','13:00'],['14:00','18:00']]);
+  assert.ok(!res.body.includes('SOLO-ADMIN'));assert.ok(!res.body.includes('aggiornato in bozza'));
 });
 test('API blocca pubblicazione senza assegnazione iniziale e mese discordante',async()=>{
   const f=fixture(),d=Core.generate('2026-11',Core.defaultConfig());
@@ -213,4 +241,25 @@ test('PDF personale: giorni per esteso e testi centrati nelle tre colonne',async
     assert.ok(Math.abs(item.transform[4]+item.width/2-centers[column])<0.5,`Testo non centrato: ${text}`);
   }
   await pdf.destroy?.();
+});
+
+test('PDF personale include formazione e indirizzo senza note private, anche con dettagli lunghi',async()=>{
+  const {getDocumentProxy,extractText}=require('unpdf'),d=doc();
+  for(const date of ['2026-11-09','2026-11-10'])Object.assign(entry(d,date,'vincenzo'),{slots:Core.parseSlots('8-13 / 14-18'),details:'Formazione - Via Roma 10, Verona',note:'INTERNO-RISERVATO'});
+  const pdf=await getDocumentProxy(new Uint8Array(await generatePdf(d,{type:'personal',employeeId:'vincenzo'})));
+  assert.equal(pdf.numPages,1);const text=(await extractText(pdf,{mergePages:true})).text;
+  assert.equal((text.match(/Formazione/g)||[]).length,2);assert.match(text,/Via Roma 10,\s+Verona/);assert.match(text,/08:00-13:00 \/ 14:00-18:00/);assert.ok(!text.includes('INTERNO-RISERVATO'));await pdf.destroy?.();
+  entry(d,'2026-11-30','vincenzo').details='W'.repeat(500);
+  const long=await getDocumentProxy(new Uint8Array(await generatePdf(d,{type:'personal',employeeId:'vincenzo'})));
+  assert.ok(long.numPages>1);let all='';
+  for(let n=1;n<=long.numPages;n++){
+    const page=await long.getPage(n),items=(await page.getTextContent()).items,viewport=page.getViewport({scale:1});
+    all+=items.map(i=>i.str||'').join('');
+    for(const item of items.filter(i=>i.str?.trim())){
+      assert.ok(item.transform[4]>=25 && item.transform[4]+item.width<=viewport.width-25,`Margine orizzontale: ${item.str}`);
+      assert.ok(item.transform[5]>=55 || item.str.startsWith('Mirox CRM |'),`Sovrapposizione footer: ${item.str}`);
+    }
+    assert.ok(items.some(i=>i.str==='Indicazioni'),'Intestazioni ripetute');
+  }
+  assert.ok(all.includes('W'.repeat(500)));await long.destroy?.();
 });

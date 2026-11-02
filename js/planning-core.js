@@ -39,7 +39,18 @@
   }
   function parseSlots(text) {
     if (!String(text).trim()) return [];
-    return slots(String(text).split(/[;,\n]+/).map(s => s.trim().split(/\s*-\s*/)));
+    const time = value => {
+      const match = /^(\d{1,2})(?:[:.](\d{2}))?$/.exec(value.trim());
+      if (!match) fail('Orario non valido: usa ad esempio 09:00-18:00 oppure 09:00-12:30; 14:00-18:00');
+      const normalized = `${match[1].padStart(2, '0')}:${match[2] || '00'}`;
+      minutes(normalized);
+      return normalized;
+    };
+    return slots(String(text).trim().split(/[;,/\n]+/).map(s => {
+      const pair = s.trim().split(/\s*[-–—−]\s*/);
+      if (pair.length !== 2) fail('Fascia oraria non valida: indica inizio e fine, ad esempio 09:00-18:00');
+      return pair.map(time);
+    }));
   }
   const formatSlots = value => value.map(pair => pair.join('-')).join(' / ');
   const slotMinutes = value => value.reduce((sum, pair) => sum + minutes(pair[1]) - minutes(pair[0]), 0);
@@ -85,7 +96,7 @@
           if (wd === 1 && employee.id === mondayOff) shift = shift.filter(p => minutes(p[0]) >= 720);
           if (wd === 6 && employee.id !== mondayOff) shift = shift.filter(p => minutes(p[1]) <= 900);
         }
-        entries.push({ date, employeeId: employee.id, slots: shift, absences: [], workedMinutes: null, extraMinutes: 0, note: '', closed: false });
+        entries.push({ date, employeeId: employee.id, slots: shift, absences: [], workedMinutes: null, extraMinutes: 0, details: '', note: '', closed: false });
       }
     }
     return { month: value, firstMondayOff, employees: employees.map(({profileId, week, from, until, ...e}) => e), entries };
@@ -130,7 +141,9 @@
       if (workedMinutes !== null && workedMinutes + absenceMinutes({slots:shift,absences}) > total) fail('Le ore ordinarie e le assenze superano il previsto: usa lo straordinario per le ore extra');
       if ((workedMinutes ?? total - absenceMinutes({slots:shift,absences})) + extraMinutes > 1440) fail('Ore giornaliere superiori a 24');
       if (typeof d.note !== 'string' || d.note.length > 1000) fail('Nota troppo lunga');
-      return { date:d.date, employeeId:d.employeeId, slots:shift, absences, workedMinutes, extraMinutes, note:d.note, closed:d.closed };
+      const details = d.details === undefined ? '' : d.details;
+      if (typeof details !== 'string' || details.length > 500) fail('Dettagli non validi: massimo 500 caratteri');
+      return { date:d.date, employeeId:d.employeeId, slots:shift, absences, workedMinutes, extraMinutes, details:details.trim(), note:d.note, closed:d.closed };
     });
     return { month:input.month, firstMondayOff:input.firstMondayOff, employees, entries };
   }
@@ -158,7 +171,7 @@
   function publicDocument(document, employeeId) {
     const clean = validateDocument(document);
     return { month:clean.month, employees:clean.employees.filter(e => e.id === employeeId).map(e => ({id:e.id,name:e.name})),
-      entries:clean.entries.filter(e => e.employeeId === employeeId).map(d => ({date:d.date,employeeId:d.employeeId,slots:availableSlots(d),absentMinutes:absenceMinutes(d),closed:d.closed})) };
+      entries:clean.entries.filter(e => e.employeeId === employeeId).map(d => ({date:d.date,employeeId:d.employeeId,slots:availableSlots(d),absentMinutes:absenceMinutes(d),closed:d.closed,details:d.details})) };
   }
   function holiday(date) {
     const recurring = {'01-01':'Capodanno','01-06':'Epifania','04-25':'Liberazione','05-01':'Festa del lavoro','06-02':'Festa della Repubblica','08-15':'Ferragosto','11-01':'Ognissanti','12-08':'Immacolata','12-25':'Natale','12-26':'Santo Stefano'};

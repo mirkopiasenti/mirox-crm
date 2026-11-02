@@ -6,13 +6,13 @@ const fs = require('node:fs');
 const printable = value => String(value).replace(/\s+/g, ' ');
 
 function personalIndications(day) {
-  if (day.closed) return 'Chiusura';
-  if (!day.slots.length) return 'Riposo';
+  if (day.closed) return ['Chiusura', day.details].filter(Boolean).join('; ');
+  if (!day.slots.length) return ['Riposo', day.details].filter(Boolean).join('; ');
   const available = Core.availableSlots(day);
   const halfDay = ['matteo', 'vincenzo'].includes(day.employeeId) && available.length > 0
     && Core.slotMinutes(day.slots) <= 240
     && (day.slots.every(pair => Core.minutes(pair[1]) <= 840) || day.slots.every(pair => Core.minutes(pair[0]) >= 840));
-  return [halfDay ? 'Mezza giornata' : '', day.absences.length ? `Assenza ${Core.hours(Core.absenceMinutes(day))}` : ''].filter(Boolean).join('; ');
+  return [halfDay ? 'Mezza giornata' : '', day.absences.length ? `Assenza ${Core.hours(Core.absenceMinutes(day))}` : '', day.details].filter(Boolean).join('; ');
 }
 
 async function generatePdf(input, { type = 'personal', employeeId, draft = true } = {}) {

@@ -26,9 +26,15 @@ async function setup(admin,state){
  await click($('addAbsence'));let line=$('dayAbsences').firstElementChild;line.querySelector('[data-field=type]').value='malattia';line.querySelector('[data-field=duration]').value='hours';line.querySelector('[data-field=start]').value='10:00';line.querySelector('[data-field=end]').value='11:00';line.querySelector('[data-field=code]').value='CODICE-TEST';$('dayWorked').value='6';$('dayExtra').value='0.5';
  $('dayForm').dispatchEvent(new window.Event('submit',{cancelable:true}));await settle();assert.equal($('dayDialog').open,false);assert.equal($('dayError').textContent,'');
  await click($('saveMonth'));assert.equal(state.row.bozza.entries.find(e=>e.date==='2026-11-03'&&e.employeeId==='matteo').extraMinutes,30);
+ await click(document.querySelector('[data-day="2026-11-09"][data-employee="matteo"]'));
+ $('daySlots').value='8.00–13.00 / 14-18';$('dayDetails').value='Formazione - Via Roma 10\nSala <img src=x onerror=fail()>';$('dayNote').value='SOLO-ADMIN';
+ $('dayForm').dispatchEvent(new window.Event('submit',{cancelable:true}));await settle();assert.equal($('dayDialog').open,false);assert.equal($('dayError').textContent,'');
+ assert.ok($('planningCalendar').textContent.includes('Formazione - Via Roma 10'));assert.equal($('planningCalendar').querySelector('img'),null);
+ await click($('saveMonth'));assert.deepEqual(state.row.bozza.entries.find(e=>e.date==='2026-11-09'&&e.employeeId==='matteo').slots,[['08:00','13:00'],['14:00','18:00']]);
+ await click(document.querySelector('[data-day="2026-11-09"][data-employee="matteo"]'));assert.ok($('dayDetails').value.includes('Formazione'));$('dayDialog').close();
  await click($('publishMonth'));assert.ok(state.row.pubblicato);
  await click(document.querySelector('[data-day="2026-11-04"][data-employee="matteo"]'));$('daySlots').value='12:30-09:30';$('dayForm').dispatchEvent(new window.Event('submit',{cancelable:true}));await settle();assert.ok($('dayError').textContent);$('dayDialog').close();
- const personal=await setup(false,state);const table=personal.document.getElementById('personalTable');assert.equal(table.querySelectorAll('tbody tr').length,30);assert.ok(table.textContent.includes('Assenza 1:00'));assert.ok(!table.textContent.includes('CODICE-TEST'));assert.ok(!table.textContent.includes('Vincenzo'));assert.ok(!table.textContent.includes('malattia'));
+ const personal=await setup(false,state);const table=personal.document.getElementById('personalTable');assert.equal(table.querySelectorAll('tbody tr').length,30);assert.ok(table.textContent.includes('Assenza 1:00'));assert.ok(!table.textContent.includes('CODICE-TEST'));assert.ok(!table.textContent.includes('Vincenzo'));assert.ok(!table.textContent.includes('malattia'));assert.ok(table.textContent.includes('Formazione - Via Roma 10'));assert.ok(!table.textContent.includes('SOLO-ADMIN'));assert.equal(table.querySelector('img'),null);
  // La modifica del selettore non deve autorizzare la pubblicazione dei vecchi turni.
  const pendingState={row:{versione:5,pubblicato_versione:4,bozza:Core.generate('2026-11',Core.defaultConfig(),'matteo')},requests:[]};
  const pending=await setup(true,pendingState),pendingDoc=pending.document;

@@ -56,6 +56,8 @@ Rilascio completato31/10: codice `f9b6476`, CI41201937570 e Netlify
 
 ## Planning personale — migration applicata production29/10/2026
 
+Aggiornamento locale 02/11/2026: dettagli giornalieri condivisi (`details`, massimo500caratteri) separati dalla nota interna. Modificabili nel dettaglio Admin, visibili nel calendario Admin, nelle Indicazioni del proprio planning pubblicato e del PDF personale; nessuna esposizione di note interne/codici/causali o dettagli altrui. Campo assente nei mesi precedenti normalizzato a stringa vuota; JSONB esistente, nessuna migration o scrittura production. Orari liberi anche fuori apertura per formazione, parser tollerante a ore senza zero iniziale, punto/colon, trattini copiati e separatori ; , / o nuova riga, salvataggio canonico HH:mm. Sovrapposizioni/inversioni/orari inesistenti restano vietati; nessuna conversione automatica in straordinari. Dettagli nel PDF con righe ad altezza misurata e continuazioni; collettivo e scheda ore conservano il perimetro precedente. Nessun push eseguito per questo intervento.
+
 Aggiornamento online01/11 giorni estesi e testo centrato nei PDF personali: sola
 presentazione nel renderer, nessuna modifica schema/RPC, dati o migration.
 
