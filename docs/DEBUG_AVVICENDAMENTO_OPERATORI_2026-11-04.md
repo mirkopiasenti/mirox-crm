@@ -62,4 +62,10 @@ non e ammesso nei periodi precedenti, nemmeno ai compensi di squadra.
 
 Nessuna migration, modifica schema/RLS/RPC/Auth/ACL, scrittura DB, nuovo
 obiettivo o riattivazione dell'account Francesca. Nessun browser usato.
-Suite e pubblicazione finali sono registrate in `docs/STATO_LAVORO.md`.
+Suite finale633/633 su Node26.5.0, dopo integrazione dei commit planning
+7a0a68f/7530363. Pubblicato04/11 con `08dcedb`, CI41851792451LinuxNode22
+verde e Netlify6aeb467d157b9756ead0ee3a online. HTTP: commit corretto,5asset
+identici, script inline Dashboard/Admin identici e APIplanning401senzaJWT.
+Verificata in sola lettura la visibilita di entrambi i profili dal ruolo
+authenticated di Vincenzo; nessuna sessione Auth creata.
+Riepilogo operativo in `docs/STATO_LAVORO.md`.

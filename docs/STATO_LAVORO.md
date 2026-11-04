@@ -2,12 +2,12 @@
 
 Aggiornato:2026-11-04. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Avvicendamento: correzione decorrenza04/11, rilascio in preparazione
+## Avvicendamento: decorrenza novembre corretta e pubblicata04/11
 
 - Richiesta04/11: Vincenzo solo da novembre2026; fino a ottobre Francesca con dati/obiettivi/compensi storici. Il rilascio02/11b1f97c2/550f552 era errato nelle viste: profili attuali per ogni mese, Day fisso, bonus squadra400EUR a Vincenzo a ottobre. DB storico mai trasferito; accountFrancesca resta disabilitato, Vincenzo attivo sul proprioUUID.
 - Core `reportProfiles`/`dayOperators` e guard compensi per periodo/UUID; Dashboard3schede/PNG/Target/Admin coerenti, senza SQL/schema/Auth/ACL o obiettivi modificati. Admin non copia righe di operatori fuori periodo ne le trasferisce al nuovo. Loader mensile atomico, risposte obsolete scartate, mappe Day/Mensile separate; cambio periodo/anno senza trascinare cache o selezione.
 - SQL solo lettura: profili/31obiettivi ottobre/0novembre e322contratti per replay locale senza dati cliente. Riprodotto400EUR su48Business; ottobre correttoMatteo/Francesca/Mirko, novembreMatteo/Vincenzo/Mirko. Tutte le gare/compensi, avanzamenti e3giorni ottobre identici al renderer pre-cambiof4f96f9, Target coerente. Input/esito in `.backup-private/avvicendamento-periodi-20261104/` ignorata; nessuna sessione, verifica cliente o invio esterno.
-- QA mirata65/65e suite finale633/633verdi(Node26.5.0) dopo integrazione dei2commit planning remoti7a0a68f/7530363, conservati.11regressioni periodi (7mesi, anno2027, confine31/10–01/11), squadra400, Admin/copia, cache/risposte invertite. Guide README/AGENTS/CLAUDE/databaseREADME e rapporto debug aggiornati; ACL con ruolo authenticated: Vincenzo legge anche il profilo storico e il modulo Dashboard; nessuna sessione creata. Deploy da completare. WIP Seconda linea preservati/esclusi; correzione nell'ambito dell'avvicendamento gia autorizzato al push, nessuna nuova configurazione gare.
+- QA mirata65/65e suite finale633/633verdi(Node26.5.0) dopo integrazione dei2commit planning remoti7a0a68f/7530363, conservati.11regressioni periodi (7mesi, anno2027, confine31/10–01/11), squadra400, Admin/copia, cache/risposte invertite. Guide README/AGENTS/CLAUDE/databaseREADME e rapporto debug aggiornati; ACL con ruolo authenticated: Vincenzo legge anche il profilo storico e il modulo Dashboard; nessuna sessione creata. Push correttivo08dcedb completato: CI41851792451LinuxNode22 verde, Netlify6aeb467d157b9756ead0ee3a online; HTTP200/5asset identici/scriptDashboardAdmin identici/APIplanning401senzaJWT. Codice planning remoto conservato identico, WIP Seconda linea esclusi e script identici allo stash di recupero. Nessuna nuova configurazione gare. Prossimo: ricaricare Dashboard e rigenerare PNG; novembre resta senza obiettivi da configurare su indicazioni del proprietario.
 
 ## Formazione e dettagli planning — pubblicati04/11
 

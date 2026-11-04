@@ -25,8 +25,10 @@ Vincenzo prima di novembre, neppure di squadra. Nessuna migration o scrittura DB
 Replay locale read-only su322contratti: riprodotto il400EUR errato, tutte le
 gare/compensi e gli avanzamenti ottobre tornano identici al renderer pre-cambio;
 input ed esito solo nella cartella ignorata `.backup-private/avvicendamento-periodi-20261104/`.
-Guida `docs/DEBUG_AVVICENDAMENTO_OPERATORI_2026-11-04.md`. Correzione locale,
-pubblicazione ancora da completare. Planning non modificato.
+Guida `docs/DEBUG_AVVICENDAMENTO_OPERATORI_2026-11-04.md`. Correzione pubblicata
+04/11 `08dcedb`, CI41851792451verde e Netlify6aeb467d157b9756ead0ee3a
+verificati via HTTP per SHA/asset e script inline Dashboard/Admin; nessuna
+scrittura DB. Codice planning recente conservato identico.
 
 ## Reinserimenti Fisso — migration applicata production31/10/2026
 
