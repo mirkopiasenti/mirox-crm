@@ -1,6 +1,6 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-02. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+Aggiornato:2026-11-04. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
 ## Avvicendamento Francesca / Vincenzo: pubblicato e verificato02/11
 
@@ -9,11 +9,11 @@ Aggiornato:2026-11-02. Promemoria di ripresa, non autorizza ulteriori push o att
 - Gare e Avanzamento usano subito i profili attivi. Day by Day ora condivide `DAY_OPERATORS` del core/Target: Matteo/Mirko/Vincenzo/Cerea. Regressione esegue caricamento/render delle3schede e report Target, esclude Francesca senza riassegnare dati; novembre senza obiettivi (nessuna copia dei vecchi). Planning non modificato/collegato.
 - QA build/suite619/619test Node26.5.0verdi dopo integrazione dei6commit remoti planning (finof4f96f9), preservati; SMTP sintetico solo localhost. Regressione3schede/Target verde; SQL preflight/rollback/applicazione/rilettura/retry-rollback e gate autenticati riusciti. Test cifraturaAruba non eseguiti(mancaPython dedicato, fuori ambito). README/AGENTS/CLAUDE/databaseREADME aggiornati. Push autorizzato02/11 ed eseguito: `b1f97c2`, CI41453438636LinuxNode22 verde, Netlify6ae890405b1fba61d721e409 online. HTTP200,3asset/scriptDashboard identici e APIplanning401senzaJWT. WIP Seconda linea esclusi/preservati, script identici allo stash recupero. Prossimo: ricaricare Dashboard; obiettivi novembre da configurare su indicazioni del proprietario.
 
-## Formazione e dettagli planning — locale02/11
+## Formazione e dettagli planning — pubblicati04/11
 
-- Richiesta: correggere orari formazione fuori negozio e dettagli manuali nelle Indicazioni personali/PDF. Nessun push richiesto per questo nuovo intervento. Basef4f96f9, worktree pulito all'avvio; ramo codex/planning-mensile.
+- Richiesta: correggere orari formazione fuori negozio e dettagli manuali nelle Indicazioni personali/PDF. Push richiesto04/11. Sviluppo58d0e0b ribasato su origin/main550f552 preservando avvicendamento Dashboard; nuovo commit7a0a68f, ramo codex/planning-mensile.
 - Parser ora normalizza ore brevi/punti/trattini copiati/separatori slash, senza vincoli all'apertura negozio; invariati limiti di validita, sovrapposizioni, assenze e conteggi. Nuovo details condiviso500caratteri nel JSONB, default vuoto per mesi precedenti; nota interna riservata, accesso al solo proprio pubblicato. UI Admin/personale e PDF personale aggiornati, collettivo/scheda ore invariati. Nessuna migration/DB/account/mese reale modificato.
-- Verifiche completate:26/26test planning, build/suite completa622/622(0skip), DOM senza browser con inserimento/salvataggio/riapertura/pubblicazione e testo HTML escaped, PDF1pagina con due formazioni e continuazione con500caratteri renderizzati senza tagli. Guide README/AGENTS/CLAUDE/databaseREADME/PLANNING aggiornate. Date citate9–10ottobre e fasce reali da chiarire con proprietario (modulo da novembre2026); domanda asincrona inviata, nessuna data scelta al suo posto. Prossimo: riscontro su date/orari dal proprietario; modifica pronta in locale, push solo su richiesta.
+- Verifiche completate:26/26test planning, build/suite completa622/622(0skip), DOM senza browser con inserimento/salvataggio/riapertura/pubblicazione e testo HTML escaped, PDF1pagina con due formazioni e continuazione con500caratteri renderizzati senza tagli. Guide README/AGENTS/CLAUDE/databaseREADME/PLANNING aggiornate. Date citate9–10ottobre e fasce reali da chiarire con proprietario (modulo da novembre2026); domanda asincrona inviata, nessuna data scelta al suo posto. Rilascio04/11: build/suite623/623(0skip) dopo integrazione Dashboard; push7a0a68f completato, CI41828277095LinuxNode22 riuscita, Netlify6aeb22d0575fcc7da2508f55 online. HTTP200 e4asset planning verificati (HTML campo dayDetails, JS/CSS identici), API401senzaJWT. Nessun browser/migration/scrittura production. Prossimo: ricaricare planning, inserire dettagli, salvare e riapprovare per renderli visibili al dipendente.
 
 ## PDF personali planning01/11: giorni estesi e centrati pubblicati
 
