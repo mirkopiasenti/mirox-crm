@@ -10,12 +10,15 @@ identici via HTTP.
 
 ## Accesso bonus da novembre2026 — applicato04/11/2026
 
-Rettifica UI04/11 successiva al rilascio, pubblicazione in corso: ! sui requisiti
+Rettifica UI04/11 successiva al rilascio, pubblicata: ! sui requisiti
 mancanti soltanto con almeno una riga di compenso>=1EUR nella medesima scheda;
 OKverde/KOrosso in grassetto con override sul tema comune, anche nel PNG.
 Sole modifiche a renderer/CSS,74test mirati e build verdi; nessuna nuova
 lettura/scrittura DB, variazione a soglie/regole/importi o modifica schema.
-Suite completa642/642verde; push richiesto04/11, nessuna configurazione dati da riapplicare.
+Suite completa642/642verde; push3bf67e2completato, CI41917579587LinuxNode22verde,
+Netlify6aeba5386a825ab30200cd78 online. HTTP200/SHA/inline identici, condizione
+>=1EUR e colori/peso800!important verificati; tema/core invariati. Nessuna
+configurazione dati da riapplicare.
 
 `configura_accesso_bonus_da_novembre_2026.sql` porta il minimo della gara Fisso
 a10 e aggiorna le due citazioni di8 nel popup, esclusivamente nelle2670righe

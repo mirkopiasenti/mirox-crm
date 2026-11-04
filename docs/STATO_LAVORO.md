@@ -2,11 +2,11 @@
 
 Aggiornato:2026-11-04. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Rettifica avvisi e colori soglie — rilascio in corso04/11
+## Rettifica avvisi e colori soglie — pubblicata04/11
 
 - Richiesta: ! solo se una qualsiasi riga della scheda operatore ha compenso>=1EUR; resta anche il requisito personale mancante della riga segnalata. `renderGare` valuta tutte le gare una sola volta prima di decidere gli avvisi; niente avvisi senza guadagni, con soli importi singolarmente<1 o con etichette al posto degli euro. Guadagno di altri operatori escluso, indipendente dal totale bloccato e dall’ordine delle righe.
 - Riprodotto colore tema: `tbody td` comune impone `color!important`, nascondendo il verde/rosso locale. Nuove regole `.gara-accesso td.esito-ok/ko` con colori verde/rosso e peso800!important; riepilogo/PNG inclusi. Soglie, compensi, storico e DB invariati.
--74/74test gare/report/PNG e build verdi; confine0/0,99/1, guadagno altra riga/prima-dopo/altro operatore e somma di importi sotto1 verificati. Priorita CSS prima/dopo verificate senza browser. README/AGENTS/CLAUDE/databaseREADME aggiornati; WIP precedenti conservati. Suite completa642/642verde. Push richiesto04/11, rilascio in corso; verificare CI e HTTP dopo il deploy. Nessuna scrittura/configurazione DB da riapplicare.
+-74/74test gare/report/PNG e build verdi; confine0/0,99/1, guadagno altra riga/prima-dopo/altro operatore e somma di importi sotto1 verificati. Priorita CSS prima/dopo verificate senza browser. README/AGENTS/CLAUDE/databaseREADME aggiornati; WIP precedenti conservati. Suite completa642/642verde. Push richiesto/completato `3bf67e2`, CI41917579587LinuxNode22verde, Netlify6aeba5386a825ab30200cd78 online. HTTP200/SHA/stili e script inline identici, condizione>=1EUR e colori/peso800!important verificati; tema/core invariati. Nessuna scrittura/configurazione DB da riapplicare. Prossimo: ricaricare Gare Individuali e rigenerare PNG.
 
 ## Accesso bonus Gare Individuali — pubblicato04/11
 
