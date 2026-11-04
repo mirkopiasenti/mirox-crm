@@ -20,13 +20,14 @@ function fakeDb(initial={}) {
   const db={tables,log,fail:null,from(table){
     tables[table]||=[];
     let action='read',fields='',values,filters=[],orders=[],range=null,limit=null,single=false;
-    const q={select(f){fields=f;return q;},eq(k,v){filters.push(r=>r[k]===v);return q;},not(k,op,v){assert.equal(op,'is');assert.equal(v,null);filters.push(r=>r[k]!=null);return q;},in(k,v){filters.push(r=>v.includes(r[k]));return q;},gte(k,v){filters.push(r=>r[k]>=v);return q;},lte(k,v){filters.push(r=>r[k]<=v);return q;},lt(k,v){filters.push(r=>r[k]<v);return q;},or(text){const [a,b]=text.split(',');const key=a.split('.')[0],date=b.split('.lt.')[1];filters.push(r=>r[key]==null||r[key]<date);return q;},order(k,opts={}){orders.push([k,opts.ascending!==false]);return q;},range(a,b){range=[a,b];return q;},limit(n){limit=n;return q;},maybeSingle(){single=true;return q;},single(){single=true;return q;},insert(v){action='insert';values=v;return q;},upsert(v){action='upsert';values=v;return q;},update(v){action='update';values=v;return q;},delete(){action='delete';return q;},then(resolve,reject){
+    const q={select(f){fields=f;return q;},eq(k,v){filters.push(r=>r[k]===v);return q;},is(k,v){filters.push(r=>v===null?r[k]==null:r[k]===v);return q;},not(k,op,v){assert.equal(op,'is');assert.equal(v,null);filters.push(r=>r[k]!=null);return q;},in(k,v){filters.push(r=>v.includes(r[k]));return q;},gte(k,v){filters.push(r=>r[k]>=v);return q;},lte(k,v){filters.push(r=>r[k]<=v);return q;},lt(k,v){filters.push(r=>r[k]<v);return q;},or(text){const [a,b]=text.split(',');const key=a.split('.')[0],date=b.split('.lt.')[1];filters.push(r=>r[key]==null||r[key]<date);return q;},order(k,opts={}){orders.push([k,opts.ascending!==false]);return q;},range(a,b){range=[a,b];return q;},limit(n){limit=n;return q;},maybeSingle(){single=true;return q;},single(){single=true;return q;},insert(v){action='insert';values=v;return q;},upsert(v){action='upsert';values=v;return q;},update(v){action='update';values=v;return q;},delete(){action='delete';return q;},async then(resolve,reject){
       try {
+        if(db.beforeQuery) await db.beforeQuery({table,action,fields,values});
         log.push({table,action,fields,values});
         if(db.fail?.({table,action,fields,values})) return Promise.resolve({data:null,error:{code:'synthetic_error'}}).then(resolve,reject);
         let rows=tables[table].filter(r=>filters.every(f=>f(r)));
         if(action==='insert') {
-          if(tables[table].some(r=>r.dedupe_key===values.dedupe_key)) return Promise.resolve({data:null,error:{code:'23505'}}).then(resolve,reject);
+          if(values.dedupe_key!==undefined&&tables[table].some(r=>r.dedupe_key===values.dedupe_key)) return Promise.resolve({data:null,error:{code:'23505'}}).then(resolve,reject);
           const r={id:String(++nextId),stato:'in_coda',messaggi:[],inviati:0,in_flight:false,tentativi:0,next_attempt_at:'2020-01-01T00:00:00Z',created_at:new Date().toISOString(),...values};tables[table].push(r);rows=[r];
         } else if(action==='upsert') {
           const existing=tables[table].find(r=>r.chat_id===values.chat_id);
@@ -87,46 +88,146 @@ test('report completi: Legnago, zero omessi, FTTC fuori mese contratto, stati, p
   assert.doesNotMatch(JSON.stringify(p),/anagrafica_id|imei|cf_piva|voice_id/);
   assert.ok(db.log.every(q=>q.action==='read'));
 });
-test('avvicendamento: Vincenzo nelle tre schede e Target, storico Francesca senza riassegnazioni',async()=> {
+const FRANCESCA='0284cf55-d97a-4709-9ece-d3f4894b80a7';
+const VINCENZO='c8c45da2-0cda-41eb-86cc-0272b8baa200';
+const teamMetric={id:777,nome:'PARTITA IVA',attiva:true,ordine:60,tabella:'gara_individuale',
+  tipo_conteggio:'individuale',tipo_compenso:'squadra',regola:{cluster:'Business'}};
+const teamGoal={id:777,anno:2026,mese:10,metrica_id:777,operatore_id:null,obiettivo:45,
+  compenso_regola:{tipo:'scaglioni',scaglioni:[{da:35,importo:150,tipo_calcolo:'flat'},{da:45,importo:250,tipo_calcolo:'flat'},{da:55,importo:350,tipo_calcolo:'flat'}]}};
+function periodFixture(period='2026-10') {
   const f=fixture();
-  f.profili.push({id:'francesca',nome:'Francesca',attivo:false,in_gara:false,alias_di:null},
-    {id:'vincenzo',nome:'Vincenzo',attivo:true,in_gara:true,alias_di:null});
-  f.vendita_contratti.push(contract('storico-francesca','Mobile',{operatore_id:'francesca'}),
-    contract('nuovo-vincenzo','Mobile',{operatore_id:'vincenzo'}));
-  const db=fakeDb(f),before=JSON.stringify(db.tables);
-  const p=await reports.buildReports(db,'2026-10-05',NOW);
-  assert.equal(p.vendite.totale,2);
-  assert.equal(p.vendite.categorie[0].operatori.VINCENZO,1);
-  assert.equal(p.vendite.categorie[0].operatori.FRANCESCA,undefined);
-  assert.equal(p.mensile.find(r=>r.nome==='Mobile').pezzi,2);
-
-  const html=fs.readFileSync(require('node:path').join(__dirname,'../moduli/dashboard_pezzi.html'),'utf8');
+  f.profili.push({id:FRANCESCA,nome:'Francesca',attivo:false,in_gara:false,alias_di:null,ordine_gara:20},
+    {id:VINCENZO,nome:'Vincenzo',attivo:true,in_gara:true,alias_di:null,ordine_gara:20});
+  f.vendita_contratti.push(contract('storico-francesca','Mobile',{operatore_id:FRANCESCA}),
+    contract('nuovo-vincenzo','Mobile',{operatore_id:VINCENZO}),
+    ...Array.from({length:48},(_,i)=>contract('business-'+i,'Mobile',{cluster_cliente:'Business'})));
+  f.gara_metriche.push(teamMetric);
+  f.gara_obiettivi_mensili.push(teamGoal);
+  f.vendita_contratti.forEach(c=>{c.data_contratto=c.data_contratto.replace('2026-10',period);});
+  f.gara_obiettivi_mensili=f.gara_obiettivi_mensili.map(o=>({...o,anno:Number(period.slice(0,4)),mese:Number(period.slice(5))}));
+  return f;
+}
+function pageContext(file,db,extra={}) {
+  const html=fs.readFileSync(require('node:path').join(__dirname,'..',file),'utf8');
   const script=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(s=>s.includes('const sb'));
   const nodes=new Map();
   const document={getElementById(id){if(!nodes.has(id))nodes.set(id,{innerHTML:'',textContent:'',querySelectorAll:()=>[]});return nodes.get(id);}};
-  const ctx=vm.createContext({db,document,MiroxDashboardReport:core,MiroxSafe:{escapeHtml:v=>String(v??'')}});
-  vm.runInContext(script.split('(function init()')[0],ctx);
-  vm.runInContext('DPState.anno=2026; DPState.mese=10;',ctx);
-  await vm.runInContext('caricaDatiMensili()',ctx);
+  const ctx=vm.createContext({db,window:{db},document,MiroxDashboardReport:core,MiroxSafe:{escapeHtml:v=>String(v??'')},...extra});
+  vm.runInContext(script.split(file==='admin-gare.html'?'async function init()':'(function init()')[0],ctx);
+  return {ctx,nodes};
+}
+for(const period of ['2026-01','2026-07','2026-09','2026-10','2026-11','2026-12','2027-01']) {
+ test(`avvicendamento ${period}: tre schede, PNG e Target seguono il periodo, bonus squadra soltanto all'operatore ammesso`,async()=> {
+  const historical=period<'2026-11',eligible=historical?FRANCESCA:VINCENZO,ineligible=historical?VINCENZO:FRANCESCA;
+  const name=historical?'Francesca':'Vincenzo',other=historical?'Vincenzo':'Francesca';
+  const db=fakeDb(periodFixture(period)),before=JSON.stringify(db.tables);
+  const {ctx,nodes}=pageContext('moduli/dashboard_pezzi.html',db);
   const state=vm.runInContext('DPState',ctx);
-  assert.deepEqual(Array.from(state.operatoriInGara,p=>p.id),['op','vincenzo']);
-  assert.deepEqual(Array.from(state.operatoriAttiviMese,p=>p.id).sort(),['op','vincenzo']);
-  Object.assign(state,{righeDay:f.dashboard_righe_giornaliera,contrattiDay:f.vendita_contratti.filter(c=>
-    c.data_contratto.startsWith('2026-10-05') && c.codice_rivenditore===core.LEGNAGO && c.stato_inserimento!=='reinserimento'),dataSelezionata:'2026-10-05'});
-  // Include deliberatamente il profilo storico nel Day: non deve essere attribuito al nuovo.
-  state.profiliMap=new Map(f.profili.map(p=>[p.id,p]));
-  vm.runInContext('renderGrigliaDay(); renderGare(); renderAvanzamento();',ctx);
-  const day=nodes.get('pezziTable').innerHTML;
-  assert.match(day,/>VINCENZO<\/th>/);
-  assert.doesNotMatch(day,/FRANCESCA/i);
-  assert.equal(nodes.get('infoRiepilogo').textContent.includes('2026'),true);
-  for(const id of ['tabContentGare','tabContentAvanzamento']) {
-    assert.match(nodes.get(id).innerHTML,/Vincenzo/);
-    assert.doesNotMatch(nodes.get(id).innerHTML,/Francesca/i);
+  Object.assign(state,{anno:Number(period.slice(0,4)),mese:Number(period.slice(5)),dataSelezionata:period+'-05'});
+  await ctx.caricaDatiMensili();
+  assert.ok(state.operatoriInGara.some(p=>p.id===eligible));
+  assert.ok(!state.operatoriInGara.some(p=>p.id===ineligible));
+  assert.ok(state.operatoriAttiviMese.some(p=>p.id===eligible));
+  assert.ok(!state.operatoriAttiviMese.some(p=>p.id===ineligible));
+  const monthlyMap=state.profiliMap;
+  await ctx.caricaDay();
+  assert.equal(state.profiliMap,monthlyMap,'Day non sostituisce la mappa alias del mensile in cache');
+  assert.equal(await ctx.caricaDatiMensili(),true);
+  vm.runInContext('renderGare(); renderAvanzamento();',ctx);
+  assert.match(nodes.get('pezziTable').innerHTML,new RegExp('>'+name.toUpperCase()+'<\\/th>'));
+  for(const id of ['pezziTable','tabContentGare','tabContentAvanzamento']) {
+    assert.match(nodes.get(id).innerHTML,new RegExp(name,'i'));
+    assert.doesNotMatch(nodes.get(id).innerHTML,new RegExp(other,'i'));
   }
+  // Il nodo catturato nel PNG della gara contiene l'operatore storico corretto e 400 EUR.
+  const card=nodes.get('tabContentGare').innerHTML.split(`data-operatore-nome="${name}"`)[1];
+  assert.ok(card);assert.match(card,/400/);
+  assert.match(ctx.nomeFilePng('gara-individuale',name),new RegExp(name.toLowerCase()));
+  const args=[teamMetric,teamGoal,state.contrattiMese,ineligible,state.resolveOperatore,period];
+  const excluded=core.valutaGara(...args);
+  assert.equal(excluded.euro,0);assert.equal(excluded.ammissibile,false);
+  const qualified=core.valutaGara(teamMetric,teamGoal,state.contrattiMese,eligible,state.resolveOperatore,period);
+  assert.equal(qualified.attualePersonale,0);assert.equal(qualified.attualeSquadra,48);assert.equal(qualified.euro,400);
+  const p=await reports.buildReports(db,period+'-05',new Date('2027-02-01T12:00:00Z'));
+  assert.equal(p.vendite.totale,50);
+  assert.equal(p.vendite.categorie[0].operatori[name.toUpperCase()],1);
+  assert.equal(p.vendite.categorie[0].operatori[other.toUpperCase()],undefined);
+  assert.equal(p.mensile.find(r=>r.nome==='Mobile').pezzi,50);
   assert.equal(JSON.stringify(db.tables),before);
   assert.ok(db.log.every(q=>q.action==='read'));
-  assert.equal(db.tables.vendita_contratti.find(c=>c.id==='storico-francesca').operatore_id,'francesca');
+  assert.equal(db.tables.vendita_contratti.find(c=>c.id==='storico-francesca').operatore_id,FRANCESCA);
+ });
+}
+test('decorrenza: confine ottobre/novembre, anni successivi, UUID e input profili immutati',()=> {
+ const profiles=Object.freeze(periodFixture().profili.map(p=>Object.freeze(p))),before=JSON.stringify(profiles);
+ for(const [period,name] of [['2026-10-31','FRANCESCA'],['2026-11-01','VINCENZO'],['2027-01','VINCENZO']]) {
+  assert.equal(core.dayOperators(period)[2],name);
+  const selected=core.reportProfiles(profiles,period).filter(p=>p.attivo&&p.in_gara);
+  assert.equal(selected.some(p=>p.id===FRANCESCA),name==='FRANCESCA');
+  assert.equal(selected.some(p=>p.id===VINCENZO),name==='VINCENZO');
+ }
+ assert.equal(JSON.stringify(profiles),before);
+ assert.equal(core.reportProfiles([{id:'omonimo',nome:'Vincenzo',attivo:true}],'2026-10').length,1);
+ const business=periodFixture().vendita_contratti;
+ assert.equal(core.valutaGara(teamMetric,teamGoal,business,VINCENZO).euro,0,'anche senza argomento esplicito usa il mese dell\'obiettivo');
+ assert.equal(core.valutaGara(teamMetric,teamGoal,business,FRANCESCA).euro,400);
+ for(const period of [null,'','2026-00','2026-13','ottobre']) assert.throws(()=>core.dayOperators(period),/Periodo report/);
+});
+test('Admin segue il mese per scelta, obiettivi, guard scrittura e copia senza riattivare Francesca',async()=> {
+ const f=periodFixture(),db=fakeDb(f);
+ const {ctx,nodes}=pageContext('admin-gare.html',db,{MiroxUI:{confirm:async()=>true,toast:()=>{},alert:()=>{}}});
+ const state=vm.runInContext('State',ctx);Object.assign(state,{anno:2026,mese:10,operatoreSelezionato:VINCENZO});
+ await ctx.loadOperatori();await ctx.loadObiettivi();
+ assert.ok(state.operatoriInGara.some(p=>p.id===FRANCESCA));
+ assert.ok(!state.operatoriInGara.some(p=>p.id===VINCENZO));
+ assert.ok(!state.operatoriTutti.some(p=>p.id===FRANCESCA),'configurazione account attuali non riattiva la cessata');
+ ctx.renderSelectOperatoreGara();assert.match(nodes.get('selOperatoreGara').innerHTML,/Francesca/);
+ assert.doesNotMatch(nodes.get('selOperatoreGara').innerHTML,/Vincenzo/);
+ await assert.rejects(ctx.upsertObiettivo(1,VINCENZO,{obiettivo:35}),/fuori dal periodo/);
+ f.gara_obiettivi_mensili.push({id:778,anno:2026,mese:10,metrica_id:1,operatore_id:FRANCESCA,obiettivo:35},
+   {id:779,anno:2026,mese:10,metrica_id:1,operatore_id:'op',obiettivo:35});
+ db.tables.gara_obiettivi_mensili=structuredClone(f.gara_obiettivi_mensili);
+ state.mese=11;state.operatoreSelezionato=FRANCESCA;await ctx.loadObiettivi();
+ assert.ok(state.operatoriInGara.some(p=>p.id===VINCENZO));assert.ok(!state.operatoriInGara.some(p=>p.id===FRANCESCA));
+ assert.notEqual(state.operatoreSelezionato,FRANCESCA);
+ await assert.rejects(ctx.upsertObiettivo(1,FRANCESCA,{obiettivo:35}),/fuori dal periodo/);
+ await ctx.duplicaDaMesePrecedente();
+ const inserts=db.log.filter(q=>q.table==='gara_obiettivi_mensili'&&q.action==='insert');
+ assert.ok(inserts.length>0);assert.ok(inserts.every(q=>q.values.operatore_id!==FRANCESCA&&q.values.operatore_id!==VINCENZO));
+ assert.ok(db.log.every(q=>q.table!=='profili'||q.action==='read'));
+});
+function holdFirst(db,table) {
+ let release,notify;
+ const gate=new Promise(resolve=>{release=resolve;}),started=new Promise(resolve=>{notify=resolve;});
+ let held=false;
+ db.beforeQuery=async q=>{if(q.table===table&&!held){held=true;notify();await gate;}};
+ return {started,release};
+}
+test('cambio rapido ottobre -> novembre: risposte mensili e giornaliere obsolete non sostituiscono il periodo nuovo',async()=> {
+ const f=periodFixture(),november=periodFixture('2026-11');
+ f.vendita_contratti.push(...november.vendita_contratti.map(c=>({...c,id:'nov-'+c.id})));
+ const db=fakeDb(f),{ctx,nodes}=pageContext('moduli/dashboard_pezzi.html',db);
+ const state=vm.runInContext('DPState',ctx);Object.assign(state,{anno:2026,mese:10});
+ let held=holdFirst(db,'profili'),old=ctx.caricaDatiMensili();await held.started;
+ state.mese=11;assert.equal(await ctx.caricaDatiMensili(),true);held.release();assert.equal(await old,false);
+ assert.equal(state.loadedMonthKey,'2026-11');assert.equal(state.mese,11);
+ assert.ok(!state.operatoriInGara.some(p=>p.id===FRANCESCA));assert.ok(state.operatoriInGara.some(p=>p.id===VINCENZO));
+ assert.ok(state.contrattiMese.every(c=>c.data_contratto.startsWith('2026-11')));
+ held=holdFirst(db,'profili');state.dataSelezionata='2026-10-05';old=ctx.caricaDay();await held.started;
+ state.dataSelezionata='2026-11-05';await ctx.caricaDay();held.release();await old;
+ assert.match(nodes.get('pezziTable').innerHTML,/>VINCENZO<\/th>/);assert.doesNotMatch(nodes.get('pezziTable').innerHTML,/FRANCESCA/);
+ assert.ok(state.contrattiDay.every(c=>c.data_contratto.startsWith('2026-11')));
+ assert.equal(state.loadedMonthKey,'2026-11');
+ state.mese=10;assert.equal(await ctx.caricaDatiMensili(),true);
+ assert.ok(state.operatoriInGara.some(p=>p.id===FRANCESCA));assert.ok(!state.operatoriInGara.some(p=>p.id===VINCENZO));
+});
+test('Admin cambio periodo durante lettura: obiettivi ottobre tardivi non vengono mostrati a novembre',async()=> {
+ const f=periodFixture(),db=fakeDb(f),{ctx}=pageContext('admin-gare.html',db);
+ const state=vm.runInContext('State',ctx);Object.assign(state,{anno:2026,mese:10});await ctx.loadOperatori();
+ const held=holdFirst(db,'gara_obiettivi_mensili'),old=ctx.loadObiettivi();await held.started;
+ state.mese=11;await ctx.loadObiettivi();held.release();assert.equal(await old,false);
+ assert.equal(state.obiettivi.length,0);assert.ok(state.operatoriInGara.some(p=>p.id===VINCENZO));
+ assert.ok(!state.operatoriInGara.some(p=>p.id===FRANCESCA));
 });
 test('paginazione oltre 1000 e errori post-vendita non diventano report parziali',async()=> {
   const db=fakeDb({x:Array.from({length:1501},(_,i)=>({id:String(i).padStart(5,'0')}))});

@@ -262,7 +262,7 @@
     <!-- Card 1: Operatori in gara -->
     <div class="card">
       <h2>Operatori in gara</h2>
-      <div class="card-sub">Seleziona quali operatori compaiono nella tab "Gare Individuali" della Dashboard Pezzi.</div>
+      <div class="card-sub">Impostazioni degli operatori attivi oggi. Le gare del mese selezionato rispettano la decorrenza: Francesca fino a ottobre 2026, Vincenzo da novembre 2026.</div>
       <div id="operatoriWrap"><div class="empty">Caricamento...</div></div>
     </div>
 
@@ -318,10 +318,12 @@ const State = {
   profilo: null,
   anno: null, mese: null,
   operatoriTutti: [],           // profili attivi
+  profiliReport: [],            // comprende gli account cessati per i periodi storici
   operatoriInGara: [],          // subset in_gara=true
   operatoreSelezionato: null,
   metriche: [],                 // gara_metriche tutte
-  obiettivi: []                 // gara_obiettivi_mensili del mese selezionato
+  obiettivi: [],                // gara_obiettivi_mensili del mese selezionato
+  obiettiviLoadVersion: 0
 };
 
 function escapeHtml(s) { return MiroxSafe.escapeHtml(s); }
@@ -369,15 +371,21 @@ async function loadAll() {
 async function loadOperatori() {
   const { data, error } = await sb.from('profili')
     .select('id, nome, in_gara, ruolo, attivo, alias_di, ordine_gara')
-    .eq('attivo', true)
     .is('alias_di', null)                // esclude profili alias (unificati)
     .order('ordine_gara', { ascending: true, nullsFirst: false })
     .order('nome');
   if (error) throw error;
-  State.operatoriTutti = data || [];
-  State.operatoriInGara = State.operatoriTutti.filter(p => p.in_gara);
-  if (!State.operatoreSelezionato && State.operatoriInGara.length) {
-    State.operatoreSelezionato = State.operatoriInGara[0].id;
+  State.profiliReport = data || [];
+  State.operatoriTutti = State.profiliReport.filter(p => p.attivo);
+  aggiornaOperatoriPeriodo();
+}
+function aggiornaOperatoriPeriodo() {
+  State.operatoriInGara = MiroxDashboardReport.reportProfiles(State.profiliReport,
+    `${State.anno}-${String(State.mese).padStart(2,'0')}`)
+    .filter(p => p.attivo && p.in_gara && !p.alias_di)
+    .sort((a,b) => (a.ordine_gara ?? 0) - (b.ordine_gara ?? 0) || String(a.nome || '').localeCompare(String(b.nome || '')));
+  if (!State.operatoriInGara.some(p => p.id === State.operatoreSelezionato)) {
+    State.operatoreSelezionato = State.operatoriInGara[0]?.id || null;
   }
 }
 async function loadMetriche() {
@@ -387,10 +395,15 @@ async function loadMetriche() {
   State.metriche = data || [];
 }
 async function loadObiettivi() {
+  const anno = State.anno, mese = State.mese;
+  const requestId = ++State.obiettiviLoadVersion;
+  aggiornaOperatoriPeriodo();
   const { data, error } = await sb.from('gara_obiettivi_mensili')
-    .select('*').eq('anno', State.anno).eq('mese', State.mese);
+    .select('*').eq('anno', anno).eq('mese', mese);
+  if (requestId !== State.obiettiviLoadVersion || anno !== State.anno || mese !== State.mese) return false;
   if (error) throw error;
   State.obiettivi = data || [];
+  return true;
 }
 
 function getObiettivo(metricaId, operatoreId) {
@@ -401,6 +414,8 @@ function getObiettivo(metricaId, operatoreId) {
 // UPSERT obiettivo
 // ============================================================
 async function upsertObiettivo(metricaId, operatoreId, patch) {
+  if (operatoreId && !MiroxDashboardReport.isReportOperator(operatoreId,
+    `${State.anno}-${String(State.mese).padStart(2,'0')}`)) throw new Error('Operatore fuori dal periodo selezionato');
   const esistente = getObiettivo(metricaId, operatoreId);
   const record = {
     anno: State.anno, mese: State.mese,
@@ -448,7 +463,7 @@ function renderOperatori() {
         if (error) throw error;
         const p = State.operatoriTutti.find(x => x.id === id);
         if (p) p.in_gara = nuovoValore;
-        State.operatoriInGara = State.operatoriTutti.filter(x => x.in_gara);
+        aggiornaOperatoriPeriodo();
         if (!State.operatoreSelezionato || !State.operatoriInGara.find(x => x.id === State.operatoreSelezionato)) {
           State.operatoreSelezionato = State.operatoriInGara[0]?.id || null;
         }
@@ -473,7 +488,7 @@ function renderOperatori() {
         // Ri-sort operatori tutti + in_gara secondo la nuova chiave
         const sorter = (a, b) => (a.ordine_gara ?? 0) - (b.ordine_gara ?? 0) || String(a.nome || '').localeCompare(String(b.nome || ''));
         State.operatoriTutti.sort(sorter);
-        State.operatoriInGara = State.operatoriTutti.filter(x => x.in_gara);
+        aggiornaOperatoriPeriodo();
         renderOperatori();
         renderSelectOperatoreGara();
         renderGaraIndividuale();
@@ -1068,6 +1083,8 @@ async function duplicaDaMesePrecedente() {
   if (!prev.length) { MiroxUI.alert('Nessun obiettivo trovato in ' + MESI[mesePrev-1] + ' ' + annoPrev); return; }
   let inseriti = 0;
   for (const p of prev) {
+    if (p.operatore_id && !MiroxDashboardReport.isReportOperator(p.operatore_id,
+      `${State.anno}-${String(State.mese).padStart(2,'0')}`)) continue;
     const esistente = getObiettivo(p.metrica_id, p.operatore_id);
     if (esistente) continue;
     const { data, error: err } = await sb.from('gara_obiettivi_mensili').insert({
@@ -1114,8 +1131,8 @@ async function init() {
   const selAnno = document.getElementById('selAnno');
   const anni = []; for (let a = annoCorrente + 1; a >= annoCorrente - 3; a--) anni.push(a);
   selAnno.innerHTML = anni.map(a => `<option value="${a}" ${a===State.anno?'selected':''}>${a}</option>`).join('');
-  selMese.addEventListener('change', async () => { State.mese = Number(selMese.value); await loadObiettivi(); render(); });
-  selAnno.addEventListener('change', async () => { State.anno = Number(selAnno.value); await loadObiettivi(); render(); });
+  selMese.addEventListener('change', async () => { State.mese = Number(selMese.value); if (await loadObiettivi() !== false) render(); });
+  selAnno.addEventListener('change', async () => { State.anno = Number(selAnno.value); if (await loadObiettivi() !== false) render(); });
 
   document.getElementById('selOperatoreGara').addEventListener('change', (e) => {
     State.operatoreSelezionato = e.target.value; renderGaraIndividuale();

@@ -342,8 +342,6 @@ table.avanz td.lg-netto span + span { margin-left: 16px; }
 <script>
 const sb = db;
 
-// Stesse colonne del report Target; i contratti mantengono il loro autore storico.
-const OPERATORI = MiroxDashboardReport.DAY_OPERATORS;
 const MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 
 // Day by Day e Avanzamento Mensile: Legnago; FISSI Standard include anche Cerea.
@@ -362,6 +360,8 @@ const DPState = {
   obiettivi: [],                // gara_obiettivi_mensili del mese/anno
   contrattiMese: [],
   profiliMap: new Map(),
+  profiliDayMap: null,
+  dayLoadVersion: 0, monthLoadVersion: 0,
   ultimoCsvLgAt: null,
   loadedMonthKey: null          // 'YYYY-MM' per invalidare cache
 };
@@ -551,11 +551,12 @@ function calcolaCompenso(attuale, regola, contratti) {
 // ============================================================
 // LOAD comuni
 // ============================================================
-async function caricaProfili(ids) {
+async function caricaProfili(ids, periodo) {
   if (!ids || !ids.length) return new Map();
-  const { data } = await sb.from('profili').select('id, nome, in_gara').in('id', ids);
+  const { data, error } = await sb.from('profili').select('id, nome, in_gara').in('id', ids);
+  if (error) throw error;
   const map = new Map();
-  (data || []).forEach(p => map.set(p.id, p));
+  MiroxDashboardReport.reportProfiles(data || [], periodo).forEach(p => map.set(p.id, p));
   return map;
 }
 
@@ -594,9 +595,10 @@ async function caricaContrattiDelGiorno(dataIso) {
 }
 
 function renderGrigliaDay() {
+  const OPERATORI = MiroxDashboardReport.dayOperators(DPState.dataSelezionata);
   const righe = DPState.righeDay;
   const contratti = DPState.contrattiDay;
-  const profiliMap = DPState.profiliMap;
+  const profiliMap = DPState.profiliDayMap || DPState.profiliMap;
 
   const conteggi = {};
   righe.forEach(r => { conteggi[r.id] = { __total: 0 }; OPERATORI.forEach(op => { conteggi[r.id][op] = 0; }); });
@@ -646,20 +648,26 @@ function renderGrigliaDay() {
 }
 
 async function caricaDay() {
+  const giorno = DPState.dataSelezionata;
+  const requestId = ++DPState.dayLoadVersion;
   const wrap = document.getElementById('pezziTable');
   wrap.innerHTML = '<div class="empty-state"><div class="empty-icon"></div>Caricamento...</div>';
   try {
     await caricaRigheDay();
-    const contratti = await caricaContrattiDelGiorno(DPState.dataSelezionata);
+    const contratti = await caricaContrattiDelGiorno(giorno);
     // Day by Day = solo Legnago (migration 050). I contratti inseriti da Cerea
     // non contribuiscono al conteggio delle righe della griglia giornaliera.
-    DPState.contrattiDay = contratti.filter(c =>
+    const contrattiDay = contratti.filter(c =>
       c.stato_inserimento !== 'reinserimento' && c.codice_rivenditore === CODICE_LEGNAGO
     );
     const opIds = Array.from(new Set(contratti.map(c => c.operatore_id).filter(Boolean)));
-    DPState.profiliMap = await caricaProfili(opIds);
+    const profiliDayMap = await caricaProfili(opIds, giorno);
+    if (requestId !== DPState.dayLoadVersion || giorno !== DPState.dataSelezionata) return;
+    DPState.contrattiDay = contrattiDay;
+    DPState.profiliDayMap = profiliDayMap;
     renderGrigliaDay();
   } catch (e) {
+    if (requestId !== DPState.dayLoadVersion || giorno !== DPState.dataSelezionata) return;
     console.error(e);
     wrap.innerHTML = `<div class="empty-state"><div class="empty-icon"></div>Errore: ${escapeHtml(e.message)}</div>`;
   }
@@ -669,12 +677,15 @@ async function caricaDay() {
 // TAB MENSILI - Caricamento dati comune
 // ============================================================
 async function caricaDatiMensili() {
-  const key = `${DPState.anno}-${String(DPState.mese).padStart(2,'0')}`;
-  if (DPState.loadedMonthKey === key) return;
+  const state = {anno: DPState.anno, mese: DPState.mese};
+  const key = `${state.anno}-${String(state.mese).padStart(2,'0')}`;
+  if (DPState.loadedMonthKey === key) return true;
+  const requestId = ++DPState.monthLoadVersion;
+  state.resolveOperatore = id => risolviOperatore(id, state.profiliMap);
 
-  const start = `${DPState.anno}-${String(DPState.mese).padStart(2,'0')}-01T00:00:00.000Z`;
-  const mesePost = DPState.mese === 12 ? 1 : DPState.mese + 1;
-  const annoPost = DPState.mese === 12 ? DPState.anno + 1 : DPState.anno;
+  const start = `${state.anno}-${String(state.mese).padStart(2,'0')}-01T00:00:00.000Z`;
+  const mesePost = state.mese === 12 ? 1 : state.mese + 1;
+  const annoPost = state.mese === 12 ? state.anno + 1 : state.anno;
   const end = `${annoPost}-${String(mesePost).padStart(2,'0')}-01T00:00:00.000Z`;
 
   const [rContratti, rMetriche, rObiettivi, rProfili, rUltimoCsvLg] = await Promise.all([
@@ -690,8 +701,8 @@ async function caricaDatiMensili() {
         punteggio_offerta, punteggio_opzione, punteggio_totale
       `).gte('data_contratto', start).lt('data_contratto', end),
     sb.from('gara_metriche').select('*').eq('attiva', true).order('tabella').order('ordine'),
-    sb.from('gara_obiettivi_mensili').select('*').eq('anno', DPState.anno).eq('mese', DPState.mese),
-    sb.from('profili').select('id, nome, in_gara, alias_di, ordine_gara').eq('attivo', true).order('ordine_gara', { ascending: true, nullsFirst: false }).order('nome'),
+    sb.from('gara_obiettivi_mensili').select('*').eq('anno', state.anno).eq('mese', state.mese),
+    sb.from('profili').select('id, nome, attivo, in_gara, alias_di, ordine_gara').order('ordine_gara', { ascending: true, nullsFirst: false }).order('nome'),
     sb.from('post_vendita_controllo_lg').select('ultimo_csv_upload_at')
       .not('ultimo_csv_upload_at', 'is', null).order('ultimo_csv_upload_at', { ascending: false }).limit(1)
   ]);
@@ -700,18 +711,18 @@ async function caricaDatiMensili() {
   if (rObiettivi.error) throw rObiettivi.error;
   if (rProfili.error) throw rProfili.error;
   if (rUltimoCsvLg.error) throw rUltimoCsvLg.error;
-  DPState.ultimoCsvLgAt = rUltimoCsvLg.data?.[0]?.ultimo_csv_upload_at || null;
+  state.ultimoCsvLgAt = rUltimoCsvLg.data?.[0]?.ultimo_csv_upload_at || null;
 
-  DPState.contrattiMese = (rContratti.data || []).filter(MiroxDashboardReport.isMonthlyCandidate);
+  state.contrattiMese = (rContratti.data || []).filter(MiroxDashboardReport.isMonthlyCandidate);
 
   // Stati post-vendita per i filtri Avanzamento (P.IVA + Energia/Fisso Standard).
   // Carichiamo per TUTTI i contratti Fisso/Energia/Allarmi del mese (senza filtro cluster)
   // perche' i filtri Standard coprono anche i cluster non-Business.
-  const contrattiPostVenditaIds = DPState.contrattiMese
+  const contrattiPostVenditaIds = state.contrattiMese
     .filter(c => ['Fisso','Energia','Allarmi'].includes(c.categoria_snapshot))
     .map(c => c.id);
-  DPState.statoPostVendita = { fisso: new Map(), energia: new Map(), allarmi: new Map() };
-  DPState.tecnologiaFisso = new Map();
+  state.statoPostVendita = { fisso: new Map(), energia: new Map(), allarmi: new Map() };
+  state.tecnologiaFisso = new Map();
   if (contrattiPostVenditaIds.length) {
     const [rFisso, rLg, rAll] = await Promise.all([
       sb.from('post_vendita_controllo_fissi').select('contratto_id, stato, tecnologia').in('contratto_id', contrattiPostVenditaIds),
@@ -722,23 +733,23 @@ async function caricaDatiMensili() {
     if (rLg.error) throw rLg.error;
     if (rAll.error) throw rAll.error;
     (rFisso.data || []).forEach(r => {
-      DPState.statoPostVendita.fisso.set(r.contratto_id, r.stato);
-      DPState.tecnologiaFisso.set(r.contratto_id, r.tecnologia);
+      state.statoPostVendita.fisso.set(r.contratto_id, r.stato);
+      state.tecnologiaFisso.set(r.contratto_id, r.tecnologia);
     });
-    (rLg.data || []).forEach(r => DPState.statoPostVendita.energia.set(r.contratto_id, r.stato));
-    (rAll.data || []).forEach(r => DPState.statoPostVendita.allarmi.set(r.contratto_id, r.stato));
+    (rLg.data || []).forEach(r => state.statoPostVendita.energia.set(r.contratto_id, r.stato));
+    (rAll.data || []).forEach(r => state.statoPostVendita.allarmi.set(r.contratto_id, r.stato));
   }
 
   // FTTC attivati nel mese (indipendentemente dal mese del contratto).
   // Per la riga FISSI dell'Avanzamento Standard: i FTTC contano SOLO se stato=Attivo
   // e SOLO nel mese di data_attivazione. Caricamento separato perche' data_contratto
   // puo' essere di un mese diverso.
-  DPState.fissoFTTCAttivatiMese = [];
+  state.fissoFTTCAttivatiMese = [];
   const rFttcPv = await sb.from('post_vendita_controllo_fissi')
     .select('contratto_id')
     .eq('tecnologia', 'FTTC')
     .eq('stato', 'Attivo')
-    .gte('data_attivazione', `${DPState.anno}-${String(DPState.mese).padStart(2,'0')}-01`)
+    .gte('data_attivazione', `${state.anno}-${String(state.mese).padStart(2,'0')}-01`)
     .lt('data_attivazione', `${annoPost}-${String(mesePost).padStart(2,'0')}-01`);
   if (rFttcPv.error) throw rFttcPv.error;
   const fttcIds = (rFttcPv.data || []).map(r => r.contratto_id);
@@ -748,53 +759,58 @@ async function caricaDatiMensili() {
       .in('id', fttcIds);
     if (rFttcContr.error) throw rFttcContr.error;
     // FISSI Standard: attivazioni FTTC di entrambi i punti vendita, inclusi reinserimenti finalizzati.
-    DPState.fissoFTTCAttivatiMese = (rFttcContr.data || []).filter(c =>
+    state.fissoFTTCAttivatiMese = (rFttcContr.data || []).filter(c =>
       MiroxDashboardReport.inMonthlyScope(c, true)
     );
   }
-  DPState.metricheGara = rMetriche.data || [];
-  DPState.obiettivi = rObiettivi.data || [];
+  state.metricheGara = rMetriche.data || [];
+  state.obiettivi = rObiettivi.data || [];
+  const profiliPeriodo = MiroxDashboardReport.reportProfiles(rProfili.data || [], key).filter(p => p.attivo);
   const profiliMap = new Map();
-  (rProfili.data || []).forEach(p => profiliMap.set(p.id, p));
-  DPState.profiliMap = profiliMap;
+  profiliPeriodo.forEach(p => profiliMap.set(p.id, p));
+  state.profiliMap = profiliMap;
   // Solo profili canonici (esclude alias) — il DB gia' redirige gli operatore_id via trigger,
   // ma la lista operatori la teniamo pulita anche a UI.
-  const canonici = (rProfili.data || []).filter(p => !p.alias_di);
-  DPState.operatoriInGara = canonici.filter(p => p.in_gara);
+  const canonici = profiliPeriodo.filter(p => !p.alias_di);
+  state.operatoriInGara = canonici.filter(p => p.in_gara);
 
   // Operatori attivi nel mese (per l'Avanzamento Mensile): union in_gara + chi ha contratti
   // Legnago o Fissi Cerea, risolti al canonico per i contratti storici con alias.
   // Include anche gli operatori di FTTC attivati nel mese in entrambi i negozi.
   const opConContratti = new Set(
-    DPState.contrattiMese
+    state.contrattiMese
       .filter(c => MiroxDashboardReport.inMonthlyScope(c, true))
-      .map(c => DPState.resolveOperatore(c.operatore_id))
+      .map(c => state.resolveOperatore(c.operatore_id))
       .filter(Boolean)
   );
-  DPState.fissoFTTCAttivatiMese.forEach(c => {
-    const op = DPState.resolveOperatore(c.operatore_id);
+  state.fissoFTTCAttivatiMese.forEach(c => {
+    const op = state.resolveOperatore(c.operatore_id);
     if (op) opConContratti.add(op);
   });
-  const opIds = new Set([...DPState.operatoriInGara.map(p => p.id), ...opConContratti]);
-  DPState.operatoriAttiviMese = Array.from(opIds)
+  const opIds = new Set([...state.operatoriInGara.map(p => p.id), ...opConContratti]);
+  state.operatoriAttiviMese = Array.from(opIds)
     .map(id => profiliMap.get(id))
     .filter(p => p && !p.alias_di)
     .sort((a, b) => (a.ordine_gara ?? 0) - (b.ordine_gara ?? 0) || String(a.nome || '').localeCompare(String(b.nome || '')));
 
-  DPState.loadedMonthKey = key;
+  if (requestId !== DPState.monthLoadVersion || key !== `${DPState.anno}-${String(DPState.mese).padStart(2,'0')}`) return false;
+  const {resolveOperatore, ...dati} = state;
+  Object.assign(DPState, dati, {loadedMonthKey: key});
+  return true;
 }
 
 // Risolve operatore_id → id canonico (segue alias_di, max 3 hop) usando la profiliMap gia' caricata
-DPState.resolveOperatore = function(id) {
+function risolviOperatore(id, profiliMap) {
   if (!id) return null;
   let cur = id;
   for (let i = 0; i < 3; i++) {
-    const p = DPState.profiliMap.get(cur);
+    const p = profiliMap.get(cur);
     if (!p || !p.alias_di) return cur;
     cur = p.alias_di;
   }
   return cur;
-};
+}
+DPState.resolveOperatore = id => risolviOperatore(id, DPState.profiliMap);
 
 function getObiettivoMese(metricaId, operatoreId) {
   return DPState.obiettivi.find(o => o.metrica_id === metricaId && (o.operatore_id || null) === (operatoreId || null)) || null;
@@ -875,7 +891,8 @@ function renderGare() {
     metriche.forEach(m => {
       const compensoSquadra = m.tipo_compenso === 'squadra';
       const o = compensoSquadra ? getObiettivoMese(m.id, null) : getObiettivoMese(m.id, op.id);
-      const c = MiroxDashboardReport.valutaGara(m, o, DPState.contrattiMese, op.id, DPState.resolveOperatore);
+      const c = MiroxDashboardReport.valutaGara(m, o, DPState.contrattiMese, op.id, DPState.resolveOperatore,
+        `${DPState.anno}-${String(DPState.mese).padStart(2,'0')}`);
       const conteggioSquadra = c.conteggioSquadra;
       const formatoValori = campo => c.componenti?.length
         ? c.componenti.map(r => `<div class="gara-componente">${escapeHtml(r[campo])} <small>${escapeHtml(r.nome)}</small></div>`).join('')
@@ -1074,10 +1091,12 @@ async function switchTab(name) {
     const wrapAv = document.getElementById('tabContentAvanzamento');
     if (name === 'gare') wrapGare.innerHTML = '<div class="empty-state"><div class="empty-icon"></div>Caricamento...</div>';
     if (name === 'avanzamento') wrapAv.innerHTML = '<div class="empty-state"><div class="empty-icon"></div>Caricamento...</div>';
+    const periodo = `${DPState.anno}-${DPState.mese}`;
     try {
-      await caricaDatiMensili();
+      if (await caricaDatiMensili() === false || DPState.activeTab !== name) return;
       if (name === 'gare') renderGare(); else renderAvanzamento();
     } catch (e) {
+      if (DPState.activeTab !== name || periodo !== `${DPState.anno}-${DPState.mese}`) return;
       console.error(e);
       const wrap = name === 'gare' ? wrapGare : wrapAv;
       wrap.innerHTML = `<div class="empty-state"><div class="empty-icon"></div>Errore: ${escapeHtml(e.message)}</div>`;

@@ -16,9 +16,17 @@ tabelle pubbliche (contratti, documenti, CC, gare, verifiche e planning); altri
 profili/ACL invariati. Nessun cambio schema/RLS/RPC/trigger o credenziale Auth.
 Retry idempotente solo sul risultato atteso, rifiuta profilo/ACL discordanti.
 Obiettivi precedenti invariati; novembre2026ancora senza configurazione.
-Gare/Avanzamento leggono subito il DB; Day/Target richiedono il codice locale
-aggiornato, pubblicato02/11/2026 (`b1f97c2`, CI41453438636 verde,
-Netlify6ae890405b1fba61d721e409 e asset HTTP verificati). Planning non modificato.
+Il primo renderer pubblicato02/11 (`b1f97c2`) usava i profili attuali anche nei
+periodi storici: correzione04/11 soltanto nel codice, senza riapplicare questo
+script. `reportProfiles` proietta i profili canonici per mese: Francesca fino a
+ottobre incluso, Vincenzo da novembre2026; account/Auth/ACL restano invariati.
+Dashboard/PNG/Target/Admin condividono la decorrenza; nessun compenso per
+Vincenzo prima di novembre, neppure di squadra. Nessuna migration o scrittura DB.
+Replay locale read-only su322contratti: riprodotto il400EUR errato, tutte le
+gare/compensi e gli avanzamenti ottobre tornano identici al renderer pre-cambio;
+input ed esito solo nella cartella ignorata `.backup-private/avvicendamento-periodi-20261104/`.
+Guida `docs/DEBUG_AVVICENDAMENTO_OPERATORI_2026-11-04.md`. Correzione locale,
+pubblicazione ancora da completare. Planning non modificato.
 
 ## Reinserimenti Fisso — migration applicata production31/10/2026
 

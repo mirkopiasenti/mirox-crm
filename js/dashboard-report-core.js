@@ -6,7 +6,27 @@
 'use strict';
 const LEGNAGO = '9001415852';
 const CEREA = '9000822241';
-const DAY_OPERATORS = ['MATTEO', 'MIRKO', 'VINCENZO', 'CEREA'];
+// Presenza nei report, distinta dall'accesso CRM. Nessuna modifica ai profili DB.
+const AVVICENDAMENTO = '2026-11';
+const FRANCESCA = '0284cf55-d97a-4709-9ece-d3f4894b80a7';
+const VINCENZO = 'c8c45da2-0cda-41eb-86cc-0272b8baa200';
+function reportPeriod(period) {
+  const match=/^(\d{4}-(?:0[1-9]|1[0-2]))(?:$|-\d{2}(?:T.*)?$)/.exec(String(period||''));
+  if(!match) throw new Error('Periodo report non valido');
+  return match[1];
+}
+function isReportOperator(id,period) {
+  const month=reportPeriod(period);
+  return id===FRANCESCA ? month<AVVICENDAMENTO : id!==VINCENZO || month>=AVVICENDAMENTO;
+}
+function reportProfiles(profiles,period) {
+  const month=reportPeriod(period);
+  return profiles.filter(p=>isReportOperator(p.id,month)).map(p=>
+    p.id===FRANCESCA ? {...p,attivo:true,in_gara:true} : p);
+}
+function dayOperators(period) {
+  return ['MATTEO','MIRKO',reportPeriod(period)<AVVICENDAMENTO?'FRANCESCA':'VINCENZO','CEREA'];
+}
 function isMonthlyCandidate(c) {
   return c.stato_inserimento !== 'reinserimento'
     || (c.categoria_snapshot === 'Fisso' && c.reinserimento_fisso_finalizzato === true);
@@ -116,13 +136,21 @@ function calcolaCompenso(attuale, regola, contratti) {
   });
   return { euro: totale, label };
 }
-function valutaGara(metrica, obiettivo, contratti, operatoreId, resolveOperatore = id => id) {
+function valutaGara(metrica, obiettivo, contratti, operatoreId, resolveOperatore = id => id, periodo) {
+  periodo = periodo || (obiettivo?.anno && obiettivo?.mese
+    ? `${obiettivo.anno}-${String(obiettivo.mese).padStart(2,'0')}` : null);
   const regolaCompenso = obiettivo?.compenso_regola;
   const gara = regolaCompenso?.gara || {};
   const conteggioSquadra = (gara.tipo_conteggio || metrica.tipo_conteggio) === 'squadra';
   const compensoSquadra = metrica.tipo_compenso === 'squadra';
+  if (periodo && !isReportOperator(resolveOperatore(operatoreId),periodo)) return {
+    ammissibile:false,euro:0,label:null,attuale:0,obiettivo:0,conteggioSquadra,compensoSquadra,
+    attualePersonale:0,attualeSquadra:0,attualeCompenso:0,
+    descrizione:gara.descrizione ?? metrica.descrizione ?? ''
+  };
   const produzioneSquadra = (contratti || []).filter(c =>
     c.stato_inserimento !== 'reinserimento'
+    && (!periodo || isReportOperator(resolveOperatore(c.operatore_id),periodo))
     && (!gara.codice_rivenditore || c.codice_rivenditore === gara.codice_rivenditore)
     && (!Array.isArray(gara.operatori) || gara.operatori.includes(resolveOperatore(c.operatore_id))));
   const produzionePersonale = produzioneSquadra.filter(c => resolveOperatore(c.operatore_id) === operatoreId);
@@ -229,16 +257,17 @@ function monthlyRows(state,asOf) {
     return {id:m.id,nome:m.nome,tabella:m.tabella,conteggi,attuale,punteggio,obiettivo,...progress(punteggio,obiettivo,year,month,asOf),...netto};
   });
 }
-function dailyRows(contracts,rows,profiles) {
-  const map=new Map(profiles.map(p=>[p.id,p]));
+function dailyRows(contracts,rows,profiles,date) {
+  const operatorsForDate=dayOperators(date);
+  const map=new Map(reportProfiles(profiles,date).map(p=>[p.id,p]));
   return rows.map(r=> {
-    const operators=Object.fromEntries(DAY_OPERATORS.map(n=>[n,0]));
+    const operators=Object.fromEntries(operatorsForDate.map(n=>[n,0]));
     contracts.forEach(c=> {
       const name=String(map.get(c.operatore_id)?.nome||'').trim().toUpperCase();
-      if(c.codice_rivenditore===LEGNAGO && c.stato_inserimento!=='reinserimento' && DAY_OPERATORS.includes(name) && matchRegola(c,r.regola)) operators[name]++;
+      if(c.codice_rivenditore===LEGNAGO && c.stato_inserimento!=='reinserimento' && operatorsForDate.includes(name) && matchRegola(c,r.regola)) operators[name]++;
     });
     return {nome:r.nome,gruppo:r.gruppo,operatori:operators,totale:Object.values(operators).reduce((a,b)=>a+b,0)};
   }).filter(r=>r.totale>0);
 }
-return {LEGNAGO,CEREA,DAY_OPERATORS,isMonthlyCandidate,inMonthlyScope,matchRegola,pesoContratto,calcolaCompenso,valutaGara,easter,isWorkday,workingDays,progress,dettaglioEnergiaMensile,monthlyRows,dailyRows};
+return {LEGNAGO,CEREA,reportProfiles,isReportOperator,dayOperators,isMonthlyCandidate,inMonthlyScope,matchRegola,pesoContratto,calcolaCompenso,valutaGara,easter,isWorkday,workingDays,progress,dettaglioEnergiaMensile,monthlyRows,dailyRows};
 }));

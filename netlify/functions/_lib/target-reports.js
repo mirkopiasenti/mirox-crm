@@ -41,7 +41,7 @@ async function byIds(db,table,fields,ids) {
   return result;
 }
 function monthlyState(contracts,metrics,objectives,profiles,post,fttc,year,month) {
-  const active=profiles.filter(p=>p.attivo);
+  const active=core.reportProfiles(profiles,`${year}-${String(month).padStart(2,'0')}`).filter(p=>p.attivo);
   const map=new Map(active.map(p=>[p.id,p]));
   const resolve=id=> { let cur=id; for(let i=0;i<3;i++) { const p=map.get(cur); if(!p?.alias_di) return cur; cur=p.alias_di; } return cur; };
   const ids=new Set(active.filter(p=>p.in_gara&&!p.alias_di).map(p=>p.id));
@@ -95,7 +95,7 @@ async function buildReports(db,date = today(),now = new Date()) {
   ]);
   rows.sort((a,b)=>a.ordine-b.ordine);
   metrics.sort((a,b)=>(a.tabella==='avanzamento_standard'?0:1)-(b.tabella==='avanzamento_standard'?0:1)||a.ordine-b.ordine);
-  const daily=core.dailyRows(contracts.filter(c=>new Date(c.data_contratto).toISOString().slice(0,10)===date),rows,profiles);
+  const daily=core.dailyRows(contracts.filter(c=>new Date(c.data_contratto).toISOString().slice(0,10)===date),rows,profiles,date);
   const monthly=core.monthlyRows(monthlyState(contracts,metrics,objectives,profiles,{fisso,energia,allarmi},fttc,year,month),today(now))
     .map(({nome,tabella,attuale,punteggio,obiettivo,andamento,eccedenza})=>({nome,tabella,pezzi:attuale,punteggio,obiettivo,andamento,eccedenza}));
   return {data:date,letto_il:now.toISOString(),vendite:{categorie:daily,totale:daily.reduce((sum,r)=>sum+r.totale,0)},chiamate:callSummary(consumer,business,appointments,profiles,date),mensile:monthly,
