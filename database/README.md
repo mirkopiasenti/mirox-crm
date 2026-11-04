@@ -2,6 +2,11 @@
 
 I file `.sql` nella root di questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via CLI) durante lo sviluppo. `staging/` contiene invece bootstrap one-shot destinati esclusivamente a database staging nuovi e vuoti.
 
+Nota UI04/11: ampliato il selettore periodo condiviso Gare/Avanzamento in
+`moduli/dashboard_pezzi.html`; soli CSS/raggruppamenti etichetta-campo, senza
+modifiche DB, alle regole o alle configurazioni mensili. Build riuscita; push
+autorizzato04/11, rilascio in corso.
+
 ## Avvicendamento Francesca / Vincenzo — dati applicati02/11/2026
 
 `configura_avvicendamento_vincenzo.sql` conserva il default `applica=false`.

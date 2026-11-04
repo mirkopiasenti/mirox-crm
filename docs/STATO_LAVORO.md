@@ -2,6 +2,11 @@
 
 Aggiornato:2026-11-04. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
+## Selettore mese Gare/Avanzamento — fix locale04/11
+
+- Screenshot Novembre troncato: width100%globale e restringimento flex. `#monthToolbar` comune ora usa select auto-width, minimi150pxmese/96pxanno, spazio freccia e nessun flex-shrink; coppie etichetta/campo raggruppate e a capo su schermi stretti. Solo CSS/markup, dati e calcoli invariati.
+- Build statica e diff-check riusciti; nessun test ridondante o browser. README/AGENTS/CLAUDE/databaseREADME aggiornati. Push richiesto04/11: commit layout separato dai WIP replica gare/Seconda linea; verifica CI e HTTP del deploy in corso.
+
 ## Avvicendamento: decorrenza novembre corretta e pubblicata04/11
 
 - Richiesta04/11: Vincenzo solo da novembre2026; fino a ottobre Francesca con dati/obiettivi/compensi storici. Il rilascio02/11b1f97c2/550f552 era errato nelle viste: profili attuali per ogni mese, Day fisso, bonus squadra400EUR a Vincenzo a ottobre. DB storico mai trasferito; accountFrancesca resta disabilitato, Vincenzo attivo sul proprioUUID.

@@ -85,6 +85,11 @@ body > .container.dp-page.dp-page {
 .toolbar input[type="date"]:focus, .toolbar select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(255,102,0,.12); }
 .toolbar .info-pill { padding: 3px 9px; font-size: 11px; display: inline-flex; align-items: center; gap: 8px; background: var(--primary-bg); color: var(--primary-dark); border-radius: 999px; font-weight: 600; }
 .toolbar .date-block { display: flex; align-items: center; gap: 8px; }
+#monthToolbar { flex-wrap: wrap; max-width: 100%; }
+#monthToolbar > .date-block { flex: 0 0 auto; }
+#monthToolbar select { width: auto !important; flex: 0 0 auto; padding-right: 32px !important; }
+#selMese { min-width: 150px; }
+#selAnno { min-width: 96px; }
 .toolbar .spacer { flex: 1; }
 .btn-download-png {
   border: 1px solid var(--primary); background: #fff; color: var(--primary-dark);
@@ -311,10 +316,14 @@ table.avanz td.lg-netto span + span { margin-left: 16px; }
       <input type="date" id="dataPezzi">
     </div>
     <div class="date-block" id="monthToolbar" style="display:none">
-      <span class="date-label">Mese</span>
-      <select id="selMese"></select>
-      <span class="date-label">Anno</span>
-      <select id="selAnno"></select>
+      <div class="date-block">
+        <span class="date-label">Mese</span>
+        <select id="selMese"></select>
+      </div>
+      <div class="date-block">
+        <span class="date-label">Anno</span>
+        <select id="selAnno"></select>
+      </div>
     </div>
     <div class="spacer"></div>
     <button type="button" class="btn-download-png" id="downloadAvanzamento" style="display:none">Scarica entrambe le tabelle in PNG</button>
