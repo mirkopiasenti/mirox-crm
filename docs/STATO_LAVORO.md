@@ -2,6 +2,15 @@
 
 Aggiornato:2026-11-04. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
+## Accesso bonus Gare Individuali — push autorizzato, rilascio in corso
+
+- Conferma proprietario: ogni operatore deve raggiungere TUTTE le4soglie personali, anche per liquidare bonus squadra. Da novembre2026:10Fissi Consumer+Business,10Energia Consumer+Business,10MobileBusiness(tutte offerte Mobile, noCB),1FissoBusiness(incluso nei10). Mese firma/perimetro Gare, entrambi negozi, alias canonici, reinserimenti esclusi; un contratto=un pezzo senza pesi/punti/opzioni o filtri postvendita. Ottobre e precedenti conservati.
+- Core `accessoBonusGare` e renderer: righe compensi restano calcolate, totale0se manca anche una soglia; riepilogo sotto ogni scheda/nel PNG con soglia/inserito e KOrosso/OKverde. ! cerchiato ambra sulle righe Fisso/Energia/PartitaIVA con requisito mancante e motivo accessibile. Nessuna modifica ad Avanzamento/Day/Target.
+- Trovata discrepanza preesistente Fisso: popup8, `decurtazione_soglia=7` con confronto `<` ammette7. Nuovo script `database/configura_accesso_bonus_da_novembre_2026.sql` prepara minimo10+popup10solo2670Fisso/890mesi; altri campi/scaglioni/importi/storico/catalogo/profili identici. PGlite0.5.13: preflight/rollback/retry,9/10pezzi, solo2campi modificati e rollback su valori/descrizioni/riga inattesi o mutazioni compenso/catalogo. Preflight production passato, nessuna scrittura.
+- Suite finale640/640 e7regressioni nuove: quattro requisiti isolati,9/10, alias/negozi/offerte/reinserimenti, storico/anni futuri, squadra35=150visibile con5SIM e totale0; tutte raggiunte somma personale+squadra ripristinata. Build inclusa. Nessun browser/account/sessione/email/dato cliente usato.
+- Anteprima illustrativa (HTML del renderer con dati simulati, rasterizzazione ReportLab senza browser) `tmp/accesso-bonus-preview/anteprima-accesso-bonus.png`, due casi: SIM5/totale0eSIM10/totale300; HTML eJSON di supporto ignorati. Guide README/AGENTS/CLAUDE/databaseREADME aggiornate; tutti i WIP precedenti conservati.
+- Push richiesto esplicitamente04/11: pubblicare codice e completare applicazione script dati (applica=true) coordinata con deploy, rileggere/hash e verifica CI/HTTP. QA SQL ora autonoma, nessuna dipendenza dai WIP degli script replica/info. I lavori precedenti restano separati.
+
 ## Selettore mese Gare/Avanzamento — pubblicato04/11
 
 - Screenshot Novembre troncato: width100%globale e restringimento flex. `#monthToolbar` comune ora usa select auto-width, minimi150pxmese/96pxanno, spazio freccia e nessun flex-shrink; coppie etichetta/campo raggruppate e a capo su schermi stretti. Solo CSS/markup, dati e calcoli invariati.

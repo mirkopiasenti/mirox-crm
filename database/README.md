@@ -8,6 +8,34 @@ modifiche DB, alle regole o alle configurazioni mensili. Pubblicato04/11 con `34
 Netlify6aeb50fdd37bd8459551ab7b online; CSS/markup/script e asset condivisi
 identici via HTTP.
 
+## Accesso bonus da novembre2026 — rilascio in corso
+
+`configura_accesso_bonus_da_novembre_2026.sql` porta il minimo della gara Fisso
+a10 e aggiorna le due citazioni di8 nel popup, esclusivamente nelle2670righe
+Fisso dei890mesi novembre2026–dicembre2100. Il motore usa `< soglia`, quindi
+il valore corretto e10 (il precedente7ammetteva gia7, mentre il testo diceva8).
+Scaglioni, importi, bonus, pesi, altri popup/obiettivi e storico fino a ottobre
+restano identici. Nessuna modifica schema, catalogo, profili, RLS o trigger.
+
+Preflight di default, gia verificato in produzione senza scritture; applicare
+con `applica=true` insieme al rilascio del codice Dashboard compatibile, dopo
+il push richiesto dal proprietario04/11. Controlli su2670righe/890mesi/3UUID canonici,
+sorgente e descrizioni personalizzate, hash di tutti i campi estranei e di
+catalogo/profili; retry idempotente. `scripts/check-accesso-bonus-sql.cjs` su
+PGlite0.5.13 con fixture indipendente verifica preflight/rollback/retry, confine9/10, sole due variazioni,
+storico/altri popup invariati e rollback su soglia/descrizione/riga inattesa o
+mutazioni degli importi/catalogo. Dipendenza QA temporanea, non runtime.
+
+Le quattro soglie personali che bloccano il totale (Fisso10, Energia10,
+Mobile Business10, Fisso Business1) sono nel core `accessoBonusGare`, con
+decorrenza dal periodo selezionato2026-11. Stesso input mensile delle Gare,
+entrambi i negozi, alias, reinserimenti esclusi, un contratto=un pezzo; Mobile
+Business comprende ogni offerta della categoria Mobile, non Customer Base.
+Ogni riga mantiene il proprio compenso, compresi bonus squadra. Solo il totale
+si azzera se manca un requisito; riepilogo e avvisi sono inclusi nel PNG.
+Questi override sono successivi alla replica: non rilanciare vecchi script
+per sovrascrivere le configurazioni nuove. Attualmente nessuna scrittura live.
+
 ## Avvicendamento Francesca / Vincenzo — dati applicati02/11/2026
 
 `configura_avvicendamento_vincenzo.sql` conserva il default `applica=false`.

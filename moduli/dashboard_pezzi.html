@@ -224,6 +224,24 @@ table.gara-tab tbody tr.clickable { cursor: pointer; }
 table.gara-tab tbody tr.clickable:hover td { background: #FFF7ED; }
 table.gara-tab tbody tr.clickable:hover td.metrica { filter: brightness(0.96); }
 .mx-info-dot { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 10px; font-weight: 800; font-style: normal; margin-left: 6px; vertical-align: middle; font-family: Georgia, serif; }
+.gara-accesso-warning {
+  display: inline-block; width: 17px; height: 17px; line-height: 15px;
+  margin-left: 5px; border: 1px solid #B45309; border-radius: 50%;
+  background: #FFFBEB; color: #92400E; text-align: center;
+  font-size: 12px; font-weight: 900; vertical-align: middle;
+}
+.gara-accesso { padding: 12px; border-top: 1px solid var(--border); }
+.gara-accesso h3 { margin: 0 0 8px; font-size: 10.5px; letter-spacing: .04em; color: var(--text); }
+.gara-accesso table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.gara-accesso th { padding: 4px 0; text-align: right; font-size: 9px; color: var(--text-secondary); font-weight: 600; }
+.gara-accesso th:first-child, .gara-accesso td:first-child { text-align: left; }
+.gara-accesso td { padding: 5px 0; text-align: right; border-top: 1px solid var(--border-light); }
+.gara-accesso td:nth-child(2) { white-space: nowrap; font-variant-numeric: tabular-nums; padding-left: 8px; }
+.gara-accesso td:last-child { width: 38px; padding-left: 8px; font-weight: 800; }
+.gara-accesso .esito-ko { color: #B91C1C; }
+.gara-accesso .esito-ok { color: #15803D; }
+.gara-accesso-nota { margin: 9px 0 0; font-size: 10px; line-height: 1.45; color: var(--text-secondary); }
+.gara-accesso-nota.bloccato { color: #92400E; }
 
 /* Avanzamento Mensile */
 .avanzamento-export { display: inline-block; background: #fff; padding: 0 10px 4px; }
@@ -893,15 +911,16 @@ function renderGare() {
     return;
   }
   const metriche = DPState.metricheGara.filter(m => m.tabella === 'gara_individuale');
+  const periodo = `${DPState.anno}-${String(DPState.mese).padStart(2,'0')}`;
   let html = '<div class="gare-grid">';
   DPState.operatoriInGara.forEach(op => {
+    const accesso = MiroxDashboardReport.accessoBonusGare(DPState.contrattiMese, op.id, DPState.resolveOperatore, periodo);
     let totCompenso = 0;
     let bodyHtml = '';
     metriche.forEach(m => {
       const compensoSquadra = m.tipo_compenso === 'squadra';
       const o = compensoSquadra ? getObiettivoMese(m.id, null) : getObiettivoMese(m.id, op.id);
-      const c = MiroxDashboardReport.valutaGara(m, o, DPState.contrattiMese, op.id, DPState.resolveOperatore,
-        `${DPState.anno}-${String(DPState.mese).padStart(2,'0')}`);
+      const c = MiroxDashboardReport.valutaGara(m, o, DPState.contrattiMese, op.id, DPState.resolveOperatore, periodo);
       const conteggioSquadra = c.conteggioSquadra;
       const formatoValori = campo => c.componenti?.length
         ? c.componenti.map(r => `<div class="gara-componente">${escapeHtml(r[campo])} <small>${escapeHtml(r.nome)}</small></div>`).join('')
@@ -917,7 +936,12 @@ function renderGare() {
       const badgeSquadra = garaSquadra ? ' <span title="Compenso calcolato sul totale squadra; produzione personale indicata separatamente" style="font-size:9.5px;background:#DBEAFE;color:#1E40AF;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:700;letter-spacing:.04em">SQUADRA</span>' : '';
       const hasDesc = !!String(c.descrizione).trim();
       const iconaInfo = hasDesc ? ' <span class="mx-info-dot" title="Come funziona questa gara">i</span>' : '';
-      const nomeCol = escapeHtml(m.nome) + badgeSquadra + iconaInfo;
+      const requisitiRiga = m.nome === 'FISSO' ? ['fisso'] : m.nome === 'LUCE & GAS' ? ['energia']
+        : m.nome === 'PARTITA IVA' ? ['mobile_business', 'fisso_business'] : [];
+      const mancanti = accesso.soglie.filter(s => requisitiRiga.includes(s.id) && !s.raggiunta);
+      const motivo = 'Totale compensi bloccato: ' + mancanti.map(s => `${s.nome} ${s.attuale}/${s.obiettivo} pz`).join('; ');
+      const avviso = mancanti.length ? ` <span class="gara-accesso-warning" role="img" aria-label="${escapeHtml(motivo)}" title="${escapeHtml(motivo)}">!</span>` : '';
+      const nomeCol = escapeHtml(m.nome) + avviso + badgeSquadra + iconaInfo;
       const rowAttr = hasDesc ? ` class="clickable" data-metrica-id="${m.id}" data-descrizione="${escapeHtml(c.descrizione)}"` : '';
       if (c.label) {
         bodyHtml += `<tr${rowAttr}>
@@ -943,9 +967,19 @@ function renderGare() {
       <table class="gara-tab">
         <thead><tr><th></th><th>Attuale</th><th>Obiettivo</th><th>Compenso</th></tr></thead>
         <tbody>${bodyHtml}
-          <tr class="tot"><td colspan="3">Totale compensi</td><td class="compenso compenso-tot">${fmtEur(totCompenso)}</td></tr>
+          <tr class="tot"><td colspan="3">Totale compensi</td><td class="compenso compenso-tot">${fmtEur(accesso.ammesso ? totCompenso : 0)}</td></tr>
         </tbody>
       </table>
+      ${accesso.applicabile ? `<section class="gara-accesso" aria-label="Soglie minime per accesso bonus">
+        <h3>SOGLIE MINIME PER ACCESSO BONUS</h3>
+        <table aria-label="Requisiti personali del mese">
+          <thead><tr><th>Requisito personale</th><th>Soglia / inserito</th><th>Esito</th></tr></thead>
+          <tbody>${accesso.soglie.map(s => `<tr><td>${escapeHtml(s.nome)}</td><td>${s.obiettivo} / ${s.attuale} pz.</td><td class="${s.raggiunta ? 'esito-ok' : 'esito-ko'}">${s.raggiunta ? 'OK' : 'KO'}</td></tr>`).join('')}</tbody>
+        </table>
+        <p class="gara-accesso-nota${accesso.ammesso ? '' : ' bloccato'}">${accesso.ammesso
+          ? 'Tutte le soglie personali raggiunte. Bonus inclusi nel totale.'
+          : 'Totale a zero: manca almeno una soglia personale. I bonus calcolati restano visibili nelle righe.'}</p>
+      </section>` : ''}
     </div>`;
   });
   html += '</div>';

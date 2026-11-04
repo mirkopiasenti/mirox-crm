@@ -175,6 +175,27 @@ function valutaGara(metrica, obiettivo, contratti, operatoreId, resolveOperatore
     descrizione: gara.descrizione ?? metrica.descrizione ?? ''
   };
 }
+// Riceve la stessa produzione del mese di firma usata da valutaGara.
+// I requisiti di accesso sono pezzi personali, indipendenti dai pesi delle gare.
+function accessoBonusGare(contratti, operatoreId, resolveOperatore = id => id, periodo) {
+  const mese = reportPeriod(periodo);
+  if (mese < '2026-11') return { applicabile: false, ammesso: true, soglie: [] };
+  const canonico = resolveOperatore(operatoreId);
+  const personali = (contratti || []).filter(c =>
+    isReportOperator(canonico, mese) && c.stato_inserimento !== 'reinserimento'
+    && resolveOperatore(c.operatore_id) === canonico);
+  const requisiti = [
+    ['fisso', 'Fisso', 10, { categoria: 'Fisso', cluster_in: ['Consumer', 'Business'] }],
+    ['energia', 'Luce&Gas (Consumer + Business)', 10, { categoria: 'Energia', cluster_in: ['Consumer', 'Business'] }],
+    ['mobile_business', 'P.iva Mobile', 10, { categoria: 'Mobile', cluster: 'Business' }],
+    ['fisso_business', 'P.iva Fisso', 1, { categoria: 'Fisso', cluster: 'Business' }]
+  ];
+  const soglie = requisiti.map(([id, nome, obiettivo, regola]) => {
+    const attuale = personali.filter(c => matchRegola(c, regola)).length;
+    return { id, nome, obiettivo, attuale, raggiunta: attuale >= obiettivo };
+  });
+  return { applicabile: true, ammesso: soglie.every(s => s.raggiunta), soglie };
+}
 function easter(year) {
   const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4;
   const f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30;
@@ -269,5 +290,5 @@ function dailyRows(contracts,rows,profiles,date) {
     return {nome:r.nome,gruppo:r.gruppo,operatori:operators,totale:Object.values(operators).reduce((a,b)=>a+b,0)};
   }).filter(r=>r.totale>0);
 }
-return {LEGNAGO,CEREA,reportProfiles,isReportOperator,dayOperators,isMonthlyCandidate,inMonthlyScope,matchRegola,pesoContratto,calcolaCompenso,valutaGara,easter,isWorkday,workingDays,progress,dettaglioEnergiaMensile,monthlyRows,dailyRows};
+return {LEGNAGO,CEREA,reportProfiles,isReportOperator,dayOperators,isMonthlyCandidate,inMonthlyScope,matchRegola,pesoContratto,calcolaCompenso,valutaGara,accessoBonusGare,easter,isWorkday,workingDays,progress,dettaglioEnergiaMensile,monthlyRows,dailyRows};
 }));
