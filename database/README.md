@@ -4,8 +4,9 @@ I file `.sql` nella root di questa cartella sono **migrazioni storiche parziali*
 
 Nota UI04/11: ampliato il selettore periodo condiviso Gare/Avanzamento in
 `moduli/dashboard_pezzi.html`; soli CSS/raggruppamenti etichetta-campo, senza
-modifiche DB, alle regole o alle configurazioni mensili. Build riuscita; push
-autorizzato04/11, rilascio in corso.
+modifiche DB, alle regole o alle configurazioni mensili. Pubblicato04/11 con `3454cfe`, CI41859513225verde e
+Netlify6aeb50fdd37bd8459551ab7b online; CSS/markup/script e asset condivisi
+identici via HTTP.
 
 ## Avvicendamento Francesca / Vincenzo — dati applicati02/11/2026
 

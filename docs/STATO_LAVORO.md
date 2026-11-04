@@ -2,10 +2,10 @@
 
 Aggiornato:2026-11-04. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Selettore mese Gare/Avanzamento — fix locale04/11
+## Selettore mese Gare/Avanzamento — pubblicato04/11
 
 - Screenshot Novembre troncato: width100%globale e restringimento flex. `#monthToolbar` comune ora usa select auto-width, minimi150pxmese/96pxanno, spazio freccia e nessun flex-shrink; coppie etichetta/campo raggruppate e a capo su schermi stretti. Solo CSS/markup, dati e calcoli invariati.
-- Build statica e diff-check riusciti; nessun test ridondante o browser. README/AGENTS/CLAUDE/databaseREADME aggiornati. Push richiesto04/11: commit layout separato dai WIP replica gare/Seconda linea; verifica CI e HTTP del deploy in corso.
+- Build/diff-check e CI41859513225LinuxNode22 verdi; nessun browser. Push richiesto04/11 e completato3454cfe, Netlify6aeb50fdd37bd8459551ab7b online: CSS/markup/script inline Dashboard e asset condivisi identici via HTTP. README/AGENTS/CLAUDE/databaseREADME aggiornati. Commit layout separato dai WIP replica gare/Seconda linea. Prossimo: ricaricare entrambe le schede per vedere il mese completo.
 
 ## Avvicendamento: decorrenza novembre corretta e pubblicata04/11
 
