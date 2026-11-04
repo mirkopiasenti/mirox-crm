@@ -96,7 +96,7 @@
           if (wd === 1 && employee.id === mondayOff) shift = shift.filter(p => minutes(p[0]) >= 720);
           if (wd === 6 && employee.id !== mondayOff) shift = shift.filter(p => minutes(p[1]) <= 900);
         }
-        entries.push({ date, employeeId: employee.id, slots: shift, absences: [], workedMinutes: null, extraMinutes: 0, details: '', note: '', closed: false });
+        entries.push({ date, employeeId: employee.id, slots: shift, absences: [], workedMinutes: null, extraMinutes: 0, details: '', note: '', closed: false, offsite: false });
       }
     }
     return { month: value, firstMondayOff, employees: employees.map(({profileId, week, from, until, ...e}) => e), entries };
@@ -119,6 +119,8 @@
       seen.add(key);
       const shift = slots(d.slots), total = slotMinutes(shift);
       if (typeof d.closed !== 'boolean' || (d.closed && shift.length)) fail('La chiusura deve essere senza turni');
+      const offsite = d.offsite === undefined ? false : d.offsite;
+      if (typeof offsite !== 'boolean') fail('Fuori negozio deve essere una scelta sì/no');
       if (!Array.isArray(d.absences) || d.absences.length > 8) fail('Assenze non valide');
       const ranges = [];
       const absences = d.absences.map(a => {
@@ -143,7 +145,7 @@
       if (typeof d.note !== 'string' || d.note.length > 1000) fail('Nota troppo lunga');
       const details = d.details === undefined ? '' : d.details;
       if (typeof details !== 'string' || details.length > 500) fail('Dettagli non validi: massimo 500 caratteri');
-      return { date:d.date, employeeId:d.employeeId, slots:shift, absences, workedMinutes, extraMinutes, details:details.trim(), note:d.note, closed:d.closed };
+      return { date:d.date, employeeId:d.employeeId, slots:shift, absences, workedMinutes, extraMinutes, details:details.trim(), note:d.note, closed:d.closed, offsite };
     });
     return { month:input.month, firstMondayOff:input.firstMondayOff, employees, entries };
   }

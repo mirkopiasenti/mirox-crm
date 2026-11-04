@@ -2,6 +2,13 @@
 
 Aggiornato:2026-11-04. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
+## Disponibilita CC dal planning — DB applicato04/11, pubblicazione in corso
+
+- Richiesta attuale: CC operativo prenotabile solo con Matteo+Vincenzo presenti per tutta la durata. Confermati tutti i canali (interno/operatrici/outbound/pubblico/spostamenti), orari storici per ogni mese senza prima approvazione e scelta giornaliera Fuori negozio. Solo snapshot pubblicato; assenze/riposi/chiusure/offsite sottratti, bozza/consuntivi/testi esclusi; ore/PDF e appuntamenti gia fissati conservati.
+- Codice pronto: client `js/cc-disponibilita.js`, API autenticata `gestisci-disponibilita-cc`, GET pubblico stesso filtro, tre flussi UI con selezioni/risposte obsolete scartate. `offsite` boolean nel JSON esistente/defaultfalse, opzione Admin da salvare+riapprovare; nessuna deduzione automatica della formazione. SQL `database/20261104214454_cc_disponibilita_planning.sql`: RPC INVOKER/service-only, schema privato e trigger ADDITIVO su `appuntamenti`; nessuna RPC/policy/colonna storica sostituita. Guard rilegge approvato con SHARE lock, anche sulla prima pubblicazione; stato/esiti/note degli esistenti restano modificabili.
+- QA:648/648test+build,0skip (SMTP solo localhost fuori sandbox),90verificheSQL sintetiche+133confronti replaySQL/JS su133slot reali5–11novembre, DOM Node dei3flussi e planning verdi; nessun browser/prenotazione reale/email esterna. Production solo SELECT: novembre pubblicato versione6, durata30min, schema nuovo assente. Proiezione senza note/causali/clienti in `.backup-private/cc-planning-20261104/replay.json` ignorata. Guide README/AGENTS/CLAUDE/databaseREADME e `docs/PLANNING_PERSONALE.md` aggiornate, WIP precedenti conservati.
+- Rilascio autorizzato: push richiesto e consenso DB production distinto ricevuto dopo blocco auto-review. Migration applicata20261104220255; trigger attivo/grant corretti, impronte appuntamenti/planning/profili/RPC/policy/trigger storici identiche, advisor invariati. Slot5–11novembre identici al replay filtrato, dicembre senza approvazione26→26. PROSSIMO: push+verificare CI/HTTP/slot senza prenotazioni simulate. Marcare/riapprovare eventuali giornate fuori sede preesistenti dalla UI; nessun turno reale modificato qui.
+
 ## Rettifica avvisi e colori soglie — pubblicata04/11
 
 - Richiesta: ! solo se una qualsiasi riga della scheda operatore ha compenso>=1EUR; resta anche il requisito personale mancante della riga segnalata. `renderGare` valuta tutte le gare una sola volta prima di decidere gli avvisi; niente avvisi senza guadagni, con soli importi singolarmente<1 o con etichette al posto degli euro. Guadagno di altri operatori escluso, indipendente dal totale bloccato e dall’ordine delle righe.

@@ -110,6 +110,7 @@
 <script src="js/notifiche.js"></script>
     <script src="../../js/cc-header.js"></script>
 <script src="../../js/mirox-api.js"></script>
+<script src="../../js/cc-disponibilita.js"></script>
 
 <script>
 let appuntamenti = [], filtrati = [], selezionato = null, slotSelezionato = null, currentTab = 'futuri';
@@ -247,7 +248,9 @@ function dettagli(a) {
     Utils.openModal('modalDettagli');
 }
 
+let slotsSpostaRequest = 0;
 function apriSposta() {
+    slotsSpostaRequest++;
     Utils.closeModal('modalDettagli');
     document.getElementById('spostaData').value='';
     document.getElementById('spostaMotivo').value='';
@@ -257,12 +260,19 @@ function apriSposta() {
 }
 
 async function caricaSlotSposta() {
+    const request = ++slotsSpostaRequest;
+    slotSelezionato = null;
     const data = document.getElementById('spostaData').value;
-    if (!data) return;
+    if (!data) { document.getElementById('spostaSlots').innerHTML = ''; return; }
     document.getElementById('spostaSlots').innerHTML = '<div class="spinner" style="margin:12px auto"></div>';
 
-    const { data:slots, error } = await db.rpc('get_slot_disponibili', { p_data: data });
-    if (error || !slots || slots.length===0) {
+    const { data:slots, error } = await MiroxCcDisponibilita.slots(data);
+    if (request !== slotsSpostaRequest || data !== document.getElementById('spostaData').value) return;
+    if (error) {
+        document.getElementById('spostaSlots').innerHTML = '<p role="alert">Impossibile caricare gli orari. Seleziona nuovamente il giorno per riprovare.</p>';
+        return;
+    }
+    if (!slots || slots.length===0) {
         document.getElementById('spostaSlots').innerHTML = '<p class="text-secondary">Nessuno slot disponibile</p>';
         return;
     }
@@ -276,7 +286,7 @@ async function caricaSlotSposta() {
         button.type = 'button';
         button.className = 'btn btn-sm btn-secondary';
         button.style.justifyContent = 'center';
-        button.textContent = parsed.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+        button.textContent = parsed.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Rome'});
         button.addEventListener('click', () => selezionaSlotSposta(button, slot));
         grid.appendChild(button);
     });
@@ -306,7 +316,7 @@ async function confermaSpostamento() {
         storico: JSON.stringify([{azione:'creato da spostamento', data: new Date().toISOString()}])
     }).select().single();
 
-    if (errNuovo) { Utils.hideLoading(); Utils.toast('Errore: '+errNuovo.message,'danger'); return; }
+    if (errNuovo) { Utils.hideLoading(); Utils.toast(MiroxCcDisponibilita.errorMessage(errNuovo),'danger'); return; }
 
     await db.from('appuntamenti').update({
         stato:'rischedulato', rischedulato_in_id: nuovo.id,

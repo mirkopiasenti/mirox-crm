@@ -2,6 +2,7 @@ const PrenotaInternoOutbound = {
     state: {
         data: null,
         slot: null,
+        slotsRequest: 0,
         currentMonth: new Date(),
         payload: null,
         canAccessOutboundPage: false,
@@ -134,6 +135,12 @@ const PrenotaInternoOutbound = {
     },
 
     changeMonth(delta) {
+        this.state.slotsRequest++;
+        this.state.data = null;
+        this.state.slot = null;
+        document.getElementById('btnConferma').style.display = 'none';
+        document.getElementById('slotsSection').style.display = 'none';
+        this.state.currentMonth.setDate(1);
         this.state.currentMonth.setMonth(this.state.currentMonth.getMonth() + delta);
         this.renderCalendar();
     },
@@ -203,22 +210,30 @@ const PrenotaInternoOutbound = {
     },
 
     async loadSlots(data) {
+        const request = ++this.state.slotsRequest;
+        this.state.slot = null;
+        document.getElementById('btnConferma').style.display = 'none';
         document.getElementById('slotsLoading').classList.remove('hidden');
         document.getElementById('slotsGrid').innerHTML = '';
 
-        const { data: slots, error } = await db.rpc('get_slot_disponibili', { p_data: data });
+        const { data: slots, error } = await MiroxCcDisponibilita.slots(data);
+        if (request !== this.state.slotsRequest || data !== this.state.data) return;
 
         document.getElementById('slotsLoading').classList.add('hidden');
 
-        if (error || !slots || !slots.length) {
+        if (error) {
+            document.getElementById('slotsGrid').innerHTML = '<p style="grid-column:1/-1" role="alert">Impossibile caricare gli orari. Seleziona nuovamente il giorno per riprovare.</p>';
+            return;
+        }
+        if (!slots || !slots.length) {
             document.getElementById('slotsGrid').innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-secondary)">Nessuno slot disponibile</p>';
             return;
         }
 
         document.getElementById('slotsGrid').innerHTML = slots.map((slot) => {
             const t = new Date(slot);
-            const ora = t.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-            return `<div class="slot" data-slot="${slot}">${ora}</div>`;
+            const ora = t.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
+            return `<div class="slot" data-slot="${Utils.escapeHtml(slot)}">${ora}</div>`;
         }).join('');
 
         document.querySelectorAll('#slotsGrid .slot').forEach((el) => {
@@ -279,7 +294,7 @@ const PrenotaInternoOutbound = {
                 .single();
 
             if (appError || !app) {
-                Utils.toast('Errore creazione appuntamento: ' + (appError?.message || 'Errore sconosciuto'), 'danger');
+                Utils.toast(MiroxCcDisponibilita.errorMessage(appError), 'danger');
                 return;
             }
 

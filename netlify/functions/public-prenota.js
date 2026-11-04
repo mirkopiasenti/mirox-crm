@@ -29,7 +29,8 @@ const CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store'
 };
 
 const MAX_NOME = 100;
@@ -126,11 +127,11 @@ async function handleGetSlots(event, db) {
     const data = params.data;
     if (!isIsoDate(data)) return reply(400, { ok: false, error: 'Parametro data non valido (atteso YYYY-MM-DD)' });
     try {
-        const { data: slots, error } = await db.rpc('get_slot_disponibili', { p_data: data });
-        if (error) return reply(500, { ok: false, error: error.message });
+        const { data: slots, error } = await db.rpc('mirox_cc_slot_disponibili_v1', { p_data: data });
+        if (error) return reply(503, { ok: false, error: 'Impossibile caricare la disponibilità. Riprova.' });
         return reply(200, { ok: true, slots: slots || [] });
     } catch (e) {
-        return reply(500, { ok: false, error: e?.message || 'Errore caricamento slot' });
+        return reply(503, { ok: false, error: 'Impossibile caricare la disponibilità. Riprova.' });
     }
 }
 
@@ -207,6 +208,8 @@ exports.handler = async (event) => {
 };
 
 exports._test = {
+    handleGetSlots,
+    handlePost,
     cleanString,
     getClientIp,
     isAllowedMotivo,

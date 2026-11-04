@@ -51,7 +51,7 @@
     const firstMonday=Core.dates(documentData.month).find(d=>Core.weekday(d)===1);
     $('rotationHelp').textContent=`Settimana da lunedì ${firstMonday.slice(8)}/${firstMonday.slice(5,7)}. Chi ha il lunedì mattina libero lavora sabato pomeriggio; la settimana dopo si scambiano. Applicare gli orari sostituisce la bozza del mese.`;
     $('planningWarnings').textContent=documentData.firstMondayOff?'Festività evidenziate. Conferma le eventuali chiusure nel dettaglio del giorno. I riposi non sono ferie.':'Alternanza da assegnare: i turni mostrano le fasce di base, senza le mezze giornate libere. Scegli l’assegnazione e applica gli orari prima di pubblicare.';
-    $('planningCalendar').innerHTML=`<thead><tr><th>Giorno</th>${documentData.employees.map(e=>`<th>${esc(e.name)}</th>`).join('')}</tr></thead><tbody>${Core.dates(documentData.month).map(date=>`<tr class="${Core.weekday(date)===0||Core.holiday(date)?'nonworking':''}"><td>${dayHeading(date)}</td>${documentData.employees.map(e=>{const day=documentData.entries.find(d=>d.date===date&&d.employeeId===e.id);return `<td><button class="shift-button" data-day="${esc(date)}" data-employee="${esc(e.id)}" aria-label="Modifica ${esc(e.name)} ${esc(dateLabel(date))}">${esc(shiftLabel(day))}${day.absences.length?`<small>${esc(day.absences.map(a=>a.type).join(', '))} · ${Core.hours(Core.absenceMinutes(day))}</small>`:''}${day.extraMinutes?`<small>Extra ${Core.hours(day.extraMinutes)}</small>`:''}${day.details?`<small class="planning-details">${esc(day.details)}</small>`:''}</button></td>`;}).join('')}</tr>`).join('')}</tbody>`;
+    $('planningCalendar').innerHTML=`<thead><tr><th>Giorno</th>${documentData.employees.map(e=>`<th>${esc(e.name)}</th>`).join('')}</tr></thead><tbody>${Core.dates(documentData.month).map(date=>`<tr class="${Core.weekday(date)===0||Core.holiday(date)?'nonworking':''}"><td>${dayHeading(date)}</td>${documentData.employees.map(e=>{const day=documentData.entries.find(d=>d.date===date&&d.employeeId===e.id);return `<td><button class="shift-button" data-day="${esc(date)}" data-employee="${esc(e.id)}" aria-label="Modifica ${esc(e.name)} ${esc(dateLabel(date))}">${esc(shiftLabel(day))}${day.absences.length?`<small>${esc(day.absences.map(a=>a.type).join(', '))} · ${Core.hours(Core.absenceMinutes(day))}</small>`:''}${day.offsite?'<small>Fuori negozio</small>':''}${day.extraMinutes?`<small>Extra ${Core.hours(day.extraMinutes)}</small>`:''}${day.details?`<small class="planning-details">${esc(day.details)}</small>`:''}</button></td>`;}).join('')}</tr>`).join('')}</tbody>`;
     options($('pdfEmployee'));options($('hoursEmployee'));publication();renderHours();
   }
   function renderHours(){
@@ -108,7 +108,7 @@
     if(busy || monthUnavailable() || rotationPending())return;
     currentDay=documentData.entries.find(d=>d.date===date&&d.employeeId===id);
     $('dayTitle').textContent=`${documentData.employees.find(e=>e.id===id).name} · ${dateLabel(date)}`;
-    $('daySlots').value=currentDay.slots.map(p=>p.join('-')).join('; ');$('dayClosed').checked=currentDay.closed;
+    $('daySlots').value=currentDay.slots.map(p=>p.join('-')).join('; ');$('dayClosed').checked=currentDay.closed;$('dayOffsite').checked=currentDay.offsite;
     $('dayWorked').value=currentDay.workedMinutes===null?'':currentDay.workedMinutes/60;$('dayExtra').value=currentDay.extraMinutes/60;$('dayDetails').value=currentDay.details||'';$('dayNote').value=currentDay.note;$('dayError').textContent='';
     $('dayAbsences').replaceChildren();currentDay.absences.forEach(addAbsence);$('dayDialog').showModal();$('daySlots').focus();
   }
@@ -124,7 +124,7 @@
     event.preventDefault();
     try{
       const absences=[...$('dayAbsences').children].map(line=>{const get=k=>line.querySelector(`[data-field=${k}]`).value,type=get('type'),fullDay=get('duration')==='full';return {type,fullDay,start:fullDay?null:get('start'),end:fullDay?null:get('end'),code:type==='malattia'?get('code'):''};});
-      const updated={...currentDay,slots:$('dayClosed').checked?[]:Core.parseSlots($('daySlots').value),closed:$('dayClosed').checked,absences,workedMinutes:$('dayWorked').value===''?null:duration($('dayWorked').value),extraMinutes:duration($('dayExtra').value),details:$('dayDetails').value,note:$('dayNote').value};
+      const updated={...currentDay,slots:$('dayClosed').checked?[]:Core.parseSlots($('daySlots').value),closed:$('dayClosed').checked,offsite:$('dayOffsite').checked,absences,workedMinutes:$('dayWorked').value===''?null:duration($('dayWorked').value),extraMinutes:duration($('dayExtra').value),details:$('dayDetails').value,note:$('dayNote').value};
       const candidate=Core.clone(documentData);candidate.entries[candidate.entries.findIndex(d=>d.date===currentDay.date&&d.employeeId===currentDay.employeeId)]=updated;
       documentData=Core.validateDocument(candidate);markDirty();renderCalendar();$('dayDialog').close();status('Giornata aggiornata nella bozza. Salva per conservarla.');
     }catch(e){$('dayError').textContent=e.message;}

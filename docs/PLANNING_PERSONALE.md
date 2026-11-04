@@ -5,6 +5,35 @@ Rilascio autorizzato dal proprietario29/10: soltanto planning, esclusi i commit 
 Migration production20261029210434 applicata; deploy verificato dal checkout isolato basato su origin/main7f9d930.
 Nessuna modifica agli account, alle gare o alle tabelle condivise col Call Center.
 
+## Disponibilita call center — rilascio04/11/2026
+
+**Migration applicata in produzione, pubblicazione autorizzata in corso.** Richiesta del proprietario: collegare il call center attuale al planning senza attendere CC2.0. Confermati tutti i canali (operatrici, interno, outbound, link cliente e spostamenti), mantenimento degli orari CC attuali per ogni mese ancora senza prima approvazione e opzione giornaliera Fuori negozio.
+
+La disponibilita risultante e' l'intersezione fra gli slot del motore CC storico e la presenza contemporanea di Matteo e Vincenzo, ID planning stabili `matteo` e `vincenzo`. L'intero appuntamento, non soltanto l'ora iniziale, deve rientrare nella presenza di entrambi: con Vincenzo09:00–12:00 e Matteo09:30–12:30, appuntamenti di30minuti dalle09:30 alle11:30 incluse, mai09:00 o11:45. Conservati griglia, anticipo, chiusure/blocchi, occupazione, buffer e prenotazioni temporanee del CC.
+
+- Solo `personale_planning_mesi.pubblicato` del mese selezionato; una revisione in bozza non cambia gli slot fino alla successiva approvazione. La pubblicazione aggiorna automaticamente il filtro, senza cron o copia dei dati in `blocchi`.
+- Ferie, permessi e malattia sottraggono gli intervalli dal turno; assenza intera, riposo o chiusura di uno dei due venditori chiudono la relativa disponibilita. Isabella non sostituisce nessuno dei due. Consuntivi, straordinari e testo libero non diventano presenza.
+- **Fuori negozio per tutta la giornata** nel dettaglio Admin esclude il dipendente dalla disponibilita CC, conservando turni, ore lavorative e PDF. Flag `offsite` nel JSON esistente, default false nei mesi gia salvati; non dedotto da parole come formazione. Per le giornate fuori sede gia inserite occorre selezionare l'opzione, salvare e riapprovare. Il flag resta nella vista Admin; i dettagli condivisi continuano a comunicare sede/indirizzo al dipendente.
+- Mese senza snapshot pubblicato: risultato storico invariato, anche se esiste una bozza. Errori DB/documenti malformati non attivano questo fallback: risposta bloccante. Mese approvato privo di uno dei venditori: nessuna presenza sostitutiva.
+- Appuntamenti gia fissati conservati, senza cancellazioni o spostamenti automatici dopo una modifica del planning. Esiti, note, annullamenti e marcatura rischedulato restano ammessi; nuove prenotazioni, spostamenti, riattivazioni o cambi di durata rileggono il pubblicato al salvataggio.
+- Gli operatori e il pubblico ricevono soltanto slot, mai assenze, note, codici o documenti Personale. API/risposte `no-store`; richieste obsolete scartate e selezione azzerata al cambio data/mese o errore.
+
+Implementazione: `js/cc-disponibilita.js` usa MiroxApi verso `gestisci-disponibilita-cc`; la Function rilegge profilo attivo e permessi CC e chiama la nuova RPC INVOKER/service-only `mirox_cc_slot_disponibili_v1(date)`. `public-prenota` GET usa la stessa RPC; POST mantiene `public_prenota_appuntamento_v1` e il suo lock/rate limit. Nessuna dipendenza, env o schedulazione nuova.
+
+Migration `database/20261104214454_cc_disponibilita_planning.sql`, generata con CLI2.109.1 e **applicata production20261104220255 dopo conferma esplicita**: nuovo schema non esposto `mirox_cc_privato`, helper puro INVOKER e trigger aggiuntivo `trg_mirox_cc_planning` su `appuntamenti`. Nessuna sostituzione di RPC, policy, colonna o trigger storico; nessuna modifica ai dati esistenti. Il solo trigger e' DEFINER per leggere il planning privato, search_path vuoto e EXECUTE revocato ai client; controlla auth.uid/profilo attivo per i chiamanti authenticated/anon. Un lock SHARE sulla tabella planning, limitato alla transazione di prenotazione, serializza il controllo con salvataggi/pubblicazioni, anche quando il mese non esisteva ancora. Il rifiuto `slot_non_disponibile_planning` e' mostrato come invito a ricaricare gli slot; lo spostamento rifiutato conserva l'originale.
+
+Verifiche04/11: `npm test` **648/648**,0skip;90verifiche PostgreSQL WASM sintetiche (confini, durata, permessi parziali/interi di entrambi, fuori sede, alternanza, snapshot/bozza, mesi/roster, ora legale/solare e timezone, occupazione/blocchi/buffer/lock temporanei, guard su INSERT/UPDATE e RPC pubblica, privilegi e lock SHARE). Altri133confronti indipendenti SQL/JS sul replay di133slot reali del5–11novembre, dopo sole SELECT production e proiezione senza note/causali/clienti; tutti concordi. DOM Node/linkedom: round-trip Fuori negozio, pubblicazione e ore, risposte invertite e cambio data/mese sui tre flussi, errori e rifiuto spostamento senza toccare l'originale. Nessun browser o appuntamento reale creato. I lock sono verificati nella transazione isolata; non e' un carico concorrente su production.
+
+```sh
+NODE_PATH=/private/tmp/mirox-cc-planning-qa/node_modules node scripts/check-cc-planning-sql.cjs
+NODE_PATH=/private/tmp/mirox-cc-planning-qa/node_modules node scripts/check-cc-planning-dom.cjs
+NODE_PATH=/private/tmp/mirox-cc-planning-qa/node_modules node scripts/check-planning-dom.cjs
+```
+
+Replay opzionale: aggiungere il percorso di una proiezione privata come argomento al primo comando. Snapshot locale ignorato `.backup-private/cc-planning-20261104/replay.json`; non pubblicare dati o strumenti QA in `dist`. Suite completa eseguita fuori sandbox per il solo test SMTP localhost, senza consegne esterne.
+
+**Rilascio autorizzato04/11:** push richiesto dal proprietario e conferma esplicita distinta per il database condiviso ricevuta dopo il blocco iniziale dell'auto-review. Migration transazionale applicata come20261104220255; schema/trigger attivo/grant riletti. Impronte appuntamenti, planning e profili identiche; RPC e policy/trigger storici identici. Advisor sicurezza: stesse7categorie e conteggi, nessun nuovo rilievo. Slot5–11novembre concordi con il replay locale (19→17,20→18,16→3,0→0,26→14,26→12,26→24); dicembre senza approvazione26→26. Nessuna prenotazione reale creata. Pubblicazione codice e verifica CI/HTTP in corso. Novembre e' gia approvato (versione6), quindi la guard e' attiva dall'applicazione; durante l'intervallo migration–deploy le vecchie pagine mostrano ancora gli slot storici ma il salvataggio rifiuta quelli privi di presenza. Eventuale rollback richiede ripristino della release precedente e disabilitazione del solo nuovo trigger, mantenendo dati/RPC storici e planning; nessun rollback eseguito.
+
 ## Accessi e pagine
 
 - Admin → Personale → Planning dipendenti (`admin-planning.html`): planning, schede ore e configurazione.

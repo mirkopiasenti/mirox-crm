@@ -113,11 +113,13 @@
 <script src="js/notifiche.js"></script>
     <script src="../../js/cc-header.js"></script>
 <script src="../../js/mirox-api.js"></script>
+<script src="../../js/cc-disponibilita.js"></script>
 
 <script>
 let state = { data: null, slot: null, currentMonth: new Date() };
 let prenotaDati = null; // Dati dal flusso chiamata
 let confermaInCorso = false;
+let slotsRequest = 0;
 
 (async () => {
     const { data:{session} } = await db.auth.getSession();
@@ -145,7 +147,12 @@ let confermaInCorso = false;
     renderCalendar();
 })();
 
-function changeMonth(d) { state.currentMonth.setMonth(state.currentMonth.getMonth()+d); renderCalendar(); }
+function changeMonth(d) {
+    slotsRequest++; state.data = null; state.slot = null;
+    document.getElementById('btnConferma').style.display = 'none';
+    document.getElementById('slotsSection').style.display = 'none';
+    state.currentMonth.setDate(1); state.currentMonth.setMonth(state.currentMonth.getMonth()+d); renderCalendar();
+}
 
 function renderCalendar() {
     const y = state.currentMonth.getFullYear(), m = state.currentMonth.getMonth();
@@ -193,20 +200,28 @@ function selectDate(dateStr, dayNum) {
 }
 
 async function loadSlots(data) {
+    const request = ++slotsRequest;
+    state.slot = null;
+    document.getElementById('btnConferma').style.display = 'none';
     document.getElementById('slotsLoading').classList.remove('hidden');
     document.getElementById('slotsGrid').innerHTML = '';
 
-    const { data:slots, error } = await db.rpc('get_slot_disponibili', { p_data: data });
+    const { data:slots, error } = await MiroxCcDisponibilita.slots(data);
+    if (request !== slotsRequest || data !== state.data) return;
     document.getElementById('slotsLoading').classList.add('hidden');
 
-    if (error || !slots || slots.length===0) {
+    if (error) {
+        document.getElementById('slotsGrid').innerHTML = '<p style="grid-column:1/-1" role="alert">Impossibile caricare gli orari. Seleziona nuovamente il giorno per riprovare.</p>';
+        return;
+    }
+    if (!slots || slots.length===0) {
         document.getElementById('slotsGrid').innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-secondary)">Nessuno slot disponibile</p>';
         return;
     }
 
     document.getElementById('slotsGrid').innerHTML = slots.map(s => {
         const t = new Date(s);
-        const ora = t.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+        const ora = t.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Rome'});
         return `<div class="slot" data-slot="${Utils.escapeHtml(s)}">${ora}</div>`;
     }).join('');
     document.querySelectorAll('#slotsGrid .slot').forEach(el => {
@@ -260,7 +275,7 @@ async function conferma() {
         storico: JSON.stringify([{azione:'creato',data:new Date().toISOString(),operatore:Auth.getNome()}])
     }).select().single();
 
-    if (error) { Utils.hideLoading(); confermaInCorso = false; btn.disabled = false; Utils.toast('Errore: '+error.message,'danger'); return; }
+    if (error) { Utils.hideLoading(); confermaInCorso = false; btn.disabled = false; Utils.toast(MiroxCcDisponibilita.errorMessage(error),'danger'); return; }
 
     // Aggiorna la chiamata con il link all'appuntamento
     if (chiamataId) {
