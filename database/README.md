@@ -10,6 +10,13 @@ identici via HTTP.
 
 ## Accesso bonus da novembre2026 — applicato04/11/2026
 
+Rettifica UI04/11 successiva al rilascio, pubblicazione in corso: ! sui requisiti
+mancanti soltanto con almeno una riga di compenso>=1EUR nella medesima scheda;
+OKverde/KOrosso in grassetto con override sul tema comune, anche nel PNG.
+Sole modifiche a renderer/CSS,74test mirati e build verdi; nessuna nuova
+lettura/scrittura DB, variazione a soglie/regole/importi o modifica schema.
+Suite completa642/642verde; push richiesto04/11, nessuna configurazione dati da riapplicare.
+
 `configura_accesso_bonus_da_novembre_2026.sql` porta il minimo della gara Fisso
 a10 e aggiorna le due citazioni di8 nel popup, esclusivamente nelle2670righe
 Fisso dei890mesi novembre2026–dicembre2100. Il motore usa `< soglia`, quindi

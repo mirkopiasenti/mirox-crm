@@ -238,8 +238,8 @@ table.gara-tab tbody tr.clickable:hover td.metrica { filter: brightness(0.96); }
 .gara-accesso td { padding: 5px 0; text-align: right; border-top: 1px solid var(--border-light); }
 .gara-accesso td:nth-child(2) { white-space: nowrap; font-variant-numeric: tabular-nums; padding-left: 8px; }
 .gara-accesso td:last-child { width: 38px; padding-left: 8px; font-weight: 800; }
-.gara-accesso .esito-ko { color: #B91C1C; }
-.gara-accesso .esito-ok { color: #15803D; }
+.gara-accesso td.esito-ko { color: #B91C1C !important; font-weight: 800 !important; }
+.gara-accesso td.esito-ok { color: #15803D !important; font-weight: 800 !important; }
 .gara-accesso-nota { margin: 9px 0 0; font-size: 10px; line-height: 1.45; color: var(--text-secondary); }
 .gara-accesso-nota.bloccato { color: #92400E; }
 
@@ -917,10 +917,14 @@ function renderGare() {
     const accesso = MiroxDashboardReport.accessoBonusGare(DPState.contrattiMese, op.id, DPState.resolveOperatore, periodo);
     let totCompenso = 0;
     let bodyHtml = '';
-    metriche.forEach(m => {
+    const gare = metriche.map(m => {
       const compensoSquadra = m.tipo_compenso === 'squadra';
       const o = compensoSquadra ? getObiettivoMese(m.id, null) : getObiettivoMese(m.id, op.id);
       const c = MiroxDashboardReport.valutaGara(m, o, DPState.contrattiMese, op.id, DPState.resolveOperatore, periodo);
+      return { m, o, c, compensoSquadra };
+    });
+    const haGuadagno = gare.some(({ c }) => !c.label && c.euro >= 1);
+    gare.forEach(({ m, o, c, compensoSquadra }) => {
       const conteggioSquadra = c.conteggioSquadra;
       const formatoValori = campo => c.componenti?.length
         ? c.componenti.map(r => `<div class="gara-componente">${escapeHtml(r[campo])} <small>${escapeHtml(r.nome)}</small></div>`).join('')
@@ -940,7 +944,7 @@ function renderGare() {
         : m.nome === 'PARTITA IVA' ? ['mobile_business', 'fisso_business'] : [];
       const mancanti = accesso.soglie.filter(s => requisitiRiga.includes(s.id) && !s.raggiunta);
       const motivo = 'Totale compensi bloccato: ' + mancanti.map(s => `${s.nome} ${s.attuale}/${s.obiettivo} pz`).join('; ');
-      const avviso = mancanti.length ? ` <span class="gara-accesso-warning" role="img" aria-label="${escapeHtml(motivo)}" title="${escapeHtml(motivo)}">!</span>` : '';
+      const avviso = haGuadagno && mancanti.length ? ` <span class="gara-accesso-warning" role="img" aria-label="${escapeHtml(motivo)}" title="${escapeHtml(motivo)}">!</span>` : '';
       const nomeCol = escapeHtml(m.nome) + avviso + badgeSquadra + iconaInfo;
       const rowAttr = hasDesc ? ` class="clickable" data-metrica-id="${m.id}" data-descrizione="${escapeHtml(c.descrizione)}"` : '';
       if (c.label) {

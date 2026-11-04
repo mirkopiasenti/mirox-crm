@@ -94,3 +94,37 @@ test('minimo Fisso10: 9 decurtazione,10 compenso; gli scaglioni e il mese storic
   assert.deepEqual(core.calcolaCompenso(10,rule),{euro:100,label:''});
   assert.equal(core.calcolaCompenso(8,{...rule,decurtazione_soglia:7}).euro,80);
 });
+test('indicatore solo se una riga della stessa scheda guadagna almeno1EUR, anche dopo la riga col requisito mancante',()=>{
+  const fixed={id:4,nome:'FISSO',tabella:'gara_individuale',regola:{categoria:'Fisso'}};
+  const paid={id:2,nome:'TELEFONI FINANZIATI GA',tabella:'gara_individuale',regola:{categoria:'Mobile'}};
+  const fixedGoal={metrica_id:4,operatore_id:V,anno:2026,mese:11,compenso_regola:{tipo:'per_pezzo',per_pezzo:10}};
+  for(const amount of [0,0.99,1,5]){
+    const paidGoal={...fixedGoal,metrica_id:2,compenso_regola:{tipo:'per_pezzo',per_pezzo:amount}};
+    for(const metrics of [[fixed,paid],[paid,fixed]]){
+      const html=render({contracts:[contract('Mobile')],metrics,goals:[fixedGoal,paidGoal]});
+      if(amount>=1)assert.match(html,/FISSO <span class="gara-accesso-warning"/);
+      else assert.doesNotMatch(html,/gara-accesso-warning/);
+      assert.match(html,/compenso-tot">€ 0</);
+      assert.match(html,/class="esito-ko">KO/,'il riepilogo rimane anche senza guadagni');
+    }
+  }
+  const html=render({contracts:[contract('Mobile')],metrics:[fixed,paid],goals:[fixedGoal,
+    {...fixedGoal,metrica_id:2,compenso_regola:{tipo:'per_pezzo',per_pezzo:5}}],
+    operators:[{id:V,nome:'Vincenzo'},{id:M,nome:'Matteo'}]});
+  const cards=html.split('<div class="gara-card"').slice(1);
+  assert.match(cards[0],/gara-accesso-warning/);
+  assert.doesNotMatch(cards[1],/gara-accesso-warning/,'il guadagno di un altro operatore non attiva il simbolo');
+});
+test('due compensi inferiori a1EUR o una semplice etichetta non attivano gli avvisi',()=>{
+  const fixed={id:4,nome:'FISSO',tabella:'gara_individuale',regola:{categoria:'Fisso'}};
+  const paid={id:2,nome:'ALTRA GARA',tabella:'gara_individuale',regola:{categoria:'Mobile'}};
+  const other={...paid,id:8,nome:'TERZA GARA'};
+  const makeGoal=(metrica_id,rule)=>({metrica_id,operatore_id:V,anno:2026,mese:11,compenso_regola:rule});
+  const html=render({contracts:[contract('Mobile')],metrics:[fixed,paid,other],goals:[
+    makeGoal(2,{tipo:'per_pezzo',per_pezzo:0.5}),makeGoal(8,{tipo:'per_pezzo',per_pezzo:0.5})]});
+  assert.doesNotMatch(html,/gara-accesso-warning/);
+  const labelled=render({contracts:[contract('Mobile')],metrics:[fixed,paid],goals:[
+    makeGoal(2,{tipo:'per_pezzo',per_pezzo:5,label:'DECURTAZIONE'})]});
+  assert.match(labelled,/badge-dec">DECURTAZIONE/);
+  assert.doesNotMatch(labelled,/gara-accesso-warning/);
+});
