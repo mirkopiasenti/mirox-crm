@@ -1,10 +1,11 @@
 # Monitor KPI negozio — implementazione locale del 05/11/2026
 
-Stato: codice completo in locale, migration e pacchetto Windows preparati.
-**Push richiesto05/11, pubblicazione in verifica; PC/TV non configurati.**
+Stato: **pubblicato05/11 con commit88794dd**, CI Linux/Node22
+[42034207778](https://github.com/mirkopiasenti/mirox-crm/actions/runs/42034207778)
+verde665test, Netlify6aec817fc578cdeb2b6d097e online. **PC/TV da configurare.**
 Migration applicata su consenso esplicito, versione production20261105131100.
 Restrizione successiva dei default service_role: migration monitor_privilegi_service_role
-applicata05/11; soli oggetti nuovi, nessuna modifica ai default globali.
+applicata come20261105131331; soli oggetti nuovi, nessuna modifica ai default globali.
 L'utente ha autorizzato lo sviluppo dopo la revisione del mockup. Windows 11 e
 visione riservata al personale confermati; edizione Home/Pro e RTC da verificare.
 Nessuna modifica a tabelle/RLS/RPC/trigger legacy del Call Center o ai dati cliente.
@@ -167,11 +168,14 @@ Netlify distinto, production rifiutata. Nessun dato di staging indirizzato a pro
    disponibile in Screen Fit secondo manuale: verificare la modalita' effettiva,
    senza promettere entrambe le opzioni. Spegnimento notturno del pannello.
 
-## Rilascio e collaudo ancora necessari
+## Rilascio verificato e collaudo PC/TV
 
 1. Migration applicata e riletta come sopra, senza rilanciare migration storiche/WIP.
-2. Push richiesto dal proprietario05/11, verifica CI/Netlify/endpoints in corso.
-   Non creare account o associazioni di prova reali.
+2. Push88794dd completato; CI665/665, Netlify e SHA del commit verificati.
+   HTTP200 per12asset/pagine (HTMLAdmin con sola riscrittura Netlify del link
+   monitor.html→/monitor), ZIP20file/401390byte con contenuti identici alla build
+   collaudata e checksum pubblico corrispondente. APIadmin401/device403senza
+   credenziali e no-store. Nessun account/dispositivo/sessione di prova creato.
 3. Scaricare il pacchetto, installare/configurare il PC e associare da Admin.
 4. Confrontare Day e mensile con Dashboard/Target; verificare leggibilita' a
    distanza, timer, avvio freddo/blackout, rete assente/ripristinata, browser chiuso

@@ -1,10 +1,12 @@
 # CLAUDE.md — Guida per AI assistants
 
-Monitor negozio05/11: push richiesto, pubblicazione in verifica.
+Monitor negozio05/11 pubblicato88794dd, CI42034207778verde665test,
+Netlify6aec817fc578cdeb2b6d097e/HTTP12asset/ZIP20file/401admin403device verificati.
 monitor.html/admin-monitor.html e API monitor-kpi/admin-monitor, associazione
 monouso15min/chiave dispositivo256bit revocabile separata da profili/ACL;
 migration sorgente20261105123113 applicata su consenso esplicito come
-production20261105131100; legacy e dati esistenti invariati per impronta. ZIP Windows da build,
+production20261105131100 e restrizione default service_role20261105131331;
+legacy e dati esistenti invariati per impronta, QA SQL50check. ZIP Windows da build,
 helper Node>=22/DPAPI LocalMachine/taskSYSTEM/loopback, logo e Inter4.1 locali,
 agenda→Day completo→mensile soli punti. Nessun DB legacy/cliente toccato.
 Fonti AGENTS, docs/MONITOR_NEGOZIO.md e databaseREADME; collaudo PC/TV necessario.

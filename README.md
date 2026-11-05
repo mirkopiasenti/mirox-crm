@@ -2,7 +2,7 @@
 
 Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della rete Konatech. Static frontend HTML/JS + Netlify Functions (Node) + Supabase Postgres.
 
-## Monitor KPI negozio — sviluppato in locale 05/11/2026
+## Monitor KPI negozio — pubblicato05/11/2026
 
 Pagina `monitor.html` per Samsung ME40B verticale e Windows 11: appuntamenti in
 alto, Day by Day completo al centro e mensile Standard/P.IVA in basso senza
@@ -11,7 +11,9 @@ pezzi. Logo originale e Inter 4.1 locale, solo visione 08:30–20:00.
 nessun account operatore sul televisore. API con credenziale dispositivo separata,
 KPI aggregati e nessun dato cliente. La build produce il pacchetto Windows con
 helper loopback/DPAPI e istruzioni, scaricabile dall'Admin dopo la pubblicazione.
-**Migration attivata05/11 su consenso esplicito; push richiesto, pubblicazione in verifica.**
+**Online con 88794dd: CI42034207778LinuxNode22verde665test, Netlify6aec817fc578cdeb2b6d097e verificato HTTP.**
+Migration applicate20261105131100/20261105131331 su consenso esplicito;
+asset e pacchetto Windows verificati, API401/403senza credenziali.
 [Installazione, architettura e collaudo](docs/MONITOR_NEGOZIO.md).
 
 ## Stack
@@ -90,7 +92,7 @@ dalla pubblicazione diretta. Nessun segreto o stato dispositivo nel pacchetto.
 | `imposta-password.html` | Accetta inviti Auth, crea la sessione dal link e consente di scegliere la password senza comunicarla agli amministratori |
 | `dashboard.html` | Home con tabs Vendita / Post-Vendita + topbar con bottoni Applicazioni / Appuntamenti Oggi / Ticket / Call Center / **Admin** (visibile solo se `ruolo='admin'`) + badge ticket aperti. Nell'angolo inferiore destro una mascotte KONA AI Guardian di dimensioni ridotte con nuvoletta di chat compatta apre la raccolta di problemi o migliorie; il bottone Applicazioni apre un pannello espandibile sopra il saluto e collega a `Il mio planning`, `Compilatore disdette` e `Compilatore Subentri` |
 | `admin.html` | **Hub Admin Mirox** — shell a due aree con sidebar dei reparti e area di lavoro. `Configurazioni` contiene 6 moduli, inclusi Permessi pagine e Monitor negozio; `KPI` raccoglie i moduli di analisi. Accesso ristretto a `ruolo='admin'` |
-| `monitor.html` | Shell del monitor verticale, KPI riservati alla postazione associata tramite helper Windows; agenda, Day completo e mensile senza pezzi. Locale, rilascio da attivare |
+| `monitor.html` | Shell del monitor verticale, KPI riservati alla postazione associata tramite helper Windows; agenda, Day completo e mensile senza pezzi. Online05/11 con 88794dd |
 | `admin-monitor.html` | Configurazioni Admin: download pacchetto Windows, codice associazione15min, elenco postazioni e revoca |
 | `tools/monitor-windows/` | Helper Node>=22/DPAPI/taskSYSTEM, installer e guida PC; escluso dalla pubblicazione diretta, ZIP generato per allowlist |
 | `admin-planning.html` | Reparto Personale: planning mensile, assenze, consuntivi, straordinari manuali, bozza/approvazione e PDF. Online29/10; migration20261029210434 applicata |
@@ -804,7 +806,7 @@ Dal 2026-06-24 il bottone **Admin** della topbar dashboard è attivo per gli ute
 - **Gestione Utenti** ([`admin-utenti.html`](admin-utenti.html)) — tabella `profili`: cambio ruolo admin↔operatore, abilita/disabilita, modale permessi granulari Call Center, flag `in_gara`. Un admin non può togliere il proprio ruolo né disabilitarsi
 - **Configurazione Call Center** ([`admin-call-center-config.html`](admin-call-center-config.html)) — orari settimanali, blocchi/chiusure, parametri di sistema (durata slot, anticipo, scadenze). Spostata da `moduli/call-center/configurazione.html` (eliminata)
 - **Catalogo Vendita** ([`admin-vendita-config.html`](admin-vendita-config.html)) — CRUD categorie/offerte/opzioni/reload. Ora gated dal ruolo `admin` (prima era protetto da una password client-side `1234`, rimossa)
-- **Monitor negozio** ([`admin-monitor.html`](admin-monitor.html)) — download pacchetto Windows, associazione monouso15min e revoca delle postazioni in sola visione; sviluppato localmente, attivazione da eseguire.
+- **Monitor negozio** ([`admin-monitor.html`](admin-monitor.html)) — download pacchetto Windows, associazione monouso15min e revoca delle postazioni in sola visione; pubblicato05/11 con 88794dd; installazione sul PC da eseguire.
 - **Gare & Avanzamento** ([`admin-gare.html`](admin-gare.html)) — configura metriche + obiettivi mensili per operatore + regole compenso a scaglioni + bonus una tantum. Bottone "Duplica dal mese precedente" per ripartire velocemente ad ogni cambio gara. Alimenta le tab "Gare Individuali" e "Avanzamento Mensile" del modulo `dashboard_pezzi`
 
 Il secondo reparto **KPI** contiene **Vendita - Consumer** ([`admin-kpi-vendita-consumer.html`](admin-kpi-vendita-consumer.html)), **Vendita - Business** ([`admin-kpi-vendita-business.html`](admin-kpi-vendita-business.html)) e **Call Center** ([`admin-kpi-call-center.html`](admin-kpi-call-center.html)). Le due pagine Vendita condividono le categorie `Mobile`, `Fisso`, `Luce & Gas`, `Allarmi`, `Assicurazioni` e i filtri anno/punto vendita/operatore; il Consumer aggiunge `Customer Base` tra Fisso e Luce & Gas. Il filtro operatore offre `Tutti` o un singolo profilo canonico e aggiorna immediatamente tutte le tabelle, senza un dettaglio operatori separato in fondo alla pagina. Il KPI Call Center offre filtri anno, mese, vista e operatrice, con viste giornaliera, settimanale e mensile. Su viewport mobili la sidebar diventa un menu richiudibile. Navigazione, stato attivo, profilo e logout sono generati da `js/admin-shell.js`; aspetto e adattamento responsive sono centralizzati in `css/admin-shell.css` e `css/admin-kpi.css`.

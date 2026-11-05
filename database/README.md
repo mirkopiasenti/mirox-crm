@@ -24,10 +24,12 @@ isolato50check verdi. Applicata su consenso esplicito come versione2026110513110
 profili/appuntamenti/RPC/policy/trigger legacy identici per impronta. WARN/ERROR
 advisor invariati, sole3INFO RLSdenyclient attese. Nuove tabelle vuote; nessun
 dispositivo/sessione/cliente di prova creato. Non rilanciare migration storiche/WIP.
-`20261105131304_monitor_privilegi_service_role.sql` applicata05/11: revoke/grant
+`20261105131304_monitor_privilegi_service_role.sql` applicata20261105131331: revoke/grant
 espliciti per neutralizzare i default ALL service_role sulle sole tre tabelle
 nuove; audit append-only reale, dispositivi senza DELETE/TRUNCATE, nessun
 cambio ai default globali. QA isolata ampliata50check con gli stessi default.
+Monitor online88794dd/CI42034207778verde/Netlify6aec817fc578cdeb2b6d097e;
+nessuna postazione o associazione di prova creata, installazione TV al proprietario.
 [Guida runtime, Windows e attivazione](../docs/MONITOR_NEGOZIO.md).
 
 ## Accesso bonus da novembre2026 — applicato04/11/2026

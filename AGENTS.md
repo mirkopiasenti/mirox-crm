@@ -121,14 +121,13 @@ Sostituire sempre con testo descrittivo (es. `🔄 Aggiorna` → `Aggiorna`, `�
 - **Call Center integrato** = a partire dal 2026-06-20 le pagine CC sono integrate in `moduli/call-center/` (Fase 1: mount UI). Lo storico CC condivide il project Supabase; il pannello del 05/10/2026 conferma `mirox-crm.netlify.app` come alias del CRM attuale, quindi il vecchio deploy distinto va reidentificato
 - **Integrazione CC completata nelle fasi 2–4**: `storico_cliente` esteso, backfill/auto-link di `chiamate.anagrafica_id` e convergenza Upload Contratti con `origine_pratica` automatica sono già applicati. Le eventuali estensioni successive sono nuove funzionalità, non attività arretrate.
 
-### URL deploy
-- **Repo GitHub**: `git@github.com:mirkopiasenti/mirox-crm.git` (dal 2026-07-02, prima era `konahub-vendita-test` — redirect ancora attivo ma va usato il nome nuovo)
-- **Netlify site di questa codebase**: **`mirox-crm`** (nome sito Netlify dal 2026-07-02, prima era il vecchio nome legato al test). Custom domain **`mirox-crm.it`** in production dal 2026-06-29 — tutte le functions, compreso Guardian, rispondono qui. Env vars Supabase, OpenAI, Telegram e degli altri servizi sono configurate su questo site
-- **Guardian production**: sito `mirox-crm.it`, branch `main`, Supabase `lbgwamhjkjjfwgusafbi`, bot `@MiroxAiGuardianBot`. Dal 05/10/2026 il proprietario autorizza sviluppo e collaudo direttamente in produzione; nessun ambiente Guardian separato da ricreare.
-### Monitor KPI negozio — sviluppo locale 05/11/2026
+### Monitor KPI negozio — pubblicato05/11/2026
 
-Push richiesto05/11; migration applicata su consenso esplicito, versione
-production20261105131100. Pubblicazione del codice in verifica.
+Monitor pubblicato88794dd, CI42034207778LinuxNode22verde665test,
+Netlify6aec817fc578cdeb2b6d097e verificato via HTTP:12asset/HTML, ZIP20file
+identico per contenuti/SHA, admin401/device403senza credenziali. Solo link
+Admin→monitor riscritto automaticamente PrettyURL da Netlify. Migration
+production20261105131100/20261105131331 applicate su consenso esplicito.
 `monitor.html`: logo originale, agenda in alto, Day completo al centro, mensile
 Standard/P.IVA senza pezzi in basso. Inter4.1 locale/SIL OFL in assets/fonts;
 helper Node>=22 senza npm esterni in tools/monitor-windows, ZIP allowlist dalla
@@ -406,7 +405,7 @@ modifiche; nessun oggetto legacy CC alterato. Applicata20261105131100,
 profili/appuntamenti/RPC/policy/trigger legacy identici per impronta;
 WARN/ERROR advisor invariati, sole3INFO attese RLSdenyclient senza policy.
 Nessun dispositivo/audit/rate creato. Seconda migration sorgente20261105131304
-monitor_privilegi_service_role applicata05/11 restringe ALL ereditati dai default
+monitor_privilegi_service_role applicata20261105131331 restringe ALL ereditati dai default
 Supabase: audit append-only, dispositivi senza DELETE/TRUNCATE, solo nuovi
 oggetti e nessun cambio globale. QA isolata50check con default production.
 
