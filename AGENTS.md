@@ -1167,6 +1167,8 @@ Esposto globalmente come `window.CcHeader`. API: `CcHeader.render(paginaChiavePe
 
 ### Compatibilità UI ancora presente (debito tecnico non bloccante)
 
+Correzione sessione CC05/11/2026: `moduli/call-center/js/config.js` espone lo stesso client Supabase anche come `window.db`, richiesto da MiroxApi per leggere e rinnovare il JWT. Il solo `const db` lasciava le richieste degli slot senza Authorization, pur con disponibilita corretta nel DB. Riprodotto il difetto con configurazione/MiroxApi/client slot reali; regressione sulle tre pagine con sessione valida/scaduta,9–10chiusi e11aperto.649/649test verdi, nessun nuovo client/Auth, nessuna modifica a planning, flag, disponibilita SQL, schema, RPC, trigger o permessi. I componenti condivisi devono ricevere il client su window, senza duplicare la sessione.
+
 Le pagine CC ancora usano:
 - `Utils.toast/openModal/closeModal/showLoading/...` (in `moduli/call-center/js/app.js`) invece di `MiroxUI.*`
 

@@ -1,8 +1,10 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-04. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+Aggiornato:2026-11-05. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
 ## Disponibilita CC dal planning — pubblicata04/11
+
+- Debug05/11 per segnalazione11senzaorari: versione8 approvata/bozza concordi, offsiteVincenzo solo9–10;11e12hanno24slot SQL/APIpubblica, nessun blocco/appuntamento11. Riprodotto errore client: configCC aveva solo `const db`, MiroxApi legge `window.db` e inviava richieste prive di JWT. Correzione espone lo stesso client, senza nuove sessioni o modifiche DB/flag/turni. Test con script reali delle3pagine e refresh,9–10chiusi/11aperto;649/649verdi. Pubblicazione correttiva e HTTP da verificare; WIP precedenti preservati.
 
 - Richiesta attuale: CC operativo prenotabile solo con Matteo+Vincenzo presenti per tutta la durata. Confermati tutti i canali (interno/operatrici/outbound/pubblico/spostamenti), orari storici per ogni mese senza prima approvazione e scelta giornaliera Fuori negozio. Solo snapshot pubblicato; assenze/riposi/chiusure/offsite sottratti, bozza/consuntivi/testi esclusi; ore/PDF e appuntamenti gia fissati conservati.
 - Codice pubblicato: client `js/cc-disponibilita.js`, API autenticata `gestisci-disponibilita-cc`, GET pubblico stesso filtro, tre flussi UI con selezioni/risposte obsolete scartate. `offsite` boolean nel JSON esistente/defaultfalse, opzione Admin da salvare+riapprovare; nessuna deduzione automatica della formazione. SQL `database/20261104214454_cc_disponibilita_planning.sql`: RPC INVOKER/service-only, schema privato e trigger ADDITIVO su `appuntamenti`; nessuna RPC/policy/colonna storica sostituita. Guard rilegge approvato con SHARE lock, anche sulla prima pubblicazione; stato/esiti/note degli esistenti restano modificabili.

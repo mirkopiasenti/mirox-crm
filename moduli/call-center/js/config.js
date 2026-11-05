@@ -11,6 +11,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // Inizializza il client Supabase
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Condivide la stessa sessione con MiroxApi e i componenti Mirox comuni.
+window.db = db;
 
 // Google Sheet Anagrafica sync (provvisorio)
 const GOOGLE_SHEET_SYNC_URL = 'https://script.google.com/macros/s/AKfycbySCJgU3GFRR57ed7oHenD50O--r3UcBTKlOp0NEB7M3ko_MDRkVtkR24o58-ZeqLnGOw/exec';

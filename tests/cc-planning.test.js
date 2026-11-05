@@ -1,5 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const path=require('node:path');
 const Core=require('../js/planning-core');
 const {handle,validDate}=require('../netlify/functions/gestisci-disponibilita-cc')._test;
 const Public=require('../netlify/functions/public-prenota')._test;
@@ -58,4 +59,38 @@ test('client CC: passa da MiroxApi, distingue slot vuoti da errori e non ripiega
   response={ok:false,json:async()=>({error:'Riprovare'})};assert.ok((await window.MiroxCcDisponibilita.slots('2026-11-10')).error);
   response=new Error('offline');assert.equal((await window.MiroxCcDisponibilita.slots('2026-11-10')).data,null);
   assert.match(window.MiroxCcDisponibilita.errorMessage({message:'slot_non_disponibile_planning'}),/planning approvato/);
+});
+test('pagine CC reali: configurazione, sessione e refresh arrivano alla API slot, anche dopo due giorni fuori negozio',async()=>{
+  const token=exp=>'test.'+Buffer.from(JSON.stringify({exp})).toString('base64url')+'.synthetic';
+  for(const page of ['prenota-interno.html','prenota-interno-outbound.html','appuntamenti.html'])for(const expired of [false,true]){
+    const fresh=token(Math.floor(Date.now()/1000)+3600),initial=expired?token(1):fresh;
+    let refreshes=0;const requests=[],f=fixture();
+    const expected=[...Array.from({length:9},(_,i)=>570+i*15),...Array.from({length:15},(_,i)=>930+i*15)]
+      .map(m=>`2026-11-11T${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}:00+01:00`);
+    f.db.rpc=async(name,args)=>({data:args.p_data==='2026-11-11'?expected:[],error:null});
+    const auth={getSession:async()=>({data:{session:{access_token:initial}}}),onAuthStateChange(){},refreshSession:async()=>{refreshes++;return{data:{session:{access_token:fresh}},error:null};}};
+    const window={supabase:{createClient:()=>({auth})},console,Date,Math,JSON,URLSearchParams,
+      atob:value=>Buffer.from(value,'base64').toString(),setTimeout(){},setInterval(){},addEventListener(){},
+      document:{addEventListener(){}},location:{pathname:'/moduli/call-center/'+page}};
+    window.window=window;
+    window.fetch=async(url,opts)=>{
+      requests.push(opts);
+      const event={httpMethod:'GET',queryStringParameters:Object.fromEntries(new URL(url,'https://mirox-crm.it').searchParams)};
+      const response=await handle(event,{...f.deps,requireAuth:async()=>opts.headers.Authorization==='Bearer '+fresh
+        ? {ok:true,user:{id:'user'}}:{ok:false,status:401,error:'Sessione assente'}});
+      return{ok:response.statusCode===200,status:response.statusCode,json:async()=>JSON.parse(response.body)};
+    };
+    const context=vm.createContext(window),file=path.join(__dirname,'../moduli/call-center',page);
+    const sources=[...fs.readFileSync(file,'utf8').matchAll(/<script src="([^"]+)"/g)].map(m=>m[1])
+      .filter(src=>['js/config.js','../../js/mirox-api.js','../../js/cc-disponibilita.js'].includes(src));
+    assert.equal(sources.length,3);
+    for(const src of sources)vm.runInContext(fs.readFileSync(path.resolve(path.dirname(file),src),'utf8'),context);
+    for(const date of ['2026-11-09','2026-11-10','2026-11-11']){
+      const result=await window.MiroxCcDisponibilita.slots(date);
+      assert.equal(result.error,null,`${page}: sessione disponibile per ${date}, refresh=${expired}`);
+      assert.deepEqual(result.data,date==='2026-11-11'?expected:[]);
+    }
+    assert.ok(requests.every(r=>r.headers.Authorization==='Bearer '+fresh));
+    assert.equal(refreshes,expired?1:0);
+  }
 });

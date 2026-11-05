@@ -7,6 +7,8 @@ Nessuna modifica agli account, alle gare o alle tabelle condivise col Call Cente
 
 ## Disponibilita call center — rilascio04/11/2026
 
+Correzione sessione CC05/11/2026: `moduli/call-center/js/config.js` espone lo stesso client Supabase anche come `window.db`, richiesto da MiroxApi per leggere e rinnovare il JWT. Il solo `const db` lasciava le richieste degli slot senza Authorization, pur con disponibilita corretta nel DB. Riprodotto il difetto con configurazione/MiroxApi/client slot reali; regressione sulle tre pagine con sessione valida/scaduta,9–10chiusi e11aperto.649/649test verdi, nessun nuovo client/Auth, nessuna modifica a planning, flag, disponibilita SQL, schema, RPC, trigger o permessi. I componenti condivisi devono ricevere il client su window, senza duplicare la sessione.
+
 **Attiva in produzione dal04/11/2026.** Richiesta del proprietario: collegare il call center attuale al planning senza attendere CC2.0. Confermati tutti i canali (operatrici, interno, outbound, link cliente e spostamenti), mantenimento degli orari CC attuali per ogni mese ancora senza prima approvazione e opzione giornaliera Fuori negozio.
 
 La disponibilita risultante e' l'intersezione fra gli slot del motore CC storico e la presenza contemporanea di Matteo e Vincenzo, ID planning stabili `matteo` e `vincenzo`. L'intero appuntamento, non soltanto l'ora iniziale, deve rientrare nella presenza di entrambi: con Vincenzo09:00–12:00 e Matteo09:30–12:30, appuntamenti di30minuti dalle09:30 alle11:30 incluse, mai09:00 o11:45. Conservati griglia, anticipo, chiusure/blocchi, occupazione, buffer e prenotazioni temporanee del CC.
