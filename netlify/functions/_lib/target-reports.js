@@ -121,4 +121,4 @@ function formatReportMessages(p) {
   return [text[0],...[[images.callsImage(p),'Call Center','call-center',text[1]],[images.monthImage(p),'Andamento mensile','andamento-mensile',text[2]]].map(([layout,title,file,alternate])=>({type:'image',...layout,filename:`mirox-target-${file}-${p.data}.png`,caption:`MIROX AI - Target · ${title} · ${p.data.split('-').reverse().join('/')}`,text:alternate}))];
 }
 
-module.exports={buildReports,formatReports,formatReportMessages,paged,monthlyState,callSummary,romeParts,romeMidnight,today,validateDate,nextDay,due};
+module.exports={buildReports,formatReports,formatReportMessages,paged,monthlyState,callSummary,romeParts,romeMidnight,today,validateDate,nextDay,due,CONTRACT_FIELDS};

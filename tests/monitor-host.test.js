@@ -1,0 +1,27 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const {once}=require('node:events');
+const {createHost,validateOrigin}=require('../tools/monitor-windows/monitor-host.cjs');
+const {unzipSync,strFromU8}=require('fflate');
+test('origini remote vincolate: HTTPS, niente redirect/proxy generico o production nello staging',()=>{assert.equal(validateOrigin('https://mirox-crm.it'),'https://mirox-crm.it');for(const url of ['http://mirox-crm.it','https://evil.example','https://user@mirox-crm.it','https://mirox-crm.it/path','https://mirox-crm.it?token=x'])assert.throws(()=>validateOrigin(url));assert.throws(()=>validateOrigin('https://mirox-crm.netlify.app','staging'));assert.equal(validateOrigin('https://deploy-example.netlify.app','staging'),'https://deploy-example.netlify.app');});
+test('host loopback: nonce, origin/Host, pairing, credenziale fuori browser e revoca',async t=>{
+  const root=path.resolve(__dirname,'..');let stored=null,revoked=false,requests=[];
+  const remote=async(url,options)=>{requests.push({url,options});return options.method==='POST'?{ok:true,status:200,json:async()=>({id:'device',stato:'attivo'})}:revoked?{ok:false,status:403,json:async()=>({error:'revocato'})}:{ok:true,status:200,json:async()=>({versione:1,data:'2026-11-05',day:[],mensile:[],agenda:{},aggiornato_il:'2026-11-05T14:18:00Z'})};};
+  const host=createHost({root,origin:'https://mirox-crm.it',port:0,store:{read:()=>stored,write:s=>{stored=structuredClone(s);}},remote});
+  t.after(()=>host.close());host.start();await once(host.server,'listening');
+  const request=(method,url,headers={},body)=>new Promise((resolve,reject)=>{const req=http.request({hostname:'127.0.0.1',port:host.server.address().port,path:url,method,headers:{Host:'127.0.0.1:0',...headers}},res=>{let data='';res.setEncoding('utf8');res.on('data',x=>data+=x);res.on('end',()=>resolve({status:res.statusCode,body:data,headers:res.headers}));});req.on('error',reject);req.end(body);});
+  const html=await request('GET','/monitor');assert.equal(html.status,200);const nonce=html.body.match(/name="mirox-monitor-session" content="([a-f0-9]+)"/)[1];const h={'X-Mirox-Monitor-Session':nonce,'Content-Type':'application/json'};
+  assert.equal((await request('GET','/api/snapshot')).status,403);
+  assert.equal((await request('GET','/monitor',{Host:'evil.example'})).status,403);
+  assert.equal((await request('GET','/api/snapshot',{...h,Origin:'https://evil.example'})).status,403);
+  assert.equal((await request('GET','/api/snapshot',{...h,'Sec-Fetch-Site':'cross-site'})).status,403);
+  assert.equal((await request('GET','/api/snapshot?token=x',h)).status,400);
+  const paired=await request('POST','/api/associa',h,JSON.stringify({code:'AAAA-BBBB-CCCC-DDDD'}));assert.equal(paired.status,200);assert.equal(stored.associated,true);assert.match(stored.secret,/^[a-f0-9]{64}$/);
+  const sent=JSON.parse(requests[0].options.body);assert.equal(sent.token_hash,crypto.createHash('sha256').update(stored.secret).digest('hex'));assert.ok(!requests[0].options.headers.Authorization);assert.equal(requests[1].options.headers.Authorization,'MiroxMonitor '+stored.secret);assert.equal(requests[1].options.redirect,'error');
+  const active=await request('GET','/api/snapshot',h);assert.equal(JSON.parse(active.body).stato,'attivo');assert.ok(!active.body.includes(stored.secret));assert.ok(!html.body.includes(stored.secret));
+  revoked=true;await host.refresh();const state=JSON.parse((await request('GET','/api/snapshot',h)).body);assert.equal(state.stato,'revocato');assert.equal(state.snapshot,null);
+  assert.equal((await request('POST','/api/heartbeat',h,'{}')).status,200);
+  assert.equal((await request('GET','/state.bin',h)).status,405);
+});
+test('pacchetto build: solo file in allowlist, credenziali assenti e hash verificabili',()=>{const root=path.resolve(__dirname,'..'),zip=fs.readFileSync(path.join(root,'dist/assets/mirox-monitor-windows.zip')),files=unzipSync(zip);assert.ok(files['monitor-host.cjs']&&files['install.ps1']&&files['monitor.html']);assert.ok(!Object.keys(files).some(n=>n.includes('netlify/')||n.includes('database/')||n.includes('state.bin')||n.includes('.env')));const version=JSON.parse(strFromU8(files['version.json']));for(const [name,hash] of Object.entries(version.sha256))assert.equal(crypto.createHash('sha256').update(files[name]).digest('hex'),hash);assert.deepEqual(JSON.parse(strFromU8(files['config.json'])),{environment:'production',origin:'https://mirox-crm.it'});});
+test('watchdog: primo avvio bloccato e heartbeat scaduto richiedono recupero, senza loop di riavvii',()=>{let now=1000000,restarts=0;const host=createHost({root:path.resolve(__dirname,'..'),origin:'https://mirox-crm.it',now:()=>now,store:{read:()=>null,write:()=>{}},restartBrowser:()=>restarts++});host.checkWatchdog();assert.equal(restarts,0);now+=181000;host.checkWatchdog();assert.equal(restarts,1);host.checkWatchdog();assert.equal(restarts,1);now+=121000;host.checkWatchdog();assert.equal(restarts,2);host.close();});

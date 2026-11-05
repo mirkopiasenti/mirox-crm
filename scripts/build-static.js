@@ -16,6 +16,7 @@ const FORBIDDEN_OUTPUTS = [
   'docs',
   'netlify',
   'scripts',
+  'tools',
   'tests',
   'AGENTS.md',
   'CLAUDE.md',
@@ -251,6 +252,8 @@ function buildStatic(env = process.env) {
   cameraPolicies(OUTPUT);
   fs.appendFileSync(path.join(OUTPUT,'_headers'),cameraHeaders);
   injectTelemetryScript();
+
+  require('./build-monitor-package').buildPackage(ROOT,OUTPUT,frontendConfig.environment);
 
   assertPrivateSourcesExcluded();
 

@@ -1,0 +1,53 @@
+MIROX MONITOR - WINDOWS 11
+
+Prerequisiti: Node.js LTS >=22 installato da https://nodejs.org in Program Files;
+Microsoft Edge aggiornato; account locale standard dedicato alla sola visione.
+Il servizio non contiene credenziali Supabase o account degli operatori.
+
+1. Estrarre tutto il pacchetto in una cartella temporanea sul PC.
+2. Aprire Windows PowerShell come amministratore nella cartella estratta:
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+   Il comando installa il servizio di avvio in ProgramData\MiroxMonitor.
+   La cartella e riservata a SYSTEM/amministratori. Credenziale protetta DPAPI
+   LocalMachine; nessun token in URL o nei comandi. Non copiare state.bin.
+3. Windows 11 Pro: Impostazioni > Account > Altri utenti > Configura chiosco.
+   Scegliere un utente locale standard dedicato, Edge, cartellonistica,
+   URL http://127.0.0.1:8765/monitor, nessun reset per inattivita.
+   Il comando avvia-monitor.cmd e disponibile per una prima prova manuale.
+   Su Home il comando apre lo schermo pieno ma non blocca le altre app:
+   per il chiosco bloccato serve un'edizione Windows compatibile.
+4. Da Admin Mirox > Monitor negozio, creare un codice per TV Legnago.
+   Inserirlo nella pagina locale del televisore entro 15 minuti.
+5. Impostare il Samsung come unico schermo attivo, orientamento verticale,
+   desktop 1080x1920 a 60 Hz, scala Windows e zoom Edge al 100%.
+   La pagina adatta l'intero contenuto senza scroll; verificare la lettura
+   alla distanza reale, soprattutto della tabella Day by Day completa.
+6. Alimentazione Windows: nessuna sospensione/salvaschermo diurna, Ethernet
+   consigliata, aggiornamenti e riavvii fuori 08:30-20:00. Queste impostazioni
+   non vengono cambiate dallo script. Il servizio usa l'orologio Europe/Rome.
+7. Samsung: montaggio verticale come da manuale, orologio corretto, timer
+   accensione 08:30 con HDMI, spegnimento 20:00 e volume zero. Tenere alimentato.
+   PC pronto dalle 08:20. Accensione da spento richiede RTC BIOS/UEFI; in mancanza
+   lasciare il PC acceso. Non programmarne lo spegnimento prima di questa prova.
+
+RECUPERO: il task riavvia il servizio; Assigned Access riapre Edge se chiuso.
+Se una pagina gia collegata non invia heartbeat per due minuti, il servizio
+termina solo il processo Edge con l'URL chiosco di questo monitor; Assigned
+Access lo riapre. Con avvia-monitor.cmd manuale la riapertura e manuale.
+I dati sono richiesti al server ogni 30 s, retry progressivo fino a 60 s.
+L'ora mostrata e quella dell'ultimo snapshot, non del tentativo di connessione.
+Senza rete vengono conservati in memoria con avviso; al riavvio si attende
+un nuovo snapshot. Al cambio giorno i dati vecchi sono nascosti.
+Revoca: Admin > Monitor negozio > Revoca. Lo schermo si oscura al controllo
+remoto successivo, normalmente entro 30 s (fino a 15 s aggiuntivi per timeout).
+
+AGGIORNAMENTO: scaricare il nuovo pacchetto da Admin, estrarlo e rieseguire
+install.ps1. Lo stato DPAPI esistente non viene sovrascritto. Non aggiornare
+automaticamente il codice del servizio con contenuti scaricati in background.
+RIMOZIONE: eseguire uninstall.ps1 come amministratore e revocare da Admin.
+I file rimangono per recupero; nessuna eliminazione automatica di credenziali.
+
+COLLAUDO: avvio freddo, rete assente/ripristinata, chiusura Edge, revoca,
+giorno/mese nuovo, timer TV e un'intera giornata 08:30-20:00.
+Il pacchetto deve essere pubblicato e la migration monitor applicata prima
+dell'associazione. Finche non accade il servizio non mostra numeri simulati.

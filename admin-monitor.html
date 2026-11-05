@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Monitor negozio | Admin Mirox</title>
+  <script src="js/mirox-safe.js"></script>
+  <link rel="icon" href="assets/favicon.png">
+  <link rel="stylesheet" href="css/mirox-permissions.css">
+  <script src="js/mirox-permissions-core.js"></script><script src="js/mirox-permissions-ui.js"></script>
+  <link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/admin-shell.css"><link rel="stylesheet" href="css/admin-permessi.css">
+  <script src="js/admin-shell.js" defer></script>
+</head>
+<body class="mx-admin-shell">
+  <main class="admin-container permissions-page">
+    <header class="permissions-header"><div><p class="permissions-eyebrow">Configurazioni</p><h1>Monitor negozio</h1><p>Postazioni dedicate alla sola visione dei KPI di Legnago.</p></div><button id="monitorReload" type="button" class="permission-button">Ricarica</button></header>
+    <p id="monitorAdminStatus" role="status" aria-live="polite">Caricamento postazioni...</p>
+    <section class="permission-group"><h2>Configura il computer del televisore</h2><p>Scarica il pacchetto, estrailo sul PC Windows 11 e segui LEGGIMI.txt. Il monitor richiede una postazione dedicata e un codice emesso qui.</p><p><a id="monitorDownload" href="#" download>Scarica pacchetto Windows</a> · <a href="monitor.html" target="_blank" rel="noopener">Pagina monitor</a></p></section>
+    <section class="permission-group"><h2>Associa una nuova postazione</h2><form id="monitorCreate" class="permissions-toolbar"><label>Nome postazione<input class="form-control" id="monitorName" maxlength="80" placeholder="TV Legnago" required></label><button id="monitorCreateButton" class="permission-button primary" type="submit">Crea codice associazione</button></form><div id="monitorCodeBox" hidden><p>Inserisci questo codice sul PC del televisore. Scade dopo 15 minuti ed è utilizzabile una sola volta.</p><h2 id="monitorCode"></h2><p id="monitorCodeExpiry"></p></div></section>
+    <section class="permissions-history"><h2>Postazioni</h2><p>Una revoca impedisce le successive letture. Il display si oscura al prossimo controllo, normalmente entro 30 secondi.</p><div id="monitorDevices"></div></section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
+  <script src="js/config.js"></script><script src="js/auth.js"></script><script src="js/mirox-ui.js"></script><script src="js/mirox-api.js"></script><script src="js/admin-monitor.js"></script>
+</body>
+</html>

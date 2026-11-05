@@ -1,5 +1,14 @@
 # CLAUDE.md — Guida per AI assistants
 
+Monitor negozio05/11: push richiesto, pubblicazione in verifica.
+monitor.html/admin-monitor.html e API monitor-kpi/admin-monitor, associazione
+monouso15min/chiave dispositivo256bit revocabile separata da profili/ACL;
+migration sorgente20261105123113 applicata su consenso esplicito come
+production20261105131100; legacy e dati esistenti invariati per impronta. ZIP Windows da build,
+helper Node>=22/DPAPI LocalMachine/taskSYSTEM/loopback, logo e Inter4.1 locali,
+agenda→Day completo→mensile soli punti. Nessun DB legacy/cliente toccato.
+Fonti AGENTS, docs/MONITOR_NEGOZIO.md e databaseREADME; collaudo PC/TV necessario.
+
 Rettifica avvisi Gare04/11, pubblicata: ! solo se esiste una riga della stessa scheda con compenso visibile>=1EUR e manca il requisito della riga segnalata. Valuta tutte le gare una sola volta prima di comporre gli avvisi, indipendente da ordine/totalepagabile; no somma di importi singolarmente sotto1, no etichette/decurtazioni senza euro visibili. OKverde/KOrosso entrambi grassetto800, CSS specifico!important per superare il colore globale delle celle.74test mirati/build verdi, conflittoCSS riprodotto e override verificato. Suite completa642/642verde, nessun DB/browser. Push richiesto/completato3bf67e2, CI41917579587LinuxNode22verde, Netlify6aeba5386a825ab30200cd78 online; HTTP200/SHA/inline identici, condizione>=1EUR e colori/peso800!important verificati, tema/core invariati. Guide aggiornate, WIP precedenti conservati.
 
 Accesso bonus04/11, pubblicato: da novembre2026 quattro soglie personali obbligatorie (Fisso10Consumer+Business, Energia10Consumer+Business, MobileBusiness10tutte offerte Mobile, FissoBusiness1incluso nei10), un contratto=un pezzo, alias/entrambi negozi e no reinserimenti. Righe compenso invariate, totale0se manca una soglia anche con bonus squadra. Riepilogo soglia/inserito KOrosso/OKverde e ! sulle righe interessate, incluso PNG. Minimo garaFisso10anche nel popup tramite `database/configura_accesso_bonus_da_novembre_2026.sql`:2670righe/890mesi, altri campi/storico/catalogo/profili conservati. Push72ee5ee completato, CI41886971509LinuxNode22verde640test, Netlify6aeb788855eac0b0b73d8a82 online e asset/inline HTTP identici. Script dati applicato/riletto2670Fisso/890mesi, hash campi estranei/altri obiettivi/storico/catalogo/profili identici; renderer reale conferma bonus150visibile/totale0con5SIM e totale300con10SIM/tutte soglie, popupFisso10. Snapshot privati ignorati, nessun browser/account/sessione/email/contratto modificato. Dettagli in AGENTS/databaseREADME/promemoria.

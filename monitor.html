@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <!--MIROX_MONITOR_SESSION-->
+  <title>Mirox Monitor</title>
+  <link rel="icon" href="assets/favicon.png">
+  <link rel="stylesheet" href="css/monitor.css">
+</head>
+<body>
+  <main id="monitorStage" class="monitor-stage">
+    <header class="monitor-header">
+      <div><div class="monitor-logo"><img src="assets/logo.png" alt="Mirox CRM"></div><p>MONITOR · <span id="monitorStore">LEGNAGO</span></p></div>
+      <div class="monitor-clock"><time id="monitorClock">--:--</time><p id="monitorDate"></p></div>
+    </header>
+    <div id="monitorHealth" class="monitor-health" role="status" aria-live="polite">Connessione alla postazione...</div>
+    <section id="monitorPair" class="monitor-panel monitor-pair" hidden>
+      <h1>Associa questa postazione</h1><p id="monitorPairHelp">Da Admin → Monitor negozio crea un codice, poi inseriscilo qui.</p>
+      <form id="monitorPairForm"><label>Codice associazione<input id="monitorPairCode" name="code" autocomplete="off" maxlength="19" placeholder="XXXX-XXXX-XXXX-XXXX" required></label><button id="monitorPairButton" type="submit">Associa monitor</button></form>
+      <p id="monitorPairStatus" role="status" aria-live="polite"></p>
+    </section>
+    <div id="monitorData" class="monitor-data" hidden>
+      <section class="monitor-panel" aria-label="Appuntamenti di oggi"><header><div><p class="monitor-eyebrow">AGENDA DI OGGI</p><h1 id="agendaTitle">Appuntamenti</h1></div><span id="agendaPage"></span></header><div id="agendaSummary" class="agenda-summary"></div><div id="agendaNext"></div><div id="agendaList"></div></section>
+      <section class="monitor-panel" aria-label="Day by Day"><header><h1>Day by Day</h1><span id="dayTotal"></span></header><div id="dayTable"></div></section>
+      <section class="monitor-panel" aria-label="Avanzamento mensile"><header><div><p class="monitor-eyebrow">AVANZAMENTO MENSILE</p><h1 id="monthTitle"></h1></div><span>Punti / obiettivo</span></header><h2>STANDARD</h2><div id="monthStandard"></div><h2>PARTITA IVA</h2><div id="monthBusiness" class="month-business"></div><div id="monthExtra"></div></section>
+    </div>
+    <footer><span id="monitorStation">Solo visione · 08:30–20:00 · Europe/Rome</span><span id="monitorTimestamp"></span></footer>
+  </main>
+  <script src="js/mirox-safe.js"></script>
+  <script src="js/mirox-api.js"></script>
+  <script src="js/monitor-core.js"></script>
+  <script src="js/monitor.js"></script>
+</body>
+</html>

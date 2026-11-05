@@ -125,6 +125,32 @@ Sostituire sempre con testo descrittivo (es. `🔄 Aggiorna` → `Aggiorna`, `�
 - **Repo GitHub**: `git@github.com:mirkopiasenti/mirox-crm.git` (dal 2026-07-02, prima era `konahub-vendita-test` — redirect ancora attivo ma va usato il nome nuovo)
 - **Netlify site di questa codebase**: **`mirox-crm`** (nome sito Netlify dal 2026-07-02, prima era il vecchio nome legato al test). Custom domain **`mirox-crm.it`** in production dal 2026-06-29 — tutte le functions, compreso Guardian, rispondono qui. Env vars Supabase, OpenAI, Telegram e degli altri servizi sono configurate su questo site
 - **Guardian production**: sito `mirox-crm.it`, branch `main`, Supabase `lbgwamhjkjjfwgusafbi`, bot `@MiroxAiGuardianBot`. Dal 05/10/2026 il proprietario autorizza sviluppo e collaudo direttamente in produzione; nessun ambiente Guardian separato da ricreare.
+### Monitor KPI negozio — sviluppo locale 05/11/2026
+
+Push richiesto05/11; migration applicata su consenso esplicito, versione
+production20261105131100. Pubblicazione del codice in verifica.
+`monitor.html`: logo originale, agenda in alto, Day completo al centro, mensile
+Standard/P.IVA senza pezzi in basso. Inter4.1 locale/SIL OFL in assets/fonts;
+helper Node>=22 senza npm esterni in tools/monitor-windows, ZIP allowlist dalla
+build (fflate esistente). Dettagli e installazione: docs/MONITOR_NEGOZIO.md.
+`admin-monitor.html` e Configurazioni Admin: codici monouso15min, elenco/revoca;
+`admin-monitor` verifica JWT e profilo fresco, RPC verifica admin nuovamente.
+`monitor-kpi` accetta credenziale256bit dedicata via Authorization MiroxMonitor:
+nessun account profili/ACL operativo sul TV. Nuove tabelle/RPC mirox_monitor_*,
+RLS e privilegi solo service_role, nessuna modifica ai DB condivisi CC.
+Eccezione documentata all'Auth guard: monitor.html e' shell senza KPI pubblici;
+solo helper loopback puo' leggere snapshot, nonce per processo/Host/Origin/CSP.
+Segreto DPAPI LocalMachine + ACL SYSTEM/admin, taskSYSTEM all'avvio; browser
+Edge kiosk InPrivate senza credenziale lunga. Riavvio servizio e watchdog della
+sola finestra monitor; recupero reale Windows/TV da collaudare. Nessun numero
+simulato nel runtime, snapshot in memoria/no disco, revoca verificata a ogni
+lettura remota anche con cache. Poll30s/retry60s, snapshot atomico e dataRome;
+90s avviso/5min obsoleto, cambio giorno nasconde vecchi dati. Core report e
+loader Target condivisi, export CONTRACT_FIELDS additivo, invii Target invariati.
+Day mantiene tutte le righe senza paginazione; solo successivi appuntamenti
+paginati15s, prossimo fisso. Fit uniforme senza scroll, leggibilita' sulTV da
+verificare. Nessuna nuova env, cronNetlify o dipendenza npm.
+
 - `test-upload-contratti-konahub.netlify.app` — vecchio URL di test del repo. **Non è più aggiornato** (le functions OTP rispondono 404). Deprecato — l'URL "buono" è `mirox-crm.it`
 - `mirox-crm.netlify.app` — il 05/10/2026 il pannello Netlify Domain management lo mostra come alias del site `mirox-crm`, collegato a questo repository e a `mirox-crm.it`. La precedente indicazione di un progetto CC distinto su questo URL è obsoleta. Il repository/deploy storico del CC resta da identificare; i vincoli sulle tabelle condivise restano validi.
 
@@ -291,6 +317,10 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 
 Nuova function del28/10 `verifica-identita-upload.js`: JWT/permesso upload_contratti, lettura PDF e conferma manuale, ricevuta HMAC. Nessun cron, chiave o invio nuovo.
 
+`admin-monitor.js` (GET/POST) gestisce postazioni solo per admin fresco;
+`monitor-kpi.js` ha autenticazione dispositivo dedicata, GET aggregati e POST
+solo associazione monouso/rate-limited. Nessuna API anonima per leggere KPI.
+
 Planning personale (locale29/10): `gestisci-planning.js` usa JWT/profilo freschi, distingue Admin/proprietario e serve PDFKit in memoria; `planning-pdf.js` include il logo ufficiale configurato in Netlify. Nessun cron/env/dipendenza runtime nuova; migration applicata production20261029210434; deploy verificato29/10.
 
 Disponibilita CC (pubblicata04/11): `gestisci-disponibilita-cc.js` GET con JWT e rilettura profilo attivo/ruolo/chiavi CC; admin o una fra `prenota_interno`, `registra_chiamata`, `appuntamenti`, `call_center_lead_outbound`, `rilavorazione`. Restituisce solo slot/no-store tramite nuova RPC service-only. `public-prenota` GET usa lo stesso filtro, POST conserva la RPC atomica storica con ulteriore guard DB aggiuntiva. Nessun nuovo cron/env/dipendenza, nessun fallback legacy su errori. Conferme esplicite tabella condivisa e push ricevute04/11; migration applicata20261104220255, pubblicazione verificata online04/11.
@@ -362,6 +392,24 @@ Le migration Guardian additive `065`–`068` sono applicate sul production `lbgw
 ### Personale / planning (locale29/10, migration production20261029210434 applicata)
 
 Migration applicata production20261104220255, sorgente `database/20261104214454_cc_disponibilita_planning.sql`: nuova RPC INVOKER/service-only `mirox_cc_slot_disponibili_v1(date)` interseca il risultato originale `get_slot_disponibili(date)` con la presenza approvata; schema non esposto `mirox_cc_privato`, helper puro INVOKER e trigger aggiuntivo `trg_mirox_cc_planning` su INSERT/UPDATE data/ora/durata/stato di `appuntamenti`. Solo il trigger e' DEFINER (search_path vuoto, nessun EXECUTE ai client, controllo auth.uid/profilo per i chiamanti authenticated/anon) per applicare il vincolo anche ai client legacy senza esporre planning privati. SHARE lock su `personale_planning_mesi` serializza il controllo finale con pubblicazioni/salvataggi e primo inserimento mensile; nessuna RPC/policy/colonna esistente sostituita. `offsite` opzionale nel JSON del giorno, default false, conserva ore/PDF e resta nella sola vista Admin.90verifiche SQL sintetiche e133confronti sul replay read-only reale,648test e DOM verdi. Conferma esplicita tabella condivisa ricevuta04/11; applicazione verificata, privilegi corretti e impronte dati/RPC/policy/trigger storici identiche. Fonte operativa `docs/PLANNING_PERSONALE.md`.
+
+### Monitor negozio — migration applicata05/11/2026
+
+`database/20261105123113_monitor_kpi_dispositivi.sql`: mirox_monitor_dispositivi
+(nome/negozio/stato/hash-token/hash-codice/scadenza/autore/timestamp),
+mirox_monitor_audit append-only e mirox_monitor_rate. RLS ON, PUBLIC/anon/
+authenticated revocati; service_role solo privilegi necessari. RPC INVOKER
+mirox_monitor_amministra/associa/limita, search_path vuoto, EXECUTE service-only;
+codice15min monouso, associazione/revoca con audit atomico, retry idempotente,
+rate20/15min e cleanup opportunistico24h. Profili letti per admin senza FK o
+modifiche; nessun oggetto legacy CC alterato. Applicata20261105131100,
+profili/appuntamenti/RPC/policy/trigger legacy identici per impronta;
+WARN/ERROR advisor invariati, sole3INFO attese RLSdenyclient senza policy.
+Nessun dispositivo/audit/rate creato. Seconda migration sorgente20261105131304
+monitor_privilegi_service_role applicata05/11 restringe ALL ereditati dai default
+Supabase: audit append-only, dispositivi senza DELETE/TRUNCATE, solo nuovi
+oggetti e nessun cambio globale. QA isolata50check con default production.
+
 
 `personale_planning_config` (singleton versionato, roster/orari/account), `personale_planning_mesi` (bozza e snapshot pubblicato distinto, versione CAS), `personale_planning_audit` (autore/azione/versione). RPC nuove INVOKER/service-only `personale_salva_config` e `personale_salva_mese`: admin attivo riletto e audit atomico. RLS ON, privilegi PUBLIC/anon/authenticated revocati; accesso esclusivo via `gestisci-planning` con autorizzazione Admin o proprieta' del singolo pubblicato. Migration `database/20261029200010_personale_planning.sql`, nessun FK/schema/policy/trigger/RPC delle tabelle condivise modificato.
 
@@ -1206,6 +1254,11 @@ Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile
 ### Planning personale (rilascio 29/10/2026)
 
 Integrazione disponibilita CC richiesta04/11 (pubblicata04/11): intersezione fra slot storici e presenza contemporanea dei dipendenti planning con ID stabili `matteo`/`vincenzo`, per tutta la durata dell'appuntamento, in Europe/Rome. Solo snapshot approvato del mese: finche manca, conservare gli orari CC attuali; bozza e consuntivi non determinano disponibilita. Sottrarre assenze, riposi, chiusure e giornate `offsite` (opzione Admin Fuori negozio, default false per documenti precedenti; non inferire dalla nota/formazione). Tutte le nuove prenotazioni e rischedulazioni, anche pubbliche e outbound, seguono la regola; appuntamenti gia fissati conservati, modifiche di soli esiti/note e annullamenti ammessi. Nessuna esposizione dei documenti Personale agli operatori CC. Nuova RPC INVOKER/service-only e trigger aggiuntivo su `appuntamenti`, senza modificare RPC/policy/colonne storiche;90verifiche SQL sintetiche+133confronti replay,648test e DOM verdi; conferma esplicita tabella condivisa ricevuta04/11, migration applicata20261104220255. Push4934399 completato; CI41921986253LinuxNode22verde648test, Netlify6aebabfaaa239b34864b252aonline,8asset identici e API/slot verificati HTTP.
+Nuova pagina admin-monitor.html/voce Monitor negozio nelle Configurazioni,
+admin-only: elenco, codice associazione15min e revoca; download ZIP Windows
+generato dalla build. Nessun account dispositivo in profili o assegnazione ACL.
+
+
 
 Aggiornamento sviluppato02/11/2026, push autorizzato04/11: dettagli giornalieri condivisi (`details`, massimo500caratteri) separati dalla nota interna. Modificabili nel dettaglio Admin, visibili nel calendario Admin, nelle Indicazioni del proprio planning pubblicato e del PDF personale; nessuna esposizione di note interne/codici/causali o dettagli altrui. Campo assente nei mesi precedenti normalizzato a stringa vuota; JSONB esistente, nessuna migration o scrittura production. Orari liberi anche fuori apertura per formazione, parser tollerante a ore senza zero iniziale, punto/colon, trattini copiati e separatori ; , / o nuova riga, salvataggio canonico HH:mm. Sovrapposizioni/inversioni/orari inesistenti restano vietati; nessuna conversione automatica in straordinari. Dettagli nel PDF con righe ad altezza misurata e continuazioni; collettivo e scheda ore conservano il perimetro precedente. Push richiesto04/11, verifiche di rilascio in docs/STATO_LAVORO.md.
 

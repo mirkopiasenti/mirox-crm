@@ -8,6 +8,28 @@ modifiche DB, alle regole o alle configurazioni mensili. Pubblicato04/11 con `34
 Netlify6aeb50fdd37bd8459551ab7b online; CSS/markup/script e asset condivisi
 identici via HTTP.
 
+## Monitor negozio — migration applicata05/11/2026
+
+`20261105123113_monitor_kpi_dispositivi.sql` aggiunge soltanto tre tabelle
+`mirox_monitor_dispositivi`, `mirox_monitor_audit`, `mirox_monitor_rate` e tre
+RPC INVOKER `mirox_monitor_amministra`, `mirox_monitor_associa`, `mirox_monitor_limita`.
+RLS ON, nessun privilegio PUBLIC/anon/authenticated; service_role con DML minimo,
+audit append-only e nessuna cancellazione dispositivi. Hash SHA256 della chiave
+casuale256bit e del codice monouso15min, mai segreti in chiaro; rate20/15min,
+bucket HMAC/IP senza IP in chiaro e cleanup opportunistico24h/max10000bucket.
+Scrittura Admin con profilo fresco e audit atomico, associazione monouso/retry,
+revoca idempotente; nessuna funzione DEFINER o modifica schema/RPC/RLS/trigger
+legacy/profili/appuntamenti. Script creato con CLI ufficiale, QA PGlite0.5.13
+isolato50check verdi. Applicata su consenso esplicito come versione20261105131100;
+profili/appuntamenti/RPC/policy/trigger legacy identici per impronta. WARN/ERROR
+advisor invariati, sole3INFO RLSdenyclient attese. Nuove tabelle vuote; nessun
+dispositivo/sessione/cliente di prova creato. Non rilanciare migration storiche/WIP.
+`20261105131304_monitor_privilegi_service_role.sql` applicata05/11: revoke/grant
+espliciti per neutralizzare i default ALL service_role sulle sole tre tabelle
+nuove; audit append-only reale, dispositivi senza DELETE/TRUNCATE, nessun
+cambio ai default globali. QA isolata ampliata50check con gli stessi default.
+[Guida runtime, Windows e attivazione](../docs/MONITOR_NEGOZIO.md).
+
 ## Accesso bonus da novembre2026 — applicato04/11/2026
 
 Rettifica UI04/11 successiva al rilascio, pubblicata: ! sui requisiti

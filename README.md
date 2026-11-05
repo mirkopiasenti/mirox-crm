@@ -2,8 +2,21 @@
 
 Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della rete Konatech. Static frontend HTML/JS + Netlify Functions (Node) + Supabase Postgres.
 
+## Monitor KPI negozio — sviluppato in locale 05/11/2026
+
+Pagina `monitor.html` per Samsung ME40B verticale e Windows 11: appuntamenti in
+alto, Day by Day completo al centro e mensile Standard/P.IVA in basso senza
+pezzi. Logo originale e Inter 4.1 locale, solo visione 08:30–20:00.
+`admin-monitor.html` crea codici monouso di 15 minuti e revoca le postazioni;
+nessun account operatore sul televisore. API con credenziale dispositivo separata,
+KPI aggregati e nessun dato cliente. La build produce il pacchetto Windows con
+helper loopback/DPAPI e istruzioni, scaricabile dall'Admin dopo la pubblicazione.
+**Migration attivata05/11 su consenso esplicito; push richiesto, pubblicazione in verifica.**
+[Installazione, architettura e collaudo](docs/MONITOR_NEGOZIO.md).
+
 ## Stack
 
+- **Monitor Windows**: helper Node.js >=22 senza npm esterni, task SYSTEM/DPAPI LocalMachine e Edge Assigned Access; font Inter 4.1 locale con SIL OFL. ZIP prodotto da fflate gia presente, nessuna nuova env o schedulazione Netlify.
 - **Frontend**: HTML statico + JavaScript vanilla (no bundler), Inter via Google Fonts, client Supabase `@supabase/supabase-js@2.110.8` da CDN con Subresource Integrity
 - **Disponibilita CC / Personale (rilascio autorizzato04/11)**: client condiviso `js/cc-disponibilita.js`, API autenticata e filtro SQL degli slot; nessuna dipendenza/env/cron nuova. [Regole, collaudo e attivazione](docs/PLANNING_PERSONALE.md#disponibilita-call-center--rilascio04112026).
 - **Backend serverless**: Netlify Functions (Node >=22 + esbuild), librerie versionate esattamente (`@supabase/supabase-js@2.110.8`, `nodemailer@10.3.1`, `busboy`, `pdfkit`, `pdf-lib@1.17.1`, `unpdf@1.9.1` per il recupero testuale PDA, `fflate@0.8.3` per gli export `.xlsx`, `@resvg/resvg-js@2.6.2` per i report PNG Target, `qrcode@1.5.4` per QR, `zxing-wasm@3.1.6` e `@napi-rs/canvas@1.0.13` per decodificare barcode dai PDF)
@@ -64,12 +77,22 @@ contratti previsti il 28/10; consumo IO da misurare. Dettagli nel rapporto
 
 ## Struttura cartelle
 
+Monitor: `monitor.html`, `admin-monitor.html`, `css/monitor.css`, `js/monitor*.js`,
+`js/admin-monitor.js`, font/licenza in `assets/fonts/`, helper in
+`tools/monitor-windows/`. `scripts/build-monitor-package.js` genera lo ZIP in
+`dist/assets/` tramite allowlist; sorgenti backend, tools e SQL restano esclusi
+dalla pubblicazione diretta. Nessun segreto o stato dispositivo nel pacchetto.
+
+
 | Cartella / File | Cosa contiene |
 |---|---|
 | `index.html` | Login Supabase Auth |
 | `imposta-password.html` | Accetta inviti Auth, crea la sessione dal link e consente di scegliere la password senza comunicarla agli amministratori |
 | `dashboard.html` | Home con tabs Vendita / Post-Vendita + topbar con bottoni Applicazioni / Appuntamenti Oggi / Ticket / Call Center / **Admin** (visibile solo se `ruolo='admin'`) + badge ticket aperti. Nell'angolo inferiore destro una mascotte KONA AI Guardian di dimensioni ridotte con nuvoletta di chat compatta apre la raccolta di problemi o migliorie; il bottone Applicazioni apre un pannello espandibile sopra il saluto e collega a `Il mio planning`, `Compilatore disdette` e `Compilatore Subentri` |
-| `admin.html` | **Hub Admin Mirox** — shell a due aree con sidebar dei reparti e area di lavoro. `Configurazioni` contiene 5 moduli, inclusi i Permessi pagine; `KPI` raccoglie i moduli di analisi. Accesso ristretto a `ruolo='admin'` |
+| `admin.html` | **Hub Admin Mirox** — shell a due aree con sidebar dei reparti e area di lavoro. `Configurazioni` contiene 6 moduli, inclusi Permessi pagine e Monitor negozio; `KPI` raccoglie i moduli di analisi. Accesso ristretto a `ruolo='admin'` |
+| `monitor.html` | Shell del monitor verticale, KPI riservati alla postazione associata tramite helper Windows; agenda, Day completo e mensile senza pezzi. Locale, rilascio da attivare |
+| `admin-monitor.html` | Configurazioni Admin: download pacchetto Windows, codice associazione15min, elenco postazioni e revoca |
+| `tools/monitor-windows/` | Helper Node>=22/DPAPI/taskSYSTEM, installer e guida PC; escluso dalla pubblicazione diretta, ZIP generato per allowlist |
 | `admin-planning.html` | Reparto Personale: planning mensile, assenze, consuntivi, straordinari manuali, bozza/approvazione e PDF. Online29/10; migration20261029210434 applicata |
 | `planning-personale.html` | Consultazione autenticata del solo planning pubblicato del dipendente collegato al login, con PDF personale; collegamento da Applicazioni |
 | `js/planning-core.js`, `js/planning.js`, `css/planning.css` | Motore puro condiviso per calendario/conteggi/validazioni e UI delle due pagine Personale |
@@ -136,6 +159,8 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `gestisci-planning` | GET/POST | admin / dipendente proprietario | Configurazione, bozza, pubblicazione atomica e PDF; dipendenti limitati al proprio snapshot pubblicato, senza causali/codici/note |
 | `gestisci-disponibilita-cc` | GET | admin / permessi CC di prenotazione | Solo slot filtrati dalla presenza approvata di Matteo e Vincenzo; profilo riletto, nessun documento Personale esposto; rilascio autorizzato04/11 |
 | `admin-permessi-pagine` | GET/POST | admin | Utenti e ACL, audit e salvataggio atomico versionato |
+| `admin-monitor` | GET/POST | admin fresco | Elenco, codice associazione 15min e revoca postazioni monitor |
+| `monitor-kpi` | GET/POST | credenziale monitor / codice monouso | Snapshot KPI aggregati in sola lettura; POST limitato all’associazione, senza JWT operatore |
 | `admin-vendita-config` | GET / POST | **admin** | CRUD admin del catalogo |
 | `admin-kpi-vendita-consumer` | GET | **admin** | Aggrega i KPI Consumer o Business, selezionati tramite parametro `cluster`, per Mobile, Fisso, Customer Base, Luce & Gas, Allarmi e Assicurazioni; la scheda Customer Base è mostrata soltanto nel Consumer |
 | `admin-kpi-call-center` | GET | **admin** | Aggrega per giorno e operatrice chiamate Consumer e lead Business outbound, distingue nuovi appuntamenti e rischedulati, riclassifica le conversioni anticipate come vinte ed espone esiti, arretrato e presenze |
@@ -761,6 +786,11 @@ Le pagine sono state copiate **mantenendo la loro logica interna** (testata in p
 Correzione sessione CC05/11/2026: `moduli/call-center/js/config.js` espone lo stesso client Supabase anche come `window.db`, richiesto da MiroxApi per leggere e rinnovare il JWT. Il solo `const db` lasciava le richieste degli slot senza Authorization, pur con disponibilita corretta nel DB. Riprodotto il difetto con configurazione/MiroxApi/client slot reali; regressione sulle tre pagine con sessione valida/scaduta,9–10chiusi e11aperto.649/649test verdi, nessun nuovo client/Auth, nessuna modifica a planning, flag, disponibilita SQL, schema, RPC, trigger o permessi. I componenti condivisi devono ricevere il client su window, senza duplicare la sessione.
 
 Disponibilita call center richiesta04/11, **attiva in produzione dal04/11**: dopo l'approvazione mensile, ogni nuovo appuntamento deve essere interamente compreso nei turni contemporanei di Matteo e Vincenzo, sottraendo assenze, riposi e chiusure. Prima della prima approvazione del singolo mese restano gli orari CC attuali. Nel dettaglio Admin, **Fuori negozio per tutta la giornata** esclude la presenza in negozio senza ridurre le ore lavorative; richiede salvataggio e nuova approvazione. Vale per operatrici, interno, outbound, pubblico e spostamenti; appuntamenti gia fissati conservati. RPC legacy, tabelle orari/blocchi e permessi invariati; migration con trigger aggiuntivo su `appuntamenti` applicata come20261104220255 dopo conferma esplicita; push autorizzato e pubblicazione verificata online04/11.648test,90verificheSQL sintetiche+133confronti replay read-only, DOM senza browser verdi. [Dettagli](docs/PLANNING_PERSONALE.md#disponibilita-call-center--rilascio04112026).
+Nuova voce Configurazioni → **Monitor negozio**, solo Admin: codici monouso,
+stato/ultimo contatto e revoca; endpoint admin con profilo riletto e RPC con
+controllo ruolo fresco. Nessuna nuova pagina nel catalogo ACL degli operatori.
+
+
 
 Aggiornamento planning sviluppato02/11, push richiesto04/11: nel dettaglio giornaliero il campo **Dettagli per il dipendente** permette di indicare formazione, sede e indirizzo nelle Indicazioni personali e nel PDF (massimo500caratteri), separato dalla nota interna. Orari anche fuori apertura, con formati come `9:00-18:00` o `8-13 / 14-18`, normalizzati automaticamente. Salvataggio bozza e pubblicazione conservano il flusso esistente; nessuna nuova migration; esito del rilascio in docs/STATO_LAVORO.md.
 
@@ -774,6 +804,7 @@ Dal 2026-06-24 il bottone **Admin** della topbar dashboard è attivo per gli ute
 - **Gestione Utenti** ([`admin-utenti.html`](admin-utenti.html)) — tabella `profili`: cambio ruolo admin↔operatore, abilita/disabilita, modale permessi granulari Call Center, flag `in_gara`. Un admin non può togliere il proprio ruolo né disabilitarsi
 - **Configurazione Call Center** ([`admin-call-center-config.html`](admin-call-center-config.html)) — orari settimanali, blocchi/chiusure, parametri di sistema (durata slot, anticipo, scadenze). Spostata da `moduli/call-center/configurazione.html` (eliminata)
 - **Catalogo Vendita** ([`admin-vendita-config.html`](admin-vendita-config.html)) — CRUD categorie/offerte/opzioni/reload. Ora gated dal ruolo `admin` (prima era protetto da una password client-side `1234`, rimossa)
+- **Monitor negozio** ([`admin-monitor.html`](admin-monitor.html)) — download pacchetto Windows, associazione monouso15min e revoca delle postazioni in sola visione; sviluppato localmente, attivazione da eseguire.
 - **Gare & Avanzamento** ([`admin-gare.html`](admin-gare.html)) — configura metriche + obiettivi mensili per operatore + regole compenso a scaglioni + bonus una tantum. Bottone "Duplica dal mese precedente" per ripartire velocemente ad ogni cambio gara. Alimenta le tab "Gare Individuali" e "Avanzamento Mensile" del modulo `dashboard_pezzi`
 
 Il secondo reparto **KPI** contiene **Vendita - Consumer** ([`admin-kpi-vendita-consumer.html`](admin-kpi-vendita-consumer.html)), **Vendita - Business** ([`admin-kpi-vendita-business.html`](admin-kpi-vendita-business.html)) e **Call Center** ([`admin-kpi-call-center.html`](admin-kpi-call-center.html)). Le due pagine Vendita condividono le categorie `Mobile`, `Fisso`, `Luce & Gas`, `Allarmi`, `Assicurazioni` e i filtri anno/punto vendita/operatore; il Consumer aggiunge `Customer Base` tra Fisso e Luce & Gas. Il filtro operatore offre `Tutti` o un singolo profilo canonico e aggiorna immediatamente tutte le tabelle, senza un dettaglio operatori separato in fondo alla pagina. Il KPI Call Center offre filtri anno, mese, vista e operatrice, con viste giornaliera, settimanale e mensile. Su viewport mobili la sidebar diventa un menu richiudibile. Navigazione, stato attivo, profilo e logout sono generati da `js/admin-shell.js`; aspetto e adattamento responsive sono centralizzati in `css/admin-shell.css` e `css/admin-kpi.css`.
