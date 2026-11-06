@@ -190,6 +190,8 @@ origine staging fittizia, senza DB o credenziali reali. Supervisor recupera anch
 errori stderr nativi. Heartbeat distingue attesa dati da errore rendering;
 rollback anche dopo prima conferma e per viewer bloccato sulla versione vecchia.
 Agenda ogni15s di tempo reale, indipendente dal numero di poll.
+Payload web pubblicati come <nome>.bin per evitare riscritture HTML/PrettyURL
+di Netlify; il loopback conserva URL e MIME originali dopo verifica dei byte.
 
 
 - `test-upload-contratti-konahub.netlify.app` — vecchio URL di test del repo. **Non è più aggiornato** (le functions OTP rispondono 404). Deprecato — l'URL "buono" è `mirox-crm.it`

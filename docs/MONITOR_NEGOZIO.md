@@ -184,6 +184,9 @@ formato/API1, elenco fisso10asset web, dimensioni e SHA256. L'identificatore del
 versione deriva dal contenuto, quindi push estranei al monitor non ricaricano
 lo schermo. Gli asset stanno in `/assets/monitor-releases/<versione>/`;
 manifest no-store e URL di contenuto immutabili. Nessun dato KPI o credenziale.
+Il trasporto aggiunge `.bin` ai nomi per escludere le riscritture HTML/PrettyURL
+dell'hosting; i nomi originali e il MIME corretto vengono ripristinati dal servizio
+loopback. Non si confronta un HTML post-processato con il suo sorgente di build.
 
 `monitor-updates.cjs` interroga il manifest ogni30s e al primo avvio. Scarica
 soltanto dall'origine HTTPS gia validata, senza credenziale dispositivo, con

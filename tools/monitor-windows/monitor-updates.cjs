@@ -62,7 +62,7 @@ function createPageUpdates({root,origin,remote=fetch,now=Date.now,onRollback=()=
       if(manifest.versione===current||blocked.has(manifest.versione)||pending)return false;
       const entries=await Promise.all(WEB.map(async name=>{
         const expected=manifest.files[name];
-        const bytes=await download('/assets/monitor-releases/'+manifest.versione+'/'+name,expected.bytes,signal);
+        const bytes=await download('/assets/monitor-releases/'+manifest.versione+'/'+name+'.bin',expected.bytes,signal);
         if(bytes.length!==expected.bytes||digest(bytes)!==expected.sha256)throw Error('File pagina non integro.');
         return [name,bytes];
       }));

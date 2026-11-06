@@ -17,8 +17,9 @@ function publisher(content){
     if(state.change){const changed=await state.change(name);if(changed)return changed;}
     if(name==='/assets/monitor-release.json')return new Response(JSON.stringify(state.manifest));
     const prefix='/assets/monitor-releases/'+state.manifest.versione+'/';
-    if(!name.startsWith(prefix)||!state.content[name.slice(prefix.length)])return new Response('',{status:404});
-    return new Response(state.content[name.slice(prefix.length)]);
+    const relative=name.startsWith(prefix)&&name.endsWith('.bin')?name.slice(prefix.length,-4):null;
+    if(!name.startsWith(prefix)||!state.content[relative])return new Response('',{status:404});
+    return new Response(state.content[relative]);
   };
   return state;
 }
@@ -37,7 +38,7 @@ test('pubblicazione pagina: hash/API, download senza credenziali e asset precede
 test('download incompleto: versione attiva atomica e richieste simultanee condivise',async t=>{
   const pub=publisher(files('atomic')),pages=updater(t,pub),old=pages.version;
   let unlock,entered;const began=new Promise(resolve=>{entered=resolve;});const gate=new Promise(resolve=>{unlock=resolve;});t.after(()=>unlock());
-  pub.change=async name=>{if(name.endsWith('/css/monitor.css')){entered();await gate;}return null;};
+  pub.change=async name=>{if(name.endsWith('/css/monitor.css.bin')){entered();await gate;}return null;};
   const one=pages.check(),two=pages.check();await began;
   assert.equal(pages.version,old);assert.deepEqual(pages.file('css/monitor.css'),fs.readFileSync(path.join(root,'css/monitor.css')));
   unlock();assert.deepEqual(await Promise.all([one,two]),[true,true]);
@@ -74,7 +75,7 @@ test('file alterato, stream troppo lungo, redirect e assenza rete mantengono la 
     const pub=publisher(files(mode)),pages=updater(t,pub),old=pages.version;
     pub.change=async name=>{
       if(mode==='offline')throw Error('synthetic network failure');
-      if(name.endsWith('/css/monitor.css')){
+      if(name.endsWith('/css/monitor.css.bin')){
         if(mode==='redirect')return new Response('',{status:302,headers:{Location:'https://evil.example/x'}});
         if(mode==='large')return new Response(Buffer.alloc(pub.manifest.files['css/monitor.css'].bytes+1));
         const bytes=Buffer.from(pub.content['css/monitor.css']);bytes[0]^=1;return new Response(bytes);
@@ -108,7 +109,7 @@ test('host reale: HTML e CSS versionati, versione notificata, associazione conse
 
 test('build: manifest pubblicato coerente con tutti gli asset immutabili',()=>{
   const manifest=validateManifest(JSON.parse(fs.readFileSync(path.join(root,'dist/assets/monitor-release.json'),'utf8')));
-  const payload=Object.fromEntries(WEB.map(name=>[name,fs.readFileSync(path.join(root,'dist/assets/monitor-releases',manifest.versione,name))]));
+  const payload=Object.fromEntries(WEB.map(name=>[name,fs.readFileSync(path.join(root,'dist/assets/monitor-releases',manifest.versione,name+'.bin'))]));
   assert.deepEqual(manifestFor(payload),manifest);
   assert.ok(!Object.keys(manifest.files).some(name=>name.includes('state.bin')||name.endsWith('.cjs')||name.endsWith('.ps1')));
 });
@@ -129,7 +130,7 @@ test('errore rendering dopo prima conferma: rollback; attesa dati non e un error
 
 test('risposta compressa: Content-Length riguarda il trasporto, limiti/hash verificano i byte decodificati',async t=>{
   const pub=publisher(files('compressed')),pages=updater(t,pub);
-  pub.change=async name=>name.endsWith('/css/monitor.css')?new Response(pub.content['css/monitor.css'],{headers:{'content-encoding':'gzip','content-length':String(pub.content['css/monitor.css'].length+25)}}):null;
+  pub.change=async name=>name.endsWith('/css/monitor.css.bin')?new Response(pub.content['css/monitor.css'],{headers:{'content-encoding':'gzip','content-length':String(pub.content['css/monitor.css'].length+25)}}):null;
   assert.equal(await pages.check(),true);assert.deepEqual(pages.file('css/monitor.css'),pub.content['css/monitor.css']);
 });
 
@@ -146,6 +147,6 @@ test('risorse HTML/CSS mancanti: rilascio rifiutato anche con hash validi, prima
 test('chiusura durante download: il rilascio incompleto non viene attivato dopo lo stop',async t=>{
   const pub=publisher(files('closing')),pages=updater(t,pub),old=pages.version;
   let entered,unlock;const began=new Promise(resolve=>{entered=resolve;}),gate=new Promise(resolve=>{unlock=resolve;});t.after(()=>unlock());
-  pub.change=async name=>{if(name.endsWith('/css/monitor.css')){entered();await gate;}return null;};
+  pub.change=async name=>{if(name.endsWith('/css/monitor.css.bin')){entered();await gate;}return null;};
   const checking=pages.check();await began;pages.close();unlock();assert.equal(await checking,false);assert.equal(pages.version,old);
 });

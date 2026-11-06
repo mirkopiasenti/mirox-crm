@@ -17,6 +17,7 @@ Non sono necessarie migration o modifiche ai dati/configurazioni del database.
 | Risposta compressa | Content-Length di trasporto poteva respingere byte decodificati validi | Hash/dimensione sui byte decodificati, limite di stream; prova specifica |
 | Download fallito | Download paralleli residui potevano proseguire | Abort condiviso; pagina precedente invariata e retry verificato |
 | Risorse CSS/HTML errate | Pagina con file mancanti poteva essere pubblicata o accettata | Controllo risorse in build e runtime, attributi HTML maiuscoli/spazi/percorsi relativi gestiti |
+| Riscritture automatiche HTML dell'hosting | I byte pubblicati potevano differire dalle impronte di build | Trasporto dei payload come .bin; il servizio verifica i byte e li serve con il MIME corretto sul loopback |
 | URI HTTP malformati e heartbeat null | Errore fuori dal controllo richieste o risposta impropria |400senza interrompere il servizio; richieste successive ancora funzionanti |
 | Installer con ZIP danneggiato o nuovo servizio guasto | Il task poteva essere fermato prima della verifica o restare parzialmente aggiornato | Preflight completo, staging protetto, copia cifrata identica, swap directory, verifica HTTP, ripristino cartella/task se l'avvio fallisce |
 | Supervisor e stderr nativo | Un errore PowerShell poteva fermare il ciclo di recupero | Catch nel ciclo; Windows prova almeno due avvii dopo errore nativo |
@@ -41,7 +42,11 @@ solo su localhost, DOM delle pagine reali e regressioni updater/associazione.
 `scripts/check-monitor-windows.ps1` richiede CI isolata e verifica installazione
 e reinstallazione reali, taskSYSTEM, lettura DPAPI fra utenti, ACL, preservazione
 dei byte cifrati, rifiuto ZIP corrotto, rollback su avvio guasto e supervisor.
-La CI Windows e il rilascio production devono ancora essere completati.
+Prima CI sul ramo tecnico: [42305665291](https://github.com/mirkopiasenti/mirox-crm/actions/runs/42305665291)
+verde sia Linux/Node22 sia Windows nativo. Prove DPAPI, taskSYSTEM, ACL,
+installazione/reinstallazione con percorso contenente spazi, credenziale
+preservata, ZIP corrotto rifiutato, rollback e supervisor completate.
+Trasporto .bin aggiunto dopo questa prima prova: seconda CI e produzione da verificare.
 
 Resta necessario installare una volta il nuovo pacchetto sul PC gia associato.
 Il controllo fisico su Samsung, i timer, il boot/blackout e una giornata08:30–20

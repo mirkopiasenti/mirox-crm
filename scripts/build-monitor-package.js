@@ -7,7 +7,7 @@ function buildRelease(root,output){
   const files=Object.fromEntries(WEB.map(file=>[file,fs.readFileSync(path.join(root,file))]));
   validatePageFiles(files);
   const manifest=manifestFor(files),directory=path.join(output,'assets','monitor-releases',manifest.versione);
-  for(const [name,bytes] of Object.entries(files)){const target=path.join(directory,name);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,bytes);}
+  for(const [name,bytes] of Object.entries(files)){const target=path.join(directory,name+'.bin');fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,bytes);}
   fs.writeFileSync(path.join(output,'assets','monitor-release.json'),JSON.stringify(manifest));
   return manifest;
 }
