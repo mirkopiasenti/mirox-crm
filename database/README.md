@@ -30,6 +30,24 @@ nuove; audit append-only reale, dispositivi senza DELETE/TRUNCATE, nessun
 cambio ai default globali. QA isolata ampliata50check con gli stessi default.
 Monitor online88794dd/CI42034207778verde/Netlify6aec817fc578cdeb2b6d097e;
 nessuna postazione o associazione di prova creata, installazione TV al proprietario.
+06/11: revoca involontaria riferita dall'utente durante il collaudo PC. Fix locale
+della riscrittura DPAPI e degli errori nel solo helper Windows; nessuna nuova
+migration o scrittura DB da Codex, schema e regole associazione invariati.
+Il nuovo avvio installer tramite installa-monitor.cmd riguarda solo il PC;
+nessuna operazione database da ripetere durante l'aggiornamento del pacchetto.
+Revisione2: letture aggregate/log production confermano errore23505 sul vincolo
+mirox_monitor_dispositivi_token_hash_key durante nuova associazione. La revoca
+conserva l'hash per impedirne il riutilizzo: comportamento DB corretto, helper
+aggiornato per rigenerare la chiave dopo403 anche dallo stato legacy pending.
+Nessun hash/codice/cliente letto o scritto da Codex; nessuna migration nuova.
+Sviluppo locale06/11: refresh KPI3s, cache snapshot1s e frontend1s, senza nuove
+RPC/trigger/Realtime o modifiche alle tabelle condivise. Snapshot e regole
+conteggio identici; letture aggregate piu frequenti (13800in08:30–20:00,
+28800se il PC resta24h). Nuovo updater della pagina indipendente dal DB, chiave
+DPAPI e associazione conservate; nessuna nuova scrittura/migration da applicare.
+Debug approfondito06/11 include verifica isolamento/privilegi preesistenti e
+regressioni con dati sintetici; installer/CI/updater non modificano il DB reale.
+Report operativo: [debug monitor](../docs/MONITOR_DEBUG_2026-11-06.md).
 [Guida runtime, Windows e attivazione](../docs/MONITOR_NEGOZIO.md).
 
 ## Accesso bonus da novembre2026 — applicato04/11/2026

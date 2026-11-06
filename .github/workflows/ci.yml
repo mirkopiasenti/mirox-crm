@@ -12,6 +12,30 @@ permissions:
   contents: read
 
 jobs:
+  monitor-vault-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Scarica il repository
+        uses: actions/checkout@v7
+
+      - name: Verifica persistenza DPAPI con Windows PowerShell
+        shell: powershell
+        run: .\scripts\check-monitor-vault.ps1
+
+      - name: Configura Node.js per il servizio Windows
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installa dipendenze del pacchetto
+        run: npm ci
+
+      - name: Verifica installazione, SYSTEM, aggiornamento e rollback Windows
+        shell: powershell
+        run: .\scripts\check-monitor-windows.ps1
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15

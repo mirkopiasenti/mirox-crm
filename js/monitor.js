@@ -2,8 +2,10 @@
   'use strict';
   const C=window.MiroxMonitorCore,S=window.MiroxSafe,$=id=>document.getElementById(id),e=S.escapeHtml;
   const nonce=document.querySelector('meta[name="mirox-monitor-session"]')?.content;
+  const pageVersion=document.querySelector('meta[name="mirox-monitor-release"]')?.content;
   const local=location.hostname==='127.0.0.1' && location.port==='8765' && !!nonce;
-  let snapshot=null,tick=0,stopped=false,lastMode='',lastRendered=null;
+  let snapshot=null,tick=0,stopped=false,lastMode='',lastRendered=null,pageHealthy=false,pageBroken=false;
+  const startedAt=Date.now();
   const number=n=>Number(n).toLocaleString('it-IT',{maximumFractionDigits:2});
   const time=iso=>C.rome(new Date(iso),{hour:'2-digit',minute:'2-digit'});
   async function request(path,body){const response=await MiroxApi.fetch(path,{method:body?'POST':'GET',cache:'no-store',headers:{'X-Mirox-Monitor-Session':nonce,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(18000)});const data=await response.json();if(!response.ok)throw Object.assign(new Error(data.error || 'Servizio non disponibile'),{status:response.status});return data;}
@@ -12,9 +14,31 @@
   function metric(r){const configured=r.obiettivo>0;const pace=!configured?'Obiettivo assente':r.andamento==='RAGGIUNTO'?'Raggiunto':r.eccedenza===0?'In linea':`${r.eccedenza>0?'+':''}${number(r.eccedenza)} pt sul ritmo`;const width=configured?Math.max(0,Math.min(100,r.punti/r.obiettivo*100)):0;return `<div class="month-row"><span>${e(r.nome)}</span><div class="month-value">${number(r.punti)} <small>${configured?'/ '+number(r.obiettivo)+' pt':'pt'}</small><div class="month-track"><div class="month-fill" style="width:${width}%"></div></div></div><span class="month-pace${!configured?' unset':r.eccedenza<0?' behind':''}">${e(pace)}</span></div>${r.netto===undefined?'':`<div class="month-net">Conteggio Netto: ${number(r.netto)} · ultimo CSV: ${r.ultimo_csv?e(C.rome(new Date(r.ultimo_csv),{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})):'non disponibile'}</div>`}`;}
   function render(p){$('monitorStore').textContent=p.negozio.toUpperCase();$('dayTotal').textContent=`Totale pezzi: ${number(p.totale_day)}`;$('dayTable').innerHTML=day(p);$('monthTitle').textContent=C.rome(new Date(p.data+'T12:00:00Z'),{month:'long',year:'numeric'});$('monthStandard').innerHTML=p.mensile.filter(r=>r.tabella==='avanzamento_standard').map(metric).join('') || '<p>Nessuna metrica configurata.</p>';$('monthBusiness').innerHTML=p.mensile.filter(r=>r.tabella==='avanzamento_piva').map(r=>`<div><span>${e(r.nome)}</span><strong>${number(r.punti)} pt</strong></div>`).join('');$('monthExtra').innerHTML=p.mensile.filter(r=>r.tabella==='avanzamento_extra_piva').map(metric).join('');$('monitorTimestamp').textContent='Dati: '+time(p.aggiornato_il);$('monitorStation').textContent=`${p.postazione} · Solo visione · 08:30–20:00`;lastRendered=p.aggiornato_il;}
   function renderAgenda(now){if(!snapshot)return;const a=snapshot.agenda,page=C.agendaPage(a.appuntamenti,tick);$('agendaSummary').innerHTML=`<span><strong>${a.totale}</strong> previsti</span><span><strong>${a.presentati}</strong> presentati</span><span><strong>${a.non_presentati}</strong> non presentati</span><span><strong>${a.in_attesa}</strong> in attesa</span>`;$('agendaTitle').textContent=page.next?'Il prossimo è alle '+time(page.next.ora):'Nessun appuntamento in attesa';$('agendaPage').textContent=page.pages>1?`${page.page} / ${page.pages}`:'';$('agendaNext').innerHTML=page.next?`<div class="agenda-next"><time>${time(page.next.ora)}</time><div><strong>Appuntamento ${e(page.next.codice)}</strong><small>Durata prevista · ${number(page.next.durata)} minuti</small></div><span class="countdown">${e(C.countdown(page.next.ora,now))}</span></div>`:'<p class="agenda-empty">Agenda aggiornata. Nessun altro appuntamento previsto.</p>';$('agendaList').innerHTML=page.rows.map(a=>`<div class="agenda-row"><time>${time(a.ora)}</time><span>Appuntamento ${e(a.codice)}</span><span>Confermato</span></div>`).join('');}
-  function clock(){const now=new Date();$('monitorClock').textContent=C.rome(now,{hour:'2-digit',minute:'2-digit'});$('monitorDate').textContent=C.rome(now,{weekday:'long',day:'numeric',month:'long',year:'numeric'});if(snapshot){const f=C.freshness(snapshot,now);$('monitorData').hidden=f.hide;$('monitorHealth').textContent=f.text;$('monitorHealth').className='monitor-health'+(f.error?' is-error':f.stale?' is-stale':'');if(!f.hide)renderAgenda(now);}fit();tick++;}
-  async function poll(){if(!local)return;try{const state=await request('/api/snapshot');lastMode=state.stato;const pairing=['non_associato','revocato'].includes(state.stato);$('monitorPair').hidden=!pairing;if(pairing){snapshot=null;$('monitorData').hidden=true;$('monitorPairHelp').textContent=state.stato==='revocato'?'Postazione revocata. Crea un nuovo codice dall’Admin per associarla di nuovo.':'Da Admin → Monitor negozio crea un codice, poi inseriscilo qui.';$('monitorHealth').textContent=state.stato==='revocato'?'Accesso revocato':'Postazione da associare';}else if(state.snapshot){snapshot=state.snapshot;if(lastRendered!==snapshot.aggiornato_il)render(snapshot);}else if(!snapshot){$('monitorHealth').textContent=state.errore || 'In attesa del primo aggiornamento...';}clock();}catch(error){if(error.status===403){location.reload();return;}if(!snapshot)$('monitorHealth').textContent='Collegamento locale non disponibile. Recupero automatico in corso.';}finally{if(!stopped)setTimeout(poll,5000);}}
+  function clock(){const now=new Date();tick=Math.floor((now.getTime()-startedAt)/1000);$('monitorClock').textContent=C.rome(now,{hour:'2-digit',minute:'2-digit'});$('monitorDate').textContent=C.rome(now,{weekday:'long',day:'numeric',month:'long',year:'numeric'});if(snapshot){const f=C.freshness(snapshot,now);$('monitorData').hidden=f.hide;$('monitorHealth').textContent=f.text;$('monitorHealth').className='monitor-health'+(f.error?' is-error':f.stale?' is-stale':'');if(!f.hide)renderAgenda(now);}fit();}
+  async function poll(){
+    if(!local)return;
+    let processing=false;
+    try{
+      const state=await request('/api/snapshot');
+      if(pageVersion&&state.pagina_versione&&pageVersion!==state.pagina_versione){stopped=true;location.reload();return;}
+      processing=true;lastMode=state.stato;
+      const pairing=['non_associato','revocato'].includes(state.stato);
+      $('monitorPair').hidden=!pairing;
+      if(pairing){
+        snapshot=null;$('monitorData').hidden=true;
+        $('monitorPairHelp').textContent=state.stato==='revocato'?'Postazione revocata. Crea un nuovo codice dall’Admin per associarla di nuovo.':'Da Admin → Monitor negozio crea un codice, poi inseriscilo qui.';
+        $('monitorHealth').textContent=state.stato==='revocato'?'Accesso revocato':'Postazione da associare';
+      }else if(state.snapshot){snapshot=state.snapshot;if(lastRendered!==snapshot.aggiornato_il)render(snapshot);}
+      else if(!snapshot){$('monitorHealth').textContent=state.errore || 'In attesa del primo aggiornamento...';}
+      clock();pageHealthy=pairing||!!snapshot;pageBroken=false;
+    }catch(error){
+      pageHealthy=false;if(processing)pageBroken=true;
+      if(error.status===403){stopped=true;location.reload();return;}
+      if(!snapshot)$('monitorHealth').textContent='Collegamento locale non disponibile. Recupero automatico in corso.';
+    }finally{if(!stopped)setTimeout(poll,1000);}
+  }
+  function safeClock(){try{clock();}catch{pageHealthy=false;pageBroken=true;}}
   $('monitorPairForm').addEventListener('submit',async event=>{event.preventDefault();$('monitorPairButton').disabled=true;try{await request('/api/associa',{code:$('monitorPairCode').value});$('monitorPairCode').value='';$('monitorPairStatus').textContent='Postazione associata. Caricamento KPI...';}catch(error){$('monitorPairStatus').textContent=error.message;}finally{$('monitorPairButton').disabled=false;}});
-  if(!local){$('monitorPair').hidden=false;$('monitorPairForm').hidden=true;$('monitorPairHelp').textContent='Questa pagina richiede la postazione dedicata. Scarica il pacchetto Windows da Admin → Monitor negozio e apri il collegamento locale.';$('monitorHealth').textContent='Accesso ai KPI riservato alla postazione associata.';}else{poll();setInterval(()=>request('/api/heartbeat',{at:Date.now()}).catch(()=>{}),10000);}
-  addEventListener('resize',fit);addEventListener('pagehide',()=>{stopped=true;});addEventListener('pageshow',event=>{if(event.persisted){stopped=false;poll();}});setInterval(clock,1000);clock();
+  if(!local){$('monitorPair').hidden=false;$('monitorPairForm').hidden=true;$('monitorPairHelp').textContent='Questa pagina richiede la postazione dedicata. Scarica il pacchetto Windows da Admin → Monitor negozio e apri il collegamento locale.';$('monitorHealth').textContent='Accesso ai KPI riservato alla postazione associata.';}else{poll();const heartbeat=()=>request('/api/heartbeat',{at:Date.now(),pagina_versione:pageVersion,rendering:pageHealthy,errore_render:pageBroken}).catch(()=>{});heartbeat();setInterval(heartbeat,5000);}
+  addEventListener('resize',fit);addEventListener('pagehide',()=>{stopped=true;});addEventListener('pageshow',event=>{if(event.persisted){stopped=false;poll();}});setInterval(safeClock,1000);safeClock();
 })();

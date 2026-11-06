@@ -8,7 +8,8 @@ if ($Mode -eq 'write') {
   $cipher = [Security.Cryptography.ProtectedData]::Protect($plain,$entropy,$scope)
   $temp = $Path + '.tmp'
   [IO.File]::WriteAllBytes($temp,$cipher)
-  if ([IO.File]::Exists($Path)) { [IO.File]::Replace($temp,$Path,$null) }
+  # Windows PowerShell converte $null in stringa vuota nei parametri string .NET.
+  if ([IO.File]::Exists($Path)) { [IO.File]::Replace($temp,$Path,[System.Management.Automation.Language.NullString]::Value) }
   else { [IO.File]::Move($temp,$Path) }
 } else {
   $plain = [Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($Path),$entropy,$scope)

@@ -1,9 +1,18 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {zipSync}=require('fflate');
-const WEB=['monitor.html','css/monitor.css','js/mirox-safe.js','js/mirox-api.js','js/monitor-core.js','js/monitor.js','assets/logo.png','assets/favicon.png','assets/fonts/InterVariable.woff2','assets/fonts/Inter-OFL.txt'];
-const TOOLS=['monitor-host.cjs','vault.ps1','restart-browser.ps1','supervisor.ps1','install.ps1','uninstall.ps1','avvia-monitor.cmd','LEGGIMI.txt'];
+const {WEB,manifestFor,validatePageFiles}=require('../tools/monitor-windows/monitor-updates.cjs');
+const TOOLS=['monitor-host.cjs','monitor-updates.cjs','vault.ps1','restart-browser.ps1','supervisor.ps1','install.ps1','installa-monitor.cmd','uninstall.ps1','avvia-monitor.cmd','LEGGIMI.txt'];
+function buildRelease(root,output){
+  const files=Object.fromEntries(WEB.map(file=>[file,fs.readFileSync(path.join(root,file))]));
+  validatePageFiles(files);
+  const manifest=manifestFor(files),directory=path.join(output,'assets','monitor-releases',manifest.versione);
+  for(const [name,bytes] of Object.entries(files)){const target=path.join(directory,name);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,bytes);}
+  fs.writeFileSync(path.join(output,'assets','monitor-release.json'),JSON.stringify(manifest));
+  return manifest;
+}
 function buildPackage(root,output,environment='production',origin=null){
+  buildRelease(root,output);
   const files={};
   for(const file of WEB)files[file]=new Uint8Array(fs.readFileSync(path.join(root,file)));
   for(const file of TOOLS)files[file]=new Uint8Array(fs.readFileSync(path.join(root,'tools/monitor-windows',file)));
@@ -16,4 +25,4 @@ function buildPackage(root,output,environment='production',origin=null){
   fs.writeFileSync(path.join(output,'assets/mirox-monitor-windows.sha256'),crypto.createHash('sha256').update(zip).digest('hex')+'  mirox-monitor-windows.zip\n');
   return {files:Object.keys(files),bytes:zip.length};
 }
-module.exports={buildPackage,WEB,TOOLS};
+module.exports={buildPackage,buildRelease,WEB,TOOLS};

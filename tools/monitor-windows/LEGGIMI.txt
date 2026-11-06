@@ -5,7 +5,9 @@ Microsoft Edge aggiornato; account locale standard dedicato alla sola visione.
 Il servizio non contiene credenziali Supabase o account degli operatori.
 
 1. Estrarre tutto il pacchetto in una cartella temporanea sul PC.
-2. Aprire Windows PowerShell come amministratore nella cartella estratta:
+2. Nella cartella estratta: tasto destro su installa-monitor.cmd, scegliere
+   Esegui come amministratore e confermare la richiesta Windows.
+   In alternativa, aprire Windows PowerShell come amministratore ed eseguire:
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
    Il comando installa il servizio di avvio in ProgramData\MiroxMonitor.
    La cartella e riservata a SYSTEM/amministratori. Credenziale protetta DPAPI
@@ -16,8 +18,9 @@ Il servizio non contiene credenziali Supabase o account degli operatori.
    Il comando avvia-monitor.cmd e disponibile per una prima prova manuale.
    Su Home il comando apre lo schermo pieno ma non blocca le altre app:
    per il chiosco bloccato serve un'edizione Windows compatibile.
-4. Da Admin Mirox > Monitor negozio, creare un codice per TV Legnago.
-   Inserirlo nella pagina locale del televisore entro 15 minuti.
+4. Solo se la postazione non e gia associata: da Admin Mirox > Monitor negozio,
+   creare un codice per TV Legnago e inserirlo nella pagina locale entro15minuti.
+   L'aggiornamento di un PC gia associato conserva il collegamento esistente.
 5. Impostare il Samsung come unico schermo attivo, orientamento verticale,
    desktop 1080x1920 a 60 Hz, scala Windows e zoom Edge al 100%.
    La pagina adatta l'intero contenuto senza scroll; verificare la lettura
@@ -34,16 +37,39 @@ RECUPERO: il task riavvia il servizio; Assigned Access riapre Edge se chiuso.
 Se una pagina gia collegata non invia heartbeat per due minuti, il servizio
 termina solo il processo Edge con l'URL chiosco di questo monitor; Assigned
 Access lo riapre. Con avvia-monitor.cmd manuale la riapertura e manuale.
-I dati sono richiesti al server ogni 30 s, retry progressivo fino a 60 s.
+I dati sono richiesti al server ogni3s, cache server1s, lettura schermo1s;
+retry progressivo fino30s. Latenza attesa circa3-6s con rete/server regolari,
+oltre al tempo di elaborazione; nessuna garanzia in assenza di collegamento.
 L'ora mostrata e quella dell'ultimo snapshot, non del tentativo di connessione.
 Senza rete vengono conservati in memoria con avviso; al riavvio si attende
 un nuovo snapshot. Al cambio giorno i dati vecchi sono nascosti.
 Revoca: Admin > Monitor negozio > Revoca. Lo schermo si oscura al controllo
-remoto successivo, normalmente entro 30 s (fino a 15 s aggiuntivi per timeout).
+remoto successivo, normalmente entro4s oltre al tempo della richiesta.
 
-AGGIORNAMENTO: scaricare il nuovo pacchetto da Admin, estrarlo e rieseguire
-install.ps1. Lo stato DPAPI esistente non viene sovrascritto. Non aggiornare
-automaticamente il codice del servizio con contenuti scaricati in background.
+PRIMA ABILITAZIONE: dopo la pubblicazione del nuovo sistema, installare questo
+pacchetto una volta e riavviare il PC. Nessuna nuova associazione se gia attiva.
+PAGINA: controllo versione online ogni30s. HTML/CSS/JS/font/logo vengono
+scaricati da mirox-crm.it, verificati per dimensioni/API/SHA256 e attivati insieme.
+La pagina si ricarica automaticamente senza riavvio del PC. Se non parte o non
+renderizza, ritorna alla precedente dopo45s dalla prima apertura, tramite chiosco.
+Download solo in memoria; al riavvio parte la pagina inclusa nel pacchetto e
+controlla di nuovo online. Guasti di rete non sostituiscono una pagina funzionante.
+Le modifiche si pubblicano solo con push esplicito del proprietario; nessun
+timer notturno o push programmato. La build genera automaticamente il manifest.
+SERVIZIO WINDOWS: per nuove funzioni native scaricare il pacchetto da Admin,
+estrarlo e avviare
+installa-monitor.cmd con Esegui come amministratore (oppure install.ps1).
+Lo stato DPAPI esistente non viene sovrascritto. Non aggiornare
+automaticamente il codice Node/PowerShell con contenuti scaricati in background.
+Correzione 06/11: usare il pacchetto aggiornato per la riassociazione dopo revoca;
+vault.ps1 passa un vero null .NET alla sostituzione del file cifrato esistente.
+Il profilo chiosco usa lo stesso stato macchina del profilo amministratore.
+Revisione 2: se il server rifiuta la credenziale con403, la successiva associazione
+genera una nuova chiave, anche per stati legacy non ancora confermati su disco.
+Conserva invece la chiave pendente nei retry senza rifiuto confermato.
+Dopo l'aggiornamento riavviare il PC. Un nuovo codice Admin serve soltanto se
+revocato o non ancora associato. Avviare installa-monitor.cmd come amministratore; la finestra
+Edge di sola visione puo essere aperta normalmente con avvia-monitor.cmd.
 RIMOZIONE: eseguire uninstall.ps1 come amministratore e revocare da Admin.
 I file rimangono per recupero; nessuna eliminazione automatica di credenziali.
 

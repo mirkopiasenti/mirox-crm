@@ -149,6 +149,48 @@ loader Target condivisi, export CONTRACT_FIELDS additivo, invii Target invariati
 Day mantiene tutte le righe senza paginazione; solo successivi appuntamenti
 paginati15s, prossimo fisso. Fit uniforme senza scroll, leggibilita' sulTV da
 verificare. Nessuna nuova env, cronNetlify o dipendenza npm.
+Fix locale06/11, non pubblicato: vault.ps1 usa NullString.Value come terzo
+argomento File.Replace (PowerShell converte $null in stringa vuota). Non cambiare
+credenziale in memoria prima del successo DPAPI; errori archivio distinti e429
+esplicito, nessun dettaglio interno/segreto al browser. scripts/check-monitor-vault.ps1
+prova cifratura, scritture successive e riassociazione con dati sintetici su
+Windows PowerShell; job dedicato windows-latest in CI, da eseguire al prossimo push.
+Pacchetto locale aggiornato: installa-monitor.cmd richiama install.ps1 tramite
+Windows PowerShell assoluta, con percorso script quotato; va avviato con tasto
+destro/Esegui come amministratore. Console resta aperta e distingue errore/successo;
+consente trasferimento ZIP via USB dal Mac senza comandi manuali.21file nel nuovo
+ZIP (i20del rilascio05/11 restano riferimento storico), nessuna nuova dipendenza.
+Revisione2 locale06/11: log production letti soltanto per conteggi/vincolo
+confermano23505 mirox_monitor_dispositivi_token_hash_key. Il primo vault difettoso
+poteva lasciare associated:false su disco pur avendo associato il token remoto;
+dopo revoca non va riutilizzato. L'helper segna il rifiuto403 e rigenera/persiste
+la chiave prima del POST successivo anche per pending legacy, senza cambiare DB
+o RPC. Errori transitori non invalidano la chiave: retry stesso segreto conservato.
+Caso riprodotto503prima/200dopo nel test host; SQL isolato conferma23505, rollback
+del nuovo codice e successo solo con hash nuovo, revoca e audit conservati.
+Sviluppo autorizzato06/11: aggiornamenti automatici della sola pagina monitor
+dopo push manuale autorizzato. Eccezione al precedente aggiornamento solo ZIP:
+monitor-updates.cjs scarica manifest e soli10asset web in allowlist da origine
+HTTPS gia vincolata, senza Authorization o credenziale, redirect vietati,
+dimensioni/API/hash verificati; attivazione atomica in memoria e URL locali
+versionati. Nessun JS scaricato eseguito da Node/SYSTEM, nessuna sovrascrittura
+helper/vault/config/state.bin. Mantiene pagina precedente e rollback se la nuova
+non invia heartbeat entro45s dalla prima apertura; riapertura via Assigned Access.
+Controllo versione30s, nessuna programmazione push/cron nuova. Primo aggiornamento
+helper da installare una volta; futuri HTML/CSS/JS nel perimetro auto, modifiche
+native al servizio Windows restano installazioni esplicite. KPI: poll remoto3s,
+cache server1s, lettura browser1s; avviso15s/obsoleto60s, retry fino30s. Nessuna
+migration o cambio regole conteggio; carico normale28800letture/giorno se PC24h.
+Debug rilascio06/11: installer transazionale con preflight di tutti gli hash prima
+di fermare il task; staging privato, copia state.bin cifrato dopo stop processi
+del solo monitor, swap directory/controllo HTTP e ripristino cartella/task se
+l'avvio fallisce. Mai alterare stato cifrato o processi Node/Edge estranei. CI
+Windows reale verifica DPAPI/SYSTEM, installazione/aggiornamento e rollback con
+origine staging fittizia, senza DB o credenziali reali. Supervisor recupera anche
+errori stderr nativi. Heartbeat distingue attesa dati da errore rendering;
+rollback anche dopo prima conferma e per viewer bloccato sulla versione vecchia.
+Agenda ogni15s di tempo reale, indipendente dal numero di poll.
+
 
 - `test-upload-contratti-konahub.netlify.app` — vecchio URL di test del repo. **Non è più aggiornato** (le functions OTP rispondono 404). Deprecato — l'URL "buono" è `mirox-crm.it`
 - `mirox-crm.netlify.app` — il 05/10/2026 il pannello Netlify Domain management lo mostra come alias del site `mirox-crm`, collegato a questo repository e a `mirox-crm.it`. La precedente indicazione di un progetto CC distinto su questo URL è obsoleta. Il repository/deploy storico del CC resta da identificare; i vincoli sulle tabelle condivise restano validi.

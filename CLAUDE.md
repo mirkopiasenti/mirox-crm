@@ -10,6 +10,24 @@ legacy e dati esistenti invariati per impronta, QA SQL50check. ZIP Windows da bu
 helper Node>=22/DPAPI LocalMachine/taskSYSTEM/loopback, logo e Inter4.1 locali,
 agenda→Day completo→mensile soli punti. Nessun DB legacy/cliente toccato.
 Fonti AGENTS, docs/MONITOR_NEGOZIO.md e databaseREADME; collaudo PC/TV necessario.
+Fix locale06/11 non pubblicato: File.Replace usa NullString.Value, persistenza
+prima dell'aggiornamento in memoria, errori archivio/429 espliciti. Prova DPAPI
+sintetica scripts/check-monitor-vault.ps1 nel nuovo job CI Windows PowerShell.
+ZIP locale21file include installa-monitor.cmd: tasto destro/Esegui come
+amministratore, utile trasferendo il pacchetto dal Mac al PC via USB.
+Revisione2 locale: dopo403 genera nuova chiave anche da pending legacy. Log letti
+production confermano23505/hash revocato; nessun DB/RPC modificato. Retry transitori
+stessa chiave conservati; regressione host riprodotta prima del fix e SQL isolato.
+Sviluppo06/11 locale non pubblicato: autoaggiornamento sola pagina dopo push
+manuale, controllo30s, manifest/api/hash/limiti e attivazione atomica in memoria;
+URL versionati e rollback45s dalla prima apertura senza heartbeat di rendering.
+Nessun codice remoto eseguito da SYSTEM, helper/vault/state.bin mai scaricati.
+Primo pacchetto22file da installare una volta; poi aggiornamenti UI automatici.
+KPI3s/cache1s/browser1s, avviso15s/obsoleto60s; regole/DB/cron invariati.
+Debug approfondito richiesto06/11 con push autorizzato: report
+docs/MONITOR_DEBUG_2026-11-06.md; installer transazionale/preflight/rollback,
+CI Windows reale SYSTEM/DPAPI/ACL e supervisor. Agenda a15s reali, heartbeat
+rendering distinto e recupero tardivo, risorse pagina validate prima dell'attivazione.
 
 Rettifica avvisi Gare04/11, pubblicata: ! solo se esiste una riga della stessa scheda con compenso visibile>=1EUR e manca il requisito della riga segnalata. Valuta tutte le gare una sola volta prima di comporre gli avvisi, indipendente da ordine/totalepagabile; no somma di importi singolarmente sotto1, no etichette/decurtazioni senza euro visibili. OKverde/KOrosso entrambi grassetto800, CSS specifico!important per superare il colore globale delle celle.74test mirati/build verdi, conflittoCSS riprodotto e override verificato. Suite completa642/642verde, nessun DB/browser. Push richiesto/completato3bf67e2, CI41917579587LinuxNode22verde, Netlify6aeba5386a825ab30200cd78 online; HTTP200/SHA/inline identici, condizione>=1EUR e colori/peso800!important verificati, tema/core invariati. Guide aggiornate, WIP precedenti conservati.
 

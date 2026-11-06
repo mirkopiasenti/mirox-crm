@@ -32,6 +32,13 @@ async function denied(sql){await assert.rejects(()=>db.query(sql));checks++;}
   await query(`SELECT mirox_monitor_amministra('${admin}','revoca','${d.id}')`);
   await denied(`SELECT mirox_monitor_associa('${hash(1)}','${hash(2)}')`);
   await equal(`SELECT count(*)::int AS n FROM mirox_monitor_audit WHERE dispositivo_id='${d.id}' AND azione='revoca'`,[{n:1}]);
+  const replacement=(await query(`SELECT mirox_monitor_amministra('${admin}','crea',NULL,'Riassociazione','${hash(6)}') AS d`))[0].d;
+  // Riproduce l'errore23505 production: stato locale legacy pending, hash revocato.
+  await assert.rejects(()=>query(`SELECT mirox_monitor_associa('${hash(6)}','${hash(2)}')`),error=>error.code==='23505'&&error.message.includes('mirox_monitor_dispositivi_token_hash_key'));checks++;
+  await equal(`SELECT stato FROM mirox_monitor_dispositivi WHERE id='${replacement.id}'`,[{stato:'in_attesa'}]);
+  await equal(`SELECT stato,token_hash FROM mirox_monitor_dispositivi WHERE id='${d.id}'`,[{stato:'revocato',token_hash:hash(2)}]);
+  await equal(`SELECT mirox_monitor_associa('${hash(6)}','${hash(7)}') AS id`,[{id:replacement.id}]);
+  await equal(`SELECT count(*)::int AS n FROM mirox_monitor_audit WHERE dispositivo_id='${replacement.id}' AND azione='associa'`,[{n:1}]);
   const expired=(await query(`SELECT mirox_monitor_amministra('${admin}','crea',NULL,'Scaduto','${hash(4)}') AS d`))[0].d;
   await query(`UPDATE mirox_monitor_dispositivi SET pairing_expires_at=now()-interval '1 second' WHERE id='${expired.id}'`);
   await denied(`SELECT mirox_monitor_associa('${hash(4)}','${hash(5)}')`);

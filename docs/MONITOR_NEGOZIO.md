@@ -2,12 +2,17 @@
 
 Stato: **pubblicato05/11 con commit88794dd**, CI Linux/Node22
 [42034207778](https://github.com/mirkopiasenti/mirox-crm/actions/runs/42034207778)
-verde665test, Netlify6aec817fc578cdeb2b6d097e online. **PC/TV da configurare.**
+verde665test, Netlify6aec817fc578cdeb2b6d097e online. **06/11: l'utente conferma
+installazione, associazione del PC e pagina visibile. Chiosco, autologon,
+alimentazione e timer PC/TV ancora da configurare/collaudare.**
 Migration applicata su consenso esplicito, versione production20261105131100.
 Restrizione successiva dei default service_role: migration monitor_privilegi_service_role
 applicata come20261105131331; soli oggetti nuovi, nessuna modifica ai default globali.
 L'utente ha autorizzato lo sviluppo dopo la revisione del mockup. Windows 11 e
-visione riservata al personale confermati; edizione Home/Pro e RTC da verificare.
+visione riservata al personale e Windows 11 Pro confermati; RTC da verificare.
+06/11: l'utente chiarisce una revoca involontaria, poi stesso errore associando
+un nuovo codice sia dal profilo standard sia dal chiosco. Individuato difetto
+File.Replace nel vault Windows; fix locale sotto, esito sul PC ancora da confermare.
 Nessuna modifica a tabelle/RLS/RPC/trigger legacy del Call Center o ai dati cliente.
 
 ## Pagina e layout concordati
@@ -31,7 +36,8 @@ avanzamento mensile in basso. Tema Mirox chiaro/arancione e Inter 4.1 locale
   obiettivi e andamento. Le righe P.IVA senza obiettivo conservano i soli punti.
   Netto L&G e ultimo CSV globale restano distinti.
 - Data/ora Europe/Rome; timestamp dell'ultimo snapshot riuscito, non dell'ultimo
-  tentativo. Avviso dopo 90 secondi senza dati nuovi, obsoleti dopo 5 minuti.
+  tentativo. Nel nuovo pacchetto06/11: avviso dopo15secondi senza dati nuovi,
+  obsoleti dopo60secondi (rilascio05/11:90s/5min).
   Cambio giorno: dati precedenti nascosti fino al nuovo snapshot; cambio mese
   gestito dal server. Nessun numero fittizio o fallback a zero su errori.
 
@@ -65,14 +71,20 @@ Appuntamenti confermati nella giornata Europe/Rome, cancellati esclusi;
 Passa in negozio non viene sommato implicitamente.
 
 Il server legge contratti senza anagrafica/documenti, calcola e restituisce solo
-aggregati/codici appuntamento. Cache di processo 20 secondi con singola richiesta
+aggregati/codici appuntamento. Nuovo sviluppo06/11: cache di processo1secondo con singola richiesta
 condivisa tra letture concorrenti, separata per data; solo snapshot completo.
-Il servizio locale interroga ogni 30 secondi, con retry fino a 60 secondi e timeout
-15 secondi. Circa 1.380 richieste remote/display/giorno se acceso 08:30–20:00;
+Il servizio locale interroga ogni3secondi (intervallo fra inizi, senza sovrapporre
+richieste), con retry fino30secondi e timeout15secondi. Circa13800richieste
+remote/display/giorno in08:30–20:00,28800se sempre acceso; dieci volte il poll
+del05/11. Cache di processo1s condivisa anche fra display concorrenti, nessuna
+scrittura/ricalcolo nei moduli CRM operativi e nessuna modifica ai conteggi;
 cache di processo, non cache distribuita o Supabase Realtime. Ultimo contatto
 DB aggiornato al massimo ogni 5 minuti. Il frontend legge la copia locale ogni
-5 secondi: revoca visibile normalmente entro 35 secondi; un guasto di rete puo'
-ritardare la conferma di revoca, con avviso di dati obsoleti. Non e' latenza zero.
+secondo: latenza attesa indicativamente3–6secondi con rete/server regolari, a cui
+si aggiungono eventuali rallentamenti di rete/query. Revoca normalmente entro4s
+oltre al tempo di richiesta; guasti possono ritardarla, con avviso di dati obsoleti.
+Non e' un limite massimo garantito. In produzione05/11 restano poll30s/cache20s
+finche non viene richiesto il push di queste modifiche e installato il nuovo helper.
 
 ## Associazione, Admin e migration
 
@@ -118,11 +130,25 @@ allowlist; manifest SHA256 per ciascun file. Niente backend, SQL, env o dati.
 Download da Admin → Monitor negozio. Sorgenti in `tools/monitor-windows/`.
 
 Prerequisito: Node.js LTS >=22 installato in Program Files, Edge aggiornato,
-Windows 11. Eseguire `install.ps1` dalla cartella estratta come amministratore:
+Windows 11. Nella cartella estratta, tasto destro su `installa-monitor.cmd` e
+**Esegui come amministratore**, quindi confermare la richiesta Windows.
+Non serve digitare comandi. Il launcher lascia aperta la console, distingue
+errore/successo e richiama `install.ps1` con Windows PowerShell di sistema e
+percorso quotato. Disponibile nel nuovo pacchetto locale06/11 (22file), non nello
+ZIP20file pubblicato05/11. Trasferimento dal Mac al PC anche tramite chiavetta USB;
+estrarre tutto sul PC prima dell'avvio, senza eseguire file dall'interno dello ZIP.
+In alternativa eseguire `install.ps1` dalla cartella estratta come amministratore:
 verifica hash, copia solo manifest, protegge ProgramData/MiroxMonitor per
 SYSTEM/Administrators (proprietario/ACL e rifiuto reparse point) e registra task
 SYSTEM all'avvio. Supervisor riavvia il processo se termina; non esegue restore,
-non crea utenti/autologon e non cambia alimentazione, timer TV o aggiornamenti.
+non crea utenti/autologon e non cambia alimentazione, timer TV o Windows Update.
+Debug06/11: verifica tutti gli hash prima di fermare la postazione, prepara uno
+staging con ACL protette, arresta/attende soltanto i propri processi, copia lo
+stato ancora cifrato e sostituisce la directory. Conferma successo solo dopo
+risposta HTTP locale; in caso di avvio fallito ripristina directory e task
+precedenti. Una pulizia incompleta della copia precedente non annulla il nuovo
+servizio funzionante. La reinstallazione non richiede un nuovo codice se la
+postazione e gia associata. Dettagli in [debug rilascio](MONITOR_DEBUG_2026-11-06.md).
 
 `monitor-host.cjs`:
 - bind solo 127.0.0.1:8765; route statiche/API in allowlist, niente proxy generico;
@@ -134,7 +160,7 @@ non crea utenti/autologon e non cambia alimentazione, timer TV o aggiornamenti.
   del servizio e sul canale HTTPS verso l'origine vincolata, senza redirect;
 - nessuno snapshot scritto su disco. La copia in memoria rimane con timestamp
   durante guasti di rete, viene eliminata alla conferma di revoca;
-- heartbeat pagina ogni 10 secondi; dopo 2 minuti senza heartbeat (3 minuti al
+- heartbeat pagina ogni5secondi; dopo 2 minuti senza heartbeat (3 minuti al
   primo avvio) termina solo Edge con l'esatto URL chiosco del monitor. Assigned
   Access lo riapre. Dopo riavvio host il nuovo nonce fa ricaricare il frontend.
 
@@ -146,7 +172,126 @@ solo il task; revocare da Admin, file/credenziali non cancellati automaticamente
 Staging: pacchetto senza origine predefinita; installazione con -Origin su un
 Netlify distinto, production rifiutata. Nessun dato di staging indirizzato a prod.
 
+## Aggiornamenti pagina dopo push — sviluppo locale06/11
+
+Flusso scelto: modifiche richieste in chat, sviluppo/verifica locale, push solo
+su richiesta esplicita del proprietario. Il push continua ad avviare il deploy
+Netlify dell'intero repository; il commit puo riguardare solo il monitor.
+Non e stato aggiunto uno scheduler di push o un cron notturno.
+
+La build genera il manifest pubblico `/assets/monitor-release.json` con
+formato/API1, elenco fisso10asset web, dimensioni e SHA256. L'identificatore della
+versione deriva dal contenuto, quindi push estranei al monitor non ricaricano
+lo schermo. Gli asset stanno in `/assets/monitor-releases/<versione>/`;
+manifest no-store e URL di contenuto immutabili. Nessun dato KPI o credenziale.
+
+`monitor-updates.cjs` interroga il manifest ogni30s e al primo avvio. Scarica
+soltanto dall'origine HTTPS gia validata, senza credenziale dispositivo, con
+redirect vietati, timeout20s, manifest max16KiB, file max2MiB/totale4MiB e
+allowlist fissa di percorsi. Convalida API/dimensioni/impronte e presenza del
+segnaposto di sessione HTML; attiva tutti i byte insieme solo a download completo.
+Asset conservati solo in memoria, mai importati/eseguiti dal processo Node/SYSTEM.
+Helper, PowerShell, config e state.bin non rientrano nel manifest remoto.
+
+Il servizio inietta nella pagina nonce e versione, riscrive le risorse a URL
+loopback versionati e notifica la versione corrente in `/api/snapshot`. Il
+frontend rileva la differenza e si ricarica entro il successivo poll1s. Le
+richieste di una pagina precedente continuano a leggere i propri byte, evitando
+HTML/CSS/JS di versioni diverse. La credenziale resta nel servizio e non cambia.
+
+La nuova pagina conferma il proprio avvio con heartbeat solo dopo un poll e
+rendering riusciti (o form associazione pronto). Se non conferma entro45s dalla
+prima apertura, il controllo watchdog15s torna alla pagina precedente e richiede
+la riapertura della sola finestra monitor ad Assigned Access. La versione guasta
+non viene riprovata finche il processo resta acceso, salvo piu di32versioni
+guaste successive. La verifica rileva errori di avvio/rendering, non giudica la
+leggibilita' grafica: quella va ancora verificata sul TV. Si conserva al massimo
+la versione inclusa nel pacchetto, quella attiva e quella precedente. Al riavvio
+si riparte dal pacchetto installato e si ricontrolla il server; senza rete rimane
+la pagina inclusa, senza simulare dati KPI nuovi.
+Debug06/11: il timer di passaggio parte anche se il viewer continua a inviare
+heartbeat della vecchia versione senza ricaricare. Un errore rendering dopo una
+prima conferma riapre la verifica45s e puo ripristinare la precedente. L'attesa
+del primo snapshot resta distinta dall'errore pagina: browser vivo senza falsa
+conferma rendering. Risorse HTML/CSS verificate anche in build; risposte compresse
+limitate sui byte decodificati, download paralleli annullati in caso di errore.
+
+Prima attivazione: pubblicare manifest/API/cache aggiornati con push autorizzato,
+poi installare una volta il nuovo ZIP22file usando installa-monitor.cmd come
+amministratore e riavviare il PC. Associazione esistente e configurazione chiosco
+conservate. Dopo, le modifiche web compatibili nei10asset arrivano automaticamente
+entro il controllo30s piu download/reload, dopo che il deploy e online; non serve
+toccare file o riavviare il PC. Per cambiare il codice nativo del servizio Windows
+o il protocollo oltreAPI1 rimane necessaria un'installazione esplicita.
+
+QA locale del nuovo sistema:680/680test con build verdi, nessuno skip. Testano
+DOM reale/reload/ack dopo rendering, host HTTP, versioni coerenti, attivazione
+atomica, errori download/hash/limiti/API/redirect/rete e recupero, rollback e
+conservazione della credenziale. Nessun browser/Windows/TV reale usato nei test.
+Pacchetto abilitante locale22file/405949byte:
+`tmp/monitor-automatico-20261106/mirox-monitor-aggiornamenti-automatici.zip`, SHA256
+`0b225109e85374bbf8bf00b5e4772c75d0c74d4c0885102f9f53df159ac32da3`.
+Release web `c6efcd27ea2a905386bf59f1fa2ad9dca89694a524b0eda7b05626f38487c43f`.
+Non pubblicato: richiesta push ancora necessaria; collaudo aggiornamento dal
+deploy al TV e latenza effettiva sul DB reali da fare dopo pubblicazione.
+
 ## Configurazione PC e Samsung ME40B
+
+### Correzione riassociazione06/11 — locale, non pubblicata
+
+Windows PowerShell converte `$null` nel parametro string .NET in stringa vuota.
+Il terzo parametro di `File.Replace` deve invece essere un vero null per non
+creare un backup: vault.ps1 usa ora
+`[System.Management.Automation.Language.NullString]::Value`. Conservati DPAPI
+LocalMachine, sostituzione atomica, ACL e file esistente; nessuna cancellazione
+della credenziale. Questo difetto riguarda le scritture successive alla prima.
+
+L'helper aggiorna la credenziale in memoria solo dopo il successo del salvataggio;
+se la conferma locale fallisce dopo il successo remoto, il retry conserva lo stesso
+segreto gia persistito. Messaggio archivio esplicito, limite429 distinto, nessun
+dettaglio interno o segreto esposto. Test Node con fallimento iniziale/finale,
+retry con stessa chiave, recupero da nuovo host e revoca/riassociazione.
+`scripts/check-monitor-vault.ps1` prova DPAPI reale su dati sintetici in directory
+temporanea, prima scrittura, aggiornamenti e riassociazione; aggiunto job Windows
+PowerShell in CI. Non eseguibile sul Mac: esito Windows ancora da ottenere.
+QA locale:19test monitor mirati e suite completa668/668 con build verdi;
+nessuna prova Windows/DPAPI reale o scrittura DB eseguita da Codex.
+Il nuovo ZIP viene generato dalla build; aggiornamento completo tramite reinstallazione
+del pacchetto corretto, conservando state.bin. Nessuna migration necessaria.
+
+Per assistenza immediata sul PC gia installato si puo correggere il solo
+vault.ps1 protetto da una PowerShell amministratore, sostituendo esattamente
+`[IO.File]::Replace($temp,$Path,$null)` con
+`[IO.File]::Replace($temp,$Path,[System.Management.Automation.Language.NullString]::Value)`.
+Non serve riavviare l'helper: invoca lo script ad ogni operazione di archivio.
+La correzione manuale non aggiorna il manifest installato: completare poi la
+reinstallazione del pacchetto corretto, evitando di reinstallare lo ZIP05/11.
+
+Revisione2 locale06/11: l'utente conferma installazione riuscita ma stesso errore
+generico. Log production letti in sola lettura (senza hash/codici/parametri)
+confermano23505 sul vincolo mirox_monitor_dispositivi_token_hash_key; prima
+associazione riuscita, poi revoca, nuovi tentativi con credenziale gia registrata.
+Il bug vault poteva lasciare associated:false persistito, pur mostrando KPI nella
+prima sessione. Dopo riavvio/revoca l'helper trattava il token come tentativo
+pendente e lo riutilizzava, entrando in conflitto con la riga revocata conservata.
+Ora un403 confermato invalida la chiave per il prossimo pairing anche se pending;
+la nuova chiave e persistita prima del POST. Senza403 i retry mantengono lo stesso
+segreto, incluso il recupero dopo risposta persa. Nessuna modifica DB o RPC.
+Regressione host riprodotta con503prima/200dopo; prova SQL isolata verifica
+vincolo23505, nuovo codice intatto dopo errore, vecchia revoca invariata e successo
+con una nuova chiave/audit singolo. Nuovo ZIP distinto ripristino-2, installer
+identifica revisione2. Trasferire via USB, estrarre in cartella nuova, eseguire
+installa-monitor.cmd come amministratore e riavviare il PC; poi codice appena
+creato da Admin. avvia-monitor.cmd si apre normalmente, senza elevazione.
+QA revisione2: suite669/669 con build e55check SQL PGlite isolati verdi.
+Consegna locale distinta: tmp/monitor-ripristino-20261106/mirox-monitor-ripristino-2.zip,
+21file/402636byte, SHA256
+84e0f155b202745a6f1425938f4caa720ac681e27e8114f5b9dc6cc4bde342fa.
+Il precedente mirox-monitor-corretto.zip e superato. Nessun push/pubblicazione;
+l'utente conferma "Funziona!" dopo installazione revisione2. Resta il collaudo
+completo di avvio autonomo, recupero rete/browser, timer e giornata08:30–20.
+
+### Impostazioni della postazione
 
 1. Windows 11 Pro (o altra edizione con Assigned Access): account locale standard
    dedicato → Impostazioni → Account → Altri utenti → Configura un chiosco → Edge

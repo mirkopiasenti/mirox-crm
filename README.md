@@ -14,6 +14,25 @@ helper loopback/DPAPI e istruzioni, scaricabile dall'Admin dopo la pubblicazione
 **Online con 88794dd: CI42034207778LinuxNode22verde665test, Netlify6aec817fc578cdeb2b6d097e verificato HTTP.**
 Migration applicate20261105131100/20261105131331 su consenso esplicito;
 asset e pacchetto Windows verificati, API401/403senza credenziali.
+Correzione locale06/11 (non pubblicata): riscrittura DPAPI con NullString .NET
+per Windows PowerShell, stato in memoria aggiornato solo dopo salvataggio;
+errori archivio e limite tentativi espliciti. Prova DPAPI sintetica Windows in CI.
+Il pacchetto locale include installa-monitor.cmd: tasto destro, Esegui come
+amministratore, senza trascrivere comandi. Puo essere trasferito via USB dal Mac.
+Revisione2 locale06/11: rifiuto403 della chiave forza una nuova credenziale anche
+con stato legacy non confermato; evita conflitto con hash revocato, preserva retry
+di richieste perse senza rifiuto confermato. Server/DB invariati, nessun deploy.
+Nuovo sviluppo locale06/11: dopo una sola installazione del pacchetto aggiornato,
+HTML/CSS/JS/font/logo ricevono le modifiche dei push autorizzati automaticamente:
+controllo30s, download verificato/atomico solo in memoria, URL per versione,
+ritorno alla pagina precedente se non si avvia/renderizza entro45s dall'apertura.
+Credenziale conservata; programma Node/PowerShell escluso dagli aggiornamenti web.
+KPI: richiesta3s, cache server1s e lettura browser1s (attesi circa3–6s con rete e
+server regolari, piu eventuale elaborazione lenta); avviso15s/obsoleto60s. Nessun
+push programmato o migration nuova. **In verifica per il push autorizzato06/11.**
+[Debug approfondito e verifiche del rilascio06/11](docs/MONITOR_DEBUG_2026-11-06.md):
+agenda a15s reali, recupero anche dopo errore rendering tardivo, controllo risorse,
+installer transazionale con rollback e prova nativa del servizio sotto SYSTEM in CI.
 [Installazione, architettura e collaudo](docs/MONITOR_NEGOZIO.md).
 
 ## Stack
@@ -84,6 +103,9 @@ Monitor: `monitor.html`, `admin-monitor.html`, `css/monitor.css`, `js/monitor*.j
 `tools/monitor-windows/`. `scripts/build-monitor-package.js` genera lo ZIP in
 `dist/assets/` tramite allowlist; sorgenti backend, tools e SQL restano esclusi
 dalla pubblicazione diretta. Nessun segreto o stato dispositivo nel pacchetto.
+Il nuovo `monitor-updates.cjs` gestisce la sola pagina in memoria; la build
+produce anche `dist/assets/monitor-release.json` e
+`dist/assets/monitor-releases/<SHA256>/` con i10asset browser. ZIP corrente22file.
 
 
 | Cartella / File | Cosa contiene |

@@ -51,7 +51,7 @@ function snapshotCache(build=buildSnapshot) {
   let cache=null,inflight=null;
   return async(db,now=new Date())=>{
     const date=today(now);
-    if(cache?.data===date && now.getTime()-Date.parse(cache.aggiornato_il)<20000) return cache;
+    if(cache?.data===date && now.getTime()-Date.parse(cache.aggiornato_il)<1000) return cache;
     if(inflight?.date===date) return inflight.promise;
     const work={date,promise:build(db,now).then(value=>{cache=value;return value;})};inflight=work;
     try{return await work.promise;}finally{if(inflight===work)inflight=null;}
