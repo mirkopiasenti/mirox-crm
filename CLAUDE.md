@@ -10,15 +10,15 @@ legacy e dati esistenti invariati per impronta, QA SQL50check. ZIP Windows da bu
 helper Node>=22/DPAPI LocalMachine/taskSYSTEM/loopback, logo e Inter4.1 locali,
 agenda→Day completo→mensile soli punti. Nessun DB legacy/cliente toccato.
 Fonti AGENTS, docs/MONITOR_NEGOZIO.md e databaseREADME; collaudo PC/TV necessario.
-Fix locale06/11 non pubblicato: File.Replace usa NullString.Value, persistenza
+Fix06/11 pubblicato con42ddc96: File.Replace usa NullString.Value, persistenza
 prima dell'aggiornamento in memoria, errori archivio/429 espliciti. Prova DPAPI
 sintetica scripts/check-monitor-vault.ps1 nel nuovo job CI Windows PowerShell.
-ZIP locale21file include installa-monitor.cmd: tasto destro/Esegui come
+ZIP corrente22file include installa-monitor.cmd: tasto destro/Esegui come
 amministratore, utile trasferendo il pacchetto dal Mac al PC via USB.
-Revisione2 locale: dopo403 genera nuova chiave anche da pending legacy. Log letti
+Recupero revisione2 incluso nel rilascio: dopo403 genera nuova chiave anche da pending legacy. Log letti
 production confermano23505/hash revocato; nessun DB/RPC modificato. Retry transitori
 stessa chiave conservati; regressione host riprodotta prima del fix e SQL isolato.
-Sviluppo06/11 locale non pubblicato: autoaggiornamento sola pagina dopo push
+Rilascio06/11: autoaggiornamento sola pagina dopo push
 manuale, controllo30s, manifest/api/hash/limiti e attivazione atomica in memoria;
 URL versionati e rollback45s dalla prima apertura senza heartbeat di rendering.
 Nessun codice remoto eseguito da SYSTEM, helper/vault/state.bin mai scaricati.
@@ -26,6 +26,7 @@ Primo pacchetto22file da installare una volta; poi aggiornamenti UI automatici.
 KPI3s/cache1s/browser1s, avviso15s/obsoleto60s; regole/DB/cron invariati.
 Debug approfondito richiesto06/11 con push autorizzato: report
 docs/MONITOR_DEBUG_2026-11-06.md; installer transazionale/preflight/rollback,
+codice42ddc96 online, CI42306373563/42306680853 verdi687test Linux e Windows;
 CI Windows reale SYSTEM/DPAPI/ACL e supervisor. Agenda a15s reali, heartbeat
 rendering distinto e recupero tardivo, risorse pagina validate prima dell'attivazione.
 

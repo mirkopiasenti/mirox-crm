@@ -1,19 +1,16 @@
-# Monitor KPI negozio — implementazione locale del 05/11/2026
+# Monitor KPI negozio — servizio Windows e aggiornamenti pagina
 
-Stato: **pubblicato05/11 con commit88794dd**, CI Linux/Node22
-[42034207778](https://github.com/mirkopiasenti/mirox-crm/actions/runs/42034207778)
-verde665test, Netlify6aec817fc578cdeb2b6d097e online. **06/11: l'utente conferma
-installazione, associazione del PC e pagina visibile. Chiosco, autologon,
-alimentazione e timer PC/TV ancora da configurare/collaudare.**
-Migration applicata su consenso esplicito, versione production20261105131100.
-Restrizione successiva dei default service_role: migration monitor_privilegi_service_role
-applicata come20261105131331; soli oggetti nuovi, nessuna modifica ai default globali.
-L'utente ha autorizzato lo sviluppo dopo la revisione del mockup. Windows 11 e
-visione riservata al personale e Windows 11 Pro confermati; RTC da verificare.
-06/11: l'utente chiarisce una revoca involontaria, poi stesso errore associando
-un nuovo codice sia dal profilo standard sia dal chiosco. Individuato difetto
-File.Replace nel vault Windows; fix locale sotto, esito sul PC ancora da confermare.
-Nessuna modifica a tabelle/RLS/RPC/trigger legacy del Call Center o ai dati cliente.
+Stato: **aggiornamento06/11 pubblicato con codice42ddc96**, Netlify
+6aee57bbf9012b875feb1a2e. CI42306373563(ramo tecnico) e42306680853(main):
+687test Linux/Node22 e prove Windows native verdi. HTTP10payload/ZIP22file/SHA,
+API senza credenziali e updater reale HTTPS→loopback verificati. Nessun browser.
+
+L'utente conferma prima associazione e KPI visibili con ripristino-2; per la nuova
+pagina autoaggiornabile serve una sola installazione del pacchetto corrente,
+conservando l'associazione. Windows11Pro e visione solo personale confermati.
+Collaudo fisico PC/TV, timer e giornata completa restano al proprietario.
+Migration05/11 gia applicate20261105131100/20261105131331, nessuna nuova migration
+per questo aggiornamento e nessuna modifica ai DB condivisi del Call Center.
 
 ## Pagina e layout concordati
 
@@ -83,8 +80,8 @@ DB aggiornato al massimo ogni 5 minuti. Il frontend legge la copia locale ogni
 secondo: latenza attesa indicativamente3–6secondi con rete/server regolari, a cui
 si aggiungono eventuali rallentamenti di rete/query. Revoca normalmente entro4s
 oltre al tempo di richiesta; guasti possono ritardarla, con avviso di dati obsoleti.
-Non e' un limite massimo garantito. In produzione05/11 restano poll30s/cache20s
-finche non viene richiesto il push di queste modifiche e installato il nuovo helper.
+Non e' un limite massimo garantito. I pacchetti precedenti mantengono il poll30s:
+per il nuovo intervallo anche sul PC serve installare una volta il nuovo helper.
 
 ## Associazione, Admin e migration
 
@@ -172,7 +169,7 @@ solo il task; revocare da Admin, file/credenziali non cancellati automaticamente
 Staging: pacchetto senza origine predefinita; installazione con -Origin su un
 Netlify distinto, production rifiutata. Nessun dato di staging indirizzato a prod.
 
-## Aggiornamenti pagina dopo push — sviluppo locale06/11
+## Aggiornamenti pagina dopo push — pubblicati06/11
 
 Flusso scelto: modifiche richieste in chat, sviluppo/verifica locale, push solo
 su richiesta esplicita del proprietario. Il push continua ad avviare il deploy
@@ -227,20 +224,24 @@ entro il controllo30s piu download/reload, dopo che il deploy e online; non serv
 toccare file o riavviare il PC. Per cambiare il codice nativo del servizio Windows
 o il protocollo oltreAPI1 rimane necessaria un'installazione esplicita.
 
-QA locale del nuovo sistema:680/680test con build verdi, nessuno skip. Testano
-DOM reale/reload/ack dopo rendering, host HTTP, versioni coerenti, attivazione
-atomica, errori download/hash/limiti/API/redirect/rete e recupero, rollback e
-conservazione della credenziale. Nessun browser/Windows/TV reale usato nei test.
-Pacchetto abilitante locale22file/405949byte:
-`tmp/monitor-automatico-20261106/mirox-monitor-aggiornamenti-automatici.zip`, SHA256
-`0b225109e85374bbf8bf00b5e4772c75d0c74d4c0885102f9f53df159ac32da3`.
-Release web `c6efcd27ea2a905386bf59f1fa2ad9dca89694a524b0eda7b05626f38487c43f`.
-Non pubblicato: richiesta push ancora necessaria; collaudo aggiornamento dal
-deploy al TV e latenza effettiva sul DB reali da fare dopo pubblicazione.
+QA del nuovo sistema:687/687test con build verdi, nessuno skip, sia in locale
+sia in CI Linux/Node22. Windows nativo (runner windows-2025-vs2026) verifica
+DPAPI fra admin e SYSTEM, ACL, installazione/reinstallazione, stato cifrato
+identico, rifiuto pacchetto corrotto, rollback su avvio fallito e supervisor.
+HTTP production: tutti i10payload .bin verificati per byte/dimensione/SHA,
+ZIP22file identici per contenuto alla build e checksum pubblico coerente,
+APIadmin401/device403senza credenziali. Una baseline sintetica ha scaricato la
+release reale e servito HTML/CSS dal loopback, senza credenziali o letture KPI.
+Release web `6b92eeb42fb1727dbea45128f797f43dc61d6331f2e960da988db1bcbc2df00c`.
+[Pacchetto corrente](https://mirox-crm.it/assets/mirox-monitor-windows.zip),
+[checksum corrente](https://mirox-crm.it/assets/mirox-monitor-windows.sha256).
+Prove archiviate in tmp/monitor-debug-20261106, report MONITOR_DEBUG_2026-11-06.md.
+Il precedente ZIP locale automatico405949byte e superato. Collaudo sul PC/TV
+fisico e latenza effettiva del DB reali restano da verificare dal proprietario.
 
 ## Configurazione PC e Samsung ME40B
 
-### Correzione riassociazione06/11 — locale, non pubblicata
+### Correzione riassociazione06/11 — inclusa nel rilascio
 
 Windows PowerShell converte `$null` nel parametro string .NET in stringa vuota.
 Il terzo parametro di `File.Replace` deve invece essere un vero null per non
@@ -256,7 +257,7 @@ dettaglio interno o segreto esposto. Test Node con fallimento iniziale/finale,
 retry con stessa chiave, recupero da nuovo host e revoca/riassociazione.
 `scripts/check-monitor-vault.ps1` prova DPAPI reale su dati sintetici in directory
 temporanea, prima scrittura, aggiornamenti e riassociazione; aggiunto job Windows
-PowerShell in CI. Non eseguibile sul Mac: esito Windows ancora da ottenere.
+PowerShell in CI. Non eseguibile sul Mac; ora eseguito con successo sul runner Windows.
 QA locale:19test monitor mirati e suite completa668/668 con build verdi;
 nessuna prova Windows/DPAPI reale o scrittura DB eseguita da Codex.
 Il nuovo ZIP viene generato dalla build; aggiornamento completo tramite reinstallazione

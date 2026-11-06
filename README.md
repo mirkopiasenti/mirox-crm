@@ -2,38 +2,30 @@
 
 Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della rete Konatech. Static frontend HTML/JS + Netlify Functions (Node) + Supabase Postgres.
 
-## Monitor KPI negozio — pubblicato05/11/2026
+## Monitor KPI negozio — aggiornato06/11/2026
 
-Pagina `monitor.html` per Samsung ME40B verticale e Windows 11: appuntamenti in
-alto, Day by Day completo al centro e mensile Standard/P.IVA in basso senza
-pezzi. Logo originale e Inter 4.1 locale, solo visione 08:30–20:00.
-`admin-monitor.html` crea codici monouso di 15 minuti e revoca le postazioni;
-nessun account operatore sul televisore. API con credenziale dispositivo separata,
-KPI aggregati e nessun dato cliente. La build produce il pacchetto Windows con
-helper loopback/DPAPI e istruzioni, scaricabile dall'Admin dopo la pubblicazione.
-**Online con 88794dd: CI42034207778LinuxNode22verde665test, Netlify6aec817fc578cdeb2b6d097e verificato HTTP.**
-Migration applicate20261105131100/20261105131331 su consenso esplicito;
-asset e pacchetto Windows verificati, API401/403senza credenziali.
-Correzione locale06/11 (non pubblicata): riscrittura DPAPI con NullString .NET
-per Windows PowerShell, stato in memoria aggiornato solo dopo salvataggio;
-errori archivio e limite tentativi espliciti. Prova DPAPI sintetica Windows in CI.
-Il pacchetto locale include installa-monitor.cmd: tasto destro, Esegui come
-amministratore, senza trascrivere comandi. Puo essere trasferito via USB dal Mac.
-Revisione2 locale06/11: rifiuto403 della chiave forza una nuova credenziale anche
-con stato legacy non confermato; evita conflitto con hash revocato, preserva retry
-di richieste perse senza rifiuto confermato. Server/DB invariati, nessun deploy.
-Nuovo sviluppo locale06/11: dopo una sola installazione del pacchetto aggiornato,
-HTML/CSS/JS/font/logo ricevono le modifiche dei push autorizzati automaticamente:
-controllo30s, download verificato/atomico solo in memoria, URL per versione,
-ritorno alla pagina precedente se non si avvia/renderizza entro45s dall'apertura.
-Credenziale conservata; programma Node/PowerShell escluso dagli aggiornamenti web.
-KPI: richiesta3s, cache server1s e lettura browser1s (attesi circa3–6s con rete e
-server regolari, piu eventuale elaborazione lenta); avviso15s/obsoleto60s. Nessun
-push programmato o migration nuova. **In verifica per il push autorizzato06/11.**
-[Debug approfondito e verifiche del rilascio06/11](docs/MONITOR_DEBUG_2026-11-06.md):
-agenda a15s reali, recupero anche dopo errore rendering tardivo, controllo risorse,
-installer transazionale con rollback e prova nativa del servizio sotto SYSTEM in CI.
-[Installazione, architettura e collaudo](docs/MONITOR_NEGOZIO.md).
+Samsung ME40B verticale/Windows11Pro: agenda in alto, Day by Day completo e
+mensile Standard/P.IVA senza pezzi; logo originale e Inter4.1 locale.
+Solo visione, credenziale dispositivo DPAPI separata dagli account CRM.
+Codice pubblicato con `42ddc96`:687test Linux/Node22 e prove native Windows
+SYSTEM/DPAPI/ACL, installazione, aggiornamento, pacchetto corrotto e rollback
+verdi in CI. Nessuna nuova migration o modifica ai dati del DB condiviso.
+
+Dopo una sola installazione del nuovo ZIP22file, i push autorizzati aggiornano
+la pagina automaticamente: controllo30s, download verificato/atomico in memoria,
+URL per versione e ritorno alla precedente in caso di errore rendering. Il
+programma Node/PowerShell resta escluso dai download web. KPI ogni3s, cache1s,
+lettura schermo1s; latenza attesa circa3–6s con rete/server regolari, piu eventuale
+elaborazione lenta. Avviso15s/obsoleto60s. Agenda ogni15s reali, non a ogni poll.
+
+Installer a clic: `installa-monitor.cmd` → Esegui come amministratore, senza
+trascrivere comandi; associazione conservata, preflight/staging privato e rollback
+se il nuovo servizio non parte. [Pacchetto Windows](https://mirox-crm.it/assets/mirox-monitor-windows.zip).
+HTTP production verificato:10payload binari/SHA256, ZIP22file identici alla build,
+API401/403senza credenziali e download reale dal server al loopback senza KPI privati.
+[Installazione e architettura](docs/MONITOR_NEGOZIO.md) ·
+[Debug dettagliato e prove](docs/MONITOR_DEBUG_2026-11-06.md).
+Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push notturna.
 
 ## Stack
 
@@ -114,7 +106,7 @@ produce anche `dist/assets/monitor-release.json` e
 | `imposta-password.html` | Accetta inviti Auth, crea la sessione dal link e consente di scegliere la password senza comunicarla agli amministratori |
 | `dashboard.html` | Home con tabs Vendita / Post-Vendita + topbar con bottoni Applicazioni / Appuntamenti Oggi / Ticket / Call Center / **Admin** (visibile solo se `ruolo='admin'`) + badge ticket aperti. Nell'angolo inferiore destro una mascotte KONA AI Guardian di dimensioni ridotte con nuvoletta di chat compatta apre la raccolta di problemi o migliorie; il bottone Applicazioni apre un pannello espandibile sopra il saluto e collega a `Il mio planning`, `Compilatore disdette` e `Compilatore Subentri` |
 | `admin.html` | **Hub Admin Mirox** — shell a due aree con sidebar dei reparti e area di lavoro. `Configurazioni` contiene 6 moduli, inclusi Permessi pagine e Monitor negozio; `KPI` raccoglie i moduli di analisi. Accesso ristretto a `ruolo='admin'` |
-| `monitor.html` | Shell del monitor verticale, KPI riservati alla postazione associata tramite helper Windows; agenda, Day completo e mensile senza pezzi. Online05/11 con 88794dd |
+| `monitor.html` | Shell del monitor verticale, KPI riservati alla postazione associata tramite helper Windows; agenda, Day completo e mensile senza pezzi. Aggiornabile dal push; codice06/11 con42ddc96 |
 | `admin-monitor.html` | Configurazioni Admin: download pacchetto Windows, codice associazione15min, elenco postazioni e revoca |
 | `tools/monitor-windows/` | Helper Node>=22/DPAPI/taskSYSTEM, installer e guida PC; escluso dalla pubblicazione diretta, ZIP generato per allowlist |
 | `admin-planning.html` | Reparto Personale: planning mensile, assenze, consuntivi, straordinari manuali, bozza/approvazione e PDF. Online29/10; migration20261029210434 applicata |

@@ -46,7 +46,25 @@ Prima CI sul ramo tecnico: [42305665291](https://github.com/mirkopiasenti/mirox-
 verde sia Linux/Node22 sia Windows nativo. Prove DPAPI, taskSYSTEM, ACL,
 installazione/reinstallazione con percorso contenente spazi, credenziale
 preservata, ZIP corrotto rifiutato, rollback e supervisor completate.
-Trasporto .bin aggiunto dopo questa prima prova: seconda CI e produzione da verificare.
+Codice definitivo con trasporto .bin: seconda CI tecnica
+[42306373563](https://github.com/mirkopiasenti/mirox-crm/actions/runs/42306373563)
+e CI main [42306680853](https://github.com/mirkopiasenti/mirox-crm/actions/runs/42306680853)
+entrambe verdi,687test Linux/Node22 e tutte le prove Windows native.
+
+Push main autorizzato completato: codice `42ddc96`, Netlify
+`6aee57bbf9012b875feb1a2e` pronto. HTTP production conferma SHA del commit,
+manifest no-store,10payload .bin con hash e dimensioni esatti/header immutable,
+ZIP22file identici per contenuto alla build e checksum pubblico coerente.
+APIadmin401/device403senza credenziali, entrambe no-store. Verificato anche
+l'updater reale da una baseline sintetica: download HTTPS dei10file e servizio
+loopback HTML/CSS/versione corretti, senza chiavi dispositivo o richieste KPI.
+55controlli SQL PGlite isolati ripetuti e verdi;6file WIP esterni al monitor
+conservati byte per byte. Nessuna migration, modifica DB o prova con dati cliente.
+
+Prove locali in `tmp/monitor-debug-20261106/`: online-verification.json,
+online-updater-verification.json e mirox-monitor-verificato.zip. Gli aggiornamenti
+solo documentali successivi non cambiano il contenuto della release web;
+il checksum dell'archivio ZIP corrente e pubblicato accanto al download.
 
 Resta necessario installare una volta il nuovo pacchetto sul PC gia associato.
 Il controllo fisico su Samsung, i timer, il boot/blackout e una giornata08:30–20

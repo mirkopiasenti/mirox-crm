@@ -40,7 +40,7 @@ mirox_monitor_dispositivi_token_hash_key durante nuova associazione. La revoca
 conserva l'hash per impedirne il riutilizzo: comportamento DB corretto, helper
 aggiornato per rigenerare la chiave dopo403 anche dallo stato legacy pending.
 Nessun hash/codice/cliente letto o scritto da Codex; nessuna migration nuova.
-Sviluppo locale06/11: refresh KPI3s, cache snapshot1s e frontend1s, senza nuove
+Rilascio06/11 con42ddc96: refresh KPI3s, cache snapshot1s e frontend1s, senza nuove
 RPC/trigger/Realtime o modifiche alle tabelle condivise. Snapshot e regole
 conteggio identici; letture aggregate piu frequenti (13800in08:30–20:00,
 28800se il PC resta24h). Nuovo updater della pagina indipendente dal DB, chiave
@@ -48,6 +48,7 @@ DPAPI e associazione conservate; nessuna nuova scrittura/migration da applicare.
 Debug approfondito06/11 include verifica isolamento/privilegi preesistenti e
 regressioni con dati sintetici; installer/CI/updater non modificano il DB reale.
 Report operativo: [debug monitor](../docs/MONITOR_DEBUG_2026-11-06.md).
+QA55checkSQL PGlite isolati e687test/CI Linux+Windows verdi. Nessun nuovo consenso o applicazione SQL necessari per questo rilascio.
 [Guida runtime, Windows e attivazione](../docs/MONITOR_NEGOZIO.md).
 
 ## Accesso bonus da novembre2026 — applicato04/11/2026

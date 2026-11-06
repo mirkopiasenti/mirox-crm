@@ -149,18 +149,18 @@ loader Target condivisi, export CONTRACT_FIELDS additivo, invii Target invariati
 Day mantiene tutte le righe senza paginazione; solo successivi appuntamenti
 paginati15s, prossimo fisso. Fit uniforme senza scroll, leggibilita' sulTV da
 verificare. Nessuna nuova env, cronNetlify o dipendenza npm.
-Fix locale06/11, non pubblicato: vault.ps1 usa NullString.Value come terzo
+Fix06/11 pubblicato con42ddc96: vault.ps1 usa NullString.Value come terzo
 argomento File.Replace (PowerShell converte $null in stringa vuota). Non cambiare
 credenziale in memoria prima del successo DPAPI; errori archivio distinti e429
 esplicito, nessun dettaglio interno/segreto al browser. scripts/check-monitor-vault.ps1
 prova cifratura, scritture successive e riassociazione con dati sintetici su
-Windows PowerShell; job dedicato windows-latest in CI, da eseguire al prossimo push.
-Pacchetto locale aggiornato: installa-monitor.cmd richiama install.ps1 tramite
+Windows PowerShell; job Windows nativo completato in CI prima e dopo il push.
+Pacchetto aggiornato06/11: installa-monitor.cmd richiama install.ps1 tramite
 Windows PowerShell assoluta, con percorso script quotato; va avviato con tasto
 destro/Esegui come amministratore. Console resta aperta e distingue errore/successo;
-consente trasferimento ZIP via USB dal Mac senza comandi manuali.21file nel nuovo
+consente trasferimento ZIP via USB dal Mac senza comandi manuali.22file nel nuovo
 ZIP (i20del rilascio05/11 restano riferimento storico), nessuna nuova dipendenza.
-Revisione2 locale06/11: log production letti soltanto per conteggi/vincolo
+Recupero revisione2 incluso nel rilascio06/11: log production letti soltanto per conteggi/vincolo
 confermano23505 mirox_monitor_dispositivi_token_hash_key. Il primo vault difettoso
 poteva lasciare associated:false su disco pur avendo associato il token remoto;
 dopo revoca non va riutilizzato. L'helper segna il rifiuto403 e rigenera/persiste
@@ -168,7 +168,7 @@ la chiave prima del POST successivo anche per pending legacy, senza cambiare DB
 o RPC. Errori transitori non invalidano la chiave: retry stesso segreto conservato.
 Caso riprodotto503prima/200dopo nel test host; SQL isolato conferma23505, rollback
 del nuovo codice e successo solo con hash nuovo, revoca e audit conservati.
-Sviluppo autorizzato06/11: aggiornamenti automatici della sola pagina monitor
+Rilascio autorizzato06/11: aggiornamenti automatici della sola pagina monitor
 dopo push manuale autorizzato. Eccezione al precedente aggiornamento solo ZIP:
 monitor-updates.cjs scarica manifest e soli10asset web in allowlist da origine
 HTTPS gia vincolata, senza Authorization o credenziale, redirect vietati,
@@ -192,7 +192,7 @@ rollback anche dopo prima conferma e per viewer bloccato sulla versione vecchia.
 Agenda ogni15s di tempo reale, indipendente dal numero di poll.
 Payload web pubblicati come <nome>.bin per evitare riscritture HTML/PrettyURL
 di Netlify; il loopback conserva URL e MIME originali dopo verifica dei byte.
-
+Codice42ddc96 online06/11, Netlify6aee57bbf9012b875feb1a2e:10payload/ZIP22file e SHA verificati, APIadmin401/device403anonime, updater reale HTTPS→loopback senza credenziali riuscito. CI42306373563(ramo tecnico)/42306680853(main) entrambe verdi:687test LinuxNode22 e Windows nativo con taskSYSTEM, DPAPI/ACL, update/preflight/rollback/supervisor.55checkSQLisolati verdi, nessuna modifica DB/migration. Il PC gia associato richiede una sola installazione del nuovo pacchetto per abilitare gli aggiornamenti; collaudo fisico PC/TV resta al proprietario.
 
 - `test-upload-contratti-konahub.netlify.app` — vecchio URL di test del repo. **Non è più aggiornato** (le functions OTP rispondono 404). Deprecato — l'URL "buono" è `mirox-crm.it`
 - `mirox-crm.netlify.app` — il 05/10/2026 il pannello Netlify Domain management lo mostra come alias del site `mirox-crm`, collegato a questo repository e a `mirox-crm.it`. La precedente indicazione di un progetto CC distinto su questo URL è obsoleta. Il repository/deploy storico del CC resta da identificare; i vincoli sulle tabelle condivise restano validi.
