@@ -36,16 +36,18 @@ async function handler(event, deps = {}) {
     if (json) {
       const body = JSON.parse(event.body || '{}');
       const data = Identity.verify(body.token, { user, secret: deps.secret || process.env.SUPABASE_SERVICE_ROLE_KEY });
-      const confirmed = body.action === 'confirm_preview' ? Identity.confirmPreview(data, body) : Identity.confirm(data, body);
+      const confirmed = body.action === 'confirm_preview' ? Identity.confirmPreview(data, body)
+        : body.action === 'barcode_citizenship' ? Identity.confirmCitizenship(data, body.cittadinanza) : Identity.confirm(data, body);
       return reply(200, { success: true, token: Identity.sign(confirmed, deps.secret), result: confirmed.result });
     }
     const { files, fields } = await (deps.multipart || multipart)(event);
     const Verification = require('../../js/verifica-contratti-core');
-    if (!Verification.date(fields.data_firma) || fields.data_firma > Verification.romeDay(new Date())) throw new Error('Indica una data effettiva di firma valida e non futura.');
+    const barcode = ['barcode', 'barcode_manual'].includes(fields.action);
+    if (!barcode && (!Verification.date(fields.data_firma) || fields.data_firma > Verification.romeDay(new Date()))) throw new Error('Indica una data effettiva di firma valida e non futura.');
     const cliente = JSON.parse(fields.cliente || '{}');
     if (!/^(?:[A-Z0-9]{16}|[0-9]{11})$/.test(Identity.Core.customer(cliente).fiscale) || !Identity.Core.customer(cliente).nome) throw new Error('Completa l’anagrafica prima del controllo identita.');
-    const prepared=Identity.prepareManual(files,cliente,fields.data_firma);
-    if(fields.action&&!['manual_preview'].includes(fields.action))throw new Error('Azione controllo identita non valida.');
+    const prepared = barcode ? { documents: Identity.identityDocuments(files) } : Identity.prepareManual(files,cliente,fields.data_firma);
+    if(fields.action&&!barcode&&fields.action!=='manual_preview')throw new Error('Azione controllo identita non valida.');
     const issues=[];let saved=null;
     const db = deps.db || getAdminClient();
     try{
@@ -62,6 +64,25 @@ async function handler(event, deps = {}) {
     // Il confronto CRM precedente e conservato, senza scritture o correzioni automatiche qui.
     const target=cliente;
     const paths = JSON.parse(fields.pda_paths || '[]');
+    if (barcode) {
+      let business = null;
+      const isBusiness = Identity.Core.customer(target).business;
+      if (isBusiness) {
+        try { business = await Business.load(db, paths, target, deps); }
+        catch (error) {
+          if (error.pdaConflict) throw error;
+          business = await Business.loadManual(db, paths, target);
+          if (business) issues.push('Leggi il CF del delegato sulla PDA WindTre e confrontalo con il documento.');
+        }
+        if (!business) issues.push('Per questo contratto Business non è disponibile una PDA: verifica il documento del delegato nell’anteprima.');
+      }
+      const analysis = await Identity.analyzeBarcode(files, prepared.documents, target, business, issues, { ...deps, manual: fields.action === 'barcode_manual' || target.cluster === 'Turista' });
+      let data = { version: 1, flusso: 'barcode', at: Date.now(), user, customer: {
+        cf_piva: target.cf_piva, cluster: target.cluster, ragione_sociale: target.ragione_sociale, nome_referente: target.nome_referente
+      }, crm_customer: saved, business_identity: business, ...analysis };
+      if (fields.action === 'barcode_manual') data = Identity.confirmPreview(data, JSON.parse(fields.conferma || '{}'));
+      return reply(200, { success: true, token: Identity.sign(data, deps.secret), result: data.result });
+    }
     const pacchetto=fields.pacchetto?require('../../js/scanner-documenti-core').manifest(JSON.parse(fields.pacchetto)):null;
     const manualOnly=pacchetto?.tipo==='passaporto'||target.cluster==='Turista';
     let manual=fields.action==='manual_preview'||manualOnly||issues.length>0,business=null;
@@ -88,7 +109,8 @@ async function handler(event, deps = {}) {
       ragione_sociale: target.ragione_sociale, nome_referente: target.nome_referente }, crm_customer:saved, business_identity: business, ...analysis };
     if(fields.action==='manual_preview')data=Identity.confirmPreview(data,JSON.parse(fields.conferma||'{}'));
     return reply(200, { success: true, token: Identity.sign(data, deps.secret), result: data.result });
-  } catch (error) { return reply(error.statusCode || 400, { success: false, error: error.message || 'Controllo identita non disponibile' }); }
+  } catch (error) { return reply(error.statusCode || 400, { success: false, error: error.message || 'Controllo identita non disponibile',
+    ...(error.pdaConflict ? { code: 'pda_conflict' } : {}) }); }
 }
 exports.handler = handler;
 exports._test = { multipart };

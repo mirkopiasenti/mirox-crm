@@ -603,6 +603,8 @@ HTTP, nessun browser. Verifica PostgreSQL isolata: `scripts/verifica-codici-clie
 
 ### Documento identita per contratto
 
+Dal 09/11, caricare o trascinare il PDF nello step Documenti avvia subito la lettura del codice a barre. Il CF atteso è quello dell’intestatario Consumer o del delegato sulla PDA Business. Il Nome referente Business si gestisce in anagrafica e l’OCR della PDA lo lascia invariato. Scadenza del documento e data di firma escono dal controllo nell’upload. CF coincidente o conferma manuale portano al carrello appena sono presenti gli altri allegati obbligatori. Un avviso distingue CF non coincidente da barcode illeggibile e apre l’anteprima con conferma o sostituzione. [Dettagli e limiti](docs/IDENTITA_UPLOAD_2026-10-28.md).
+
 Il documento d'identita e obbligatorio per ogni nuovo contratto. Nel carrello viene selezionato una sola volta; sulle bozze `upload-vendita-documento` crea un allegato e un PDF indipendente per ciascuna riga, con INSERT batch e pulizia delle nuove copie su errore. `finalize` impedisce l'invio se manca l'identita anche su una sola riga. Gli upload successivi da Verifica Contratti restano specifici della riga selezionata. Lo storico dal 1 luglio 2026 viene sistemato dallo script dedicato senza sovrascrivere documenti esistenti; i casi senza sorgente richiedono un'integrazione manuale.
 
 ### Compilatore disdette

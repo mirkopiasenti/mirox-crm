@@ -1057,8 +1057,6 @@
 <script src="../js/verifica-contratti-core.js"></script>
 <script src="../js/identita-upload-core.js"></script>
 <script src="../js/identita-upload-ui.js"></script>
-<script src="../js/scanner-documenti-core.js"></script>
-<script src="../js/scanner-documenti-ui.js"></script>
 <script> // Auth guard: blocca rendering se non loggato
  (async () => {
  const profilo = await Auth.richiediAuth();
@@ -1354,19 +1352,12 @@ Reload Forever
 </div>
 </section> <section id="stepDocumentiSection" class="card panel hidden">
 <h2>Upload Documenti Cliente</h2>
-<p class="hint" style="margin:0 0 10px;">Carica il documento di riconoscimento una sola volta: sara associato a ogni contratto del carrello. Controllalo rispetto all'anagrafica prima di proseguire. Per Mobile Consumer con dispositivo VAR e cittadinanza extra UE comparira anche il permesso di soggiorno. Il PDA e' gia stato caricato nello step 1.</p>
+<p class="hint" style="margin:0 0 10px;">Carica il documento una sola volta per la pratica. Mirox legge il codice a barre e confronta il codice fiscale.</p>
 <div class="grid">
-<div class="field half"><label for="scannerTipoDocumento">Documento di riconoscimento</label><select id="scannerTipoDocumento"><option value="cie">Carta d’identità elettronica</option><option value="cartacea">Carta d’identità cartacea + tessera sanitaria</option><option value="patente">Patente + tessera sanitaria</option><option value="passaporto">Passaporto: PDF e controllo manuale</option></select><label><input id="scannerTessera" type="checkbox"> Includi tessera sanitaria fronte e retro</label><button type="button" id="btnScannerDocumento">Acquisisci da smartphone</button><button type="button" id="btnScannerPdf">Non è possibile acquisire da smartphone: carica PDF</button><p id="scannerDocumentoStato" class="hint" role="status">Acquisizione guidata da smartphone.</p></div>
 <div id="fieldDocumentoIdentita" class="field half">
-<label for="file_documento_identita">Documento identita *</label>
+<label for="file_documento_identita">Documento di riconoscimento *</label>
 <input id="file_documento_identita" type="file" accept="application/pdf" multiple>
-</div><div class="field half">
-<label for="identita_data_firma">Data effettiva di firma per il controllo identita *</label>
-<input id="identita_data_firma" type="date">
-<p class="hint">Indica la data reale di firma del contratto: non la data di caricamento.</p>
-<button type="button" id="btnControllaIdentita">Controlla documento di riconoscimento</button>
-<p class="hint">Se la lettura automatica richiede un controllo, si apre l’anteprima del documento: puoi verificarlo rispetto all’anagrafica e confermare manualmente per proseguire.</p>
-<p id="identitaControlloEsito" role="status">Documento non ancora controllato.</p>
+<p id="identitaControlloEsito" class="hint" role="status">Carica il PDF del documento, fino a 4 MB complessivi.</p>
 </div><div id="fieldPermessoSoggiorno" class="field half hidden">
 <label for="file_permesso_soggiorno">Permesso di soggiorno *</label>
 <input id="file_permesso_soggiorno" type="file" accept="application/pdf" multiple>
@@ -1399,7 +1390,6 @@ Reload Forever
 </div> <div id="actionsDocumenti" class="wizard-actions hidden">
 <button id="btnDocumentiBack" type="button" class="ghost">Indietro</button>
 <div class="wizard-actions-right">
-<button id="btnAddToCart" type="button" class="cta-secondary">Aggiungi un altro contratto</button>
 <button id="btnOpenCarrello" type="button" class="cta-primary">Vai al carrello</button>
 </div>
 </div> <p class="message info" id="messageBox">Pronto</p>
@@ -1575,6 +1565,9 @@ Reload Forever
  pdaRevision: 0,
  processingPda: false,
  addingContract: false,
+ documentsRevision: 0,
+ retryAutoCart: false,
+ replacingCartIdentity: false,
  ocrDeviceApplied: false
  };
  const DOC_TYPES = {
@@ -1692,7 +1685,6 @@ Reload Forever
  fileCopiaSimMnp: document.getElementById('file_copia_sim_mnp'),
  fileCopiaBolletta: document.getElementById('file_copia_bolletta'),
  fileContrattoFirmato: document.getElementById('file_contratto_firmato'),
- fieldDocumentoIdentita: document.getElementById('fieldDocumentoIdentita'),
  fieldFileMnp: document.getElementById('fieldFileMnp'),
  fieldFileBolletta: document.getElementById('fieldFileBolletta'),
  fieldContrattoFirmato: document.getElementById('fieldContrattoFirmato'),
@@ -1700,7 +1692,6 @@ Reload Forever
  firmaCardCartacea: document.getElementById('firmaCardCartacea'),
 
  btnCercaCliente: document.getElementById('btnCercaCliente'),
- btnAddToCart: document.getElementById('btnAddToCart'),
  btnOpenCarrello: document.getElementById('btnOpenCarrello'),
  btnOpenCarrelloTop: document.getElementById('btnOpenCarrelloTop'),
  btnBackToStep2: document.getElementById('btnBackToStep2'),
@@ -2529,7 +2520,7 @@ Reload Forever
  function initUploadBoxes() {
  const uploadConfig = [
  { input: refs.filePermessoSoggiorno, title: 'Permesso di soggiorno', hint: 'Carica il PDF del permesso di soggiorno', icon: '', multiple: true },
- { input: refs.fileDocumentoIdentita, title: 'Documento identita', hint: 'Trascina i PDF qui o clicca per selezionare', icon: '', multiple: true },
+ { input: refs.fileDocumentoIdentita, title: 'PDF del documento di riconoscimento', hint: 'Trascina i PDF dello scanner o clicca per selezionarli', icon: '', multiple: true },
  { input: refs.fileContrattoFirmato, title: 'Contratto firmato *', hint: 'Trascina la scansione del PDA firmato (1 PDF)', icon: '', multiple: false },
  { input: refs.fileCopiaSimMnp, title: 'Fotocopia SIM', hint: 'Trascina i PDF qui o clicca per selezionare', icon: '', multiple: true },
  { input: refs.fileCopiaBolletta, title: 'Copia bolletta', hint: 'Trascina i PDF qui o clicca per selezionare', icon: '', multiple: true }
@@ -2595,22 +2586,28 @@ Reload Forever
  ? await window.MiroxUpload.previewPdfFiles([droppedFiles[0]], { title: 'Anteprima documento' })
  : [droppedFiles[0]];
  setInputFiles(item.input, accepted);
+ documentsFileChanged(item.input);
  return;
  }
 
  const candidateFiles = item.multiple ? droppedFiles : [droppedFiles[0]];
- const acceptedFiles = window.MiroxUpload && window.MiroxUpload.previewPdfFiles
+ const acceptedFiles = item.input !== refs.fileDocumentoIdentita && window.MiroxUpload?.previewPdfFiles
  ? await window.MiroxUpload.previewPdfFiles(candidateFiles, { title: 'Anteprima documento' })
  : candidateFiles;
+ if (!acceptedFiles.length) return;
  setInputFiles(item.input, acceptedFiles);
+ documentsFileChanged(item.input);
  });
  item.input.addEventListener('change', () => {
  runtimeState.fileFallback[item.input.id] = Array.from(item.input.files || []);
  refreshUploadBox(item.input);
+ documentsFileChanged(item.input);
  });
  clearBtn.addEventListener('click', (event) => {
  event.stopPropagation();
  clearInputFile(item.input);
+ runtimeState.documentsRevision++;
+ if (item.input === refs.fileDocumentoIdentita) invalidateIdentitySelection();
  });
  refreshUploadBox(item.input);
  });
@@ -2620,40 +2617,69 @@ Reload Forever
  const selected = getInputFiles(refs.fileDocumentoIdentita);
  return selected.length ? selected : (praticaFiles.documento_identita || []);
  }
- function getBusinessPdaPaths() {
+ function getBusinessPdaPaths(cartOnly = false) {
  if (refs.cluster.value !== 'Business') return [];
- return [...new Set([...(state.cart.contratti || []).filter(c => c.temp_id !== runtimeState.editingTempId).map(c => c.pda_temp_path), runtimeState.pendingPda?.storage_path].filter(Boolean))].sort();
+ const paths = state.cart.contratti.filter(c => cartOnly || c.temp_id !== runtimeState.editingTempId).map(c => c.pda_temp_path);
+ if (!cartOnly) paths.push(runtimeState.pendingPda?.storage_path);
+ return [...new Set(paths.filter(Boolean))].sort();
  }
- let scannerChoice=null;
- function scannerPackage(){return window.MiroxScannerCore.manifest({tipo:document.getElementById('scannerTipoDocumento').value,tessera_sanitaria:document.getElementById('scannerTessera').checked});}
- function scannerPdf(){scannerChoice='pdf';refs.fieldDocumentoIdentita.style.display='';document.getElementById('scannerDocumentoStato').textContent='Carica i PDF di fronte e retro, includendo la tessera sanitaria quando richiesta.';}
- async function openScanner(){
-   const cliente=getClienteFormData(),pacchetto=scannerPackage();
-   if(cliente.cluster==='Turista'||pacchetto.tipo==='passaporto'){scannerPdf();return;}
-   scannerChoice='smartphone';refs.fieldDocumentoIdentita.style.display='none';
-   const stamp=JSON.stringify([window.MiroxIdentitaCore.customer(cliente),cliente.cluster]);
-   await window.MiroxScannerUI.open({customer:cliente,pacchetto,current:packet=>stamp===JSON.stringify([window.MiroxIdentitaCore.customer(getClienteFormData()),refs.cluster.value])&&JSON.stringify(packet)===JSON.stringify(scannerPackage()),onPackageChange:packet=>{document.getElementById('scannerTipoDocumento').value=packet.tipo;const ts=document.getElementById('scannerTessera');ts.checked=packet.tessera_sanitaria;ts.disabled=['cartacea','patente'].includes(packet.tipo);window.MiroxIdentitaUpload.invalidate();},onFallback:scannerPdf,onPdf:file=>{setInputFiles(refs.fileDocumentoIdentita,[file]);refs.fieldDocumentoIdentita.style.display='';document.getElementById('scannerDocumentoStato').textContent='Documento ricevuto dallo smartphone. Completa il controllo identita.';}});
+ function getCartIdentityFiles() {
+ return runtimeState.replacingCartIdentity ? getIdentityFiles() : praticaFiles.documento_identita || [];
  }
- function offerScanner(){
-   if(getIdentityFiles().length||scannerChoice)return;
-   if(refs.cluster.value==='Turista'){document.getElementById('scannerTipoDocumento').value='passaporto';scannerPdf();return;}
-   openScanner().catch(error=>{scannerPdf();showUserError(error.message,'Scanner documento');});
+ function invalidateIdentitySelection() {
+ window.MiroxIdentitaUpload.invalidate();
+ document.getElementById('identitaControlloEsito').textContent = 'Carica il PDF del documento, fino a 4 MB complessivi.';
+ updateUploadVisibility();
  }
- async function ensureIdentityUpload() {
- const files = getIdentityFiles();
+ function reloadIdentityDocument() {
+ clearInputFile(refs.fileDocumentoIdentita);
+ runtimeState.replacingCartIdentity = uiState.view === 'cart';
+ runtimeState.documentsRevision++;
+ invalidateIdentitySelection();
+ refs.fileDocumentoIdentita.click();
+ }
+ function inDocumentsStep() {
+ return uiState.view === 'wizard' && uiState.step === 5;
+ }
+ function documentsFileChanged(input) {
+ runtimeState.documentsRevision++;
+ if (input === refs.fileDocumentoIdentita) invalidateIdentitySelection();
+ if (getInputFiles(input).length) void continueFromDocuments();
+ }
+ async function ensureIdentityUpload(current, cartOnly = false) {
+ const getFiles = cartOnly ? getCartIdentityFiles : getIdentityFiles;
+ const files = getFiles();
  const cliente = getClienteFormData();
- const date = document.getElementById('identita_data_firma').value;
- const snapshot = JSON.stringify([window.MiroxIdentitaCore.customer(cliente),cliente.cluster]);
- const pdaPaths = getBusinessPdaPaths();
- const pacchetto=scannerPackage();
- return window.MiroxIdentitaUpload.ensure({ files, customer: cliente, date, pdaPaths,pacchetto,
- requireCitizenship: window.MiroxIdentitaCore.needsPermit({ cluster: cliente.cluster, categoria_nome: getCategoriaName(), dispositivo_associato: refs.dispositivoAssociato.value === 'true', tipo_acquisto: refs.tipoAcquisto.value }, 'extra_ue')
+ const snapshot = JSON.stringify([window.MiroxIdentitaCore.customer(cliente), cliente.cluster]);
+ const pdaPaths = getBusinessPdaPaths(cartOnly);
+ return window.MiroxIdentitaUpload.ensure({ files, customer: cliente, pdaPaths, barcode: true, reload: reloadIdentityDocument,
+ requireCitizenship: (!cartOnly && window.MiroxIdentitaCore.needsPermit({ cluster: cliente.cluster, categoria_nome: getCategoriaName(), dispositivo_associato: refs.dispositivoAssociato.value === 'true', tipo_acquisto: refs.tipoAcquisto.value }, 'extra_ue'))
  || state.cart.contratti.some(c => window.MiroxIdentitaCore.needsPermit({ ...c, cluster_cliente: cliente.cluster }, 'extra_ue')),
- current: () => snapshot === JSON.stringify([window.MiroxIdentitaCore.customer(getClienteFormData()),refs.cluster.value])
- && JSON.stringify(pacchetto)===JSON.stringify(scannerPackage())
- && date === document.getElementById('identita_data_firma').value
- && JSON.stringify(pdaPaths) === JSON.stringify(getBusinessPdaPaths())
- && files.length === getIdentityFiles().length && files.every((file, index) => file === getIdentityFiles()[index]) });
+ current: () => current() && snapshot === JSON.stringify([window.MiroxIdentitaCore.customer(getClienteFormData()), refs.cluster.value])
+ && JSON.stringify(pdaPaths) === JSON.stringify(getBusinessPdaPaths(cartOnly))
+ && files.length === getFiles().length && files.every((file, index) => file === getFiles()[index]) });
+ }
+ async function continueFromDocuments() {
+ if (!inDocumentsStep() || !getIdentityFiles().length) return;
+ const revision = runtimeState.documentsRevision;
+ const current = () => inDocumentsStep() && revision === runtimeState.documentsRevision;
+ try {
+ await ensureIdentityUpload(inDocumentsStep);
+ if (!current()) return;
+ updateUploadVisibility();
+ const required = getCurrentDocumentRequirements();
+ if ((isCurrentCategoriaPda() && runtimeState.pendingTipoFirma === 'cartacea' && !getInputFile(refs.fileContrattoFirmato))
+ || (required.copia_sim_mnp && !getInputFiles(refs.fileCopiaSimMnp).length)
+ || (required.copia_bolletta && !getInputFiles(refs.fileCopiaBolletta).length)
+ || (currentNeedsPermit() && !getInputFiles(refs.filePermessoSoggiorno).length)) return;
+ if (runtimeState.addingContract) {
+ runtimeState.retryAutoCart = true;
+ return;
+ }
+ await addContrattoToCart({ current });
+ } catch (error) {
+ if (current() && !error.identityCancelled) showUserError(error.message, 'Controllo documento');
+ }
  }
  function currentNeedsPermit() {
  return window.MiroxIdentitaCore.needsPermit({ cluster: refs.cluster.value, categoria_nome: getCategoriaName(),
@@ -2661,13 +2687,7 @@ Reload Forever
  window.MiroxIdentitaUpload.get()?.result?.cittadinanza);
  }
  function updateUploadVisibility() {
- const requirements = getCurrentDocumentRequirements();
  document.getElementById('fieldPermessoSoggiorno').classList.toggle('hidden', !currentNeedsPermit());
- const hasIdentity = Array.isArray(praticaFiles.documento_identita) && praticaFiles.documento_identita.length> 0;
- const needsIdentityReselection = runtimeState.restoreNeedsFileReselection && !hasIdentity && requirements.documento_identita;
- const mustHideIdentity = hasIdentity;
-
- refs.fieldDocumentoIdentita.classList.toggle('hidden', !needsIdentityReselection && mustHideIdentity);
  // Il contratto PDA originale e' gestito in staging dallo step 1.
  // Il campo "Contratto firmato" appare allo step Documenti solo se per questo contratto
  // e' stata scelta la firma cartacea.
@@ -2680,7 +2700,6 @@ Reload Forever
 
  function updateStep3ActionsLabels() {
  const editing = Boolean(runtimeState.editingTempId);
- refs.btnAddToCart.textContent = editing ? 'Salva modifiche e nuovo contratto' : 'Aggiungi un altro contratto';
  refs.btnOpenCarrello.textContent = editing ? 'Salva modifiche e vai al carrello' : 'Vai al carrello';
  }
 
@@ -2886,6 +2905,7 @@ Reload Forever
  }
 
  function goToStep(step) {
+ const wasDocuments = inDocumentsStep();
  uiState.view = 'wizard';
  let nextStep = Math.max(1, Math.min(5, Number(step) || 1));
  const firmaApplica = isCurrentCategoriaPda();
@@ -2894,10 +2914,14 @@ Reload Forever
  nextStep = 3;
  }
  uiState.step = nextStep;
+ if (wasDocuments && nextStep !== 5) {
+ runtimeState.documentsRevision++;
+ invalidateIdentitySelection();
+ }
  renderDynamicSections();
  renderWizardLayout();
  queueDraftSave();
- if(uiState.step===5)offerScanner();
+ if (nextStep === 5 && !wasDocuments) void continueFromDocuments();
  // Migration 033: all'apertura dello step 3 verifica se questo cliente ha
  // pratiche precedenti non finalizzate nella stessa categoria. Fire-and-forget
  // (l'overlay e' modale e blocca l'UI finche' l'operatore non risponde).
@@ -3392,14 +3416,9 @@ Reload Forever
  }
 
  function resetFullPracticeForm() {
- scannerChoice=null;window.MiroxScannerUI.invalidate();
- document.getElementById('scannerTipoDocumento').value='cie';
- const scannerTessera=document.getElementById('scannerTessera');scannerTessera.checked=false;scannerTessera.disabled=false;
- refs.fieldDocumentoIdentita.style.display='';
- document.getElementById('scannerDocumentoStato').textContent='Acquisizione guidata da smartphone.';
- window.MiroxIdentitaUpload.invalidate();
- document.getElementById('identita_data_firma').value = '';
- document.getElementById('identitaControlloEsito').textContent = 'Documento non ancora controllato.';
+ runtimeState.documentsRevision++;
+ runtimeState.replacingCartIdentity = false;
+ invalidateIdentitySelection();
  state.cart.cliente = null;
  state.cart.contratti = [];
  runtimeState.editingTempId = null;
@@ -4494,7 +4513,9 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  if (runtimeState.addingContract) return;
  runtimeState.addingContract = true;
  const pdaRevision = runtimeState.pdaRevision;
- const goToCart = Boolean(options.goToCart);
+ const current = options.current || inDocumentsStep;
+ const revision = runtimeState.documentsRevision;
+ const stillCurrent = () => current() && revision === runtimeState.documentsRevision && pdaRevision === runtimeState.pdaRevision;
  try {
  const cliente = getClienteFormData();
  validateClienteData(cliente);
@@ -4541,7 +4562,8 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  throw new Error('Sul primo contratto devi caricare il documento identita della pratica');
  }
 
- const identity = await ensureIdentityUpload();
+ const identity = await ensureIdentityUpload(inDocumentsStep);
+ if (!stillCurrent()) return;
  updateUploadVisibility();
  const isConsumerVar = window.MiroxIdentitaCore.needsPermit({ cluster: cliente.cluster, categoria_nome: getCategoriaName(),
  dispositivo_associato: refs.dispositivoAssociato.value === 'true', tipo_acquisto: refs.tipoAcquisto.value }, 'extra_ue');
@@ -4554,9 +4576,10 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  });
 
  if (isCurrentCategoriaPda() && !await checkPendingCode()) return;
- if (pdaRevision !== runtimeState.pdaRevision) return;
+ if (!stillCurrent()) return;
  if (selectedDocumentoIdentita.length> 0) {
  praticaFiles.documento_identita = selectedDocumentoIdentita;
+ runtimeState.replacingCartIdentity = false;
  runtimeState.restoreNeedsFileReselection = false;
  }
 
@@ -4589,21 +4612,16 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  renderDynamicSections();
  updateUploadVisibility();
  queueDraftSave();
- if (goToCart) {
  openCartView();
- } else {
- // Multi-contratto: torna allo step 1 (Categoria + PDA) per il prossimo contratto.
- // L'anagrafica e' gia' completata, quindi goToStep gestira' lo skip automatico dello step 2.
- renderOfferte();
- renderOpzioni();
- renderReload();
- renderDynamicSections();
- renderCategoriaActions();
- goToStep(1);
- }
  } catch (error) {
- if (!window.MiroxIdentitaUpload?.showError?.(error)) showUserError(error.message, 'Verifica contratto');
- } finally { runtimeState.addingContract = false; }
+ if (stillCurrent() && !error.identityCancelled) showUserError(error.message, 'Verifica contratto');
+ } finally {
+ runtimeState.addingContract = false;
+ if (runtimeState.retryAutoCart) {
+ runtimeState.retryAutoCart = false;
+ void continueFromDocuments();
+ }
+ }
  }
 
  function loadCartContractInForm(item) {
@@ -4886,7 +4904,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
 
  runtimeState.isSubmitting = true;
  refs.btnInviaPratica.disabled = true;
- refs.btnAddToCart.disabled = true;
+ refs.btnOpenCarrello.disabled = true;
  const uploadResults = [];
  const uploadDebug = [];
  // payload va dichiarato fuori dal try in modo che il catch sotto possa
@@ -4903,7 +4921,9 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  if (!item.codice_contratto) continue;
  if (!await window.MiroxPdaUI.checkCode(item.codice_contratto, state.cart.contratti, item.temp_id)) return;
  }
- await ensureIdentityUpload();
+ await ensureIdentityUpload(() => uiState.view === 'cart', true);
+ praticaFiles.documento_identita = getCartIdentityFiles();
+ runtimeState.replacingCartIdentity = false;
  payload = buildInvioPayload();
  setMessage('Creazione pratica e contratti in corso...', 'info');
  showLoadingOverlay('Caricamento in corso', 'Creazione pratica e contratti...');
@@ -5171,6 +5191,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  });
 	 window.setTimeout(goToSalesHome, 1800);
 	 } catch (error) {
+   if (error.identityCancelled) { hideLoadingOverlay(); return; }
 	 let rollbackResult = null;
 	 let rollbackError = null;
 	 if (createResult?.pratica_id && !practiceFinalized) {
@@ -5279,7 +5300,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  );
  } finally {
  refs.btnInviaPratica.disabled = false;
- refs.btnAddToCart.disabled = false;
+ refs.btnOpenCarrello.disabled = false;
  runtimeState.isSubmitting = false;
  }
  }
@@ -5840,12 +5861,13 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
 
  // Pre-compila i campi anagrafica con risultati OCR. Mostra il banner "Dati AI".
- // I dati OCR SOVRASCRIVONO sempre il contenuto dei campi: il PDA caricato e' la
- // fonte di verita' piu' aggiornata (anche rispetto al record DB pre-esistente).
+ // Il Nome referente Business è gestito in anagrafica, separatamente dal delegato della PDA.
  function applyOcrToAnagrafica(ocrData) {
  if (!ocrData || typeof ocrData !== 'object') return;
  // Salva i dati OCR in runtime per re-applicarli dopo eventuale Cerca cliente
  runtimeState.lastOcrData = ocrData;
+ const business = refs.cluster.value === CLUSTERS.BUSINESS
+ || (!refs.cluster.value && isItalianVatNumber(normalizeCfPiva(ocrData.cf_piva)));
  const mapping = {
  cf_piva: refs.cfPiva,
  ragione_sociale: refs.ragioneSociale,
@@ -5861,7 +5883,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  Object.keys(mapping).forEach((key) => {
  const el = mapping[key];
  const v = ocrData[key];
- if (!el) return;
+ if (!el || (key === 'nome_referente' && business)) return;
  if (v === null || v === undefined || v === '') return;
  // OCR ha priorita': sovrascrive sempre, anche valori gia' compilati
  el.value = key === 'cf_piva' ? normalizeCfPiva(v) : (key === 'email' ? String(v).toLowerCase() : String(v));
@@ -6435,22 +6457,10 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
  });
 
- document.getElementById('btnScannerDocumento').addEventListener('click',()=>openScanner().catch(error=>showUserError(error.message,'Scanner documento')));
- document.getElementById('btnScannerPdf').addEventListener('click',()=>{window.MiroxScannerUI.invalidate();scannerPdf();});
- for(const id of ['scannerTipoDocumento','scannerTessera'])document.getElementById(id).addEventListener('change',()=>{
-   window.MiroxScannerUI.invalidate();window.MiroxIdentitaUpload.invalidate();scannerChoice=null;
-   const m=scannerPackage(),tessera=document.getElementById('scannerTessera');tessera.checked=m.tessera_sanitaria;tessera.disabled=m.tipo==='cartacea'||m.tipo==='patente';
-   if(getIdentityFiles().length)scannerPdf();else offerScanner();
- });
- document.getElementById('btnControllaIdentita').addEventListener('click', async () => {
- window.MiroxIdentitaUpload.invalidate();
- try { await ensureIdentityUpload(); updateUploadVisibility(); } catch (error) { if (!window.MiroxIdentitaUpload?.showError?.(error)) showUserError(error.message, 'Controllo identita'); }
- });
-  for (const input of [refs.fileDocumentoIdentita, document.getElementById('identita_data_firma'), refs.cfPiva, refs.ragioneSociale, refs.nomeReferente,refs.cluster]) {
- input.addEventListener('change', () => { window.MiroxScannerUI.invalidate();scannerChoice=null;window.MiroxIdentitaUpload.invalidate(); document.getElementById('identitaControlloEsito').textContent = 'Dati o documento cambiati: ripeti il controllo identita.'; });
+ for (const input of [refs.cfPiva, refs.ragioneSociale, refs.nomeReferente, refs.cluster]) {
+ input.addEventListener('change', invalidateIdentitySelection);
  }
- refs.btnAddToCart.addEventListener('click', () => addContrattoToCart({ goToCart: false }));
- refs.btnOpenCarrello.addEventListener('click', () => addContrattoToCart({ goToCart: true }));
+ refs.btnOpenCarrello.addEventListener('click', () => addContrattoToCart());
  refs.btnOpenCarrelloTop.addEventListener('click', openCartView);
  // Da carrello: "Aggiungi altro contratto" -> torna allo step 1 per il prossimo contratto
  refs.btnBackToStep2.addEventListener('click', () => {

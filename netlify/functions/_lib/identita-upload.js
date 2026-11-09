@@ -101,14 +101,47 @@ async function analyze(files, customer, signingDate, deps = {}) {
   }
   return { documents, result: Core.evaluate(documents.map(d => d.reading), customer, signingDate) };
 }
-function prepareManual(files, customer, signingDate, reason = 'La lettura automatica non e disponibile: verifica personalmente tutti i documenti nell’anteprima.') {
+function identityDocuments(files) {
   if (!Array.isArray(files) || !files.length || files.length > 4) throw new Error('Carica da uno a quattro PDF del medesimo documento di riconoscimento.');
   if (files.some(f => !Buffer.isBuffer(f.buffer) || !f.buffer.subarray(0,1024).includes(Buffer.from('%PDF-')))) throw new Error('Carica un file PDF del documento.');
   if (files.reduce((sum,f) => sum+f.buffer.length,0) > 20*1024*1024) throw new Error('I PDF identita superano complessivamente 20 MB.');
-  const documents=files.map(f=>({sha256:hash(f.buffer),pages:null,reading:{fields:{},lettura_non_disponibile:true}}));
+  return files.map(f=>({sha256:hash(f.buffer),pages:null,reading:{fields:{},lettura_non_disponibile:true}}));
+}
+function prepareManual(files, customer, signingDate, reason = 'La lettura automatica non e disponibile: verifica personalmente tutti i documenti nell’anteprima.') {
+  const documents = identityDocuments(files);
   return {documents,result:{...Core.evaluate(documents.map(d=>d.reading),customer,signingDate),stato:'da_confermare',errors:[],uncertain:[reason]}};
 }
+async function analyzeBarcode(files, documents, customer, business, issues, deps = {}) {
+  const Barcode = require('./identita-barcode');
+  const isBusiness = Core.customer(customer).business;
+  const expected = isBusiness ? business?.cf_rappresentante : Core.customer(customer).fiscale;
+  const reads = [];
+  const deadline = Math.min(deps.deadline || Infinity, Date.now() + 12000);
+  if (expected && !deps.manual) {
+    for (const [index, file] of files.entries()) {
+      let barcode;
+      try { barcode = await (deps.readBarcode || Barcode.readPdf)(file.buffer, { deadline, zoom: true }); }
+      catch { barcode = { complete: false, values: [] }; }
+      documents[index].reading.barcode = barcode;
+      reads.push(barcode);
+    }
+  }
+  const found = [...new Set(reads.flatMap(read => read.values.map(evidence => evidence.value)))];
+  const complete = reads.length === files.length && reads.every(read => read.complete);
+  const mismatch = found.some(value => value !== expected);
+  const state = mismatch ? 'diverso' : !expected ? 'riferimento_mancante'
+    : complete && found.length === 1 ? 'coincidente' : 'illeggibile';
+  return { documents, result: {
+    stato: mismatch ? 'da_correggere' : state === 'coincidente' && !issues.length ? 'coerente' : 'da_confermare',
+    barcode_stato: state, criterio_identita: state === 'coincidente' ? 'barcode_fiscale' : null,
+    fiscale_atteso: expected || null, fiscali_letti: found, errors: [], uncertain: issues,
+    cittadinanza: null, richiede_cf_rappresentante: Boolean(business?.manuale),
+    cliente_nome: customer.ragione_sociale,
+    cliente_fiscale: Core.customer(customer).fiscale
+  } };
+}
 function confirm(data, input) {
+  if (data.flusso === 'barcode') throw new Error('Usa la conferma tramite anteprima.');
   if (data.result.stato === 'da_correggere') throw new Error('Correggi i dati o sostituisci il documento prima di procedere.');
   const manual = data.result.stato === 'da_confermare';
   const group = data.result.cittadinanza || input.cittadinanza;
@@ -125,29 +158,42 @@ function confirm(data, input) {
       ...(tax ? { codice_fiscale_verificato: tax } : {}) } };
 }
 function confirmPreview(data, input) {
+  const barcode = data.flusso === 'barcode';
   const needsConfirmation = ['da_correggere', 'da_confermare'].includes(data.result?.stato)
-    || data.result?.stato === 'coerente' && !data.result.cittadinanza;
+    || !barcode && data.result?.stato === 'coerente' && !data.result.cittadinanza;
   if (!needsConfirmation || !data.documents?.length) throw new Error('La conferma con anteprima richiede un controllo automatico non concluso. Ripeti il controllo.');
   const expected = [...new Set(data.documents.map(d => d.sha256))].sort();
   const viewed = Array.isArray(input.preview_sha256) ? [...new Set(input.preview_sha256)].sort() : [];
   if (input.preview_visualizzata !== true || JSON.stringify(viewed) !== JSON.stringify(expected)) throw new Error('Visualizza tutti i PDF del documento prima di confermare.');
-  const Verification = require('../../../js/verifica-contratti-core');
-  const signed = Verification.date(data.result.data_firma), expiry = Verification.date(input.scadenza);
-  if (!signed || signed > Verification.romeDay(new Date())) throw new Error('Indica una data effettiva di firma valida.');
-  if (!expiry || expiry < signed) throw new Error('Indica la scadenza verificata sul documento, valida alla data di firma.');
+  let expiry;
+  if (!barcode) {
+    const Verification = require('../../../js/verifica-contratti-core');
+    const signed = Verification.date(data.result.data_firma);
+    expiry = Verification.date(input.scadenza);
+    if (!signed || signed > Verification.romeDay(new Date())) throw new Error('Indica una data effettiva di firma valida.');
+    if (!expiry || expiry < signed) throw new Error('Indica la scadenza verificata sul documento, valida alla data di firma.');
+  }
   const group = input.cittadinanza || data.result.cittadinanza || null;
   if (![null, 'ue', 'extra_ue'].includes(group)) throw new Error('Cittadinanza non valida.');
   let business=data.business_identity;
-  if(business?.pdas?.length&&(business.manuale||input.rappresentante_verificato===true)){
+  if(business?.pdas?.length&&(business.manuale||!barcode&&input.rappresentante_verificato===true)){
     const tax=Core.norm(input.cf_rappresentante_verificato);
     if(!require('./pda-business-identity').personalTax(tax)||input.rappresentante_verificato!==true)throw new Error('Verifica il CF del rappresentante su documento e PDA Business e riportalo nel campo dedicato.');
     business={...business,manuale:true,cf_rappresentante:tax,pdas:business.pdas.map(p=>({...p,cf_rappresentante:tax}))};
   }
   return { ...data, business_identity:business, esito_automatico: data.result,
-    result: { ...data.result, stato: 'manuale', errors: [], uncertain: [], scadenza: expiry, cittadinanza: group,
+    result: { ...data.result, stato: 'manuale', errors: [], uncertain: [], ...(barcode ? {} : { scadenza: expiry }), cittadinanza: group,
       criterio_identita: 'conferma_preview', cf_da_confermare: false },
     conferma: { at: new Date().toISOString(), user: data.user, manuale: true, modalita: 'preview_manuale',
       preview_visualizzata: true, preview_sha256: expected,
-      motivo: 'Operatore conferma che il documento visualizzato appartiene al cliente in anagrafica e ne verifica la validita alla firma.' } };
+      motivo: barcode
+        ? 'Operatore conferma che il documento visualizzato appartiene all’intestatario o al delegato indicato sulla PDA Business.'
+        : 'Operatore conferma che il documento visualizzato appartiene al cliente in anagrafica e ne verifica la validita alla firma.' } };
 }
-module.exports = { Core, author, hash, sign, verify, approved, assertPractice, analyze, prepareManual, confirm, confirmPreview };
+function confirmCitizenship(data, group) {
+  if (data.flusso !== 'barcode' || !approved(data) || Core.customer(data.customer).business || !['ue', 'extra_ue'].includes(group)) {
+    throw new Error('La conferma della cittadinanza richiede un controllo Consumer concluso.');
+  }
+  return { ...data, result: { ...data.result, cittadinanza: group }, cittadinanza_confermata: { at: new Date().toISOString(), user: data.user } };
+}
+module.exports = { Core, author, hash, sign, verify, approved, assertPractice, analyze, identityDocuments, analyzeBarcode, prepareManual, confirm, confirmPreview, confirmCitizenship };

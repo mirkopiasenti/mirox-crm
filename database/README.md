@@ -981,6 +981,10 @@ al successivo di procedere. Timeout/429 restano ritentabili e in ordine.
 vocale successivo; il primo dettaglio sostituisce il testo provvisorio. Nessuna
 modifica di schema, segreti, modello predefinito o conferme di pubblicazione.
 
+## Ricevuta barcode nell’upload (09/11/2026)
+
+La Function `verifica-identita-upload` salva nel JSONB esistente `vendita_pratiche.identita_verifica_upload` la ricevuta v1 con `flusso: "barcode"`. Il payload firmato contiene esito CF, evidenza barcode, autore, digest dei PDF, fonti della PDA Business e, se presente, conferma manuale. Scadenza e data firma sono assenti nel nuovo flusso. Per VAR l’eventuale cittadinanza dichiarata resta parte della ricevuta per il permesso. Le ricevute precedenti restano compatibili; il verificatore successivo non riusa la ricevuta barcode come prova di scadenza. Nessuna migration, modifica a policy/RPC o aggiornamento automatico del Nome referente Business. [Guida upload](../docs/IDENTITA_UPLOAD_2026-10-28.md).
+
 ## Scanner documenti — migration applicata 29/10/2026
 
 Sorgente `20261029201139_scanner_documenti.sql`, registrazione production

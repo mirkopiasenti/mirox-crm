@@ -4,6 +4,7 @@ const Pda = require('../../../js/vendita-pda-core');
 const norm = value => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const personalTax = value => /^[A-Z]{6}[0-9LMNPQRSTUV]{2}[ABCDEHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/.test(norm(value));
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+const conflict = message => Object.assign(new Error(message), { pdaConflict: true });
 function evidence(text) {
   const source = String(text || '');
   const numbered = [...source.matchAll(/^PAGINA PDF (\d+)\n([\s\S]*?)(?=^PAGINA PDF \d+\n|$(?![\s\S]))/gm)];
@@ -52,24 +53,27 @@ async function load(db, paths, customer, deps = {}) {
     if (total > 30 * 1024 * 1024) throw new Error('Le PDA Business superano 30 MB complessivi.');
     const pages = await (deps.pdfInfo || Docs.pdfInfo)(bytes);
     const parsed = evidence(await (deps.pdfText || Docs.pdfText)(bytes));
-    if (parsed.ambiguous.length) throw new Error('La PDA Business riporta dati aziendali, codici o rappresentanti discordanti. Separa i contratti corretti.');
+    if (parsed.ambiguous.length) throw conflict('La PDA Business riporta dati aziendali, codici o rappresentanti discordanti. Separa i contratti corretti.');
     let reading = { fields: parsed.fields };
     if (Object.values(reading.fields).some(v => !v)) {
       reading = await (deps.extractBusiness || Docs.extractDocument)({ id: hash(bytes), tipo_documento: 'rappresentante_business', pages }, bytes,
         { ...deps, client: deps.businessClient || (deps.extractBusiness ? null : new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 8000, maxRetries: 0 })) });
       for (const [key, value] of Object.entries(parsed.fields)) {
         if (!value) continue;
-        if (reading.fields?.[key] && norm(reading.fields[key].value) !== norm(value.value)) throw new Error('La lettura della PDA Business contiene dati discordanti. Verifica la copia caricata.');
+        if (reading.fields?.[key] && norm(reading.fields[key].value) !== norm(value.value)) throw conflict('La lettura della PDA Business contiene dati discordanti. Verifica la copia caricata.');
         reading.fields[key] = value;
       }
     }
     const data = reading.fields;
-    if (norm(data?.fiscale?.value) !== norm(customer.cf_piva)) throw new Error('La partita IVA o il CF aziendale della PDA Business non coincide con l’anagrafica.');
+    if (norm(data?.fiscale?.value) !== norm(customer.cf_piva)) {
+      if (data?.fiscale?.value) throw conflict('La partita IVA o il CF aziendale della PDA Business non coincide con l’anagrafica.');
+      throw new Error('Partita IVA o CF aziendale non leggibili nella PDA Business.');
+    }
     if (!personalTax(data?.firmatario_fiscale?.value) || !Pda.code(data?.codice_contratto?.value)) throw new Error('CF del rappresentante o codice contratto non leggibili nella PDA Business. Carica una copia completa.');
     pdas.push({ path, sha256: hash(bytes), codice_contratto: Pda.code(data.codice_contratto.value), fiscale_azienda: norm(data.fiscale.value), cf_rappresentante: norm(data.firmatario_fiscale.value), reading });
   }
   const people = new Set(pdas.map(p => p.cf_rappresentante));
-  if (people.size > 1) throw new Error('Le PDA indicano rappresentanti diversi: usa pratiche separate con il documento della persona corretta.');
+  if (people.size > 1) throw conflict('Le PDA indicano rappresentanti diversi: usa pratiche separate con il documento della persona corretta.');
   return pdas.length ? { cf_rappresentante: pdas[0].cf_rappresentante, pdas } : null;
 }
 async function assertSources(db, check, customer, contracts, documents = null) {

@@ -278,7 +278,7 @@ test('editor impedisce di cancellare in blocco i dati Mobile gia registrati',asy
 test('duplicato al submit chiude il loader e non raccoglie consenso o crea bozze',async()=>{
   const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
   const start=source.indexOf(' async function inviaPratica()'),end=source.indexOf(" refs.cluster.addEventListener",start);
-  const runtimeState={isSubmitting:false},refs={btnInviaPratica:{},btnAddToCart:{}};
+  const runtimeState={isSubmitting:false},refs={btnInviaPratica:{},btnOpenCarrello:{}};
   let overlay=false,privacy=0;
   const ctx={runtimeState,refs,state:{cart:{contratti:[{temp_id:'one',codice_contratto:'DUP'}]}},
     window:{MiroxPdaUI:{async checkCode(){assert.equal(overlay,false);return false;}}},

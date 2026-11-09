@@ -176,7 +176,8 @@ async function readDocuments(db, snapshot, deps = {}) {
   const identity = snapshot.practice?.identita_verifica_upload;
   const IdentityCore = require('../../../js/identita-upload-core');
   const business = snapshot.contract?.cluster_cliente === 'Business';
-  const reusableIdentity = identity?.version === 1 && ['coerente', 'manuale'].includes(identity.result?.stato)
+  // La nuova ricevuta barcode attesta solo il CF. La verifica successiva conserva la propria lettura di scadenza.
+  const reusableIdentity = identity?.version === 1 && identity.flusso !== 'barcode' && ['coerente', 'manuale'].includes(identity.result?.stato)
     && (!business || Boolean(identity.business_identity?.cf_rappresentante))
     && IdentityCore.sameCustomer(identity.customer, snapshot.customer);
   const deadline = Date.now() + 8 * 60000;

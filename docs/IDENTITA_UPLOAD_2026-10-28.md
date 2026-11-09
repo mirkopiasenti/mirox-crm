@@ -1,5 +1,13 @@
 # Identita nell’Upload Contratti e permesso di soggiorno
 
+## Flusso attuale dal 09/11/2026
+
+- Caricamento PDF unico per la pratica, anche trascinando i file. Il decoder ZXing cerca solo il codice a barre nei PDF originali, con checksum CF, rotazione, due scale e ritagli sovrapposti se manca una lettura. Nessun OCR sul documento di riconoscimento nell’upload.
+- Consumer confronta il CF dell’intestatario, Business il CF personale del delegato sulla PDA (il lettore della PDA conserva i propri controlli). L’OCR PDA non modifica il Nome referente Business. Business senza PDA o con CF della PDA illeggibile richiede la verifica manuale. Una PDA di un’altra azienda o delegati discordanti fra PDA bloccano il controllo.
+- CF coincidente o anteprima confermata aggiungono automaticamente la pratica al carrello quando gli altri allegati obbligatori sono presenti. Il pulsante Vai al carrello consente di riprovare. Barcode assente/illeggibile o CF diverso aprono un avviso distinto, poi anteprima con Confermo che il documento è corretto o Carica nuovamente il documento. Il controllo manuale resta legato agli stessi PDF e al suo autore. Nell’upload non si chiede la scadenza o la data di firma.
+- Per Consumer VAR si raccoglie la cittadinanza separatamente e si attende il permesso quando richiesto. La ricevuta HMAC esistente conserva i digest, il contesto cliente e le fonti Business. Il controllo successivo conserva i propri criteri e tratta la nuova ricevuta come riscontro del solo CF. Nessuna migration, modifica di ACL o attivazione del collaudo.
+- Le sezioni sotto descrivono i rilasci precedenti e i chiamanti legacy. Il collaudo con scansioni reali va fatto dall’operatore in negozio.
+
 Rilascio autorizzato dal proprietario il 28/10/2026 con «push di tutto».
 Migration applicata a production, versione `20261028131258`.
 Codice `fe5cfd0` pubblicato su Netlify `6ae1f51da2899fc2fc7f5ec9` alle

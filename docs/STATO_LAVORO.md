@@ -1,6 +1,11 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-06. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+Aggiornato:2026-11-09. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+
+## Upload identità — barcode e carrello09/11
+
+- Upload PDF semplice, barcode automatico con zoom, CF Consumer da anagrafica o CF delegato dalla PDA Business, Nome referente protetto dall’OCR. Nessuna scadenza/data firma nell’upload. Avviso distinto per CF diverso/illeggibile, OK apre preview con conferma manuale o nuovo file. Carrello automatico dopo esito positivo/manuale e tutti gli allegati obbligatori. Cittadinanza/permesso Consumer VAR conservati.
+- Ricevuta HMAC `flusso=barcode` con hash e prove PDA, legacy compatibile. Nessun schema o modalità del controllo successivo cambiati. QA sintetica con PDF reale generato, zoom/CF/preview e carrello. Prossimo: provare una pratica Consumer e una Business su scansioni reali di negozio, incluse lettura mancata e sostituzione. Push autorizzato09/11.
 
 ## Monitor KPI negozio — rilascio06/11 verificato
 

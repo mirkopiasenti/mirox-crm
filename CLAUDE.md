@@ -1,5 +1,7 @@
 # CLAUDE.md — Guida per AI assistants
 
+Upload identità 09/11: barcode CF e carrello automatici, Consumer da anagrafica, Business dal CF del delegato sulla PDA. Il Nome referente resta separato dall’OCR Business. Scadenza esclusa dall’upload. Flusso attuale in AGENTS.md e docs/IDENTITA_UPLOAD_2026-10-28.md.
+
 Monitor negozio05/11 pubblicato88794dd, CI42034207778verde665test,
 Netlify6aec817fc578cdeb2b6d097e/HTTP12asset/ZIP20file/401admin403device verificati.
 monitor.html/admin-monitor.html e API monitor-kpi/admin-monitor, associazione

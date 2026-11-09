@@ -65,9 +65,9 @@ function fixture({responseResult=result,count=2,firstError=null,initialResponse=
   const controls={
     '[data-identity-expiry]':{value:'2030-01-01'},'[data-identity-country]':{value:'extra_ue'},
     '[data-identity-representative]':{value:person.cf_piva},
-    '[data-identity-preview-status]':{textContent:''},'[data-identity-save]':{disabled:true},'[data-identity-cancel]':{}
+    '[data-identity-preview-status]':{textContent:''},'[data-identity-save]':{disabled:true},'[data-identity-cancel]':{},'[data-identity-ok]':{}
   };
-  for(const key of ['[data-identity-save]','[data-identity-cancel]'])controls[key].addEventListener=(_,fn)=>{handlers[key]=fn;};
+  for(const key of ['[data-identity-save]','[data-identity-cancel]','[data-identity-ok]'])controls[key].addEventListener=(_,fn)=>{handlers[key]=fn;};
   const frames=Array.from({length:count},()=>({events:{},addEventListener(key,fn){this.events[key]=fn;}}));
   const links=Array.from({length:count},()=>({events:{},addEventListener(key,fn){this.events[key]=fn;}}));
   const checks=Array.from({length:count},()=>({checked:false,disabled:true,events:{},addEventListener(key,fn){this.events[key]=fn;}}));
@@ -77,8 +77,29 @@ function fixture({responseResult=result,count=2,firstError=null,initialResponse=
     MiroxApi:{fetch:async(_,options)=>{calls++;if(calls===1){if(firstError)throw firstError;return initialResponse||{ok:true,json:async()=>({success:true,token:'first',result:responseResult})};}if(confirmFailures-->0)throw new Error('Servizio temporaneamente non disponibile');posted=options.body instanceof FormData?{action:options.body.get('action'),...JSON.parse(options.body.get('conferma'))}:JSON.parse(options.body);return {ok:true,json:async()=>({success:true,token:'manual',result:{...responseResult,stato:'manuale'}})};}}
   };
   vm.runInNewContext(fs.readFileSync(require.resolve('../js/identita-upload-ui'),'utf8'),{window,crypto:require('node:crypto').webcrypto,Uint8Array,Date,FormData,URL:{createObjectURL:file=>'blob:'+file.name,revokeObjectURL:url=>revoked.push(url)},document:{getElementById:()=>({textContent:''})},...timerApi});
-  return {window,built,frames,links,checks,controls,revoked,get closed(){return closed;},get modal(){return modal;},get calls(){return calls;},get alerts(){return alerts;},get posted(){return posted;},save:()=>handlers['[data-identity-save]'](),cancel:()=>handlers['[data-identity-cancel]']()};
+  return {window,built,frames,links,checks,controls,revoked,get closed(){return closed;},get modal(){return modal;},get calls(){return calls;},get alerts(){return alerts;},get posted(){return posted;},save:()=>handlers['[data-identity-save]'](),cancel:()=>handlers['[data-identity-cancel]'](),ok:()=>handlers['[data-identity-ok]']()};
 }
+test('nuovo flusso: avviso distinto, anteprima senza scadenza, conferma o sostituzione PDF',{timeout:5000},async()=>{
+ for(const barcode_stato of ['diverso','illeggibile']){
+  const f=fixture({responseResult:{stato:'da_confermare',barcode_stato,cliente_nome:person.ragione_sociale,fiscale_atteso:person.cf_piva}});
+  let reloaded=0;
+  const pending=f.window.MiroxIdentitaUpload.ensure({files,customer:person,barcode:true,reload:()=>{reloaded++;}});
+  const outcome=pending.catch(error=>error);
+  await f.built;
+  assert.equal(f.modal.title,barcode_stato==='diverso'?'Codice fiscale non coincidente':'Impossibile leggere il codice a barre');
+  f.ok();
+  while(!f.modal.footerHtml.includes('data-identity-save'))await new Promise(resolve=>setImmediate(resolve));
+  assert.match(f.modal.footerHtml,/Confermo che il documento è corretto/);
+  assert.match(f.modal.footerHtml,/Carica nuovamente il documento/);
+  assert.doesNotMatch(f.modal.bodyHtml,/data-identity-expiry/);
+  if(barcode_stato==='illeggibile'){
+   f.cancel();assert.equal((await outcome).identityCancelled,true);assert.equal(reloaded,1);assert.equal(f.calls,1);
+  }else{
+   f.frames.forEach(frame=>frame.events.load());await f.save();
+   assert.equal((await outcome).result.stato,'manuale');assert.equal(f.posted.scadenza,undefined);assert.equal(f.calls,2);
+  }
+ }
+});
 test('UI mostra preview di tutti gli originali, conferma solo dopo caricamento e prosegue senza nuova OCR',async()=>{
   const f=fixture();const pending=f.window.MiroxIdentitaUpload.ensure({files,customer:person,date:'2026-10-28',requireCitizenship:true});
   await f.built;
