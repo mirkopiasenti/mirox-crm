@@ -18,11 +18,12 @@ test('API: revoca riletta anche con snapshot in cache e dopo calcolo; niente scr
 test('associazione: normalizzazione codice, limite tentativi e assenza segreti nella risposta',async()=>{const code=D.pairingCode();assert.equal(D.normalizeCode(code).length,16);const db=fakeDb();let calls=[];db.rpc=async(name,args)=>{calls.push({name,args});return {data:name==='mirox_monitor_limita'?true:'uuid',error:null};};const result=await D.associate(db,{headers:{}},{code,token_hash:D.hash(SECRET)},'synthetic-secret');assert.deepEqual(result,{id:'uuid',stato:'attivo'});assert.equal(calls[1].args.p_pairing_hash,D.hash(D.normalizeCode(code)));db.rpc=async()=>({data:false,error:null});await assert.rejects(()=>D.associate(db,{}, {code,token_hash:D.hash(SECRET)},'s'),e=>e.status===429);});
 test('Admin: identita fresca, codice temporaneo solo alla creazione e liste senza hash',async()=>{const db=deviceDb(),auth={ok:true,user:{id:'admin'},profilo:{ruolo:'admin'}};const deps={getAdminClient:()=>db,requireAuth:async()=>auth,authorizePages:async()=>auth};db.rpc=async(name,args)=>({data:{id:'new',stato:'in_attesa',pairing_expires_at:'2026-11-05T14:33:00Z'},error:null});const created=await admin.handle({httpMethod:'POST',body:'{"action":"crea","nome":"TV"}'},deps);assert.equal(created.statusCode,200);assert.match(JSON.parse(created.body).codice,/^[A-F0-9]{4}(?:-[A-F0-9]{4}){3}$/);const list=await admin.handle({httpMethod:'GET'},deps);assert.doesNotMatch(list.body,/token_hash|pairing_hash|MiroxMonitor/);const deny=await admin.handle({httpMethod:'GET'},{...deps,authorizePages:async()=>({ok:false,status:403,error:'revocato'})});assert.equal(deny.statusCode,403);});
 test('UI core: cambio giorno Europe/Rome e dati vecchi',()=>{assert.equal(C.dateKey(new Date('2026-11-05T23:00:01Z')),'2026-11-06');const p={data:'2026-11-05',aggiornato_il:NOW.toISOString()};assert.equal(C.freshness(p,new Date(+NOW+91000)).stale,true);assert.equal(C.freshness(p,new Date(+NOW+301000)).error,true);assert.equal(C.freshness(p,new Date('2026-11-06T08:00:00Z')).hide,true);});
-test('geometria portrait: larghezza piena quando possibile e margini con contenuto lungo',()=>{
-  assert.deepEqual(C.fit(1080,1920,1814),{scale:1,left:0,top:1920*0.03});
+test('geometria portrait: margini laterali simmetrici e contenuto lungo entro lo schermo',()=>{
+  assert.deepEqual(C.fit(1080,1920,1814),{scale:0.95,left:27,top:1920*0.03});
   for(const [width,height,content] of [[1080,1920,2200],[720,1280,2200]]){
     const {scale,left,top}=C.fit(width,height,content);
-    assert.ok(left+1080*scale<=width);
+    assert.ok(left>=width*0.025);
+    assert.ok(Math.abs(width-left-1080*scale-left)<1e-8);
     assert.ok(top+content*scale<=height*0.975+1e-8);
   }
 });

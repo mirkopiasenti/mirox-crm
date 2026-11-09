@@ -39,12 +39,12 @@ Tema Mirox chiaro/arancione e Inter 4.1 locale
   Cambio giorno: dati precedenti nascosti fino al nuovo snapshot; cambio mese
   gestito dal server. Nessun numero fittizio o fallback a zero su errori.
 
-Tela logica larga 1080 px e alta almeno 1814 px. Sul Samsung 1080×1920 il
-layout può sfruttare la larghezza intera con 22 px di spaziatura interna per
-lato. Il fit usa l’altezza effettiva del contenuto e conserva il margine di
-sicurezza del 3% in alto e del 2,5% in basso. Le righe molto numerose riducono
-uniformemente la dimensione. La fusione CSS del logo uniforma il fondo con il
-file originale. La leggibilità va verificata sul TV dopo la pubblicazione.
+Tela logica larga 1080 px e alta almeno 1814 px. Il fit riserva il 2,5% della
+larghezza per lato oltre alla spaziatura interna. Usa l’altezza effettiva del
+contenuto e conserva il margine del 3% in alto e del 2,5% in basso. Le righe
+molto numerose riducono uniformemente la dimensione. La fusione CSS del logo
+uniforma il fondo con il file originale. La leggibilità va verificata sul TV
+dopo la pubblicazione.
 La pagina remota e' una shell senza dati e spiega come installare la postazione.
 
 ## Dati e backend

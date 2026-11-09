@@ -20,7 +20,8 @@
   function fit(width,height,contentHeight){
     const top=height*0.03;
     const bottom=height*0.025;
-    const scale=Math.min(width/1080,(height-top-bottom)/contentHeight);
+    const side=width*0.025;
+    const scale=Math.min((width-2*side)/1080,(height-top-bottom)/contentHeight);
     return {scale,left:Math.max(0,(width-1080*scale)/2),top};
   }
   return {rome,dateKey,freshness,countdown,agendaPage,fit};
