@@ -129,6 +129,13 @@ Sostituire sempre con testo descrittivo (es. `🔄 Aggiorna` → `Aggiorna`, `�
 
 ### Monitor KPI negozio — pubblicato05/11/2026
 
+Layout 09/11. Day by Day completo e compatto a sinistra, agenda del giorno a
+destra con prossimo appuntamento fisso e fino a sei successivi per pagina
+ogni 15 secondi. Mensile Standard/P.IVA più grande sotto, senza pezzi. Tela
+logica larga 1080 px, altezza minima 1814 px misurata dal DOM per sfruttare la
+larghezza utile mantenendo i margini verticali del Samsung. Solo frontend
+monitor. Dati, conteggi, associazione, polling e allowlist restano invariati.
+
 Correzione visiva09/11 dopo conferma installazione del nuovo ZIP e foto del
 Samsung. `fit()` riserva il 3% in alto e il 2,5% in basso prima della
 scala uniforme. Il CSS del monitor mostra l’intero logo e fonde il fondo chiaro

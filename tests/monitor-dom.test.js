@@ -51,12 +51,28 @@ test('UI: una pagina che fallisce il rendering non conferma il nuovo rilascio',a
 
 test('agenda: ripetuti refresh non accelerano il cambio pagina di15secondi reali',async()=>{
   const x=await page();const p=await buildSnapshot(fakeDb(fixture()),new Date(x.state.now));p.data=core.dateKey(new Date(x.state.now));p.aggiornato_il=new Date(x.state.now).toISOString();p.postazione='TV';
-  p.agenda.appuntamenti=Array.from({length:7},(_,i)=>({codice:'A-'+i,ora:new Date(x.state.now+600000+i*60000).toISOString(),durata:30}));
+  const slots=Array.from({length:8},(_,i)=>({codice:'A-'+i,ora:new Date(x.state.now+600000+i*60000).toISOString(),durata:30}));
+  slots[7].codice='<img src=x onerror=evil()>';
+  p.agenda={totale:9,presentati:1,non_presentati:0,in_attesa:8,appuntamenti:slots};
   x.state.value={stato:'attivo',snapshot:p};x.timers.shift()();await flush();
+  const next=x.document.getElementById('agendaNext');
+  const list=x.document.getElementById('agendaList');
   assert.equal(x.document.getElementById('agendaPage').textContent,'1 / 2');
+  assert.match(next.innerHTML,/A-0/);
+  assert.equal([...list.innerHTML.matchAll(/<li /g)].length,6);
+  assert.match(list.innerHTML,/A-6/);
   const tick=x.clock[x.intervalDelays.indexOf(1000)];for(let i=0;i<40;i++)tick();
   assert.equal(x.document.getElementById('agendaPage').textContent,'1 / 2');
   x.state.now+=15000;tick();assert.equal(x.document.getElementById('agendaPage').textContent,'2 / 2');
+  assert.match(next.innerHTML,/A-0/);
+  assert.equal([...list.innerHTML.matchAll(/<li /g)].length,1);
+  assert.match(list.innerHTML,/&lt;img/);
+  assert.doesNotMatch(list.innerHTML,/<img/);
+  p.agenda.appuntamenti=[];
+  tick();
+  assert.match(next.innerHTML,/Nessun appuntamento in attesa/);
+  assert.equal(list.innerHTML,'');
+  assert.equal(x.document.getElementById('agendaPage').textContent,'');
 });
 
 test('attesa primo snapshot: heartbeat vivo ma rendering non confermato, senza falso errore pagina',async()=>{

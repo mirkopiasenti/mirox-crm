@@ -53,6 +53,9 @@ QA55checkSQL PGlite isolati e687test/CI Linux+Windows verdi. Nessun nuovo consen
 
 Correzione visiva 09/11. Margini dello schermo e sfondo del logo gestiti nella
 pagina. Snapshot, frequenza di lettura e associazione restano quelli del 06/11.
+L’impaginazione successiva affianca Day by Day e agenda e amplia il mensile.
+Usa lo stesso snapshot con riepilogo della giornata ed elenco dei confermati in
+attesa. La rotazione a sei appuntamenti per pagina avviene sullo schermo.
 
 ## Accesso bonus da novembre2026 — applicato04/11/2026
 

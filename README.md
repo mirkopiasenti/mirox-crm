@@ -8,8 +8,10 @@ Correzione visiva 09/11. La pagina riserva il 3% dell’altezza in alto e il 2,5
 in basso. Il logo viene mostrato intero e il suo fondo si fonde con quello
 della pagina.
 
-Samsung ME40B verticale/Windows11Pro: agenda in alto, Day by Day completo e
-mensile Standard/P.IVA senza pezzi; logo originale e Inter4.1 locale.
+Samsung ME40B verticale/Windows11Pro. Day by Day compatto a sinistra e agenda
+del giorno a destra, con il prossimo appuntamento in evidenza. Sotto,
+avanzamento Standard e P.IVA a tutta larghezza, con punti, obiettivi e ritmo
+più grandi. Logo originale e Inter 4.1 locale.
 Solo visione, credenziale dispositivo DPAPI separata dagli account CRM.
 Codice pubblicato con `42ddc96`:687test Linux/Node22 e prove native Windows
 SYSTEM/DPAPI/ACL, installazione, aggiornamento, pacchetto corrotto e rollback

@@ -14,22 +14,24 @@ per questo aggiornamento e nessuna modifica ai DB condivisi del Call Center.
 ## Pagina e layout concordati
 
 `monitor.html`, `css/monitor.css`, `js/monitor-core.js`, `js/monitor.js`:
-logo originale del repository, appuntamenti in alto, Day by Day al centro,
-avanzamento mensile in basso. Tema Mirox chiaro/arancione e Inter 4.1 locale
+logo originale del repository. Day by Day compatto a sinistra e appuntamenti
+del giorno a destra. Avanzamento mensile più grande sotto, a tutta larghezza.
+Tema Mirox chiaro/arancione e Inter 4.1 locale
 (`assets/fonts/InterVariable.woff2`, licenza SIL OFL allegata), senza CDN sul TV.
 
 - Agenda: previsti/presentati/non presentati/in attesa; prossimo appuntamento
-  sempre fisso, conto alla rovescia o ritardo; successivi tre per pagina, cambio
+  sempre fisso, conto alla rovescia o ritardo; successivi sei per pagina, cambio
   ogni 15 secondi se necessario. Solo codici, orari e durata: nessun nome,
   recapito, motivo libero, documento o nota cliente letto per il monitor.
 - Day by Day: tutte le righe attive e i gruppi della Dashboard Pezzi, stessi
   nomi/colori/ordine, intestazioni MATTEO/MIRKO/VINCENZO/CEREA dal core per
-  periodo, zeri vuoti e data arancione. Nessuna colonna Totale aggiunta.
+  periodo, zeri vuoti e data arancione. Etichette a capo se troppo lunghe.
   Totale pezzi sopra la tabella: somma delle corrispondenze, non contratti unici.
   Alla lettura della configurazione in fase mockup erano 39 righe/6 gruppi;
   il runtime usa il catalogo corrente e non congela questi numeri.
 - Mensile: Standard, P.IVA ed Extra P.IVA, **senza dettaglio pezzi**; soli punti,
-  obiettivi e andamento. Le righe P.IVA senza obiettivo conservano i soli punti.
+  obiettivi e andamento, con testo e barre di avanzamento più grandi. Le righe
+  P.IVA senza obiettivo conservano i soli punti.
   Netto L&G e ultimo CSV globale restano distinti.
 - Data/ora Europe/Rome; timestamp dell'ultimo snapshot riuscito, non dell'ultimo
   tentativo. Nel nuovo pacchetto06/11: avviso dopo15secondi senza dati nuovi,
@@ -37,13 +39,12 @@ avanzamento mensile in basso. Tema Mirox chiaro/arancione e Inter 4.1 locale
   Cambio giorno: dati precedenti nascosti fino al nuovo snapshot; cambio mese
   gestito dal server. Nessun numero fittizio o fallback a zero su errori.
 
-Tela logica 1080×1920. Dopo il taglio osservato sul Samsung, la correzione 09/11
-riserva il 3% dell’altezza sopra la tela e il 2,5% sotto, prima di ridurre il
-contenuto in scala uniforme. Il nuovo ritaglio include tutta la scritta del logo
-e la fusione CSS uniforma il fondo, riusando il file originale. Suite 695/695
-verde e passaggio dal pacchetto del 06/11 al manifest
-della nuova build verificato con l’updater. La leggibilità va provata sul TV
-dopo la pubblicazione. Le righe molto numerose riducono la dimensione del testo.
+Tela logica larga 1080 px e alta almeno 1814 px. Sul Samsung 1080×1920 il
+layout può sfruttare la larghezza intera con 22 px di spaziatura interna per
+lato. Il fit usa l’altezza effettiva del contenuto e conserva il margine di
+sicurezza del 3% in alto e del 2,5% in basso. Le righe molto numerose riducono
+uniformemente la dimensione. La fusione CSS del logo uniforma il fondo con il
+file originale. La leggibilità va verificata sul TV dopo la pubblicazione.
 La pagina remota e' una shell senza dati e spiega come installare la postazione.
 
 ## Dati e backend
