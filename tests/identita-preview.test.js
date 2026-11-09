@@ -60,7 +60,7 @@ test('ricevuta manuale con stessi byte riusata anche quando il parser identita n
  assert.equal(out.identityPrecheck.manuale,true);assert.equal(reads,0);
 });
 function fixture({responseResult=result,count=2,firstError=null,initialResponse=null,confirmFailures=0,timerApi={}}={}){
-  let builtResolve,modal,calls=0,alerts=0,posted,closed=0;const revoked=[],handlers={};
+  let builtResolve,modal,calls=0,alerts=0,posted,closed=0;const revoked=[],handlers={},loaders=[];
   const built=new Promise(resolve=>{builtResolve=resolve;});
   const controls={
     '[data-identity-expiry]':{value:'2030-01-01'},'[data-identity-country]':{value:'extra_ue'},
@@ -73,11 +73,18 @@ function fixture({responseResult=result,count=2,firstError=null,initialResponse=
   const checks=Array.from({length:count},()=>({checked:false,disabled:true,events:{},addEventListener(key,fn){this.events[key]=fn;}}));
   const escape=v=>String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const window={MiroxSafe:{escapeHtml:escape},MiroxIdentitaCore:Identity.Core,
-    MiroxUI:{alert:async()=>{alerts++;},_build:options=>{modal=options;builtResolve();return {body:{style:{},querySelector:key=>controls[key],querySelectorAll:key=>key==='[data-identity-open]'?links:key==='[data-identity-viewed]'?checks:frames},foot:{querySelector:key=>controls[key]},close(){closed++;options.onClose();}};}},
+    MiroxUI:{alert:async()=>{alerts++;},_build:options=>{
+      if(options.title==='Lettura in corso'){
+        const loader={options,closed:false,close(){this.closed=true;}};
+        loaders.push(loader);
+        return loader;
+      }
+      modal=options;builtResolve();return {body:{style:{},querySelector:key=>controls[key],querySelectorAll:key=>key==='[data-identity-open]'?links:key==='[data-identity-viewed]'?checks:frames},foot:{querySelector:key=>controls[key]},close(){closed++;options.onClose();}};
+    }},
     MiroxApi:{fetch:async(_,options)=>{calls++;if(calls===1){if(firstError)throw firstError;return initialResponse||{ok:true,json:async()=>({success:true,token:'first',result:responseResult})};}if(confirmFailures-->0)throw new Error('Servizio temporaneamente non disponibile');posted=options.body instanceof FormData?{action:options.body.get('action'),...JSON.parse(options.body.get('conferma'))}:JSON.parse(options.body);return {ok:true,json:async()=>({success:true,token:'manual',result:{...responseResult,stato:'manuale'}})};}}
   };
   vm.runInNewContext(fs.readFileSync(require.resolve('../js/identita-upload-ui'),'utf8'),{window,crypto:require('node:crypto').webcrypto,Uint8Array,Date,FormData,URL:{createObjectURL:file=>'blob:'+file.name,revokeObjectURL:url=>revoked.push(url)},document:{getElementById:()=>({textContent:''})},...timerApi});
-  return {window,built,frames,links,checks,controls,revoked,get closed(){return closed;},get modal(){return modal;},get calls(){return calls;},get alerts(){return alerts;},get posted(){return posted;},save:()=>handlers['[data-identity-save]'](),cancel:()=>handlers['[data-identity-cancel]'](),ok:()=>handlers['[data-identity-ok]']()};
+  return {window,built,frames,links,checks,controls,revoked,loaders,get closed(){return closed;},get modal(){return modal;},get calls(){return calls;},get alerts(){return alerts;},get posted(){return posted;},save:()=>handlers['[data-identity-save]'](),cancel:()=>handlers['[data-identity-cancel]'](),ok:()=>handlers['[data-identity-ok]']()};
 }
 test('nuovo flusso: avviso distinto, anteprima senza scadenza, conferma o sostituzione PDF',{timeout:5000},async()=>{
  for(const barcode_stato of ['diverso','illeggibile']){
@@ -86,6 +93,8 @@ test('nuovo flusso: avviso distinto, anteprima senza scadenza, conferma o sostit
   const pending=f.window.MiroxIdentitaUpload.ensure({files,customer:person,barcode:true,reload:()=>{reloaded++;}});
   const outcome=pending.catch(error=>error);
   await f.built;
+  assert.equal(f.loaders.length,1);
+  assert.equal(f.loaders[0].closed,true);
   assert.equal(f.modal.title,barcode_stato==='diverso'?'Codice fiscale non coincidente':'Impossibile leggere il codice a barre');
   f.ok();
   while(!f.modal.footerHtml.includes('data-identity-save'))await new Promise(resolve=>setImmediate(resolve));
@@ -99,6 +108,40 @@ test('nuovo flusso: avviso distinto, anteprima senza scadenza, conferma o sostit
    assert.equal((await outcome).result.stato,'manuale');assert.equal(f.posted.scadenza,undefined);assert.equal(f.calls,2);
   }
  }
+});
+test('il popup mostra lo spinner durante la lettura e ignora la fine di una lettura superata',async()=>{
+  const f=fixture();
+  const api=f.window.MiroxIdentitaUpload;
+  const requests=[];
+  let started;
+  f.window.MiroxApi.fetch=()=>new Promise(resolve=>{requests.push(resolve);started();});
+  const begin=selected=>{
+    const waiting=new Promise(resolve=>{started=resolve;});
+    const result=api.ensure({files:selected,customer:person,barcode:true});
+    return {waiting,result};
+  };
+  const first=begin(files);
+  const obsolete=assert.rejects(first.result,{identityCancelled:true});
+  await first.waiting;
+  assert.match(f.loaders[0].options.bodyHtml,/mx-spinner/);
+  assert.equal(f.loaders[0].options.closable,false);
+  assert.equal(f.loaders[0].closed,false);
+  api.invalidate();
+  assert.equal(f.loaders[0].closed,true);
+
+  const replacement=[new File(['%PDF-sostituito'],'sostituito.pdf')];
+  const next=begin(replacement);
+  await next.waiting;
+  const response={ok:true,json:async()=>({success:true,token:'verificato',result:{stato:'coerente'}})};
+  requests[0](response);
+  await obsolete;
+  assert.equal(f.loaders[1].closed,false);
+  requests[1](response);
+  assert.equal((await next.result).token,'verificato');
+  assert.equal(f.loaders[1].closed,true);
+  await api.ensure({files:replacement,customer:person,barcode:true});
+  assert.equal(f.loaders.length,2);
+  assert.equal(requests.length,2);
 });
 test('UI mostra preview di tutti gli originali, conferma solo dopo caricamento e prosegue senza nuova OCR',async()=>{
   const f=fixture();const pending=f.window.MiroxIdentitaUpload.ensure({files,customer:person,date:'2026-10-28',requireCitizenship:true});

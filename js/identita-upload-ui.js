@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  let cached = null, revision = 0, pending = null, preview = null;
+  let cached = null, revision = 0, pending = null, preview = null, reading = null;
   const e = value => window.MiroxSafe.escapeHtml(String(value || ''));
   function comparisonHtml(comparison) {
     if (!comparison) return '';
@@ -154,7 +154,13 @@
     let data = cached?.key === key && Date.now() - cached.at < 3.5 * 3600000 ? cached : null;
     if (!data) {
       cached = null;
-      if (status) status.textContent = 'Lettura del codice a barre in corso...';
+      if (status) status.textContent = 'Lettura in corso';
+      const loader = window.MiroxUI._build({
+        title: 'Lettura in corso',
+        bodyHtml: '<div class="mx-loading"><div class="mx-spinner" aria-hidden="true"></div></div>',
+        closable: false
+      });
+      reading = loader;
       try { data = await call(form()); }
       catch (error) {
         if (!active()) throw cancelled();
@@ -162,6 +168,11 @@
         data = { result: { stato: 'da_confermare', barcode_stato: 'illeggibile',
           cliente_nome: customer.ragione_sociale, fiscale_atteso: business ? null : customer.cf_piva,
           richiede_cf_rappresentante: business && pdaPaths.length > 0 } };
+      } finally {
+        if (reading === loader) {
+          reading = null;
+          loader.close();
+        }
       }
       if (!active()) throw cancelled();
       if (!['coerente', 'manuale'].includes(data.result.stato)) {
@@ -242,7 +253,15 @@
         : 'Identita coerente con l’anagrafica e valida alla data di firma indicata.';
     return cached;
   }
-  function invalidate(){cached=null;revision++;if(preview)preview.close();}
+  function invalidate() {
+    cached = null;
+    revision++;
+    if (preview) preview.close();
+    if (reading) {
+      reading.close();
+      reading = null;
+    }
+  }
   window.MiroxIdentitaUpload = { ensure(options) {
     const files=Array.from(options.files||[]);
     const key=JSON.stringify([window.MiroxIdentitaCore.customer(options.customer),options.customer?.cluster,options.date,options.pdaPaths||[],options.pacchetto||null,Boolean(options.requireCitizenship),Boolean(options.barcode)]);

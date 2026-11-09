@@ -105,6 +105,8 @@ L'utente può chiedere in qualsiasi momento cosa è stato fatto in una sessione:
 
 ## Documento di riconoscimento nell’upload (09/11/2026)
 
+Il popup «Lettura in corso» usa lo spinner condiviso MiroxUI per la sola richiesta di lettura. Si chiude prima dell’esito o quando la selezione viene invalidata. Le risposte obsolete non chiudono il popup della lettura successiva.
+
 Lo step Documenti usa un campo PDF con lettura automatica del solo barcode (checksum del CF, rotazioni, due scale e ritagli in caso di mancata lettura). Consumer confronta il CF dell’intestatario, Business quello personale del delegato della PDA WindTre. Il Nome referente Business non viene precompilato o sovrascritto dall’OCR. Nessun controllo della scadenza o della data di firma nell’upload. Dopo avviso e OK, CF discordante/illeggibile passa all’anteprima con conferma tracciata o nuova selezione. Conferma o esito automatico aggiungono la riga e aprono il carrello appena gli allegati obbligatori sono pronti. Consumer VAR conserva cittadinanza dichiarata e permesso extra UE. La ricevuta barcode conserva JWT/ACL, firma, autore, file/hash e fonti PDA. Il verificatore successivo mantiene i propri controlli e non usa una ricevuta barcode come attestazione della scadenza. [Guida](docs/IDENTITA_UPLOAD_2026-10-28.md).
 
 ## Convenzione UI — Niente emoji (regola permanente)
