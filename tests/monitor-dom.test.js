@@ -20,6 +20,14 @@ async function page({local=true,release=null}={}) {
   return {state,document,timers,clock,timerDelays,intervalDelays};
 }
 test('UI reale: pagina remota priva di sessione non richiede dati; postazione propone associazione',async()=>{const remote=await page({local:false});assert.equal(remote.state.calls.length,0);assert.equal(remote.document.getElementById('monitorPairForm').hidden,true);const local=await page();assert.equal(local.document.getElementById('monitorPair').hidden,false);assert.match(local.document.getElementById('monitorHealth').textContent,/associare/);});
+test('UI: il layout applica il margine superiore e riserva spazio sotto il contenuto',async()=>{
+  const {document}=await page();
+  const stage=document.getElementById('monitorStage');
+  const top=parseFloat(stage.style.top);
+  const scale=Number(stage.style.transform.match(/^scale\((.+)\)$/)[1]);
+  assert.equal(top,1920*0.03);
+  assert.ok(top+stage.scrollHeight*scale<=1920*0.975);
+});
 test('UI reale: caricamento atomico, escaping, Day completo, revoca oscura e riavvio servizio ricarica',async()=>{const p=await buildSnapshot(fakeDb(fixture()),new Date());p.data=core.dateKey();p.aggiornato_il=new Date().toISOString();p.day[0].nome='<img src=x onerror=evil()> ';p.postazione='TV Test';const x=await page();x.state.value={stato:'attivo',snapshot:p};x.timers.shift()();await flush();assert.equal(x.document.getElementById('monitorData').hidden,false);assert.equal(x.document.getElementById('monitorPair').hidden,true);assert.match(x.document.getElementById('dayTable').innerHTML,/&lt;img/);assert.doesNotMatch(x.document.getElementById('dayTable').innerHTML,/<img src=x/);assert.match(x.document.getElementById('dayTable').innerHTML,/VUOTA/);assert.match(x.document.getElementById('monthBusiness').innerHTML,/pt/);x.state.value={stato:'revocato',snapshot:null};x.timers.shift()();await flush();assert.equal(x.document.getElementById('monitorData').hidden,true);assert.equal(x.document.getElementById('monitorPair').hidden,false);x.state.denied=true;x.timers.shift()();await flush();assert.equal(x.state.reloads,1);});
 
 test('UI: poll1s, conferma versione solo dopo rendering e reload automatico dopo pubblicazione',async()=>{

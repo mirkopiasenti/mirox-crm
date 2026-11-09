@@ -4,7 +4,18 @@
 .monitor-stage {width:1080px;min-height:1920px;padding:26px;display:flex;flex-direction:column;gap:12px;transform-origin:top left;position:absolute;left:0;top:0;background:#f6f9fc;font-size:18px;line-height:1.2}
 h1,h2,p {margin:0} h1 {font-size:27px;font-weight:750} h2 {font-size:17px;color:#516277;letter-spacing:.08em;margin:9px 0 5px}
 .monitor-header {display:flex;justify-content:space-between;align-items:center;min-height:100px}
-.monitor-header p {font-size:17px;letter-spacing:.06em}.monitor-logo {position:relative;width:240px;height:72px;overflow:hidden;background:#fff}.monitor-logo img {position:absolute;max-width:none;width:370px;top:50%;left:50%;transform:translate(-50%,-50%)}
+.monitor-header p {font-size:17px;letter-spacing:.06em}
+.monitor-logo {position:relative;width:240px;height:72px;overflow:hidden}
+.monitor-logo img {
+  position:absolute;
+  max-width:none;
+  width:350px;
+  top:calc(50% + 10px);
+  left:50%;
+  transform:translate(-50%,-50%);
+  filter:brightness(1.005);
+  mix-blend-mode:multiply;
+}
 .monitor-clock {text-align:right}.monitor-clock time {font-size:66px;line-height:1;font-weight:750;font-variant-numeric:tabular-nums}.monitor-clock p {font-size:20px;letter-spacing:0;margin-top:6px}
 .monitor-health {font-size:17px;color:#17683c;min-height:25px}.monitor-health.is-stale {background:#fff0d0;color:#7d4600;padding:9px 14px;border-radius:9px}.monitor-health.is-error {background:#fee9e5;color:#a1241e;padding:9px 14px;border-radius:9px}
 .monitor-data {display:flex;flex-direction:column;gap:12px}.monitor-panel {padding:16px 20px;background:#fff;border:1px solid #e3e8ee;border-radius:15px}.monitor-panel>header {display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}.monitor-panel>header>span {font-size:17px;color:#516277}.monitor-eyebrow {color:#a23e00;font-size:15px;font-weight:700;letter-spacing:.1em;margin-bottom:4px}

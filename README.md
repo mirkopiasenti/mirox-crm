@@ -4,6 +4,10 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 
 ## Monitor KPI negozio — aggiornato06/11/2026
 
+Correzione visiva 09/11. La pagina riserva il 3% dell’altezza in alto e il 2,5%
+in basso. Il logo viene mostrato intero e il suo fondo si fonde con quello
+della pagina.
+
 Samsung ME40B verticale/Windows11Pro: agenda in alto, Day by Day completo e
 mensile Standard/P.IVA senza pezzi; logo originale e Inter4.1 locale.
 Solo visione, credenziale dispositivo DPAPI separata dagli account CRM.

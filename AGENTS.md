@@ -129,6 +129,13 @@ Sostituire sempre con testo descrittivo (es. `🔄 Aggiorna` → `Aggiorna`, `�
 
 ### Monitor KPI negozio — pubblicato05/11/2026
 
+Correzione visiva09/11 dopo conferma installazione del nuovo ZIP e foto del
+Samsung. `fit()` riserva il 3% in alto e il 2,5% in basso prima della
+scala uniforme. Il CSS del monitor mostra l’intero logo e fonde il fondo chiaro
+con quello della tela. Asset condiviso e allowlist invariati. Suite 695/695 verde,
+passaggio da `42ddc96` al nuovo manifest verificato con l’updater installato e
+payload della build locale. Il riscontro del margine va fatto sul TV.
+
 Monitor pubblicato88794dd, CI42034207778LinuxNode22verde665test,
 Netlify6aec817fc578cdeb2b6d097e verificato via HTTP:12asset/HTML, ZIP20file
 identico per contenuti/SHA, admin401/device403senza credenziali. Solo link

@@ -5,10 +5,9 @@ Stato: **aggiornamento06/11 pubblicato con codice42ddc96**, Netlify
 687test Linux/Node22 e prove Windows native verdi. HTTP10payload/ZIP22file/SHA,
 API senza credenziali e updater reale HTTPS→loopback verificati. Nessun browser.
 
-L'utente conferma prima associazione e KPI visibili con ripristino-2; per la nuova
-pagina autoaggiornabile serve una sola installazione del pacchetto corrente,
-conservando l'associazione. Windows11Pro e visione solo personale confermati.
-Collaudo fisico PC/TV, timer e giornata completa restano al proprietario.
+L’utente ha installato il pacchetto autoaggiornabile e mostra i KPI sul Samsung
+verticale il 09/11. Windows 11 Pro e visione solo personale confermati.
+Restano da verificare il nuovo layout sul Samsung, il timer e la giornata completa.
 Migration05/11 gia applicate20261105131100/20261105131331, nessuna nuova migration
 per questo aggiornamento e nessuna modifica ai DB condivisi del Call Center.
 
@@ -38,10 +37,13 @@ avanzamento mensile in basso. Tema Mirox chiaro/arancione e Inter 4.1 locale
   Cambio giorno: dati precedenti nascosti fino al nuovo snapshot; cambio mese
   gestito dal server. Nessun numero fittizio o fallback a zero su errori.
 
-Tela logica 1080×1920: `fit()` riduce uniformemente l'intero contenuto quando
-necessario, senza scroll/tagli e senza nascondere o paginare il Day. La geometria
-ha test numerici, ma leggibilita' e impaginazione finale devono essere provate
-sul Samsung alla distanza reale; le righe molto numerose riducono la dimensione.
+Tela logica 1080×1920. Dopo il taglio osservato sul Samsung, la correzione 09/11
+riserva il 3% dell’altezza sopra la tela e il 2,5% sotto, prima di ridurre il
+contenuto in scala uniforme. Il nuovo ritaglio include tutta la scritta del logo
+e la fusione CSS uniforma il fondo, riusando il file originale. Suite 695/695
+verde e passaggio dal pacchetto del 06/11 al manifest
+della nuova build verificato con l’updater. La leggibilità va provata sul TV
+dopo la pubblicazione. Le righe molto numerose riducono la dimensione del testo.
 La pagina remota e' una shell senza dati e spiega come installare la postazione.
 
 ## Dati e backend

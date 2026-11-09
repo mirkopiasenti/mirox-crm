@@ -51,6 +51,9 @@ Report operativo: [debug monitor](../docs/MONITOR_DEBUG_2026-11-06.md).
 QA55checkSQL PGlite isolati e687test/CI Linux+Windows verdi. Nessun nuovo consenso o applicazione SQL necessari per questo rilascio.
 [Guida runtime, Windows e attivazione](../docs/MONITOR_NEGOZIO.md).
 
+Correzione visiva 09/11. Margini dello schermo e sfondo del logo gestiti nella
+pagina. Snapshot, frequenza di lettura e associazione restano quelli del 06/11.
+
 ## Accesso bonus da novembre2026 — applicato04/11/2026
 
 Rettifica UI04/11 successiva al rilascio, pubblicata: ! sui requisiti
