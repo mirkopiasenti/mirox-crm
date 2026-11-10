@@ -229,6 +229,8 @@ il collegamento account/dipendente già verificato dall'API. Correzione frontend
 
 ## Stati manuali in Verifica Contratti
 
+Il filtro Esito della lista In attesa usa lo stato manuale già letto insieme ai contratti. Una riga senza stato manuale corrisponde all'opzione In attesa. Il filtro è applicato nel frontend.
+
 `20261110102143_vendita_stati_verifica_manuale.sql` aggiunge una riga opzionale per contratto, con stato operativo, ultimo autore e timestamp. RLS consente la sola lettura di ID e stato per contratti pendenti visibili agli utenti con accesso a Verifica Contratti. La RPC INVOKER `vendita_imposta_stato_verifica_manuale` è riservata a `service_role` e verifica lo stato operativo atteso e la versione del contratto. L’aggiornamento riguarda soltanto la tabella separata. Un trigger elimina la riga alla conclusione del controllo e la FK elimina la riga insieme al contratto. Le righe storiche e i nuovi contratti partono senza riga. Migrazione applicata e riletta in produzione il 10/11/2026, versione `20261110102749`. RLS, grant, trigger e assenza di righe iniziali verificati.
 
 ## Verifica automatica contratti (27/10/2026, migration applicata)

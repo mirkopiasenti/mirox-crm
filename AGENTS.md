@@ -658,6 +658,8 @@ Le pagine post-vendita dei punti 8–11 espongono `Vai alla pratica` per ogni ri
 
 ### Stati manuali in Verifica Contratti (10/11/2026)
 
+La scheda In attesa filtra per Esito insieme a ricerca, categoria e giorno. Filtro ed etichetta usano lo stesso stato operativo, con In attesa per le righe prive di revisione. La scelta si applica alla lista caricata e il contatore mostra il totale della scheda.
+
 Colore applicato soltanto alle etichette nella lista in attesa, con In attesa blu per le righe senza scelta e come nome della lista. Intestazione e celle della colonna Stato usano lo sfondo normale. Dal dettaglio, Cambia stato salva Da verificare (rosso) o Da confermare (verde) solo sui contratti in attesa. Le etichette non sostituiscono `vendita_contratti.stato_controllo`: Conferma verifica resta il passaggio di approvazione e la riapertura riparte dal blu. La tabella `vendita_stati_verifica_manuale` è separata dal collaudo automatico. Lettura RLS per `verifica_contratti`, salvataggio solo via action omonima `set_stato_verifica_manuale` su `gestisci-vendita-contratto` e RPC service-only con controllo di concorrenza. Nessun cambio anagrafica, post-vendita o risveglio del verificatore. Migrazione `20261110102143_vendita_stati_verifica_manuale.sql` applicata e riletta in produzione come `20261110102749`.
 
 ### Verifica automatica contratti (27/10/2026, modalità collaudo)

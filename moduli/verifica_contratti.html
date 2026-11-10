@@ -47,7 +47,7 @@ body {
   padding: 14px 18px;
   margin-bottom: 14px;
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 190px 170px 140px;
+  grid-template-columns: minmax(220px, 1fr) 190px 160px 170px 105px;
   gap: 12px;
   align-items: end;
 }
@@ -56,6 +56,7 @@ body {
 }
 @media (max-width: 800px) { .filters-card { grid-template-columns: 1fr; } }
 @media (max-width: 1100px) and (min-width: 801px) {
+  .filters-card,
   .filters-card.verificati-filters { grid-template-columns: 1fr 1fr; }
 }
 .filters-card label { font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;display:block; }
@@ -261,6 +262,15 @@ body {
       <select id="filterCategoriaDaVerificare"><option value="">Tutte</option></select>
     </div>
     <div>
+      <label for="filterEsitoDaVerificare">Esito</label>
+      <select id="filterEsitoDaVerificare">
+        <option value="">Tutti gli esiti</option>
+        <option value="da_controllare">In attesa</option>
+        <option value="da_verificare">Da verificare</option>
+        <option value="da_confermare">Da confermare</option>
+      </select>
+    </div>
+    <div>
       <label>Giorno</label>
       <input type="date" id="filterDataDaVerificare">
     </div>
@@ -328,6 +338,7 @@ const VCState = {
   caricamenti: { daVerificare: 'idle', verificati: 'idle' },
   categorie: [],
   filtroCatDaVerificare: '',
+  filtroEsitoDaVerificare: '',
   filtroCatVerificati: '',
   filtroClusterVerificati: '',
   filtroDataDaVerificare: '',
@@ -539,10 +550,12 @@ function applicaFiltri(items, stateKey) {
     ? normalizeImei(VCState.searchImeiVerificati)
     : '';
   const cat = VCState[catKey] || '';
+  const esito = stateKey === 'daVerificare' ? VCState.filtroEsitoDaVerificare : '';
   const cluster = stateKey === 'verificati' ? VCState.filtroClusterVerificati : '';
   const day = VCState[dateKey] || '';
   return items.filter(c => {
     if (cat && c.categoria_id !== cat) return false;
+    if (esito && statoVisibileContratto(c) !== esito) return false;
     if (cluster && getContrattoCluster(c) !== cluster) return false;
     if (day && toRomeDateFilterValue(c.data_contratto) !== day) return false;
     const ana = c.anagrafica || {};
@@ -557,9 +570,15 @@ function applicaFiltri(items, stateKey) {
   });
 }
 
+function statoVisibileContratto(c) {
+  if (c.stato_controllo === 'controllato') return 'controllato';
+  const stato = c.revisione?.stato;
+  return stato === 'da_verificare' || stato === 'da_confermare' ? stato : 'da_controllare';
+}
+
 function renderStatoContratto(c) {
-  if (c.stato_controllo === 'controllato') return '<span class="stato-pill">Controllato</span>';
-  switch (c.revisione?.stato) {
+  switch (statoVisibileContratto(c)) {
+    case 'controllato': return '<span class="stato-pill">Controllato</span>';
     case 'da_verificare': return '<span class="stato-pill da_verificare">Da verificare</span>';
     case 'da_confermare': return '<span class="stato-pill da_confermare">Da confermare</span>';
     default: return '<span class="stato-pill da_controllare">In attesa</span>';
@@ -1674,7 +1693,7 @@ window.switchTabVC = switchTabVC;
 window.caricaContratti = caricaContratti;
 window.apriDettaglioContratto = apriDettaglioContratto;
 
-// Bind search / categoria
+// Collega i filtri alla lista del relativo tab.
 document.getElementById('searchDaVerificare').addEventListener('input', (e) => {
   VCState.searchDaVerificare = e.target.value;
   renderListaContratti('daVerificare');
@@ -1689,6 +1708,10 @@ document.getElementById('searchImeiVerificati').addEventListener('input', (e) =>
 });
 document.getElementById('filterCategoriaDaVerificare').addEventListener('change', (e) => {
   VCState.filtroCatDaVerificare = e.target.value;
+  renderListaContratti('daVerificare');
+});
+document.getElementById('filterEsitoDaVerificare').addEventListener('change', (e) => {
+  VCState.filtroEsitoDaVerificare = e.target.value;
   renderListaContratti('daVerificare');
 });
 document.getElementById('filterCategoriaVerificati').addEventListener('change', (e) => {

@@ -8,6 +8,7 @@ Aggiornato:2026-11-10. Promemoria di ripresa, non autorizza ulteriori push o att
 
 ## Verifica Contratti — rimozione collaudo dalla pagina10/11
 
+- Filtro Esito in rilascio nella scheda In attesa. Seleziona Tutti gli esiti, In attesa, Da verificare o Da confermare insieme a ricerca, categoria e giorno. Etichette e filtro condividono lo stesso stato operativo e i contatori mostrano i totali. Solo frontend. Build e suite 700/700 verdi, guide aggiornate. Prossimo passo: verificare il deploy.
 - Etichetta iniziale e lista rinominate In attesa, con lo stesso badge blu. Solo UI, stato tecnico `da_controllare` conservato. Push richiesto.
 - Correzione colori pronta in locale. Intestazione e celle Stato usano lo sfondo normale della tabella. Restano colorate le etichette blu, rossa e verde. Build verificata, suite 699/699 e guida aggiornata. Prossimo passo: pubblicare su richiesta.
 - Stati manuali in rilascio. Colonna Stato blu in attesa e azione Cambia stato nel dettaglio con Da verificare rosso e Da confermare verde. Tabella separata e RPC con controllo versione e stato atteso, RLS solo Verifica Contratti. Cambio etichetta senza update del contratto; l’approvazione chiude lo stato operativo e la riapertura riparte dal blu. Suite 699/699, script inline, contrasto e PGlite con grant/RLS, conflitti e riapertura verificati. Migrazione `20261110102143_vendita_stati_verifica_manuale.sql` applicata e riletta in produzione come `20261110102749`. Zero righe iniziali, RLS/grant verificati e advisor sicurezza invariati. Push autorizzato, verifica deploy da completare.

@@ -51,6 +51,8 @@ Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push
 
 ## Stati manuali in Verifica Contratti
 
+Nella scheda **In attesa**, il filtro **Esito** permette di scegliere **Tutti gli esiti**, **In attesa**, **Da verificare** o **Da confermare**. Si combina con ricerca, categoria e giorno. Il contatore della scheda indica il totale.
+
 Nella lista dei contratti in attesa il colore è applicato soltanto alle etichette di stato. **In attesa** è blu ed è anche il nome della relativa lista. Dal dettaglio, **Cambia stato** salva **Da verificare** in rosso oppure **Da confermare** in verde. Entrambe le scelte mantengono il contratto nella lista in attesa. **Conferma verifica** conclude il controllo e, se il contratto viene riaperto, la riga riparte dal blu. Vedi la [guida database](database/README.md#stati-manuali-in-verifica-contratti) per la persistenza.
 
 ## Verifica automatica contratti — collaudo assistito

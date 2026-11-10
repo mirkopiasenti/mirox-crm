@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const page = fs.readFileSync(require.resolve('../moduli/verifica_contratti.html'), 'utf8');
 const loader = page.slice(page.indexOf('async function caricaContratti('), page.indexOf('\nfunction applicaFiltri'));
-const renderer = page.slice(page.indexOf('function renderStatoContratto('), page.indexOf('\nasync function caricaCategorie('));
+const renderer = page.slice(page.indexOf('function applicaFiltri('), page.indexOf('\nasync function caricaCategorie('));
 const statusEditor = page.slice(page.indexOf('function collegaCambioStato('), page.indexOf('\nasync function caricaNuovoAllegato('));
 
 test('Verifica Contratti espone la conferma manuale e lascia scollegato il collaudo automatico', () => {
@@ -31,7 +31,7 @@ function fixture({ failure = false, deferred = false, review = null } = {}) {
     return q;
   } };
   const context = vm.createContext({ VCState: state, sb: db, document: { getElementById: id => nodes[id] }, window: {},
-    console: { log() {}, warn() {}, error() {} }, applicaFiltri: rows => rows,
+    console: { log() {}, warn() {}, error() {} }, normalizeImei: value => value || '',
     setCount: (id, n) => { counts[id] = n; }, escapeHtml: value => String(value || ''), fmtDateTime: () => '27/10/2026', getContrattoCluster: () => 'Consumer' });
   vm.runInContext(loader + '\n' + renderer, context);
   return { context, state, nodes, counts, calls, release: () => release() };
@@ -49,6 +49,48 @@ for (const status of ['da_controllare', 'controllato']) {
     assert.equal(f.calls.length, 1); assert.equal(f.state.caricamenti[key], 'loaded');
   });
 }
+test('il filtro Esito seleziona le etichette in attesa e si combina con gli altri filtri', () => {
+  const f = fixture();
+  const statuses = [
+    ['da_controllare', 'In attesa', null],
+    ['da_verificare', 'Da verificare', { stato: 'da_verificare' }],
+    ['da_confermare', 'Da confermare', { stato: 'da_confermare' }]
+  ];
+  const dropdown = page.match(/<select id="filterEsitoDaVerificare">([\s\S]*?)<\/select>/)[1];
+  assert.match(dropdown, /<option value="">Tutti gli esiti<\/option>/);
+  f.state.daVerificare = statuses.map(([id, , revisione]) => ({
+    id, revisione, stato_controllo: 'da_controllare', categoria_id: 'fisso', anagrafica: { ragione_sociale: 'Cliente ' + id }
+  }));
+  f.state.daVerificare.push({ id: 'storico', stato_controllo: 'da_controllare', categoria_id: 'mobile' });
+  f.state.verificati = [{ id: 'controllato', stato_controllo: 'controllato' }];
+  f.state.caricamenti.daVerificare = 'loaded';
+  let change;
+  f.nodes.filterEsitoDaVerificare = { addEventListener(event, callback) {
+    assert.equal(event, 'change');
+    change = callback;
+  } };
+  vm.runInContext(page.match(/document\.getElementById\('filterEsitoDaVerificare'\)\.addEventListener\([\s\S]*?\n}\);/)[0], f.context);
+  const select = value => change({ target: { value } });
+  const visibleIds = () => Array.from(f.context.applicaFiltri(f.state.daVerificare, 'daVerificare'), c => c.id);
+  f.state.filtroCatDaVerificare = 'fisso';
+  for (const [id, label] of statuses) {
+    assert.ok(dropdown.includes(`<option value="${id}">${label}</option>`));
+    select(id);
+    assert.deepEqual(visibleIds(), [id]);
+    assert.ok(f.nodes.listaDaVerificare.innerHTML.includes(`>${label}</span>`));
+    assert.equal(f.counts.cntDaVerificare, 4);
+  }
+  assert.equal(f.context.applicaFiltri(f.state.verificati, 'verificati').length, 1);
+  f.state.searchDaVerificare = 'assente';
+  select('da_confermare');
+  assert.match(f.nodes.listaDaVerificare.innerHTML, /Nessun contratto/);
+  f.state.searchDaVerificare = '';
+  f.state.filtroCatDaVerificare = '';
+  select('da_controllare');
+  assert.deepEqual(visibleIds(), ['da_controllare', 'storico']);
+  select('');
+  assert.equal(visibleIds().length, 4);
+});
 test('la scelta dello stato aggiorna il badge solo dopo il salvataggio e mantiene la riga in attesa', async () => {
   const f = fixture({ review: { stato: 'da_verificare' } });
   await f.context.caricaContratti('da_controllare');
