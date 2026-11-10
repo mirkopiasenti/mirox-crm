@@ -100,8 +100,6 @@ body {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
   white-space: nowrap;
 }
-.contracts-table thead th.vc-stato-in-attesa { background: #1e40af !important; color: #fff !important; }
-.contracts-table td.vc-stato-in-attesa { background: #dbeafe; }
 .stato-pill.da_controllare { background: #1e40af; color: #fff; }
 .stato-pill.da_verificare { background: #b91c1c; color: #fff; }
 .stato-pill.da_confermare { background: #15803d; color: #fff; }
@@ -593,7 +591,6 @@ function renderListaContratti(stateKey) {
     return;
   }
 
-  const classeStato = stateKey === 'daVerificare' ? ' class="vc-stato-in-attesa"' : '';
   const rows = items.map(c => {
     const ana = c.anagrafica || {};
     const operatoreNome = (c.operatore && c.operatore.nome) || '-';
@@ -616,7 +613,7 @@ function renderListaContratti(stateKey) {
         <td><span class="stato-pill ${escapeHtml(String(cluster).toLowerCase())}">${escapeHtml(cluster)}</span></td>
         <td>${escapeHtml(categoriaTxt)}</td>
         <td>${escapeHtml(offertaTxt)}${convergenzaChip}</td>
-        <td${classeStato}>${renderStatoContratto(c)}</td>
+        <td>${renderStatoContratto(c)}</td>
         <td style="text-align:right;white-space:nowrap;">
           <button type="button" class="btn-mini btn-primary" onclick="apriDettaglioContratto('${escapeHtml(c.id)}', '${stateKey}')">Dettagli</button>
         </td>
@@ -632,7 +629,7 @@ function renderListaContratti(stateKey) {
         <th>Cluster</th>
         <th>Categoria</th>
         <th>Offerta</th>
-        <th${classeStato}>Stato</th>
+        <th>Stato</th>
         <th style="text-align:right;">Azioni</th>
       </tr></thead>
       <tbody>${rows}</tbody>

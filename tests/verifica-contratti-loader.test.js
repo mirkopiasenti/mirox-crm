@@ -43,7 +43,8 @@ for (const status of ['da_controllare', 'controllato']) {
     assert.equal(f.state[key].length, 1); assert.ok(f.nodes[node].innerHTML.includes('Cliente esempio'));
     assert.ok(f.nodes[node].innerHTML.includes(status === 'controllato' ? '>Controllato</span>' : '>Da controllare</span>'));
     assert.equal(f.calls[0].selection.includes('revisione:vendita_stati_verifica_manuale(stato)'), status === 'da_controllare');
-    assert.equal(f.nodes[node].innerHTML.includes('<th class="vc-stato-in-attesa">Stato</th>'), status === 'da_controllare');
+    assert.match(f.nodes[node].innerHTML, /<th>Stato<\/th>/);
+    if (status === 'da_controllare') assert.match(f.nodes[node].innerHTML, /<td><span class="stato-pill da_controllare">Da controllare<\/span><\/td>/);
     assert.equal(f.calls.length, 1); assert.equal(f.state.caricamenti[key], 'loaded');
   });
 }
