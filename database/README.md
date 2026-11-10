@@ -223,6 +223,10 @@ Operatore e identita senzaACL verificati in READONLY/ROLLBACK, nessun dato
 cliente modificato. Procedura, limiti dati condivisi e signed URL gia emesse:
 [`docs/PERMESSI_PAGINE.md`](../docs/PERMESSI_PAGINE.md).
 
+Il filtro della dashboard applica le stesse ACL agli URL pubblicati con o senza
+`.html`. Le scorciatoie CC usano `profili.pagine_accessibili` e il Planning usa
+il collegamento account/dipendente già verificato dall'API. Correzione frontend.
+
 ## Stati manuali in Verifica Contratti
 
 `20261110102143_vendita_stati_verifica_manuale.sql` aggiunge una riga opzionale per contratto, con stato operativo, ultimo autore e timestamp. RLS consente la sola lettura di ID e stato per contratti pendenti visibili agli utenti con accesso a Verifica Contratti. La RPC INVOKER `vendita_imposta_stato_verifica_manuale` è riservata a `service_role` e verifica lo stato operativo atteso e la versione del contratto. L’aggiornamento riguarda soltanto la tabella separata. Un trigger elimina la riga alla conclusione del controllo e la FK elimina la riga insieme al contratto. Le righe storiche e i nuovi contratti partono senza riga. Migrazione applicata e riletta in produzione il 10/11/2026, versione `20261110102749`. RLS, grant, trigger e assenza di righe iniziali verificati.

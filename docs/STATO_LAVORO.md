@@ -2,6 +2,10 @@
 
 Aggiornato:2026-11-10. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
+## Visibilità dei moduli — 10/11
+
+- Corretto il filtro della dashboard e dei link diretti per gli URL Netlify senza estensione. Admin, Call Center e Planning compaiono secondo le rispettive abilitazioni. Riprodotto il difetto sull'HTML pubblico. Replay della build con la sola ACL Verifica Contratti e suite 699/699 verdi. Push autorizzato, verifica del deploy da completare.
+
 ## Verifica Contratti — rimozione collaudo dalla pagina10/11
 
 - Etichetta iniziale e lista rinominate In attesa, con lo stesso badge blu. Solo UI, stato tecnico `da_controllare` conservato. Push richiesto.

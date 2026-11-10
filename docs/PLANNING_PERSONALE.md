@@ -40,7 +40,7 @@ Replay opzionale: aggiungere il percorso di una proiezione privata come argoment
 
 - Admin → Personale → Planning dipendenti (`admin-planning.html`): planning, schede ore e configurazione.
 - Dashboard → Applicazioni → Il mio planning (`planning-personale.html`): solo versione approvata del dipendente collegato al login.
-- La pagina personale usa la proprieta' del planning e non aggiunge una ventesima ACL al catalogo Vendita/Post-Vendita. Il link e' disponibile agli autenticati; un account non collegato riceve un messaggio, nessun dato personale.
+- La pagina personale usa la proprieta' del planning e non aggiunge una ventesima ACL al catalogo Vendita/Post-Vendita. La dashboard mostra il link agli admin e ai dipendenti collegati, verificati dall'azione `access` di `gestisci-planning`. L'apertura diretta usa il controllo di proprieta' dell'API.
 - Il collegamento account/dipendente e' esplicito in Dipendenti e orari, modificabile solo dagli Admin. Nessun riconoscimento dal nome, nessuna creazione o riattivazione automatica di account. Vincenzo richiede un proprio account esistente prima di poter essere collegato; i PDF restano utilizzabili senza collegamento.
 - Francesca non e' nei dipendenti iniziali; nessuna cancellazione, disattivazione o rinomina del suo profilo CRM.
 

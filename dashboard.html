@@ -150,15 +150,6 @@
       transform: translateY(-2px);
       box-shadow: 0 6px 16px rgba(255, 102, 0, 0.15);
     }
-    .action-square.disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-    }
-    .action-square.disabled:hover {
-      transform: none;
-      box-shadow: none;
-      border-color: var(--border);
-    }
     .action-square-icon {
       width: 24px;
       height: 24px;
@@ -601,7 +592,7 @@
       <div class="action-square-label">Applicazioni</div>
     </button>
 
-    <a class="action-square action-square-wide disabled" href="#" id="btnAppuntamentiOggi" onclick="return false;">
+    <a class="action-square action-square-wide mx-permission-hidden" href="moduli/call-center/appuntamenti-oggi.html?skip_notifiche=1" id="btnAppuntamentiOggi">
       <div class="action-square-icon">
         <svg viewBox="0 0 24 24">
           <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -625,7 +616,7 @@
       <div class="action-square-label">Ticket</div>
     </a>
 
-    <a class="action-square disabled" href="#" id="btnCallCenter" onclick="return false;">
+    <a class="action-square mx-permission-hidden" href="#" id="btnCallCenter">
       <div class="action-square-icon">
         <svg viewBox="0 0 24 24">
           <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
@@ -634,7 +625,7 @@
       <div class="action-square-label">Call Center</div>
     </a>
 
-    <a class="action-square disabled" href="#" id="btnAdmin" onclick="return false;">
+    <a class="action-square mx-permission-hidden" href="admin.html" id="btnAdmin">
       <div class="action-square-icon">
         <svg viewBox="0 0 24 24">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -659,7 +650,7 @@
     <div class="applications-panel">
       <div class="applications-panel-title">Applicazioni</div>
       <div class="applications-grid">
-        <a class="action-square application-action" href="planning-personale.html">
+        <a class="action-square application-action mx-permission-hidden" href="planning-personale.html" id="btnPlanningPersonale">
           <div class="action-square-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h3M8 18h6"/></svg></div>
           <div class="action-square-label">Il mio planning</div>
         </a>
@@ -698,8 +689,7 @@
       document.getElementById('userName').textContent = nome;
       document.getElementById('userAvatar').textContent = nome.trim().charAt(0).toUpperCase();
 
-      // Anagrafiche appartiene al reparto Post-Vendita: aggiunge una card
-      // autonoma e disponibile a ogni account CRM attivo.
+      // La card Anagrafiche è filtrata come le altre pagine Post-Vendita.
       const postVenditaGrid = document.querySelector('#panel-post-vendita .grid');
       if (postVenditaGrid) {
         const anagraficheCard = document.createElement('a');
@@ -707,61 +697,6 @@
         anagraficheCard.href = 'moduli/anagrafiche.html';
         anagraficheCard.innerHTML = '<div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="card-label">Anagrafiche</div>';
         postVenditaGrid.prepend(anagraficheCard);
-      }
-
-      // Bottone Admin: attivo solo se ruolo='admin'
-      try {
-        const btnAdmin = document.getElementById('btnAdmin');
-        if (btnAdmin && profilo.ruolo === 'admin') {
-          btnAdmin.classList.remove('disabled');
-          btnAdmin.setAttribute('href', 'admin.html');
-          btnAdmin.onclick = null;
-        }
-      } catch(e) {
-        console.error('Errore setup bottone Admin:', e);
-      }
-
-      // Bottone Call Center in topbar: redirect diretto alla prima pagina CC
-      // accessibile per questo utente. Nasconde se nessun permesso CC.
-      try {
-        const isAdmin = profilo.ruolo === 'admin';
-        const perms = profilo.pagine_accessibili || {};
-        const ccPages = [
-          { perm: 'registra_chiamata',         url: 'moduli/call-center/registra-chiamata.html' },
-          { perm: 'elenco_chiamate',           url: 'moduli/call-center/elenco-chiamate.html' },
-          { perm: 'rilavorazione',             url: 'moduli/call-center/rilavorazione.html' },
-          { perm: 'call_center_lead_outbound', url: 'moduli/call-center/call-center-lead-outbound.html' },
-          { perm: 'appuntamenti',              url: 'moduli/call-center/appuntamenti.html' },
-          { perm: 'prenota_interno',           url: 'moduli/call-center/prenota-interno.html' },
-          { perm: 'appuntamenti_oggi',         url: 'moduli/call-center/appuntamenti-oggi.html' },
-          { perm: 'esiti_appuntamenti',        url: 'moduli/call-center/esiti-appuntamenti.html' },
-          { perm: 'blacklist',                 url: 'moduli/call-center/blacklist.html' }
-        ];
-        const prima = ccPages.find(p => isAdmin || (!p.adminOnly && (
-          perms[p.perm] === true || (perms[p.perm] === undefined && p.fallbackPerm && perms[p.fallbackPerm] === true)
-        )));
-        const btn = document.getElementById('btnCallCenter');
-        if (btn && prima) {
-          btn.classList.remove('disabled');
-          btn.setAttribute('href', prima.url);
-          btn.onclick = null;
-        }
-      } catch(e) {
-        console.error('Errore setup bottone Call Center:', e);
-      }
-
-      // Bottone Appuntamenti Oggi: attivo se ha permesso appuntamenti_oggi o è admin
-      try {
-        const isAdmin = profilo.ruolo === 'admin';
-        const perms = profilo.pagine_accessibili || {};
-        const btnAppoOggi = document.getElementById('btnAppuntamentiOggi');
-        if (btnAppoOggi && (isAdmin || perms['appuntamenti_oggi'] === true)) {
-          btnAppoOggi.classList.remove('disabled');
-          btnAppoOggi.setAttribute('href', 'moduli/call-center/appuntamenti-oggi.html?skip_notifiche=1');
-          btnAppoOggi.onclick = null;
-        }
-      } catch(e) {
-        console.error('Errore setup bottone Appuntamenti Oggi:', e);
       }
 
       // Aggiorna badge ticket aperti

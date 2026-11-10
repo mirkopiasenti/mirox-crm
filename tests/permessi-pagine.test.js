@@ -36,6 +36,7 @@ test('catalogo completo, nessun permesso implicito e ruolo Admin indipendente da
   for (const page of Core.pages) {
     assert.ok(fs.existsSync(path.join(ROOT, page.path)));
     assert.equal(Core.pageForPath('/' + page.path + '?id=1#detail').key, page.key);
+    assert.equal(Core.pageForPath('/' + page.path.replace(/\.html$/, '/') + '?id=1#detail').key, page.key);
     assert.equal(Core.can(operator, {}, page.key), false);
     assert.equal(Core.can(operator, { [page.key]: true }, page.key), true);
     assert.equal(Core.can(operator, { [page.key]: 'true' }, page.key), false);
@@ -222,7 +223,7 @@ test('migration limita policy alle risorse vendita/Storage, conserva viste e RPC
   for (const table of Object.keys(Core.tables)) assert.match(sql, new RegExp(`ON public\\.${table} AS RESTRICTIVE FOR SELECT`));
 });
 
-test('menu reale: nasconde card, reparti vuoti e Applicazioni; cambia tab e ripristina i permessi', () => {
+test('menu reale con URL Netlify: nasconde card, reparti vuoti e pulsanti; rilegge le abilitazioni', async () => {
   const document = documentFixture();
   const content = new Element(); content.className = 'content'; document.body.append(content);
   const tabButtons = [], panels = [];
@@ -237,22 +238,40 @@ test('menu reale: nasconde card, reparti vuoti e Applicazioni; cambia tab e ripr
       tabButtons.forEach(b => b.classList.toggle('active', b === button)); panels.forEach(p => p.classList.toggle('active', p === panel));
     });
   }
-  const upload = link('moduli/upload-contratti-vendita.html', 'card', panels[0]);
+  const upload = link('/moduli/upload-contratti-vendita', 'card', panels[0]);
   const customers = link('moduli/anagrafiche.html', 'card', panels[1]);
-  const ticket = link('moduli/ticket.html', 'action-square', document.body);
-  const guardian = link('moduli/segnala-problema.html', 'action-square', document.body);
+  const verifica = link('/moduli/verifica_contratti', 'card', panels[1]);
+  const ticket = link('/moduli/ticket', 'action-square', document.body);
+  const guardian = link('/moduli/segnala-problema?from=/dashboard.html', 'action-square', document.body);
+  const adminButton = link('/admin', 'action-square', document.body); adminButton.id = 'btnAdmin';
+  const ccButton = link('#', 'action-square', document.body); ccButton.id = 'btnCallCenter';
+  const appointments = link('/moduli/call-center/appuntamenti-oggi?skip_notifiche=1', 'action-square', document.body);
+  appointments.id = 'btnAppuntamentiOggi';
   const drawer = new Element(); drawer.id = 'applicationsDrawer'; drawer.className = 'is-open'; document.body.append(drawer);
   const appButton = new Element('button'); appButton.id = 'btnApplicazioni'; document.body.append(appButton);
-  const subentri = link('moduli/compilatore_subentri.html', 'application-action', drawer);
-  const window = { location: new URL('https://crm.example/dashboard.html'), MiroxPermissions: Core };
+  const subentri = link('/moduli/compilatore_subentri', 'application-action', drawer);
+  const planning = link('/planning-personale', 'application-action', drawer); planning.id = 'btnPlanningPersonale';
+  const planningChecks = [];
+  const window = {
+    location: new URL('https://crm.example/dashboard'), MiroxPermissions: Core,
+    MiroxApi: { fetch(url) {
+      assert.equal(url, '/.netlify/functions/gestisci-planning?action=access');
+      return new Promise(resolve => planningChecks.push(resolve));
+    } }
+  };
   vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js/mirox-permissions-ui.js'), 'utf8'), {
     window, document, URL, queueMicrotask, MutationObserver: class { observe() {} }
   });
-  window.MiroxPermissionsUI.apply(operator, permissions(['anagrafiche']));
+  assert.equal(document.documentElement.classList.contains('mx-permissions-pending'), true);
+  window.MiroxPermissionsUI.apply(operator, permissions(['verifica_contratti']));
   assert.equal(upload.classList.contains('mx-permission-hidden'), true);
-  assert.equal(customers.classList.contains('mx-permission-hidden'), false);
+  assert.equal(customers.classList.contains('mx-permission-hidden'), true);
+  assert.equal(verifica.classList.contains('mx-permission-hidden'), false);
   assert.equal(ticket.classList.contains('mx-permission-hidden'), true);
   assert.equal(guardian.classList.contains('mx-permission-hidden'), false);
+  for (const button of [adminButton, ccButton, appointments, planning, subentri]) {
+    assert.equal(button.classList.contains('mx-permission-hidden'), true);
+  }
   assert.equal(tabButtons[0].classList.contains('mx-permission-hidden'), true);
   assert.equal(tabButtons[1].classList.contains('active'), true);
   assert.equal(appButton.classList.contains('mx-permission-hidden'), true); assert.equal(drawer.inert, true);
@@ -266,12 +285,32 @@ test('menu reale: nasconde card, reparti vuoti e Applicazioni; cambia tab e ripr
   assert.equal(tabButtons[0].classList.contains('active'), true);
   assert.equal(document.getElementById('mxPermissionsEmpty').hidden, true);
   assert.equal(document.documentElement.classList.contains('mx-permissions-pending'), false);
+  const ccOperator = { ...operator, pagine_accessibili: { appuntamenti_oggi: true } };
+  window.MiroxPermissionsUI.apply(ccOperator, permissions(['verifica_contratti']));
+  assert.equal(ccButton.href, '/moduli/call-center/appuntamenti-oggi.html');
+  assert.equal(ccButton.classList.contains('mx-permission-hidden'), false);
+  assert.equal(appointments.classList.contains('mx-permission-hidden'), false);
+  planningChecks.at(-1)({ ok: true, json: async () => ({ allowed: true }) });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(planning.classList.contains('mx-permission-hidden'), false);
+  assert.equal(appButton.classList.contains('mx-permission-hidden'), false);
+  window.MiroxPermissionsUI.apply(operator, permissions(['verifica_contratti']));
+  planningChecks.at(-1)({ ok: true, json: async () => ({ allowed: false }) });
+  planningChecks[0]({ ok: true, json: async () => ({ allowed: true }) });
+  await new Promise(resolve => setImmediate(resolve));
+  for (const button of [ccButton, appointments, planning, appButton]) {
+    assert.equal(button.classList.contains('mx-permission-hidden'), true);
+  }
+  window.MiroxPermissionsUI.apply({ ...operator, ruolo: 'admin' }, {});
+  for (const button of [adminButton, ccButton, appointments, planning, appButton, upload, customers, ticket]) {
+    assert.equal(button.classList.contains('mx-permission-hidden'), false);
+  }
 });
 
 test('guard UI reale: URL diretto negato e blocco immediato alla revoca della pagina aperta', () => {
   const document = documentFixture();
   let reloads = 0;
-  const location = new URL('https://crm.example/moduli/ticket.html'); location.reload = () => { reloads++; };
+  const location = new URL('https://crm.example/moduli/ticket'); location.reload = () => { reloads++; };
   const window = { location, MiroxPermissions: Core };
   vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js/mirox-permissions-ui.js'), 'utf8'), { window, document, URL });
   assert.equal(document.documentElement.classList.contains('mx-permissions-pending'), true);
@@ -284,6 +323,9 @@ test('guard UI reale: URL diretto negato e blocco immediato alla revoca della pa
   assert.equal(panel.querySelector('a').href, 'https://crm.example/dashboard.html');
   window.MiroxPermissionsUI.apply(operator, permissions(['ticket'])); assert.equal(reloads, 1);
   assert.equal(window.MiroxPermissionsUI.allowedPath('/moduli/nuovo-non-censito.html'), false);
+  assert.equal(window.MiroxPermissionsUI.allowedPath('/moduli/nuovo-non-censito/'), false);
+  assert.equal(window.MiroxPermissionsUI.allowedPath('/moduli/ticket.html'), true);
+  assert.equal(window.MiroxPermissionsUI.allowedPath('/admin-permessi'), false);
 });
 
 test('UI Admin: bozza, annulla cambio utente, copia, conferma, salvataggio e conflitto preservano le scelte', async () => {

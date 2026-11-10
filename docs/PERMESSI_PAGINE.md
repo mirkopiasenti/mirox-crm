@@ -53,9 +53,12 @@ admin-only gia presenti per singole operazioni rimangono applicate.
 
 ## Regole e dipendenze
 
-- I link non consentiti vengono nascosti prima di mostrare la pagina. Un
-  reparto senza card visibili scompare; Applicazioni si nasconde se vuoto.
-  Link diretto negato: schermata con accesso alla dashboard.
+- Il filtro riconosce i percorsi HTML e quelli senza estensione pubblicati
+  da Netlify. La dashboard mostra soltanto i pulsanti consentiti e i reparti
+  con almeno una voce accessibile. Admin, Call Center e Appuntamenti Oggi
+  seguono ruolo e permessi CC. Il mio planning compare agli admin e agli
+  account collegati a un dipendente, verificati dall'API Planning. Il link
+  diretto a una pagina vietata apre la schermata di accesso negato.
 - Il catalogo canonico browser/CommonJS e' `js/mirox-permissions-core.js`.
   Percorsi, dipendenze e chiavi devono essere aggiunti qui e nella migration
   del catalogo; un nuovo modulo assente dal catalogo e' bloccato anche tramite

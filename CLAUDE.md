@@ -1300,7 +1300,7 @@ La creazione anagrafica in `registra-chiamata.html` passa da `AnagraficaHelper.c
 
 - **Solo via bottone topbar** "Call Center" — niente tab/card nella dashboard (scelta UX dell'utente: la dashboard è focus Vendita/Post-Vendita, il CC ha la sua sidebar interna come navigazione)
 - **Redirect dinamico runtime**: al caricamento dashboard, il JS calcola la **prima pagina CC accessibile** per l'utente (ordine: registra_chiamata → elenco_chiamate → rilavorazione → call_center_lead_outbound → appuntamenti → prenota_interno → appuntamenti_oggi → esiti_appuntamenti → blacklist) e imposta `href` del bottone topbar a quell'URL diretto
-- **Disabilitato se nessun permesso**: se l'utente non ha **nessuna** delle chiavi CC in `pagine_accessibili` (e non è admin), il bottone resta in classe `.disabled` (come nasce nell'HTML statico) e il click è bloccato
+- Il bottone Call Center compare per Admin o per chi ha almeno una delle chiavi CC di navigazione in `pagine_accessibili`. Appuntamenti Oggi richiede Admin o `appuntamenti_oggi`.
 - **Bottone "Torna alla dashboard Mirox"** in cima a ogni pagina CC integrata: arancione, ben visibile (era un breadcrumb piccolo, ora è un bottone stilizzato — eccetto `prenota.html` pubblica)
 
 ### Chiavi permessi (riusate identiche al CC prod)
@@ -1323,7 +1323,7 @@ Form esterno per prenotazioni dal sito/social. **NON in dashboard** (non ha auth
 
 ## Pannello Admin Mirox (dal 2026-06-24)
 
-Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile dalla dashboard come bottone topbar "Admin" (disabilitato per operatori).
+Hub centralizzato di amministrazione, gated da `profili.ruolo='admin'`. Visibile dalla dashboard come bottone topbar "Admin" riservato agli amministratori.
 
 ### Pagine
 
@@ -1349,7 +1349,7 @@ if (profilo.ruolo !== 'admin') {
 
 ### Attivazione bottone Admin in dashboard
 
-In `dashboard.html` lo script di init aggiunge `href='admin.html'` e rimuove `.disabled` dal `#btnAdmin` solo se `profilo.ruolo === 'admin'`. Per gli operatori il bottone resta visibile ma in stato disabled (no click).
+Il filtro condiviso mostra `#btnAdmin` soltanto agli amministratori attivi. Riconosce i percorsi con e senza `.html` pubblicati da Netlify, sia nei menu sia all'apertura diretta. In Applicazioni, Il mio planning è visibile agli admin e ai dipendenti collegati, verificati dall'azione `access` di `gestisci-planning`.
 
 ### Rimozione bottone Admin in upload
 

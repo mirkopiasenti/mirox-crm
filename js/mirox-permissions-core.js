@@ -65,8 +65,12 @@
     return !!profile && profile.attivo !== false && keys.includes(key)
       && (profile.ruolo === 'admin' || permissions?.[key] === true);
   }
+  function normalizePagePath(pathname) {
+    const path = String(pathname || '').split(/[?#]/, 1)[0].replace(/\/$/, '');
+    return /(?:^|\/)[^/.]+$/.test(path) ? path + '.html' : path;
+  }
   function pageForPath(pathname) {
-    const path = String(pathname || '').split(/[?#]/)[0].replace(/^\//, '');
+    const path = normalizePagePath(pathname).replace(/^\//, '');
     if(path==='moduli/scanner-documenti.html')return pages.find(p=>p.key==='upload_contratti');
     return pages.find(p => path === p.path);
   }
@@ -106,5 +110,5 @@
     };
     return Object.hasOwn(map, endpoint) ? map[endpoint] : null;
   }
-  return { pages: Object.freeze(pages), keys: Object.freeze(keys), tables, buckets, contracts, editors, can, normalize, pageForPath, endpointPages };
+  return { pages: Object.freeze(pages), keys: Object.freeze(keys), tables, buckets, contracts, editors, can, normalize, normalizePagePath, pageForPath, endpointPages };
 });

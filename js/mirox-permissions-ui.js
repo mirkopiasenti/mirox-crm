@@ -1,19 +1,35 @@
 (function (root) {
   'use strict';
   const Core = root.MiroxPermissions;
-  const currentPath = root.location.pathname;
-  const rootUrl = new URL(currentPath.includes('/moduli/') ? '../' : './', root.location.href);
+  const currentPath = Core.normalizePagePath(root.location.pathname);
   const modulePath = pathname => /^\/moduli\/[^/]+\.html$/.test(pathname) && pathname !== '/moduli/segnala-problema.html';
-  const managed = modulePath(currentPath) || /\/(?:dashboard|admin[^/]*)\.html$/.test(currentPath);
+  const dashboard = currentPath === '/dashboard.html';
+  const adminPath = pathname => /^\/admin[^/]*\.html$/.test(pathname);
+  const managed = modulePath(currentPath) || dashboard || adminPath(currentPath);
+  const ccPages = [
+    ['registra_chiamata', 'registra-chiamata'],
+    ['elenco_chiamate', 'elenco-chiamate'],
+    ['rilavorazione', 'rilavorazione'],
+    ['call_center_lead_outbound', 'call-center-lead-outbound'],
+    ['appuntamenti', 'appuntamenti'],
+    ['prenota_interno', 'prenota-interno'],
+    ['appuntamenti_oggi', 'appuntamenti-oggi'],
+    ['esiti_appuntamenti', 'esiti-appuntamenti'],
+    ['blacklist', 'blacklist']
+  ];
   if (managed) document.documentElement.classList.add('mx-permissions-pending');
   let profile = null, permissions = {}, queued = false, observer = null;
+  let planningAllowed = false, planningCheck = 0;
+
+  const isAdmin = () => profile?.ruolo === 'admin' && profile.attivo !== false;
 
   function allowedPath(pathname) {
-    if (/\/admin[^/]*\.html$/.test(pathname)) return profile?.ruolo === 'admin' && profile.attivo !== false;
+    const path = Core.normalizePagePath(pathname);
+    if (adminPath(path)) return isAdmin();
     const page = Core.pageForPath(pathname);
     if (page) return Core.can(profile, permissions, page.key);
     // Un nuovo modulo deve entrare nel catalogo prima di diventare accessibile.
-    return !modulePath(pathname);
+    return !modulePath(path);
   }
   function block(message, retry = false) {
     document.documentElement.classList.remove('mx-permissions-pending');
@@ -23,7 +39,7 @@
       panel = document.createElement('main'); panel.id = 'mxPermissionsBlock'; panel.setAttribute('role', 'alert');
       const title = document.createElement('h1'); title.textContent = 'Accesso al CRM'; panel.append(title);
       const text = document.createElement('p'); panel.append(text);
-      const link = document.createElement('a'); link.href = new URL('dashboard.html', rootUrl).href;
+      const link = document.createElement('a'); link.href = new URL('/dashboard.html', root.location.href).href;
       link.textContent = 'Torna alla dashboard'; panel.append(link);
       const refresh = document.createElement('a'); refresh.href = root.location.href; refresh.textContent = 'Riprova'; refresh.dataset.retry = 'true'; panel.append(refresh);
       document.body.append(panel);
@@ -37,7 +53,18 @@
       let url;
       try { url = new URL(link.getAttribute('href'), root.location.href); } catch (_) { continue; }
       if (url.origin !== root.location.origin) continue;
-      link.classList.toggle('mx-permission-hidden', !allowedPath(url.pathname));
+      const allowed = link.id === 'btnPlanningPersonale' ? isAdmin() || planningAllowed : allowedPath(url.pathname);
+      link.classList.toggle('mx-permission-hidden', !allowed);
+    }
+    if (dashboard) {
+      const hasCc = key => isAdmin() || profile.pagine_accessibili?.[key] === true;
+      const firstPage = ccPages.find(([key]) => hasCc(key));
+      const callCenter = document.getElementById('btnCallCenter');
+      if (callCenter) {
+        callCenter.href = firstPage ? `/moduli/call-center/${firstPage[1]}.html` : '#';
+        callCenter.classList.toggle('mx-permission-hidden', !firstPage);
+      }
+      document.getElementById('btnAppuntamentiOggi')?.classList.toggle('mx-permission-hidden', !hasCc('appuntamenti_oggi'));
     }
     for (const name of ['vendita', 'post-vendita']) {
       const panel = document.getElementById(`panel-${name}`);
@@ -61,7 +88,7 @@
       }
     }
     const content = document.querySelector('.content');
-    if (content && /\/dashboard\.html$/.test(currentPath)) {
+    if (content && dashboard) {
       const empty = !Core.pages.some(p => Core.can(profile, permissions, p.key));
       let notice = document.getElementById('mxPermissionsEmpty');
       if (empty && !notice) {
@@ -72,7 +99,19 @@
       if (notice) notice.hidden = !empty;
     }
   }
+  async function refreshPlanningVisibility(check) {
+    let allowed = false;
+    try {
+      const response = await root.MiroxApi.fetch('/.netlify/functions/gestisci-planning?action=access');
+      allowed = response.ok && (await response.json()).allowed === true;
+    } catch (_) { /* Il pulsante richiede un esito positivo. */ }
+    if (check !== planningCheck || document.documentElement.classList.contains('mx-permissions-blocked')) return;
+    planningAllowed = allowed;
+    filterNavigation();
+  }
   function apply(nextProfile, nextPermissions) {
+    const check = ++planningCheck;
+    if (profile?.id !== nextProfile?.id || profile?.ruolo !== nextProfile?.ruolo) planningAllowed = false;
     profile = nextProfile; permissions = nextPermissions || {};
     if (managed && !allowedPath(currentPath)) {
       block('Non sei abilitato a visualizzare questa pagina. Contatta un amministratore.');
@@ -82,13 +121,14 @@
     if (wasBlocked) { root.location.reload(); return false; }
     filterNavigation();
     document.documentElement.classList.remove('mx-permissions-pending');
-    if (!observer && /\/dashboard\.html$/.test(currentPath)) {
+    if (!observer && dashboard) {
       observer = new MutationObserver(() => {
         if (queued) return;
         queued = true; queueMicrotask(() => { queued = false; filterNavigation(); });
       });
       observer.observe(document.body, { childList: true, subtree: true });
     }
+    if (dashboard && !isAdmin() && document.getElementById('btnPlanningPersonale')) refreshPlanningVisibility(check);
     return true;
   }
   root.MiroxPermissionsUI = { apply, block, allowedPath, filterNavigation };
