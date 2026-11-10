@@ -11,6 +11,7 @@ const statusEditor = page.slice(page.indexOf('function collegaCambioStato('), pa
 test('Verifica Contratti espone la conferma manuale e lascia scollegato il collaudo automatico', () => {
   assert.doesNotMatch(page, /vcAutomatico|MiroxVerificaAuto|verifica-contratti-automatica|gestisci-verifica-automatica/);
   assert.match(page, /onclick="confermaVerifica\([^"]+\)">Conferma verifica<\/button>/);
+  assert.match(page, /data-tab="da-verificare"[^>]*>In attesa /);
 });
 
 function fixture({ failure = false, deferred = false, review = null } = {}) {
@@ -41,10 +42,10 @@ for (const status of ['da_controllare', 'controllato']) {
     const key = status === 'controllato' ? 'verificati' : 'daVerificare';
     const node = status === 'controllato' ? 'listaVerificati' : 'listaDaVerificare';
     assert.equal(f.state[key].length, 1); assert.ok(f.nodes[node].innerHTML.includes('Cliente esempio'));
-    assert.ok(f.nodes[node].innerHTML.includes(status === 'controllato' ? '>Controllato</span>' : '>Da controllare</span>'));
+    assert.ok(f.nodes[node].innerHTML.includes(status === 'controllato' ? '>Controllato</span>' : '>In attesa</span>'));
     assert.equal(f.calls[0].selection.includes('revisione:vendita_stati_verifica_manuale(stato)'), status === 'da_controllare');
     assert.match(f.nodes[node].innerHTML, /<th>Stato<\/th>/);
-    if (status === 'da_controllare') assert.match(f.nodes[node].innerHTML, /<td><span class="stato-pill da_controllare">Da controllare<\/span><\/td>/);
+    if (status === 'da_controllare') assert.match(f.nodes[node].innerHTML, /<td><span class="stato-pill da_controllare">In attesa<\/span><\/td>/);
     assert.equal(f.calls.length, 1); assert.equal(f.state.caricamenti[key], 'loaded');
   });
 }

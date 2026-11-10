@@ -51,7 +51,7 @@ Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push
 
 ## Stati manuali in Verifica Contratti
 
-Nella lista dei contratti in attesa il colore è applicato soltanto alle etichette di stato. **Da controllare** è blu. Dal dettaglio, **Cambia stato** salva **Da verificare** in rosso oppure **Da confermare** in verde. Entrambe le scelte mantengono il contratto nella lista in attesa. **Conferma verifica** conclude il controllo e, se il contratto viene riaperto, la riga riparte dal blu. Vedi la [guida database](database/README.md#stati-manuali-in-verifica-contratti) per la persistenza.
+Nella lista dei contratti in attesa il colore è applicato soltanto alle etichette di stato. **In attesa** è blu ed è anche il nome della relativa lista. Dal dettaglio, **Cambia stato** salva **Da verificare** in rosso oppure **Da confermare** in verde. Entrambe le scelte mantengono il contratto nella lista in attesa. **Conferma verifica** conclude il controllo e, se il contratto viene riaperto, la riga riparte dal blu. Vedi la [guida database](database/README.md#stati-manuali-in-verifica-contratti) per la persistenza.
 
 ## Verifica automatica contratti — collaudo assistito
 

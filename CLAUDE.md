@@ -61,7 +61,7 @@ Nuovo reparto Admin Personale: `admin-planning.html`, consultazione del solo pro
 
 Dal 10/11/2026 Verifica Contratti espone il flusso manuale. Il pannello sperimentale è scollegato dalla pagina. Vedi AGENTS.md e la guida Verifica automatica per lo storico del servizio.
 
-Stati manuali del 10/11: blu di partenza, Da verificare rosso e Da confermare verde dal dettaglio. L’approvazione resta un’azione distinta. Migrazione additiva applicata in produzione come `20261110102749`.
+Stati manuali del 10/11: In attesa blu di partenza, Da verificare rosso e Da confermare verde dal dettaglio. L’approvazione resta un’azione distinta. Migrazione additiva applicata in produzione come `20261110102749`.
 
 Sviluppati motore puro, lettura PDF, CSV, pannello esiti/collaudo, worker, cron,
 cache e outbox. Guida: `docs/VERIFICA_AUTOMATICA_CONTRATTI.md` e sezione AGENTS.

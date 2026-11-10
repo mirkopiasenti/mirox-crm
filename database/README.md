@@ -766,7 +766,7 @@ Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
 
 | File | Cosa introduce |
 |---|---|
-| `20261110102143_vendita_stati_verifica_manuale.sql` | Stato operativo rosso/verde per le verifiche manuali, RLS, RPC service-only e pulizia all’uscita da Da controllare |
+| `20261110102143_vendita_stati_verifica_manuale.sql` | Stato operativo rosso/verde per le verifiche manuali, RLS, RPC service-only e pulizia all’uscita dallo stato tecnico `da_controllare` (In attesa) |
 | `001_create_vendita_upload_contratti.sql` | Tabelle base upload contratti vendita |
 | `002_cataloghi_opzioni_reload_e_associazioni_offerta.sql` | Opzioni, reload e link N:M con offerte |
 | `003_offerte_abilita_dispositivo.sql` | Flag `abilita_dispositivo` su `vendita_offerte` |
