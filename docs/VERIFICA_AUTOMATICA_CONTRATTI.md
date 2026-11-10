@@ -2,6 +2,9 @@ Aggiornamento pubblicato28/10: identita anticipata nell’upload con confronto a
 
 # Verifica automatica contratti
 
+## Pannello di collaudo scollegato il 10/11/2026
+
+La pagina Verifica Contratti mostra le liste Da controllare e Verificati, gli allegati e la conferma manuale. Gli asset del collaudo, l’API e lo storico restano disponibili al progetto. I passaggi di collaudo dalla pagina descritti sotto sono storici. L’import CSV operativo resta in Controllo L&G.
 
 ### Anteprima manuale dopo errore e Haiku 5.5 (28/10/2026, pubblicato)
 

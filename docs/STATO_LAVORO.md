@@ -1,6 +1,10 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-09. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+Aggiornato:2026-11-10. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+
+## Verifica Contratti — rimozione collaudo dalla pagina10/11
+
+- Pronto in locale. Rimossi pannello sperimentale, azioni, filtri, esiti e polling automatici dalla pagina. Liste, allegati, modifiche e conferma manuale restano disponibili. Intervento solo UI. Il CSV operativo di Controllo L&G e il controllo identità in Upload Contratti sono separati. Build, script inline, 15 test mirati e suite 697/697 verdi. Aggiornate le guide. Prossimo passo: pubblicazione su richiesta.
 
 ## Upload identità — barcode e carrello09/11
 

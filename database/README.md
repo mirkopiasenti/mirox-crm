@@ -225,6 +225,8 @@ cliente modificato. Procedura, limiti dati condivisi e signed URL gia emesse:
 
 ## Verifica automatica contratti (27/10/2026, migration applicata)
 
+Il pannello di collaudo è scollegato dalla pagina Verifica Contratti dal 10/11/2026. La pagina mostra gli stati di verifica manuale. La rimozione dalla UI conserva le tabelle private, lo storico e la configurazione del servizio.
+
 `20261027172616_verifica_automatica_contratti.sql`, generata con CLI: sei tabelle
 private `vendita_verifica_config`, `vendita_verifiche`, `vendita_verifica_csv`,
 `vendita_verifica_esecuzioni`, `vendita_verifica_documenti`, `vendita_verifica_notifiche`.

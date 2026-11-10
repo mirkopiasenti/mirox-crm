@@ -59,6 +59,8 @@ Nuovo reparto Admin Personale: `admin-planning.html`, consultazione del solo pro
 
 ## Verifica automatica contratti (27/10/2026, modalità collaudo)
 
+Dal 10/11/2026 Verifica Contratti espone il flusso manuale. Il pannello sperimentale è scollegato dalla pagina. Vedi AGENTS.md e la guida Verifica automatica per lo storico del servizio.
+
 Sviluppati motore puro, lettura PDF, CSV, pannello esiti/collaudo, worker, cron,
 cache e outbox. Guida: `docs/VERIFICA_AUTOMATICA_CONTRATTI.md` e sezione AGENTS.
 Migration `20261027172616_verifica_automatica_contratti.sql` collaudata isolata,

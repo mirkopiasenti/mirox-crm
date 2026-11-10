@@ -6,6 +6,12 @@ const vm = require('node:vm');
 const page = fs.readFileSync(require.resolve('../moduli/verifica_contratti.html'), 'utf8');
 const loader = page.slice(page.indexOf('async function caricaContratti('), page.indexOf('\nfunction applicaFiltri'));
 const renderer = page.slice(page.indexOf('function renderListaContratti('), page.indexOf('\nasync function caricaCategorie('));
+
+test('Verifica Contratti espone la conferma manuale e lascia scollegato il collaudo automatico', () => {
+  assert.doesNotMatch(page, /vcAutomatico|MiroxVerificaAuto|verifica-contratti-automatica|gestisci-verifica-automatica/);
+  assert.match(page, /onclick="confermaVerifica\([^"]+\)">Conferma verifica<\/button>/);
+});
+
 function fixture({ failure = false, deferred = false } = {}) {
   const nodes = { listaDaVerificare: { innerHTML: '' }, listaVerificati: { innerHTML: '' } };
   const state = { daVerificare: [], verificati: [], caricamenti: { daVerificare: 'idle', verificati: 'idle' } };
@@ -34,16 +40,17 @@ for (const status of ['da_controllare', 'controllato']) {
     const key = status === 'controllato' ? 'verificati' : 'daVerificare';
     const node = status === 'controllato' ? 'listaVerificati' : 'listaDaVerificare';
     assert.equal(f.state[key].length, 1); assert.ok(f.nodes[node].innerHTML.includes('Cliente esempio'));
+    assert.ok(f.nodes[node].innerHTML.includes(status === 'controllato' ? '>Controllato</span>' : '>Da controllare</span>'));
     assert.equal(f.calls.length, 1); assert.equal(f.state.caricamenti[key], 'loaded');
   });
 }
-test('polling esiti conserva un errore di caricamento invece di mostrare lista vuota', async () => {
+test('il rendering conserva un errore di caricamento invece di mostrare lista vuota', async () => {
   const f = fixture({ failure: true }); await f.context.caricaContratti('da_controllare');
   const error = f.nodes.listaDaVerificare.innerHTML;
   f.context.renderListaContratti('daVerificare');
   assert.equal(f.nodes.listaDaVerificare.innerHTML, error); assert.ok(error.includes('Errore caricamento'));
 });
-test('polling esiti non sostituisce una lettura ancora pendente', async () => {
+test('il rendering conserva una lettura ancora pendente', async () => {
   const f = fixture({ deferred: true }); const pending = f.context.caricaContratti('controllato');
   const loading = f.nodes.listaVerificati.innerHTML;
   f.context.renderListaContratti('verificati'); assert.equal(f.nodes.listaVerificati.innerHTML, loading);

@@ -350,7 +350,7 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 | `js/identita-upload-core.js` | `window.MiroxIdentitaCore` / CommonJS | Confronto identita/anagrafica, cittadinanza UE e obbligo permesso Consumer VAR |
 | `js/identita-upload-ui.js` | `window.MiroxIdentitaUpload` | Lettura anticipata, conferma manuale e ricevuta legata ai PDF; rilascio28/10 |
 | `js/verifica-contratti-core.js` | `window.MiroxVerificaCore` / CommonJS | Matching documentale, date firma/scadenza, ICCID, bollette e CSV, esiti puri |
-| `js/verifica-contratti-automatica.js` | `window.MiroxVerificaAuto` | Pannello esiti/CSV, collaudo, riesame e riconciliazione notifiche |
+| `js/verifica-contratti-automatica.js` | `window.MiroxVerificaAuto` | Asset del pannello esiti/CSV, scollegato da Verifica Contratti dal 10/11/2026 |
 | `js/subentri-core.js` | `window.MiroxSubentri` / CommonJS server | Campi, consensi, categorie documentali e validazione pura condivisa del Compilatore Subentri |
 | `js/vendita-pda-core.js` | `window.MiroxPda` / CommonJS server | Normalizza codici contratto e cliente/telefoni/importi e valida dati PDA/Mobile condivisi |
 | `js/vendita-pda-ui.js` | `window.MiroxPdaUI` | Popup codice/costo/contatto e gestione Professional Cloud, controllo duplicati e editor PDA condiviso fra wizard e consultazione |
@@ -657,6 +657,8 @@ Le pagine post-vendita dei punti 8–11 espongono `Vai alla pratica` per ogni ri
 ## Regole di business chiave
 
 ### Verifica automatica contratti (27/10/2026, modalità collaudo)
+
+Rimozione UI richiesta il 10/11/2026: `moduli/verifica_contratti.html` usa gli stati manuali Da controllare e Controllato, senza pannello, esiti, filtri o polling del collaudo automatico. Il dettaglio conserva allegati, modifiche e conferma manuale. La modifica è limitata alla pagina. Backend, configurazione, storico, import CSV Controllo L&G e controllo identità nell’upload sono separati.
 
 Implementati motore `js/verifica-contratti-core.js`, pannello `js/verifica-contratti-automatica.js`/CSS, API/worker/cron e migration additiva `20261027172616_verifica_automatica_contratti.sql`. **Migration applicata a production** (versione20261027172616, nome verifica_automatica_contratti); configurazione collaudo, RLS e grant riletti, zero analisi/notifiche. Rilascio autorizzato dal proprietario. Non abilitare automaticamente la modalità attiva. Guida e limiti: `docs/VERIFICA_AUTOMATICA_CONTRATTI.md`; analisi storica separata. Nessuna nuova dipendenza/env richiesta; riusati Anthropic Haiku4.5 e chiavi backend esistenti. Il worker ha HMAC con contesto dedicato derivato dalla service role, non dai segreti degli altri agenti.
 

@@ -51,6 +51,8 @@ Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push
 
 ## Verifica automatica contratti — collaudo assistito
 
+Dal 10/11/2026 il pannello di collaudo è scollegato da **Verifica Contratti**, che espone la verifica manuale. L’import CSV di Controllo L&G e il riscontro del documento in Upload Contratti restano accessibili nei rispettivi moduli. Le sezioni seguenti descrivono il servizio storico e il suo backend.
+
 Motore documentale, upload CSV WindTre, quattro esiti, primo turno ogni sera
 alle **21:00 Europe/Rome** e riesame immediato dei sospesi dopo correzioni/CSV.
 Controlla intestazione, identità valida **alla data firma**, firmatario Business,
@@ -155,7 +157,7 @@ produce anche `dist/assets/monitor-release.json` e
 | `database/staging/` | Bootstrap one-shot esclusivi del Supabase staging; non applicabili a production |
 | `netlify.toml` | Config Netlify, header di sicurezza (CSP/HSTS/Permissions-Policy) e cron |
 | `js/identita-upload-core.js`, `js/identita-upload-ui.js` | Regole identita/cittadinanza/permesso e controllo anticipato nell’upload (28/10) |
-| `js/verifica-contratti-core.js`, `js/verifica-contratti-automatica.js`, `css/verifica-contratti-automatica.css` | Regole documentali pure e pannello Verifica Contratti con CSV, esiti e collaudo assistito |
+| `js/verifica-contratti-core.js`, `js/verifica-contratti-automatica.js`, `css/verifica-contratti-automatica.css` | Regole documentali e asset del pannello di collaudo, scollegato da Verifica Contratti |
 | `scripts/verifica-automatica-sql.js` | Collaudo PostgreSQL isolato della nuova coda, commit atomico e grant |
 | `netlify/functions/_lib/windtre-customer-codes.js` | Registro anagrafico dei codici cliente WindTre, append idempotente |
 | `scripts/verifica-codici-cliente-sql.js` | Collaudo isolato di schema, RLS e permessi dei codici cliente |
