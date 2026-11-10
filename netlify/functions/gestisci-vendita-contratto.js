@@ -8,6 +8,7 @@ const {
 } = require('./_lib/score-integrity');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MANUAL_REVIEW_STATES = new Set(['da_verificare', 'da_confermare']);
 const CONTRACT_FIELDS = new Set([
   ...Pda.FIELDS,
   'data_contratto',
@@ -170,6 +171,25 @@ async function deriveCatalogSnapshots(supabase, current, patch) {
   }
 
   return result;
+}
+
+async function setManualReviewStatus({ supabase, auth, body }) {
+  const { contratto_id, stato, stato_atteso, expected_updated_at } = body;
+  if (!isUuid(contratto_id) || !MANUAL_REVIEW_STATES.has(stato)
+      || (stato_atteso !== null && !MANUAL_REVIEW_STATES.has(stato_atteso))
+      || (expected_updated_at !== null && (typeof expected_updated_at !== 'string' || !Number.isFinite(Date.parse(expected_updated_at))))) {
+    return response(400, { success: false, error: 'Contratto, stato o versione non validi' });
+  }
+  const autore = canonicalProfileId(auth);
+  if (!autore) return response(500, { success: false, error: 'Profilo autenticato privo di un identificativo valido' });
+  const { data, error } = await supabase.rpc('vendita_imposta_stato_verifica_manuale', {
+    p_contratto_id: contratto_id, p_stato: stato, p_stato_atteso: stato_atteso,
+    p_versione_attesa: expected_updated_at, p_autore: autore
+  });
+  if (error?.code === '40001') return response(409, { success: false, error: error.message });
+  if (error?.code === 'P0002') return response(404, { success: false, error: 'Contratto non trovato' });
+  if (error) throw error;
+  return response(200, { success: true, stato: data });
 }
 
 async function updateContract({ supabase, auth, body }) {
@@ -396,6 +416,7 @@ exports.handler = async (event) => {
       return response(200, { success: true, duplicate });
     }
     if (body.action === 'update_pda') return await updatePda({ supabase, auth, body });
+    if (body.action === 'set_stato_verifica_manuale') return await setManualReviewStatus({ supabase, auth, body });
     if (body.action === 'update') {
       return await updateContract({ supabase, auth, body });
     }
@@ -416,6 +437,7 @@ exports.handler = async (event) => {
 
 exports._test = {
   updatePda,
+  setManualReviewStatus,
   assertPersistedContractScores,
   canonicalProfileId,
   deriveCatalogSnapshots,

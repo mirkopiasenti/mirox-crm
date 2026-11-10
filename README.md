@@ -49,6 +49,10 @@ Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push
 - **Canale proprietario**: bot Telegram privato limitato al solo `chat_id` di Mirko
 - **Hosting**: Netlify (build statica a lista consentita in `dist/` + functions + cron schedules)
 
+## Stati manuali in Verifica Contratti
+
+Nella lista dei contratti in attesa, la colonna **Stato** ha lo sfondo blu. Dal dettaglio, **Cambia stato** salva **Da verificare** in rosso oppure **Da confermare** in verde. Entrambe le scelte mantengono il contratto nella lista in attesa. **Conferma verifica** conclude il controllo e, se il contratto viene riaperto, la riga riparte dal blu. Prima di pubblicare il codice applicare la migrazione indicata nella [guida database](database/README.md#stati-manuali-in-verifica-contratti).
+
 ## Verifica automatica contratti — collaudo assistito
 
 Dal 10/11/2026 il pannello di collaudo è scollegato da **Verifica Contratti**, che espone la verifica manuale. L’import CSV di Controllo L&G e il riscontro del documento in Upload Contratti restano accessibili nei rispettivi moduli. Le sezioni seguenti descrivono il servizio storico e il suo backend.

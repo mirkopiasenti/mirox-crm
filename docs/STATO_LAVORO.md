@@ -4,6 +4,7 @@ Aggiornato:2026-11-10. Promemoria di ripresa, non autorizza ulteriori push o att
 
 ## Verifica Contratti — rimozione collaudo dalla pagina10/11
 
+- Stati manuali in rilascio. Colonna Stato blu in attesa e azione Cambia stato nel dettaglio con Da verificare rosso e Da confermare verde. Tabella separata e RPC con controllo versione e stato atteso, RLS solo Verifica Contratti. Cambio etichetta senza update del contratto; l’approvazione chiude lo stato operativo e la riapertura riparte dal blu. Suite 699/699, script inline, contrasto e PGlite con grant/RLS, conflitti e riapertura verificati. Migrazione `20261110102143_vendita_stati_verifica_manuale.sql` applicata e riletta in produzione come `20261110102749`. Zero righe iniziali, RLS/grant verificati e advisor sicurezza invariati. Push autorizzato, verifica deploy da completare.
 - Pronto in locale. Rimossi pannello sperimentale, azioni, filtri, esiti e polling automatici dalla pagina. Liste, allegati, modifiche e conferma manuale restano disponibili. Intervento solo UI. Il CSV operativo di Controllo L&G e il controllo identità in Upload Contratti sono separati. Build, script inline, 15 test mirati e suite 697/697 verdi. Aggiornate le guide. Prossimo passo: pubblicazione su richiesta.
 
 ## Upload identità — barcode e carrello09/11

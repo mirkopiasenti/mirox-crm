@@ -100,10 +100,21 @@ body {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
   white-space: nowrap;
 }
-.stato-pill.da_controllare { background: var(--warning-bg); color: var(--warning); }
+.contracts-table thead th.vc-stato-in-attesa { background: #1e40af !important; color: #fff !important; }
+.contracts-table td.vc-stato-in-attesa { background: #dbeafe; }
+.stato-pill.da_controllare { background: #1e40af; color: #fff; }
+.stato-pill.da_verificare { background: #b91c1c; color: #fff; }
+.stato-pill.da_confermare { background: #15803d; color: #fff; }
 .stato-pill.controllato { background: var(--success-bg); color: var(--success); }
 .stato-pill.errore { background: var(--danger-bg); color: var(--danger); }
 .stato-pill.annullato { background: #EEF3F8; color: #697386; }
+
+.vc-stato-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vc-stato-opzioni:not([hidden]) { display: flex; gap: 8px; flex-wrap: wrap; }
+.vc-stato-opzioni button { border: 0; cursor: pointer; }
+.vc-stato-opzioni button:disabled { opacity: 0.65; cursor: wait; }
+.vc-stato-errore { margin: 8px 0 0; color: var(--danger); }
+.vc-stato-errore:empty { display: none; }
 
 .btn-mini {
   display: inline-flex; align-items: center; gap: 5px;
@@ -478,6 +489,7 @@ async function caricaContratti(statoControllo) {
         stato_controllo, controllato_da, controllato_at, note_controllo,
         data_contratto, created_at, updated_at,
         anagrafica:anagrafica_id ( id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, provincia, comune, via, civico )
+        ${statoControllo === 'da_controllare' ? ', revisione:vendita_stati_verifica_manuale(stato)' : ''}
       `)
       .eq('stato_controllo', statoControllo)
       .order('data_contratto', { ascending: false });
@@ -547,6 +559,15 @@ function applicaFiltri(items, stateKey) {
   });
 }
 
+function renderStatoContratto(c) {
+  if (c.stato_controllo === 'controllato') return '<span class="stato-pill">Controllato</span>';
+  switch (c.revisione?.stato) {
+    case 'da_verificare': return '<span class="stato-pill da_verificare">Da verificare</span>';
+    case 'da_confermare': return '<span class="stato-pill da_confermare">Da confermare</span>';
+    default: return '<span class="stato-pill da_controllare">Da controllare</span>';
+  }
+}
+
 function renderListaContratti(stateKey) {
   // Polling must not replace loading/errors with an empty cached list.
   if (VCState.caricamenti?.[stateKey] && VCState.caricamenti[stateKey] !== 'loaded') return;
@@ -572,6 +593,7 @@ function renderListaContratti(stateKey) {
     return;
   }
 
+  const classeStato = stateKey === 'daVerificare' ? ' class="vc-stato-in-attesa"' : '';
   const rows = items.map(c => {
     const ana = c.anagrafica || {};
     const operatoreNome = (c.operatore && c.operatore.nome) || '-';
@@ -594,7 +616,7 @@ function renderListaContratti(stateKey) {
         <td><span class="stato-pill ${escapeHtml(String(cluster).toLowerCase())}">${escapeHtml(cluster)}</span></td>
         <td>${escapeHtml(categoriaTxt)}</td>
         <td>${escapeHtml(offertaTxt)}${convergenzaChip}</td>
-        <td><span class="stato-pill">${c.stato_controllo === 'controllato' ? 'Controllato' : 'Da controllare'}</span></td>
+        <td${classeStato}>${renderStatoContratto(c)}</td>
         <td style="text-align:right;white-space:nowrap;">
           <button type="button" class="btn-mini btn-primary" onclick="apriDettaglioContratto('${escapeHtml(c.id)}', '${stateKey}')">Dettagli</button>
         </td>
@@ -610,7 +632,7 @@ function renderListaContratti(stateKey) {
         <th>Cluster</th>
         <th>Categoria</th>
         <th>Offerta</th>
-        <th>Stato</th>
+        <th${classeStato}>Stato</th>
         <th style="text-align:right;">Azioni</th>
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -731,7 +753,19 @@ function apriPopupDettaglio(c, opts) {
   const pdaHtml = window.MiroxPda.isPda(c.categoria_snapshot)
     ? '<div class="det-section"><h4>Dati PDA</h4>' + window.MiroxPdaUI.summary(c)
       + '<button type="button" class="mx-btn mx-btn-secondary" data-edit-pda>Modifica dati PDA</button></div>' : '';
-  const bodyHtml = `${pdaHtml}
+  const statoHtml = isReadOnly ? '' : `
+    <div class="det-section">
+      <div class="vc-stato-toolbar">
+        <span data-vc-stato-corrente aria-live="polite">${renderStatoContratto(c)}</span>
+        <button type="button" class="btn-mini" data-vc-cambia-stato aria-expanded="false" aria-controls="vc_stato_opzioni">Cambia stato</button>
+        <div class="vc-stato-opzioni" id="vc_stato_opzioni" hidden>
+          <button type="button" class="stato-pill da_verificare" data-vc-nuovo-stato="da_verificare">Da verificare</button>
+          <button type="button" class="stato-pill da_confermare" data-vc-nuovo-stato="da_confermare">Da confermare</button>
+        </div>
+      </div>
+      <p class="vc-stato-errore" data-vc-stato-errore role="alert"></p>
+    </div>`;
+  const bodyHtml = `${statoHtml}${pdaHtml}
     <div class="det-section">
       <h4>Dati cliente <small style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;font-size:11px;">(modifiche su tabella anagrafica condivisa)</small></h4>
       <div class="det-grid">
@@ -989,6 +1023,7 @@ function apriPopupDettaglio(c, opts) {
   window.__currentVerificaCataloghi = { categorie, offerte, opzioni, offerteOpzioni, reload };
   // Bottone chiudi via attributo
   m.foot.querySelectorAll('[data-mx-close-popup]').forEach(b => b.addEventListener('click', () => m.close()));
+  if (!isReadOnly) collegaCambioStato(m.body, c);
   renderAllegatiPopup(c, allegati, isReadOnly);
 
   // Applica regole di visibilità in base a categoria + bind dei listener
@@ -1198,6 +1233,44 @@ async function gestisciVenditaContratto(payload) {
     throw new Error(result.error || `Operazione non riuscita (${response.status})`);
   }
   return result;
+}
+
+function collegaCambioStato(body, c) {
+  const toggle = body.querySelector('[data-vc-cambia-stato]');
+  const opzioni = body.querySelector('#vc_stato_opzioni');
+  const corrente = body.querySelector('[data-vc-stato-corrente]');
+  const errore = body.querySelector('[data-vc-stato-errore]');
+  const scelte = [...opzioni.querySelectorAll('button')];
+  const mostra = aperto => {
+    opzioni.hidden = !aperto;
+    toggle.setAttribute('aria-expanded', String(aperto));
+  };
+  toggle.addEventListener('click', () => mostra(opzioni.hidden));
+  scelte.forEach(scelta => scelta.addEventListener('click', async () => {
+    const stato = scelta.dataset.vcNuovoStato;
+    errore.textContent = '';
+    toggle.disabled = true;
+    scelte.forEach(b => { b.disabled = true; });
+    try {
+      const result = await gestisciVenditaContratto({
+        action: 'set_stato_verifica_manuale',
+        contratto_id: c.id, stato,
+        stato_atteso: c.revisione?.stato ?? null,
+        expected_updated_at: c.updated_at ?? null
+      });
+      if (result.stato !== stato) throw new Error('Il salvataggio dello stato non è stato confermato.');
+      c.revisione = { stato: result.stato };
+      corrente.innerHTML = renderStatoContratto(c);
+      renderListaContratti('daVerificare');
+      mostra(false);
+    } catch (e) {
+      errore.textContent = e.message;
+    } finally {
+      toggle.disabled = false;
+      scelte.forEach(b => { b.disabled = false; });
+      if (opzioni.hidden) toggle.focus();
+    }
+  }));
 }
 
 async function caricaNuovoAllegato(contrattoId, anagraficaId, praticaId) {

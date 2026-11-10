@@ -223,6 +223,10 @@ Operatore e identita senzaACL verificati in READONLY/ROLLBACK, nessun dato
 cliente modificato. Procedura, limiti dati condivisi e signed URL gia emesse:
 [`docs/PERMESSI_PAGINE.md`](../docs/PERMESSI_PAGINE.md).
 
+## Stati manuali in Verifica Contratti
+
+`20261110102143_vendita_stati_verifica_manuale.sql` aggiunge una riga opzionale per contratto, con stato operativo, ultimo autore e timestamp. RLS consente la sola lettura di ID e stato per contratti pendenti visibili agli utenti con accesso a Verifica Contratti. La RPC INVOKER `vendita_imposta_stato_verifica_manuale` è riservata a `service_role` e verifica lo stato operativo atteso e la versione del contratto. L’aggiornamento riguarda soltanto la tabella separata. Un trigger elimina la riga alla conclusione del controllo e la FK elimina la riga insieme al contratto. Le righe storiche e i nuovi contratti partono senza riga. Migrazione applicata e riletta in produzione il 10/11/2026, versione `20261110102749`. RLS, grant, trigger e assenza di righe iniziali verificati.
+
 ## Verifica automatica contratti (27/10/2026, migration applicata)
 
 Il pannello di collaudo è scollegato dalla pagina Verifica Contratti dal 10/11/2026. La pagina mostra gli stati di verifica manuale. La rimozione dalla UI conserva le tabelle private, lo storico e la configurazione del servizio.
@@ -762,6 +766,7 @@ Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
 
 | File | Cosa introduce |
 |---|---|
+| `20261110102143_vendita_stati_verifica_manuale.sql` | Stato operativo rosso/verde per le verifiche manuali, RLS, RPC service-only e pulizia all’uscita da Da controllare |
 | `001_create_vendita_upload_contratti.sql` | Tabelle base upload contratti vendita |
 | `002_cataloghi_opzioni_reload_e_associazioni_offerta.sql` | Opzioni, reload e link N:M con offerte |
 | `003_offerte_abilita_dispositivo.sql` | Flag `abilita_dispositivo` su `vendita_offerte` |

@@ -78,6 +78,7 @@ test('ogni function protetta dichiara un endpoint statico censito, senza fidarsi
   assert.equal(count, 23);
   assert.deepEqual(Core.endpointPages('gestisci-vendita-contratto', { body: JSON.stringify({ action: 'check_codice' }) }), ['upload_contratti', ...Core.editors]);
   assert.deepEqual(Core.endpointPages('gestisci-vendita-contratto', { body: JSON.stringify({ action: 'update_pda' }) }), Core.editors);
+  assert.deepEqual(Core.endpointPages('gestisci-vendita-contratto', { body: JSON.stringify({ action: 'set_stato_verifica_manuale' }) }), ['verifica_contratti']);
   assert.deepEqual(Core.endpointPages('gestisci-operazioni-post-vendita', { body: JSON.stringify({ action: 'mark_apri_chiudi_ko' }) }), ['apri_chiudi']);
   assert.deepEqual(Core.endpointPages('mirox-send-email', { body: JSON.stringify({ template: 'ordine_smartphone_nuovo' }) }), ['ordini_smartphone']);
   assert.deepEqual(Core.endpointPages('mirox-send-email', { body: JSON.stringify({ template: 'inventato', related_table: 'segnalazioni' }) }), []);
