@@ -61,7 +61,7 @@ Nuovo reparto Admin Personale: `admin-planning.html`, consultazione del solo pro
 
 Dal 10/11/2026 Verifica Contratti espone il flusso manuale. Il pannello sperimentale è scollegato dalla pagina. Vedi AGENTS.md e la guida Verifica automatica per lo storico del servizio.
 
-Nella scheda In attesa il filtro Esito seleziona le etichette operative mostrate in elenco e si combina con ricerca, categoria e giorno.
+Verifica Contratti divide i contratti In Attesa in Mobile, Fisso, CB, Energia, Assicurazioni e Allarme. Il filtro Esito si combina con ricerca e giorno. Ogni scheda conta i contratti della sua categoria prima dei filtri.
 
 Stati manuali del 10/11: In attesa blu di partenza, Da verificare rosso e Da confermare verde dal dettaglio. L’approvazione resta un’azione distinta. Migrazione additiva applicata in produzione come `20261110102749`.
 

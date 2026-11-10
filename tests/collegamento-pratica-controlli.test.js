@@ -31,8 +31,9 @@ test('Verifica Contratti valida il deep-link e apre il contratto nella tab corre
 
   assert.match(source, /new URLSearchParams\(window\.location\.search\)\.get\('contratto_id'\)/);
   assert.match(source, /MiroxSafe\.isUuid\(id\)/);
-  assert.match(source, /VCState\.daVerificare\.some\(c => c\.id === id\)/);
+  assert.match(source, /VCState\.daVerificare\.find\(c => c\.id === id\)/);
   assert.match(source, /VCState\.verificati\.some\(c => c\.id === id\)/);
+  assert.match(source, /categoriaInAttesa\(inAttesa\)/);
   assert.match(source, /switchTabVC\(tabName, tabButton\)/);
   assert.match(source, /await apriDettaglioContratto\(id, stateKey\)/);
   assert.match(

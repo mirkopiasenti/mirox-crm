@@ -47,7 +47,7 @@ body {
   padding: 14px 18px;
   margin-bottom: 14px;
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 190px 160px 170px 105px;
+  grid-template-columns: minmax(220px, 1fr) 160px 170px 105px;
   gap: 12px;
   align-items: end;
 }
@@ -64,6 +64,12 @@ body {
   width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:13.5px;font-family:inherit;background:#fff;
 }
 .filters-card input:focus, .filters-card select:focus { outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(255,102,0,.12); }
+
+.tab-counter {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:22px; height:22px; border-radius:11px; padding:0 7px; margin-left:6px;
+  background:#EEF3F8; color:#697386; font-size:11px; font-weight:700;
+}
 
 .contracts-table-wrap {
   background: var(--bg-card);
@@ -244,22 +250,23 @@ body {
 
 <!-- Tab bar -->
 <div class="nav-tabs">
-<button type="button" class="nav-tab active" data-tab="da-verificare" onclick="switchTabVC('da-verificare', this)">In attesa <span id="cntDaVerificare" class="tab-counter zero" style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:11px;background:#EEF3F8;color:#697386;font-size:11px;font-weight:700;padding:0 7px;margin-left:6px;">0</span></button>
-<button type="button" class="nav-tab" data-tab="verificati" onclick="switchTabVC('verificati', this)">Verificati <span id="cntVerificati" class="tab-counter zero" style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:11px;background:#EEF3F8;color:#697386;font-size:11px;font-weight:700;padding:0 7px;margin-left:6px;">0</span></button>
+<button type="button" class="nav-tab active" data-tab="mobile" aria-pressed="true" onclick="switchTabVC('mobile', this)">In Attesa - Mobile <span id="cntInAttesa-mobile" class="tab-counter">0</span></button>
+<button type="button" class="nav-tab" data-tab="fisso" aria-pressed="false" onclick="switchTabVC('fisso', this)">In Attesa - Fisso <span id="cntInAttesa-fisso" class="tab-counter">0</span></button>
+<button type="button" class="nav-tab" data-tab="cb" aria-pressed="false" onclick="switchTabVC('cb', this)">In Attesa - CB <span id="cntInAttesa-cb" class="tab-counter">0</span></button>
+<button type="button" class="nav-tab" data-tab="energia" aria-pressed="false" onclick="switchTabVC('energia', this)">In Attesa - Energia <span id="cntInAttesa-energia" class="tab-counter">0</span></button>
+<button type="button" class="nav-tab" data-tab="assicurazioni" aria-pressed="false" onclick="switchTabVC('assicurazioni', this)">In Attesa - Assicurazioni <span id="cntInAttesa-assicurazioni" class="tab-counter">0</span></button>
+<button type="button" class="nav-tab" data-tab="allarme" aria-pressed="false" onclick="switchTabVC('allarme', this)">In Attesa - Allarme <span id="cntInAttesa-allarme" class="tab-counter">0</span></button>
+<button type="button" class="nav-tab" data-tab="verificati" aria-pressed="false" onclick="switchTabVC('verificati', this)">Verificati <span id="cntVerificati" class="tab-counter">0</span></button>
 </div>
 
 <div class="container">
 
-<!-- TAB: In attesa -->
+<!-- Pannello condiviso dalle sei schede In attesa -->
 <div id="tab-da-verificare" class="tab-content active">
   <div class="filters-card">
     <div>
       <label>Cerca</label>
       <input type="text" id="searchDaVerificare" placeholder="Ragione sociale, CF, offerta...">
-    </div>
-    <div>
-      <label>Categoria</label>
-      <select id="filterCategoriaDaVerificare"><option value="">Tutte</option></select>
     </div>
     <div>
       <label for="filterEsitoDaVerificare">Esito</label>
@@ -331,13 +338,21 @@ body {
 <script>
 const sb = db;
 const CONTRATTI_BUCKET = 'contratti-vendita';
+const CATEGORIE_IN_ATTESA = new Map([
+  ['mobile', 'mobile'],
+  ['fisso', 'fisso'],
+  ['customer base', 'cb'],
+  ['energia', 'energia'],
+  ['assicurazioni', 'assicurazioni'],
+  ['allarmi', 'allarme']
+]);
 // Stato runtime: dati caricati per tab + cache categorie
 const VCState = {
   daVerificare: [],
   verificati: [],
   caricamenti: { daVerificare: 'idle', verificati: 'idle' },
   categorie: [],
-  filtroCatDaVerificare: '',
+  tabInAttesa: 'mobile',
   filtroEsitoDaVerificare: '',
   filtroCatVerificati: '',
   filtroClusterVerificati: '',
@@ -442,15 +457,15 @@ async function apriPraticaRichiesta() {
     return;
   }
 
-  let stateKey = null;
-  if (VCState.daVerificare.some(c => c.id === id)) stateKey = 'daVerificare';
-  if (VCState.verificati.some(c => c.id === id)) stateKey = 'verificati';
+  const inAttesa = VCState.daVerificare.find(c => c.id === id);
+  const verificato = VCState.verificati.some(c => c.id === id);
+  const stateKey = verificato ? 'verificati' : inAttesa ? 'daVerificare' : null;
   if (!stateKey) {
     await MiroxUI.alert('La pratica richiesta non è stata trovata in Verifica Contratti.', { type: 'error' });
     return;
   }
 
-  const tabName = stateKey === 'verificati' ? 'verificati' : 'da-verificare';
+  const tabName = verificato ? 'verificati' : categoriaInAttesa(inAttesa) || VCState.tabInAttesa;
   const tabButton = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
   switchTabVC(tabName, tabButton);
   await apriDettaglioContratto(id, stateKey);
@@ -460,11 +475,24 @@ async function apriPraticaRichiesta() {
 // TAB SWITCH
 // ============================================================
 function switchTabVC(name, btn) {
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  const target = document.getElementById('tab-' + name);
-  if (target) target.classList.add('active');
-  if (btn) btn.classList.add('active');
+  const verificati = name === 'verificati';
+  document.getElementById('tab-da-verificare').classList.toggle('active', !verificati);
+  document.getElementById('tab-verificati').classList.toggle('active', verificati);
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.classList.toggle('active', tab === btn);
+    tab.setAttribute('aria-pressed', String(tab === btn));
+  });
+  if (!verificati) {
+    VCState.tabInAttesa = name;
+    renderListaContratti('daVerificare');
+  }
+}
+
+function categoriaInAttesa(contratto) {
+  const snapshot = CATEGORIE_IN_ATTESA.get((contratto.categoria_snapshot || '').trim().toLowerCase());
+  if (snapshot) return snapshot;
+  const nome = VCState.categorie.find(c => c.id === contratto.categoria_id)?.nome || '';
+  return CATEGORIE_IN_ATTESA.get(nome.trim().toLowerCase());
 }
 
 // ============================================================
@@ -543,13 +571,12 @@ async function caricaContratti(statoControllo) {
 
 function applicaFiltri(items, stateKey) {
   const searchKey = stateKey === 'daVerificare' ? 'searchDaVerificare' : 'searchVerificati';
-  const catKey = stateKey === 'daVerificare' ? 'filtroCatDaVerificare' : 'filtroCatVerificati';
   const dateKey = stateKey === 'daVerificare' ? 'filtroDataDaVerificare' : 'filtroDataVerificati';
   const q = (VCState[searchKey] || '').toLowerCase().trim();
   const imeiQuery = stateKey === 'verificati'
     ? normalizeImei(VCState.searchImeiVerificati)
     : '';
-  const cat = VCState[catKey] || '';
+  const cat = stateKey === 'verificati' ? VCState.filtroCatVerificati : '';
   const esito = stateKey === 'daVerificare' ? VCState.filtroEsitoDaVerificare : '';
   const cluster = stateKey === 'verificati' ? VCState.filtroClusterVerificati : '';
   const day = VCState[dateKey] || '';
@@ -590,21 +617,30 @@ function renderListaContratti(stateKey) {
   if (VCState.caricamenti?.[stateKey] && VCState.caricamenti[stateKey] !== 'loaded') return;
   const containerId = stateKey === 'daVerificare' ? 'listaDaVerificare' : 'listaVerificati';
   const wrap = document.getElementById(containerId);
-  const items = applicaFiltri(VCState[stateKey], stateKey);
-
-  if (stateKey === 'daVerificare') setCount('cntDaVerificare', VCState.daVerificare.length);
-  else setCount('cntVerificati', VCState.verificati.length);
+  let contratti = VCState[stateKey];
+  if (stateKey === 'daVerificare') {
+    const conteggi = Object.fromEntries([...CATEGORIE_IN_ATTESA.values()].map(tab => [tab, 0]));
+    contratti = contratti.filter(c => {
+      const categoria = categoriaInAttesa(c);
+      if (categoria) conteggi[categoria]++;
+      return categoria === VCState.tabInAttesa;
+    });
+    for (const [tab, count] of Object.entries(conteggi)) setCount('cntInAttesa-' + tab, count);
+  } else {
+    setCount('cntVerificati', contratti.length);
+  }
+  const items = applicaFiltri(contratti, stateKey);
 
   if (!items.length) {
-    const tot = VCState[stateKey].length;
-    const filtered = tot > 0 && items.length === 0; // ci sono contratti ma il filtro li nasconde
+    const tot = contratti.length;
+    const filtered = tot > 0;
     wrap.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon"></div>
         <h3>Nessun contratto</h3>
         <p>${filtered
           ? `Ci sono <strong>${tot}</strong> contratti in totale ma il filtro non ne mostra nessuno. Pulisci i filtri o la ricerca.`
-          : (stateKey === 'daVerificare' ? 'Non ci sono contratti in attesa.' : 'Non ci sono contratti verificati.')}</p>
+          : (stateKey === 'daVerificare' ? 'Non ci sono contratti in attesa per questa categoria.' : 'Non ci sono contratti verificati.')}</p>
         ${!filtered ? `<p style="margin-top:10px;font-size:11.5px;color:#94a3b8;">Se hai appena caricato dei contratti e li vedi su Supabase ma non qui, verifica RLS su <code>vendita_contratti</code> (apri DevTools → Console e cerca log <code>[VC]</code> per dettagli).</p>` : ''}
       </div>`;
     return;
@@ -665,7 +701,6 @@ async function caricaCategorie() {
     if (error) throw error;
     VCState.categorie = data || [];
     const opts = '<option value="">Tutte</option>' + VCState.categorie.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nome)}</option>`).join('');
-    document.getElementById('filterCategoriaDaVerificare').innerHTML = opts;
     document.getElementById('filterCategoriaVerificati').innerHTML = opts;
   } catch (e) { console.warn('Errore categorie:', e.message); }
 }
@@ -1705,10 +1740,6 @@ document.getElementById('searchVerificati').addEventListener('input', (e) => {
 document.getElementById('searchImeiVerificati').addEventListener('input', (e) => {
   VCState.searchImeiVerificati = e.target.value;
   renderListaContratti('verificati');
-});
-document.getElementById('filterCategoriaDaVerificare').addEventListener('change', (e) => {
-  VCState.filtroCatDaVerificare = e.target.value;
-  renderListaContratti('daVerificare');
 });
 document.getElementById('filterEsitoDaVerificare').addEventListener('change', (e) => {
   VCState.filtroEsitoDaVerificare = e.target.value;

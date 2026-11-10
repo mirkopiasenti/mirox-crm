@@ -3,7 +3,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { Element } = require('./permissions-dom-helper');
 const page = fs.readFileSync(require.resolve('../moduli/verifica_contratti.html'), 'utf8');
+const stateSetup = page.slice(page.indexOf('const CATEGORIE_IN_ATTESA'), page.indexOf('// UTILITY'));
+const navigation = page.slice(page.indexOf('async function apriPraticaRichiesta()'), page.indexOf('async function caricaContratti('));
 const loader = page.slice(page.indexOf('async function caricaContratti('), page.indexOf('\nfunction applicaFiltri'));
 const renderer = page.slice(page.indexOf('function applicaFiltri('), page.indexOf('\nasync function caricaCategorie('));
 const statusEditor = page.slice(page.indexOf('function collegaCambioStato('), page.indexOf('\nasync function caricaNuovoAllegato('));
@@ -11,12 +14,11 @@ const statusEditor = page.slice(page.indexOf('function collegaCambioStato('), pa
 test('Verifica Contratti espone la conferma manuale e lascia scollegato il collaudo automatico', () => {
   assert.doesNotMatch(page, /vcAutomatico|MiroxVerificaAuto|verifica-contratti-automatica|gestisci-verifica-automatica/);
   assert.match(page, /onclick="confermaVerifica\([^"]+\)">Conferma verifica<\/button>/);
-  assert.match(page, /data-tab="da-verificare"[^>]*>In attesa /);
+  assert.match(page, /data-tab="mobile"[^>]*>In Attesa - Mobile /);
 });
 
 function fixture({ failure = false, deferred = false, review = null } = {}) {
   const nodes = { listaDaVerificare: { innerHTML: '' }, listaVerificati: { innerHTML: '' } };
-  const state = { daVerificare: [], verificati: [], caricamenti: { daVerificare: 'idle', verificati: 'idle' } };
   const counts = {}, calls = []; let release;
   const db = { from(table) {
     assert.equal(table, 'vendita_contratti');
@@ -25,15 +27,16 @@ function fixture({ failure = false, deferred = false, review = null } = {}) {
       order() {
         // Production RLS exposes contracts and hides every practice from browser.
         const hiddenByJoin = /pratica:|vendita_pratiche|pratica_id!inner/.test(call.selection) || 'pratica.stato_pratica' in call.filters;
-        const response = failure ? { error: new Error('Lettura non riuscita') } : { data: hiddenByJoin ? [] : [{ id: 'example', stato_controllo: call.filters.stato_controllo, revisione: review, anagrafica: { ragione_sociale: 'Cliente esempio' } }] };
+        const response = failure ? { error: new Error('Lettura non riuscita') } : { data: hiddenByJoin ? [] : [{ id: 'example', categoria_snapshot: 'Mobile', stato_controllo: call.filters.stato_controllo, revisione: review, anagrafica: { ragione_sociale: 'Cliente esempio' } }] };
         return deferred ? new Promise(resolve => { release = () => resolve(response); }) : Promise.resolve(response);
       } };
     return q;
   } };
-  const context = vm.createContext({ VCState: state, sb: db, document: { getElementById: id => nodes[id] }, window: {},
+  const context = vm.createContext({ sb: db, document: { getElementById: id => nodes[id] }, window: {},
     console: { log() {}, warn() {}, error() {} }, normalizeImei: value => value || '',
     setCount: (id, n) => { counts[id] = n; }, escapeHtml: value => String(value || ''), fmtDateTime: () => '27/10/2026', getContrattoCluster: () => 'Consumer' });
-  vm.runInContext(loader + '\n' + renderer, context);
+  vm.runInContext([stateSetup, navigation, loader, renderer].join('\n'), context);
+  const state = vm.runInContext('VCState', context);
   return { context, state, nodes, counts, calls, release: () => release() };
 }
 for (const status of ['da_controllare', 'controllato']) {
@@ -59,9 +62,9 @@ test('il filtro Esito seleziona le etichette in attesa e si combina con gli altr
   const dropdown = page.match(/<select id="filterEsitoDaVerificare">([\s\S]*?)<\/select>/)[1];
   assert.match(dropdown, /<option value="">Tutti gli esiti<\/option>/);
   f.state.daVerificare = statuses.map(([id, , revisione]) => ({
-    id, revisione, stato_controllo: 'da_controllare', categoria_id: 'fisso', anagrafica: { ragione_sociale: 'Cliente ' + id }
+    id, revisione, stato_controllo: 'da_controllare', categoria_snapshot: 'Mobile', anagrafica: { ragione_sociale: 'Cliente ' + id }
   }));
-  f.state.daVerificare.push({ id: 'storico', stato_controllo: 'da_controllare', categoria_id: 'mobile' });
+  f.state.daVerificare.push({ id: 'storico', stato_controllo: 'da_controllare', categoria_snapshot: 'Fisso' });
   f.state.verificati = [{ id: 'controllato', stato_controllo: 'controllato' }];
   f.state.caricamenti.daVerificare = 'loaded';
   let change;
@@ -71,25 +74,64 @@ test('il filtro Esito seleziona le etichette in attesa e si combina con gli altr
   } };
   vm.runInContext(page.match(/document\.getElementById\('filterEsitoDaVerificare'\)\.addEventListener\([\s\S]*?\n}\);/)[0], f.context);
   const select = value => change({ target: { value } });
-  const visibleIds = () => Array.from(f.context.applicaFiltri(f.state.daVerificare, 'daVerificare'), c => c.id);
-  f.state.filtroCatDaVerificare = 'fisso';
+  const visibleIds = () => [...f.nodes.listaDaVerificare.innerHTML.matchAll(/apriDettaglioContratto\('([^']+)'/g)].map(match => match[1]);
   for (const [id, label] of statuses) {
     assert.ok(dropdown.includes(`<option value="${id}">${label}</option>`));
     select(id);
     assert.deepEqual(visibleIds(), [id]);
     assert.ok(f.nodes.listaDaVerificare.innerHTML.includes(`>${label}</span>`));
-    assert.equal(f.counts.cntDaVerificare, 4);
+    assert.equal(f.counts['cntInAttesa-mobile'], 3);
+    assert.equal(f.counts['cntInAttesa-fisso'], 1);
   }
   assert.equal(f.context.applicaFiltri(f.state.verificati, 'verificati').length, 1);
   f.state.searchDaVerificare = 'assente';
   select('da_confermare');
   assert.match(f.nodes.listaDaVerificare.innerHTML, /Nessun contratto/);
   f.state.searchDaVerificare = '';
-  f.state.filtroCatDaVerificare = '';
   select('da_controllare');
-  assert.deepEqual(visibleIds(), ['da_controllare', 'storico']);
+  assert.deepEqual(visibleIds(), ['da_controllare']);
   select('');
-  assert.equal(visibleIds().length, 4);
+  assert.equal(visibleIds().length, 3);
+});
+test('le sei schede hanno contratti e contatori distinti e il deep-link seleziona la categoria', async () => {
+  const f = fixture();
+  const categories = [
+    ['mobile', 'Mobile', ' Mobile '], ['fisso', 'Fisso', 'Fisso'],
+    ['cb', 'CB', 'Customer Base'], ['energia', 'Energia', null],
+    ['assicurazioni', 'Assicurazioni', 'Assicurazioni'], ['allarme', 'Allarme', 'Allarmi']
+  ];
+  f.state.categorie = [{ id: 'catalogo-energia', nome: 'Energia' }];
+  f.state.daVerificare = categories.map(([id, , categoria_snapshot]) => ({
+    id, categoria_snapshot, categoria_id: id === 'energia' ? 'catalogo-energia' : null, stato_controllo: 'da_controllare'
+  }));
+  f.state.verificati = [{ id: 'chiuso', categoria_snapshot: 'Mobile', stato_controllo: 'controllato' }];
+  f.state.caricamenti.daVerificare = f.state.caricamenti.verificati = 'loaded';
+  f.nodes['tab-da-verificare'] = new Element();
+  f.nodes['tab-verificati'] = new Element();
+  const buttons = Object.fromEntries([...categories.map(([id]) => id), 'verificati'].map(id => [id, new Element('button')]));
+  f.context.document.querySelectorAll = () => Object.values(buttons);
+  f.context.document.querySelector = selector => buttons[selector.match(/data-tab="([^"]+)"/)[1]];
+  for (const [id, label] of categories) {
+    assert.ok(page.includes(`switchTabVC('${id}', this)">In Attesa - ${label} <span id="cntInAttesa-${id}"`));
+    f.context.switchTabVC(id, buttons[id]);
+    const ids = [...f.nodes.listaDaVerificare.innerHTML.matchAll(/apriDettaglioContratto\('([^']+)'/g)].map(match => match[1]);
+    assert.deepEqual(ids, [id]);
+    assert.equal(f.counts['cntInAttesa-' + id], 1);
+    assert.equal(buttons[id].getAttribute('aria-pressed'), 'true');
+  }
+  f.context.getContrattoIdRichiesto = () => 'energia';
+  f.context.apriDettaglioContratto = async (id, stateKey) => {
+    assert.equal(id, 'energia');
+    assert.equal(stateKey, 'daVerificare');
+    assert.equal(buttons.energia.getAttribute('aria-pressed'), 'true');
+  };
+  await f.context.apriPraticaRichiesta();
+  f.context.switchTabVC('verificati', buttons.verificati);
+  f.context.renderListaContratti('verificati');
+  assert.equal(buttons.energia.getAttribute('aria-pressed'), 'false');
+  assert.equal(f.nodes['tab-da-verificare'].classList.contains('active'), false);
+  assert.equal(f.nodes['tab-verificati'].classList.contains('active'), true);
+  assert.match(f.nodes.listaVerificati.innerHTML, /apriDettaglioContratto\('chiuso', 'verificati'\)/);
 });
 test('la scelta dello stato aggiorna il badge solo dopo il salvataggio e mantiene la riga in attesa', async () => {
   const f = fixture({ review: { stato: 'da_verificare' } });
