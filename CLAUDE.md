@@ -1,5 +1,7 @@
 # CLAUDE.md — Guida per AI assistants
 
+Segnalazioni11/11: nessuna distinzione Normale/Urgente; Riepilogo con In Corso/Chiuso e legacy Escalation visualizzato in corso. Operatore dal profilo autenticato, Cambia con conferma e Logout locale verso il login. CF/P.IVA prima dei dati cliente, ricerca AnagraficaHelper e autocompilazione modificabile di ragione sociale/contatto, senza scrivere anagrafica. Errori/risposte obsolete/doppio invio gestiti. Regole complete in AGENTS.md, test `tests/segnalazioni.test.js`; nessuna migration.
+
 Upload identità 09/11: barcode CF e carrello automatici, Consumer da anagrafica, Business dal CF del delegato sulla PDA. Il Nome referente resta separato dall’OCR Business. Scadenza esclusa dall’upload. Flusso attuale in AGENTS.md e docs/IDENTITA_UPLOAD_2026-10-28.md.
 
 Monitor negozio05/11 pubblicato88794dd, CI42034207778verde665test,

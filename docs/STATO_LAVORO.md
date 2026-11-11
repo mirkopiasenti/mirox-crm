@@ -1,6 +1,12 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-10. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+Aggiornato:2026-11-11. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+
+## Segnalazioni — aggiornamento11/11, push autorizzato
+
+- Rimossi urgenza e scelta Escalation da form/filtri/elenchi/dettagli; eventuale legacy visualizzato in corso e chiudibile. Operatore dal profilo autenticato, readonly; Cambia apre conferma MiroxUI e Logout locale controllato verso login.
+- CF/P.IVA prima degli altri dati cliente, ricerca automatica AnagraficaHelper e autocompilazione modificabile ragione sociale/contatto. Cambio CF/reset scarta richieste vecchie, correzioni durante lookup conservate, errore con retry e doppio invio bloccato. Anagrafica soltanto letta; nuovi record senza urgenza, nessuna migration o scrittura storico/CC.
+- Verifiche: 10 test mirati e suite711/711 verdi; DOM reale Node con popup Annulla/Logout/autocompilazione. Preflight production conferma urgenza nullable e zero Escalation esistenti; nessuna pratica/email/sessione reale creata. README/AGENTS/CLAUDE/databaseREADME aggiornati. Prossimo passo: push richiesto esplicitamente dal proprietario, poi verifica CI e pagina pubblicata.
 
 ## Visibilità dei moduli — 10/11
 

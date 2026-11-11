@@ -657,6 +657,14 @@ Le pagine post-vendita dei punti 8–11 espongono `Vai alla pratica` per ogni ri
 
 ## Regole di business chiave
 
+### Segnalazioni — aggiornamento11/11/2026
+
+`moduli/segnalazioni.html` non distingue Normale/Urgente: rimossi scelta, filtri, contatori, colonne e dettagli; i nuovi record omettono `urgenza` (nullable). Nel Riepilogo restano Segnalazione in Corso e Chiuso; Escalation non e selezionabile, eventuali righe legacy sono visualizzate e filtrate come in corso, ancora chiudibili senza riscrittura dello storico. In attesa Assegnazione e Assegnata restano le fasi preliminari.
+
+L'operatore della nuova segnalazione e il `nome` del profilo restituito da `Auth.richiediAuth()`, mostrato readonly e riletto al submit, senza dropdown o valore autore ricavato dal campo. Cambia apre una conferma MiroxUI con Logout/Annulla; Logout esegue `auth.signOut({scope:'local'})`, controlla l'errore e soltanto dopo torna al login tramite `Auth._indexPath()`. Non cambiare gli assegnatari back-office in base a questa regola: sono un campo distinto.
+
+Il primo dato cliente e CF/P.IVA, validato da AnagraficaHelper; ricerca automatica dopo digitazione/uscita campo e pulsante Cerca cliente per retry. `AnagraficaHelper.cerca()` legge l'anagrafica con la sessione esistente e autocompila ragione sociale e cellulare, entrambi modificabili. Cambio CF/reset invalida dati e richieste precedenti; risposte tardive non sovrascrivono un'altra anagrafica o correzioni durante la lettura. Nessun risultato consente compilazione manuale; errore richiede retry. Invio attende profilo/ricerca, rivalida il form e blocca doppio click. Le correzioni appartengono alla segnalazione: nessuna scrittura su anagrafica, schema/RLS/RPC/trigger o dati storici. ASK Manuale conserva il flusso esistente.
+
 ### Stati manuali in Verifica Contratti (10/11/2026)
 
 Aggiornamento11/11 con migrazione sorgente `20261111131639_vendita_note_stato_verifica.sql` applicata in produzione come `20261111133257`. Il pulsante grande Cambia stato in cima al dettaglio apre un popup con select e Salva. Da verificare richiede una motivazione di 1–2000 caratteri, validata in UI, API e DB. Da confermare salva senza nota. L’icona chat in elenco compare solo per Da verificare e apre il testo escaped in sola lettura. Esiti legacy senza motivo mostrano l’assenza della nota. La tabella separata aggiunge `motivo` e `versione`. La RPC a sette argomenti usa la versione dell’esito per impedire sovrascritture anche a stato uguale e ammette retry identici dello stesso autore. La firma precedente chiede di ricaricare. Il vincolo sulla motivazione è NOT VALID per conservare gli esiti legacy e si applica a ogni nuova scrittura. Elenco fino a1540px, modifica comune alle sei schede di Verifica Contratti.

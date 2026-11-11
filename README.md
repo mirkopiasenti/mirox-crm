@@ -33,6 +33,13 @@ API401/403senza credenziali e download reale dal server al loopback senza KPI pr
 [Debug dettagliato e prove](docs/MONITOR_DEBUG_2026-11-06.md).
 Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push notturna.
 
+## Segnalazioni — aggiornamento11/11/2026
+
+- Eliminata la distinzione Normale/Urgente in inserimento, elenchi, filtri e dettagli.
+- Nel Riepilogo restano Segnalazione in Corso e Chiuso; rimossa la scelta Escalation. Le fasi Da assegnare e Da gestire restano operative.
+- Operatore compilato dal login, senza scelta manuale. Cambia apre il popup di conferma con Logout, che riporta alla pagina di accesso.
+- CF/P.IVA e il primo dato cliente: la ricerca automatica autocompila ragione sociale e numero di contatto dei clienti gia censiti, lasciandoli modificabili. Se il cliente non esiste, si compilano manualmente; Cerca cliente consente il retry dopo errori. Le correzioni sono salvate nella segnalazione.
+
 ## Stack
 
 - **Monitor Windows**: helper Node.js >=22 senza npm esterni, task SYSTEM/DPAPI LocalMachine e Edge Assigned Access; font Inter 4.1 locale con SIL OFL. ZIP prodotto da fflate gia presente, nessuna nuova env o schedulazione Netlify.
