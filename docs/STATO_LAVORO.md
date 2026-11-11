@@ -2,11 +2,11 @@
 
 Aggiornato:2026-11-11. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Segnalazioni — aggiornamento11/11, push autorizzato
+## Segnalazioni — coda comune e rimozione email11/11
 
-- Rimossi urgenza e scelta Escalation da form/filtri/elenchi/dettagli; eventuale legacy visualizzato in corso e chiudibile. Operatore dal profilo autenticato, readonly; Cambia apre conferma MiroxUI e Logout locale controllato verso login.
-- CF/P.IVA prima degli altri dati cliente, ricerca automatica AnagraficaHelper e autocompilazione modificabile ragione sociale/contatto. Cambio CF/reset scarta richieste vecchie, correzioni durante lookup conservate, errore con retry e doppio invio bloccato. Anagrafica soltanto letta; nuovi record senza urgenza, nessuna migration o scrittura storico/CC.
-- Verifiche: 10 test mirati e suite711/711 verdi; DOM reale Node con popup Annulla/Logout/autocompilazione. Preflight production conferma urgenza nullable e zero Escalation esistenti; nessuna pratica/email/sessione reale creata. README/AGENTS/CLAUDE/databaseREADME aggiornati. Prossimo passo: push richiesto esplicitamente dal proprietario, poi verifica CI e pagina pubblicata.
+- Eliminate la scheda Da assegnare, le azioni di assegnazione e tutti gli invii email dal modulo. API mirox-send-email rifiuta410 template storico o email correlate a segnalazioni, anche da client vecchi. Le altre comunicazioni CRM restano operative.
+- Nuove richieste direttamente Da gestire; stessa coda/contatore comprende In attesa Assegnazione e Assegnata legacy. Colonna, filtri dinamici e dettagli usano l’operatore autore originale, mai il vecchio assegnatario; ASK Manuale registra il profilo dal login. Storico/colonne/schema invariati, nessuna migration o scrittura reale.
+- Verifiche: 15 test mirati, suite716/716, DOM Node reale di coda/autore/filtri e precedenti flussi CF/logout verdi. README/AGENTS/CLAUDE/databaseREADME aggiornati. Push esplicitamente richiesto; prossimo passo: pubblicare e verificare CI/HTTP. Altri WIP conservati.
 
 ## Visibilità dei moduli — 10/11
 

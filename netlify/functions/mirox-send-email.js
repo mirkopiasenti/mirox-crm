@@ -51,6 +51,11 @@ exports.handler = async (event) => {
         return reply(400, { ok: false, error: 'Body JSON non valido' });
     }
 
+    // Flusso Segnalazioni dismesso anche per le pagine rimaste aperte prima del deploy.
+    if (body.template === 'segnalazione_assegnata' || body.related_table === 'segnalazioni') {
+        return reply(410, { ok: false, error: 'Invio email per le segnalazioni disattivato.' });
+    }
+
     if (!body.to) {
         return reply(400, { ok: false, error: 'Parametro "to" obbligatorio' });
     }

@@ -36,7 +36,9 @@ Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push
 ## Segnalazioni — aggiornamento11/11/2026
 
 - Eliminata la distinzione Normale/Urgente in inserimento, elenchi, filtri e dettagli.
-- Nel Riepilogo restano Segnalazione in Corso e Chiuso; rimossa la scelta Escalation. Le fasi Da assegnare e Da gestire restano operative.
+- Nel Riepilogo restano Segnalazione in Corso e Chiuso; rimossa la scelta Escalation. Eliminata la scheda Da assegnare: le nuove richieste entrano direttamente in Da gestire, insieme a quelle gia in attesa di assegnazione o assegnate.
+- Rimossi tutti gli invii email delle segnalazioni, anche per le pagine precedenti rimaste aperte.
+- Nessuna assegnazione personale: colonna, dettaglio e filtri Operatore indicano chi ha aperto la segnalazione; ASK Manuale registra lo stesso autore dal login.
 - Operatore compilato dal login, senza scelta manuale. Cambia apre il popup di conferma con Logout, che riporta alla pagina di accesso.
 - CF/P.IVA e il primo dato cliente: la ricerca automatica autocompila ragione sociale e numero di contatto dei clienti gia censiti, lasciandoli modificabili. Se il cliente non esiste, si compilano manualmente; Cerca cliente consente il retry dopo errori. Le correzioni sono salvate nella segnalazione.
 

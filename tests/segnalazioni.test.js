@@ -9,7 +9,7 @@ const source = [...page.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].m
 const CF = 'RSSMRA80A01H501U', PIVA = '01114601006';
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function deferred() { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; }
-function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }, lookup, confirmation = false, logoutError = null } = {}) {
+function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }, lookup, confirmation = false, logoutError = null, records = [] } = {}) {
   const nodes = {}, calls = [], timers = new Map(); let timerId = 0;
   for (const m of page.matchAll(/\bid="([\w-]+)"/g)) {
     const n = nodes[m[1]] = new Element('div'); n.style = {}; n.innerHTML = ''; n.remove = () => {}; n.appendChild = node => n.append(node);
@@ -20,11 +20,11 @@ function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }
     const q = {
       select(value, opts) { call.select = value; call.options = opts; return q; },
       eq(k, v) { call.filters[k] = v; return q; }, ilike(k, v) { call.filters[k] = v; return q; },
-      in() { return q; }, not() { return q; }, order() { return q; }, limit() { return q; },
+      in(k, v) { call.filters[k] = v; return q; }, not(k, op, v) { call.notNull = k; return q; }, order() { return q; }, limit() { return q; },
       insert(data) { call.insert = data; return q; }, update(data) { call.update = data; return q; },
       single() { return q; },
       then(resolve, reject) {
-        const result = table === 'anagrafica' ? (lookup ? lookup(call) : { data: [{ cf_piva: call.filters.cf_piva, ragione_sociale: 'Cliente sintetico', cellulare: '3331234567' }] }) : call.insert ? { data: { id: 999 } } : { data: [], count: 0 };
+        const result = table === 'anagrafica' ? (lookup ? lookup(call) : { data: [{ cf_piva: call.filters.cf_piva, ragione_sociale: 'Cliente sintetico', cellulare: '3331234567' }] }) : call.insert ? { data: { id: 999 } } : { data: records.filter(r => Object.entries(call.filters).every(([k,v]) => Array.isArray(v) ? v.includes(r[k]) : r[k] === v) && (!call.notNull || r[call.notNull] != null)), count: records.filter(r => Object.entries(call.filters).every(([k,v]) => Array.isArray(v) ? v.includes(r[k]) : r[k] === v)).length };
         return Promise.resolve(result).then(resolve, reject);
       }
     }; return q;
@@ -96,6 +96,7 @@ test('Segnalazioni: autore dal profilo, correzioni nel payload, nessuna urgenza 
   f.nodes.dettagli.value = 'Richiesta sintetica'; f.nodes.gestionePratica.value = '159'; f.nodes.operatore.value = 'Nome alterato';
   await Promise.all([f.submit(), f.submit()]);
   const inserts = f.calls.filter(c => c.insert); assert.equal(inserts.length, 1);
+  assert.equal(inserts[0].insert.stato, 'Da gestire'); assert.equal('assegnatario' in inserts[0].insert, false);
   assert.equal(inserts[0].insert.operatore, 'Vincenzo'); assert.equal(inserts[0].insert.numero_contatto, '3339999999');
   assert.equal(inserts[0].insert.ragione_sociale, 'Nome corretto'); assert.equal('urgenza' in inserts[0].insert, false);
   assert.equal(f.nodes.operatore.value, 'Vincenzo'); assert.equal(f.nodes.clienteStatus.textContent, '');
@@ -119,16 +120,73 @@ test('Segnalazioni: Cambia annullato conserva sessione, Logout confermato torna 
 test('Segnalazioni: tutte le tabelle e i dettagli eliminano urgenza; storico Escalation visibile in corso e chiudibile', async () => {
   const f = fixture(); await f.ready();
   const row = { id: 42, stato: 'Escalation', urgenza: 'Urgente', ragione_sociale: 'Cliente sintetico', storico_chat: [] };
-  f.context.row = row; f.run('dataAss=[row];dataGest=[row];dataRiep=[row]');
-  f.context.renderAss([row]); f.context.renderGest([row]); f.nodes.fRiepHideChiusi.checked = true;
+  f.context.row = row; f.run('dataGest=[row];dataRiep=[row]');
+  f.context.renderGest([row]); f.nodes.fRiepHideChiusi.checked = true;
   f.nodes.fRiepStato.value = 'Segnalazione in Corso'; f.context.filterRiepilogo();
-  for (const [id, cols] of [['tbAss', 7], ['tbGest', 6], ['tbRiep', 6]]) {
+  for (const [id, cols] of [['tbGest', 6], ['tbRiep', 6]]) {
     assert.equal((f.nodes[id].innerHTML.match(/<td[ >]/g) || []).length, cols);
     assert.doesNotMatch(f.nodes[id].innerHTML, /Urgente|Urgenza|Escalation/);
   }
-  await f.context.openAss(42); await f.context.openGest(42); await f.context.openRiep(42);
-  for (const id of ['modalAssBody', 'modalGestBody', 'modalRiepBody']) assert.doesNotMatch(f.nodes[id].innerHTML, /Urgenza|Urgente|Escalation/);
+  await f.context.openGest(42); await f.context.openRiep(42);
+  for (const id of ['modalGestBody', 'modalRiepBody']) assert.doesNotMatch(f.nodes[id].innerHTML, /Urgenza|Urgente|Escalation/);
   f.nodes.rStato.value = 'Escalation'; await f.context.salvaRiep(); assert.equal(f.calls.filter(c => c.update).length, 0);
   f.nodes.rStato.value = 'Chiuso'; await f.context.salvaRiep();
   assert.equal(f.calls.find(c => c.update).update.stato, 'Chiuso'); assert.ok(f.calls.find(c => c.update).update.data_chiusura);
+});
+
+test('Segnalazioni: rimuove tab, azioni, campi assegnatario e ogni chiamata email dalla pagina', () => {
+  assert.doesNotMatch(page, /MiroxMailer|mirox-mailer|mirox-send-email|assegnatario|Assegnatario|dataAss|modalAss|loadAss|renderAss|cambiaAssegnatario|selAss|data-tab="assegnazione"/);
+  assert.equal((page.match(/<th>Operatore<\/th>/g) || []).length, 2);
+  assert.match(page, /id="askOperatore" readonly/);
+});
+test('Segnalazioni: Da gestire comprende nuove richieste e i due stati storici, con contatore concorde', async () => {
+  const records = ['Da gestire','In attesa Assegnazione','Assegnata','Segnalazione in Corso','Chiuso'].map((stato, i) => ({id:i+1,stato,operatore:'Vincenzo',ragione_sociale:'Cliente '+i}));
+  const f = fixture({records}); await f.ready(); await f.context.loadGest(); await f.context.updateCounters();
+  assert.equal(f.run('dataGest.length'), 3);
+  assert.equal(f.nodes.cntGest.textContent, '3');
+  assert.equal((f.nodes.tbGest.innerHTML.match(/>Da gestire<\/span>/g) || []).length, 3);
+  assert.doesNotMatch(f.nodes.tbGest.innerHTML, /Assegnata|In attesa Assegnazione/);
+});
+test('Segnalazioni: colonne, dettagli e filtri usano l’autore originale, mai il precedente assegnatario', async () => {
+  const rows = [
+    {id:1,stato:'Assegnata',operatore:'Matteo',assegnatario:'Mirko',ragione_sociale:'Cliente A'},
+    {id:2,stato:'Assegnata',operatore:'Vincenzo',assegnatario:'Francesca',ragione_sociale:'Cliente B'},
+    {id:3,stato:'Assegnata',operatore:null,assegnatario:'Mirko',ragione_sociale:'Cliente C'}
+  ];
+  const f = fixture(); await f.ready(); f.context.rows=rows; f.run('dataGest=rows;dataRiep=rows');
+  f.context.renderGest(rows); f.context.renderRiep(rows);
+  for(const id of ['tbGest','tbRiep']) {
+    assert.match(f.nodes[id].innerHTML, /Matteo/); assert.match(f.nodes[id].innerHTML, /Vincenzo/);
+    assert.doesNotMatch(f.nodes[id].innerHTML, /Mirko|Francesca/);
+  }
+  f.context.popolaOperatori('fGestOperatore',rows);
+  assert.match(f.nodes.fGestOperatore.innerHTML, /Matteo/); assert.match(f.nodes.fGestOperatore.innerHTML, /Vincenzo/);
+  assert.doesNotMatch(f.nodes.fGestOperatore.innerHTML, /Mirko|Francesca/);
+  f.nodes.fGestOperatore.value='Matteo'; f.context.filterGestione();
+  assert.match(f.nodes.tbGest.innerHTML, /Cliente A/); assert.doesNotMatch(f.nodes.tbGest.innerHTML, /Cliente B|Cliente C/);
+  await f.context.openGest(1); await f.context.openRiep(1);
+  for(const id of ['modalGestBody','modalRiepBody']) assert.doesNotMatch(f.nodes[id].innerHTML, /Assegnatario|Mirko/);
+});
+test('Segnalazioni: ASK manuale salva l’operatore autenticato senza assegnazione o email', async () => {
+  const f=fixture(); await f.ready(); f.nodes.askCf.value=CF; f.nodes.askRagioneSociale.value='Cliente';
+  f.nodes.askTipo.value='Guasti'; f.nodes.askNum.value='ASK sintetico'; f.nodes.askFiles.files=[]; f.nodes.askOperatore.value='Alterato';
+  await f.nodes.formAsk.handlers.submit[0]({preventDefault(){}});
+  const call=f.calls.find(c=>c.insert); assert.ok(call);
+  assert.equal(call.insert.operatore,'Vincenzo'); assert.equal(call.insert.stato,'Chiuso'); assert.equal('assegnatario' in call.insert,false);
+});
+test('Email Segnalazioni: il server rifiuta anche vecchi client senza invocare il mailer, gli altri template continuano', async () => {
+  let sent=0;
+  const module={exports:{}};
+  const code=fs.readFileSync(require.resolve('../netlify/functions/mirox-send-email.js'),'utf8');
+  vm.runInNewContext(code,{module,exports:module.exports,console,require(name){
+    if(name==='./_lib/require-auth')return {requireAuth:async()=>({ok:true})};
+    if(name==='./_lib/mailer')return {sendEmail:async()=>{sent++;return {ok:true,messageId:'synthetic'};}};
+    throw new Error(name);
+  }});
+  for(const body of [{template:'segnalazione_assegnata',to:'test@example.invalid'},{html:'test',related_table:'segnalazioni',to:'test@example.invalid'}]){
+    const result=await module.exports.handler({httpMethod:'POST',body:JSON.stringify(body)});
+    assert.equal(result.statusCode,410); assert.equal(sent,0);
+  }
+  const result=await module.exports.handler({httpMethod:'POST',body:JSON.stringify({template:'ordine_smartphone_nuovo',to:'test@example.invalid'})});
+  assert.equal(result.statusCode,200); assert.equal(sent,1);
 });
