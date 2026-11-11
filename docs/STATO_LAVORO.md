@@ -8,6 +8,7 @@ Aggiornato:2026-11-10. Promemoria di ripresa, non autorizza ulteriori push o att
 
 ## Verifica Contratti — rimozione collaudo dalla pagina10/11
 
+- Note stato11/11 in rilascio. Pulsante grande Cambia stato e popup con motivazione obbligatoria sul rosso, icona note in sola lettura e lista1540px nelle sei schede. Migrazione sorgente20261111131639 applicata come20261111133257. Hash dei27esiti e dei contratti identici prima/dopo, RLS e grant verificati. Suite701/701,29checkSQL e DOMNode con dati sintetici verdi. Push autorizzato, verifica deploy da completare.
 - Sei schede In Attesa per Mobile, Fisso, CB, Energia, Assicurazioni e Allarme in rilascio. Una lettura condivisa, assegnazione da snapshot con fallback al catalogo, contatori per categoria, filtri ricerca/giorno/Esito condivisi e link diretto alla categoria. Verificati resta la lista dei contratti conclusi. Test mirati 13/13 e suite 701/701, guide aggiornate. Prossimo passo: verificare il deploy.
 - Filtro Esito in rilascio nella scheda In attesa. Seleziona Tutti gli esiti, In attesa, Da verificare o Da confermare insieme a ricerca, categoria e giorno. Etichette e filtro condividono lo stesso stato operativo e i contatori mostrano i totali. Solo frontend. Build e suite 700/700 verdi, guide aggiornate. Prossimo passo: verificare il deploy.
 - Etichetta iniziale e lista rinominate In attesa, con lo stesso badge blu. Solo UI, stato tecnico `da_controllare` conservato. Push richiesto.

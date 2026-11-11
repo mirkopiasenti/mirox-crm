@@ -46,9 +46,9 @@ for (const status of ['da_controllare', 'controllato']) {
     const node = status === 'controllato' ? 'listaVerificati' : 'listaDaVerificare';
     assert.equal(f.state[key].length, 1); assert.ok(f.nodes[node].innerHTML.includes('Cliente esempio'));
     assert.ok(f.nodes[node].innerHTML.includes(status === 'controllato' ? '>Controllato</span>' : '>In attesa</span>'));
-    assert.equal(f.calls[0].selection.includes('revisione:vendita_stati_verifica_manuale(stato)'), status === 'da_controllare');
+    assert.equal(f.calls[0].selection.includes('revisione:vendita_stati_verifica_manuale(stato,motivo,versione)'), status === 'da_controllare');
     assert.match(f.nodes[node].innerHTML, /<th>Stato<\/th>/);
-    if (status === 'da_controllare') assert.match(f.nodes[node].innerHTML, /<td><span class="stato-pill da_controllare">In attesa<\/span><\/td>/);
+    if (status === 'da_controllare') assert.match(f.nodes[node].innerHTML, /class="stato-pill da_controllare">In attesa<\/span>/);
     assert.equal(f.calls.length, 1); assert.equal(f.state.caricamenti[key], 'loaded');
   });
 }
@@ -133,54 +133,107 @@ test('le sei schede hanno contratti e contatori distinti e il deep-link selezion
   assert.equal(f.nodes['tab-verificati'].classList.contains('active'), true);
   assert.match(f.nodes.listaVerificati.innerHTML, /apriDettaglioContratto\('chiuso', 'verificati'\)/);
 });
-test('la scelta dello stato aggiorna il badge solo dopo il salvataggio e mantiene la riga in attesa', async () => {
-  const f = fixture({ review: { stato: 'da_verificare' } });
+test('il popup richiede la motivazione, conserva la bozza in errore e aggiorna lo stato solo dopo Salva', async () => {
+  const f = fixture();
   await f.context.caricaContratti('da_controllare');
   const contract = f.state.daVerificare[0];
-  const control = (props = {}) => ({ events: {}, ...props, addEventListener(event, callback) { this.events[event] = callback; } });
-  const red = control({ dataset: { vcNuovoStato: 'da_verificare' } });
-  const green = control({ dataset: { vcNuovoStato: 'da_confermare' } });
-  const toggle = control({ setAttribute(key, value) { this[key] = value; }, focus() {} });
-  const options = control({ hidden: true, querySelectorAll: () => [red, green] });
-  const current = { innerHTML: '' }, error = { textContent: '' };
-  const elements = { '[data-vc-cambia-stato]': toggle, '#vc_stato_opzioni': options,
-    '[data-vc-stato-corrente]': current, '[data-vc-stato-errore]': error };
+  const control = () => {
+    const node = new Element();
+    node.focus = () => {};
+    return node;
+  };
+  const toggle = control(), current = control();
+  let popup, builds = 0;
+  const controls = Object.fromEntries([
+    '#vc_nuovo_stato', '[data-vc-motivo]', '#vc_motivo_stato', '[data-vc-stato-errore]',
+    '[data-vc-salva]', '[data-vc-annulla]'
+  ].map(key => [key, control()]));
+  f.context.window.MiroxUI = { _build(options) {
+    builds++;
+    popup = { options, closed: false, modal: { setAttribute() {}, style: {} },
+      body: { querySelector: key => controls[key], style: {} }, foot: { querySelector: key => controls[key] },
+      close() { if (options.canClose()) { this.closed = true; options.onClose(); } }
+    };
+    return popup;
+  } };
+  vm.runInContext(statusEditor, f.context);
+  f.context.collegaCambioStato({ querySelector: key => key === '[data-vc-cambia-stato]' ? toggle : current }, contract);
+  await toggle.emit('click');
+  assert.equal(builds, 1);
+  assert.equal(toggle.disabled, true);
+  const select = controls['#vc_nuovo_stato'], note = controls['#vc_motivo_stato'];
+  const save = controls['[data-vc-salva]'], error = controls['[data-vc-stato-errore]'];
+  let calls = 0, finish;
+  f.context.gestisciVenditaContratto = payload => {
+    calls++;
+    assert.equal(payload.motivo, 'Documento da integrare');
+    assert.equal(payload.versione_revisione_attesa, null);
+    assert.equal(payload.stato_atteso, null);
+    return new Promise(resolve => { finish = resolve; });
+  };
+  await save.emit('click');
+  assert.match(error.textContent, /Seleziona/);
+  select.value = 'da_verificare'; await select.emit('change');
+  assert.equal(controls['[data-vc-motivo]'].hidden, false);
+  assert.equal(note.required, true);
+  note.value = '  	  ';
+  await save.emit('click');
+  assert.match(error.textContent, /motivazione/);
+  assert.equal(calls, 0);
+  note.value = 'Documento da integrare';
+  const pending = save.emit('click');
+  await save.emit('click');
+  popup.close();
+  assert.equal(calls, 1);
+  assert.equal(popup.closed, false);
+  assert.equal(contract.revisione, null);
+  finish({ stato: 'da_verificare', motivo: note.value, versione: 1 });
+  await pending;
+  assert.equal(contract.revisione.motivo, note.value);
+  assert.equal(popup.closed, true);
+  assert.match(f.nodes.listaDaVerificare.innerHTML, /leggiMotivoVerifica/);
+  assert.equal(contract.stato_controllo, 'da_controllare');
+
+  await toggle.emit('click');
+  select.value = 'da_confermare'; await select.emit('change');
+  assert.equal(controls['[data-vc-motivo]'].hidden, true);
+  assert.equal(note.required, false);
   f.context.gestisciVenditaContratto = async payload => {
-    assert.equal(payload.stato_atteso, 'da_verificare');
-    assert.equal(payload.action, 'set_stato_verifica_manuale');
-    assert.equal(payload.stato, 'da_confermare');
+    assert.equal(payload.motivo, null);
+    assert.equal(payload.versione_revisione_attesa, 1);
     throw new Error('Riapri il dettaglio.');
   };
-  vm.runInContext(statusEditor, f.context);
-  f.context.collegaCambioStato({ querySelector: selector => elements[selector] }, contract);
-  toggle.events.click();
-  assert.equal(toggle['aria-expanded'], 'true');
-  assert.match(f.nodes.listaDaVerificare.innerHTML, /class="stato-pill da_verificare">Da verificare/);
-  await green.events.click();
+  await save.emit('click');
   assert.equal(error.textContent, 'Riapri il dettaglio.');
+  assert.equal(note.value, 'Documento da integrare');
   assert.equal(contract.revisione.stato, 'da_verificare');
-  f.context.gestisciVenditaContratto = async () => ({ stato: 'da_confermare' });
-  await green.events.click();
-  assert.match(f.nodes.listaDaVerificare.innerHTML, /class="stato-pill da_confermare">Da confermare/);
+  assert.equal(popup.closed, false);
+  f.context.gestisciVenditaContratto = async () => ({ stato: 'da_confermare', motivo: null, versione: 2 });
+  await save.emit('click');
+  assert.equal(popup.closed, true);
+  assert.equal(toggle.disabled, false);
   assert.match(current.innerHTML, /Da confermare/);
-  assert.equal(toggle['aria-expanded'], 'false');
-  assert.equal(contract.stato_controllo, 'da_controllare');
+  assert.doesNotMatch(f.nodes.listaDaVerificare.innerHTML, /leggiMotivoVerifica/);
 });
 test('l’API limita lo stato operativo e tratta i conflitti come 409', async () => {
   const { setManualReviewStatus } = require('../netlify/functions/gestisci-vendita-contratto')._test;
   const id = '11111111-1111-4111-8111-111111111111';
   const auth = { user: { id } };
-  const body = { contratto_id: id, stato: 'da_verificare', stato_atteso: null, expected_updated_at: '2026-11-10T09:00:00Z' };
+  const body = { contratto_id: id, stato: 'da_verificare', stato_atteso: null, expected_updated_at: '2026-11-10T09:00:00Z', motivo: 'Documento da integrare', versione_revisione_attesa: null };
   let calls = 0;
   const supabase = { async rpc(name, params) {
     calls++;
     assert.equal(name, 'vendita_imposta_stato_verifica_manuale');
     assert.deepEqual(params, { p_contratto_id: id, p_stato: body.stato, p_stato_atteso: null,
-      p_versione_attesa: body.expected_updated_at, p_autore: id });
-    return { data: body.stato };
+      p_versione_attesa: body.expected_updated_at, p_autore: id, p_motivo: body.motivo, p_versione_revisione_attesa: null });
+    return { data: { stato: body.stato, motivo: body.motivo, versione: 1 } };
   } };
   assert.equal((await setManualReviewStatus({ supabase, auth, body: { ...body, stato: 'controllato' } })).statusCode, 400);
+  for (const patch of [{ motivo: '' }, { motivo: '  \n  ' }, { motivo: 'a'.repeat(2001) }, { motivo: {} }, { versione_revisione_attesa: -1 }]) {
+    assert.equal((await setManualReviewStatus({ supabase, auth, body: { ...body, ...patch } })).statusCode, 400);
+  }
   assert.equal(calls, 0);
+  assert.equal((await setManualReviewStatus({ supabase, auth, body: { ...body, versione_revisione_attesa: undefined } })).statusCode, 409);
   assert.equal(JSON.parse((await setManualReviewStatus({ supabase, auth, body })).body).stato, body.stato);
   supabase.rpc = async () => ({ error: { code: '40001', message: 'Riapri il dettaglio.' } });
   assert.equal((await setManualReviewStatus({ supabase, auth, body })).statusCode, 409);

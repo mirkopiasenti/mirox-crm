@@ -51,6 +51,8 @@ Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push
 
 ## Stati manuali in Verifica Contratti
 
+Aggiornamento dell’11/11. In cima al dettaglio, **Cambia stato** apre un secondo popup con selettore e **Salva**. Per **Da verificare** occorre una motivazione fino a 2000 caratteri. La relativa icona accanto all’esito apre la nota in sola lettura. **Da confermare** si salva direttamente. L’elenco usa uno spazio più ampio in tutte le sei schede.
+
 I contratti **In Attesa** sono divisi in sei schede, **Mobile**, **Fisso**, **CB**, **Energia**, **Assicurazioni** e **Allarme**. Ogni contatore indica il totale della categoria. Il filtro **Esito** si combina con ricerca e giorno. Un link diretto a un contratto apre il dettaglio nella scheda corretta. I contratti conclusi si consultano in **Verificati**.
 
 Nelle liste dei contratti in attesa il colore è applicato soltanto alle etichette di stato. **In attesa** è blu. Dal dettaglio, **Cambia stato** salva **Da verificare** in rosso oppure **Da confermare** in verde. Entrambe le scelte mantengono il contratto nella scheda della sua categoria. **Conferma verifica** conclude il controllo e, se il contratto viene riaperto, la riga riparte dal blu. Vedi la [guida database](database/README.md#stati-manuali-in-verifica-contratti) per la persistenza.

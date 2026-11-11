@@ -63,6 +63,8 @@ Dal 10/11/2026 Verifica Contratti espone il flusso manuale. Il pannello sperimen
 
 Verifica Contratti divide i contratti In Attesa in Mobile, Fisso, CB, Energia, Assicurazioni e Allarme. Il filtro Esito si combina con ricerca e giorno. Ogni scheda conta i contratti della sua categoria prima dei filtri.
 
+Aggiornamento11/11. Cambia stato apre il selettore in un popup e salva la motivazione obbligatoria di Da verificare. Un’icona chat nell’elenco legge la nota. Migrazione motivazione/versione `20261111131639_vendita_note_stato_verifica.sql` applicata in produzione come `20261111133257`. Regole e verifiche in AGENTS.md e database/README.md.
+
 Stati manuali del 10/11: In attesa blu di partenza, Da verificare rosso e Da confermare verde dal dettaglio. L’approvazione resta un’azione distinta. Migrazione additiva applicata in produzione come `20261110102749`.
 
 Sviluppati motore puro, lettura PDF, CSV, pannello esiti/collaudo, worker, cron,

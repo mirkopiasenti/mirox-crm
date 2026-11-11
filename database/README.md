@@ -229,6 +229,15 @@ il collegamento account/dipendente già verificato dall'API. Correzione frontend
 
 ## Stati manuali in Verifica Contratti
 
+Migrazione sorgente `20261111131639_vendita_note_stato_verifica.sql`, applicata in produzione l’11/11 come `20261111133257`. Aggiunge `motivo` e `versione` alla tabella degli stati manuali. Il vincolo motivo/stato è `NOT VALID` per conservare gli esiti preesistenti privi di nota e controlla subito inserimenti e modifiche. I nuovi Da verificare richiedono 1–2000 caratteri. Da confermare usa `NULL`. La RPC INVOKER a sette argomenti controlla versione del contratto e dell’esito, aggiorna stato e motivo atomicamente e gestisce i retry della stessa scrittura. La firma precedente restituisce un conflitto con invito a ricaricare. SELECT delle nuove colonne segue la RLS esistente. Approvazione e riapertura usano la pulizia già presente.
+
+Verifiche isolate ripetibili con `NODE_PATH` contenente PGlite0.5.13 e LinkeDOM0.18.12, senza dipendenze runtime aggiunte al CRM.
+
+```sh
+NODE_PATH=/private/tmp/mirox-verifica-note-qa/node_modules node scripts/check-verifica-note-sql.cjs
+NODE_PATH=/private/tmp/mirox-verifica-note-qa/node_modules node scripts/check-verifica-note-dom.cjs
+```
+
 Le sei schede In Attesa suddividono la lista nel frontend tramite `categoria_snapshot` e, se necessario, `categoria_id` risolto nel catalogo. Il filtro Esito usa lo stato manuale già letto insieme ai contratti. Una riga senza stato manuale corrisponde all'opzione In attesa.
 
 `20261110102143_vendita_stati_verifica_manuale.sql` aggiunge una riga opzionale per contratto, con stato operativo, ultimo autore e timestamp. RLS consente la sola lettura di ID e stato per contratti pendenti visibili agli utenti con accesso a Verifica Contratti. La RPC INVOKER `vendita_imposta_stato_verifica_manuale` è riservata a `service_role` e verifica lo stato operativo atteso e la versione del contratto. L’aggiornamento riguarda soltanto la tabella separata. Un trigger elimina la riga alla conclusione del controllo e la FK elimina la riga insieme al contratto. Le righe storiche e i nuovi contratti partono senza riga. Migrazione applicata e riletta in produzione il 10/11/2026, versione `20261110102749`. RLS, grant, trigger e assenza di righe iniziali verificati.
@@ -773,6 +782,7 @@ Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
 | File | Cosa introduce |
 |---|---|
 | `20261110102143_vendita_stati_verifica_manuale.sql` | Stato operativo rosso/verde per le verifiche manuali, RLS, RPC service-only e pulizia all’uscita dallo stato tecnico `da_controllare` (In attesa) |
+| `20261111131639_vendita_note_stato_verifica.sql` | Motivazione obbligatoria per i nuovi esiti Da verificare, versione ottimistica e RPC a sette argomenti. Applicata in produzione come `20261111133257` |
 | `001_create_vendita_upload_contratti.sql` | Tabelle base upload contratti vendita |
 | `002_cataloghi_opzioni_reload_e_associazioni_offerta.sql` | Opzioni, reload e link N:M con offerte |
 | `003_offerte_abilita_dispositivo.sql` | Flag `abilita_dispositivo` su `vendita_offerte` |

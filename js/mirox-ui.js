@@ -95,7 +95,7 @@
     }
 
     // ----- Costruzione modale base ----------------------------
-    function buildModal({title, bodyHtml, footerHtml, large = false, closable = true, onClose}) {
+    function buildModal({title, bodyHtml, footerHtml, large = false, closable = true, onClose, canClose}) {
         injectOnce();
         const overlay = document.createElement('div');
         overlay.className = 'mx-overlay';
@@ -118,15 +118,24 @@
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
 
+        const previousFocus = document.activeElement;
+        let closed = false;
+        const onKey = e => {
+            const overlays = document.querySelectorAll('.mx-overlay');
+            if (e.key === 'Escape' && overlays[overlays.length - 1] === overlay) close();
+        };
         function close() {
+            if (closed || (canClose && !canClose())) return;
+            closed = true;
+            document.removeEventListener('keydown', onKey);
             overlay.remove();
             if (typeof onClose === 'function') onClose();
+            if (previousFocus?.isConnected) previousFocus.focus();
         }
         if (closable) {
             head.querySelector('.mx-modal-x').addEventListener('click', close);
             overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
             // ESC chiude
-            const onKey = e => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } };
             document.addEventListener('keydown', onKey);
         }
         return {overlay, modal, body, foot, head, close};

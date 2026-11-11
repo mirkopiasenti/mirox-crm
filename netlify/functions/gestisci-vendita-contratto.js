@@ -174,22 +174,35 @@ async function deriveCatalogSnapshots(supabase, current, patch) {
 }
 
 async function setManualReviewStatus({ supabase, auth, body }) {
-  const { contratto_id, stato, stato_atteso, expected_updated_at } = body;
+  const { contratto_id, stato, stato_atteso, expected_updated_at, versione_revisione_attesa } = body;
+  if (versione_revisione_attesa === undefined) {
+    return response(409, { success: false, error: 'Ricarica la pagina per cambiare lo stato.' });
+  }
   if (!isUuid(contratto_id) || !MANUAL_REVIEW_STATES.has(stato)
       || (stato_atteso !== null && !MANUAL_REVIEW_STATES.has(stato_atteso))
+      || (versione_revisione_attesa !== null && (!Number.isSafeInteger(versione_revisione_attesa) || versione_revisione_attesa < 1))
       || (expected_updated_at !== null && (typeof expected_updated_at !== 'string' || !Number.isFinite(Date.parse(expected_updated_at))))) {
     return response(400, { success: false, error: 'Contratto, stato o versione non validi' });
+  }
+  if (body.motivo != null && typeof body.motivo !== 'string') {
+    return response(400, { success: false, error: 'Motivazione non valida' });
+  }
+  const motivo = stato === 'da_verificare' ? (body.motivo || '').trim() : null;
+  if (stato === 'da_verificare' && (!motivo || Array.from(motivo).length > 2000)) {
+    return response(400, { success: false, error: 'Scrivi una motivazione tra 1 e 2000 caratteri per Da verificare.' });
   }
   const autore = canonicalProfileId(auth);
   if (!autore) return response(500, { success: false, error: 'Profilo autenticato privo di un identificativo valido' });
   const { data, error } = await supabase.rpc('vendita_imposta_stato_verifica_manuale', {
     p_contratto_id: contratto_id, p_stato: stato, p_stato_atteso: stato_atteso,
-    p_versione_attesa: expected_updated_at, p_autore: autore
+    p_versione_attesa: expected_updated_at, p_autore: autore,
+    p_motivo: motivo, p_versione_revisione_attesa: versione_revisione_attesa
   });
   if (error?.code === '40001') return response(409, { success: false, error: error.message });
   if (error?.code === 'P0002') return response(404, { success: false, error: 'Contratto non trovato' });
+  if (error?.code === '22023') return response(400, { success: false, error: error.message });
   if (error) throw error;
-  return response(200, { success: true, stato: data });
+  return response(200, { success: true, ...data });
 }
 
 async function updateContract({ supabase, auth, body }) {
