@@ -35,6 +35,8 @@ Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push
 
 ## Segnalazioni — aggiornamento11/11/2026
 
+Le schede Da gestire e Riepilogo mostrano anche la colonna Gestione pratica, dopo Cliente, con la scelta salvata sulla segnalazione; se assente compare un trattino.
+
 - Eliminata la distinzione Normale/Urgente in inserimento, elenchi, filtri e dettagli.
 - Nel Riepilogo restano Segnalazione in Corso e Chiuso; rimossa la scelta Escalation. Eliminata la scheda Da assegnare: le nuove richieste entrano direttamente in Da gestire, insieme a quelle gia in attesa di assegnazione o assegnate.
 - Rimossi tutti gli invii email delle segnalazioni, anche per le pagine precedenti rimaste aperte.

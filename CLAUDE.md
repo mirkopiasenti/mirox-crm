@@ -1,5 +1,7 @@
 # CLAUDE.md — Guida per AI assistants
 
+Segnalazioni11/11: aggiunta la colonna Gestione pratica dopo Cliente in Da gestire e Riepilogo, dal campo esistente `gestione_pratica`, con trattino se assente.
+
 Segnalazioni11/11: nessuna distinzione Normale/Urgente; Riepilogo con In Corso/Chiuso e legacy Escalation visualizzato in corso. Operatore dal profilo autenticato, Cambia con conferma e Logout locale verso il login. CF/P.IVA prima dei dati cliente, ricerca AnagraficaHelper e autocompilazione modificabile di ragione sociale/contatto, senza scrivere anagrafica. Errori/risposte obsolete/doppio invio gestiti. Rimossi anche Da assegnare e ogni assegnazione personale: nuove richieste direttamente Da gestire, compresi stati preliminari legacy. Colonna/filtri/dettagli mostrano l’autore; ASK Manuale lo salva dal login. Nessuna email dal modulo e rifiuto410 server del template/delle email correlate a segnalazioni. Regole complete in AGENTS.md, test `tests/segnalazioni.test.js`; nessuna migration.
 
 Upload identità 09/11: barcode CF e carrello automatici, Consumer da anagrafica, Business dal CF del delegato sulla PDA. Il Nome referente resta separato dall’OCR Business. Scadenza esclusa dall’upload. Flusso attuale in AGENTS.md e docs/IDENTITA_UPLOAD_2026-10-28.md.

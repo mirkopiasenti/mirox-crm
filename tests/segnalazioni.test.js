@@ -123,7 +123,7 @@ test('Segnalazioni: tutte le tabelle e i dettagli eliminano urgenza; storico Esc
   f.context.row = row; f.run('dataGest=[row];dataRiep=[row]');
   f.context.renderGest([row]); f.nodes.fRiepHideChiusi.checked = true;
   f.nodes.fRiepStato.value = 'Segnalazione in Corso'; f.context.filterRiepilogo();
-  for (const [id, cols] of [['tbGest', 6], ['tbRiep', 6]]) {
+  for (const [id, cols] of [['tbGest', 7], ['tbRiep', 7]]) {
     assert.equal((f.nodes[id].innerHTML.match(/<td[ >]/g) || []).length, cols);
     assert.doesNotMatch(f.nodes[id].innerHTML, /Urgente|Urgenza|Escalation/);
   }

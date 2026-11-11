@@ -659,6 +659,8 @@ Le pagine post-vendita dei punti 8–11 espongono `Vai alla pratica` per ogni ri
 
 ### Segnalazioni — aggiornamento11/11/2026
 
+Da gestire e Riepilogo espongono dopo Cliente la colonna Gestione pratica: legge `gestione_pratica`, escaped come gli altri dati, con trattino se assente. Solo visualizzazione del dato esistente, nessuna modifica a caricamento, filtri o salvataggio.
+
 `moduli/segnalazioni.html` non distingue Normale/Urgente: rimossi scelta, filtri, contatori, colonne e dettagli; i nuovi record omettono `urgenza` (nullable). Nel Riepilogo restano Segnalazione in Corso e Chiuso; Escalation non e selezionabile, eventuali righe legacy sono visualizzate e filtrate come in corso, ancora chiudibili senza riscrittura dello storico. La scheda Da assegnare e rimossa insieme a ogni azione/campo di assegnazione. Le nuove richieste usano `stato='Da gestire'` e sono immediatamente nella coda comune Da gestire; i due stati storici In attesa Assegnazione/Assegnata confluiscono nella stessa coda e nei contatori senza riscritture DB.
 
 L'operatore della nuova segnalazione e il `nome` del profilo restituito da `Auth.richiediAuth()`, mostrato readonly e riletto al submit, senza dropdown o valore autore ricavato dal campo. Cambia apre una conferma MiroxUI con Logout/Annulla; Logout esegue `auth.signOut({scope:'local'})`, controlla l'errore e soltanto dopo torna al login tramite `Auth._indexPath()`. Liste, dettagli e filtri mostrano soltanto l’autore originale `operatore`, mai un fallback all’assegnatario storico; se assente mostrano un trattino. I filtri Operatore sono derivati dai nomi realmente presenti nei risultati, non da un elenco fisso.

@@ -1,5 +1,7 @@
 # /database/ — Migrazioni SQL storiche
 
+Segnalazioni11/11, colonna Gestione pratica: sola visualizzazione di `segnalazioni.gestione_pratica` nelle due liste Da gestire/Riepilogo. Nessuna migration, query aggiuntiva o scrittura dati.
+
 Segnalazioni11/11/2026: modifica della pagina senza migration o scritture dati. I nuovi record omettono `urgenza`, gia nullable e compatibile con il CHECK esistente; gli eventuali valori storici sono conservati. Escalation non e piu selezionabile e viene presentato come Segnalazione in Corso per compatibilita. Nome operatore dal profilo autenticato e ricerca CF/P.IVA tramite AnagraficaHelper (sola lettura anagrafica); le correzioni di ragione sociale/numero sono salvate soltanto nella segnalazione. Schema, RLS, RPC, trigger, bucket, profili e tabelle CC invariati. Ulteriore semplificazione11/11: nuove segnalazioni con stato `Da gestire`, nessun assegnatario; i record legacy In attesa Assegnazione/Assegnata sono letti nella coda comune senza UPDATE. ASK Manuale salva l’autore autenticato. Rimossi invii email dal modulo e bloccati lato API anche i client legacy (410), senza modificare o eliminare template/log a DB.
 
 I file `.sql` nella root di questa cartella sono **migrazioni storiche parziali** applicate manualmente nel SQL Editor di Supabase (o via CLI) durante lo sviluppo. `staging/` contiene invece bootstrap one-shot destinati esclusivamente a database staging nuovi e vuoti.

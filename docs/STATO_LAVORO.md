@@ -4,6 +4,8 @@ Aggiornato:2026-11-11. Promemoria di ripresa, non autorizza ulteriori push o att
 
 ## Segnalazioni — coda comune e rimozione email11/11
 
+- Colonna Gestione pratica in Da gestire e Riepilogo pronta e push richiesto: dopo Cliente mostra `gestione_pratica` escaped o trattino, righe vuote a7colonne. Build e15test mirati verdi, guide README/AGENTS/CLAUDE/databaseREADME aggiornate. Nessuna query o modifica DB. Prossimo passo: pubblicazione e verifica CI/HTTP.
+
 - Eliminate la scheda Da assegnare, le azioni di assegnazione e tutti gli invii email dal modulo. API mirox-send-email rifiuta410 template storico o email correlate a segnalazioni, anche da client vecchi. Le altre comunicazioni CRM restano operative.
 - Nuove richieste direttamente Da gestire; stessa coda/contatore comprende In attesa Assegnazione e Assegnata legacy. Colonna, filtri dinamici e dettagli usano l’operatore autore originale, mai il vecchio assegnatario; ASK Manuale registra il profilo dal login. Storico/colonne/schema invariati, nessuna migration o scrittura reale.
 - Verifiche: 15 test mirati, suite716/716, DOM Node reale di coda/autore/filtri e precedenti flussi CF/logout verdi. README/AGENTS/CLAUDE/databaseREADME aggiornati. Push esplicitamente richiesto; prossimo passo: pubblicare e verificare CI/HTTP. Altri WIP conservati.
