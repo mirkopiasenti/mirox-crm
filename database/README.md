@@ -1,5 +1,7 @@
 # /database/ — Migrazioni SQL storiche
 
+Segnalazioni12/11, classificazione all’inserimento: valori nuovi di `gestione_pratica` Angel/ASK/Interna negozio e sottotipo ASK nel campo gia esistente `tipo_ask` (null fuori ASK). Nessuna modifica schema, CHECK, RLS, RPC o bucket; i PDF restano negli stessi path `modelli/disdetta` e `modelli/comportamento-scorretto`. Nessuna riscrittura dei valori storici; le nuove scelte sono salvate solo all’invio di nuove segnalazioni.
+
 ## Assicurazione impianti Luce e Gas — 12/11/2026
 
 Sorgente `20261112214904_vendita_energia_assicurazione_impianti.sql` creata con CLI

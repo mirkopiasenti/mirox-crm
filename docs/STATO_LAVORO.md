@@ -2,6 +2,13 @@
 
 Aggiornato:2026-11-12. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
+## Segnalazioni — nuovo inserimento ASK12/11, push autorizzato
+
+- Gestione pratica: Angel, ASK, Interna negozio. ASK abilita il secondo select obbligatorio con Recesso, Comportamento Scorretto, Normalizzazione, Reclami su Fattura, Convergenza, Subentro, CS, Altro. Sottotipo salvato in `tipo_ask`, null fuori ASK; cambio/reset pulisce i campi dipendenti.
+- Recesso riusa modelli/disdetta e Comportamento Scorretto modelli/comportamento-scorretto. Risposte PDF obsolete ignorate ed errore distinto da elenco vuoto. Dettaglio/editor gestione conservano la scelta iniziale e i tipi storici. ASK Manuale invariato. Nessuna migration, email, dato reale o browser.
+- Verifiche: build e20test mirati verdi; suite isolata del rilascio721/721verde senza i WIP impianti. README/AGENTS/CLAUDE/databaseREADME aggiornati. Push richiesto esplicitamente; prossimo passo pubblicazione e verifica CI/HTTP. Nessun codice parallelo incluso.
+
+
 ## Luce e Gas — assicurazione impianti12/11 (push richiesto)
 
 - Popup dopo i dati contratto: «È stata attivata l’assicurazione impianti?», pulsanti Sì/No; chiusura non registra risposta. Energia Consumer/Business, scelta distinta per contratto, conservata in carrello/bozze/modifica e azzerata per il successivo/cambio categoria. Risposte tardive scartate, doppi click bloccati, vecchie bozze devono completare la scelta.

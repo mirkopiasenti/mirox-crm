@@ -9,7 +9,7 @@ const source = [...page.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].m
 const CF = 'RSSMRA80A01H501U', PIVA = '01114601006';
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function deferred() { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; }
-function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }, lookup, confirmation = false, logoutError = null, records = [] } = {}) {
+function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }, lookup, confirmation = false, logoutError = null, records = [], storageList } = {}) {
   const nodes = {}, calls = [], timers = new Map(); let timerId = 0;
   for (const m of page.matchAll(/\bid="([\w-]+)"/g)) {
     const n = nodes[m[1]] = new Element('div'); n.style = {}; n.innerHTML = ''; n.remove = () => {}; n.appendChild = node => n.append(node);
@@ -28,7 +28,7 @@ function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }
         return Promise.resolve(result).then(resolve, reject);
       }
     }; return q;
-  }, storage: { from() { return { list: async () => ({ data: [] }) }; } } };
+  }, storage: { from(bucket) { return { list: async path => { calls.push({bucket,path}); return storageList?storageList(path):{ data: [] }; } }; } } };
   const document = { getElementById: id => nodes[id], querySelectorAll: () => [], addEventListener() {}, createElement() { const n = new Element(); n.remove = () => {}; return n; } };
   nodes.formNuova.reportValidity = () => ['ragioneSociale', 'tel', 'cf', 'dettagli', 'gestionePratica'].every(id => nodes[id].value);
   nodes.formNuova.reset = () => { nodes.formNuova.emit('reset'); ['ragioneSociale', 'tel', 'cf', 'dettagli', 'gestionePratica'].forEach(id => { nodes[id].value = ''; }); nodes.operatore.value = nodes.operatore.defaultValue; };
@@ -93,7 +93,7 @@ test('Segnalazioni: nessun risultato consente inserimento manuale, errori e risp
 test('Segnalazioni: autore dal profilo, correzioni nel payload, nessuna urgenza e doppio invio bloccato', async () => {
   const f = fixture(); await f.ready(); assert.equal(f.nodes.operatore.value, 'Vincenzo');
   await f.input('cf', CF); await f.context.cercaCliente(); await f.input('ragioneSociale', 'Nome corretto'); await f.input('tel', '3339999999');
-  f.nodes.dettagli.value = 'Richiesta sintetica'; f.nodes.gestionePratica.value = '159'; f.nodes.operatore.value = 'Nome alterato';
+  f.nodes.dettagli.value = 'Richiesta sintetica'; f.nodes.gestionePratica.value = 'Angel'; f.nodes.operatore.value = 'Nome alterato';
   await Promise.all([f.submit(), f.submit()]);
   const inserts = f.calls.filter(c => c.insert); assert.equal(inserts.length, 1);
   assert.equal(inserts[0].insert.stato, 'Da gestire'); assert.equal('assegnatario' in inserts[0].insert, false);
@@ -189,4 +189,63 @@ test('Email Segnalazioni: il server rifiuta anche vecchi client senza invocare i
   }
   const result=await module.exports.handler({httpMethod:'POST',body:JSON.stringify({template:'ordine_smartphone_nuovo',to:'test@example.invalid'})});
   assert.equal(result.statusCode,200); assert.equal(sent,1);
+});
+
+test('Nuova Segnalazione: scelte gestione e tipi ASK esatti, sottotipo richiesto solo per ASK', async () => {
+  const gest=page.match(/id="gestionePratica"[^>]*>([\s\S]*?)<\/select>/)[1];
+  assert.deepEqual([...gest.matchAll(/<option[^>]*>(.*?)<\/option>/g)].map(m=>m[1]),['Seleziona','Angel','ASK','Interna negozio']);
+  const tipi=page.match(/id="tipoAskNuova"[^>]*>([\s\S]*?)<\/select>/)[1];
+  assert.deepEqual([...tipi.matchAll(/<option[^>]*>(.*?)<\/option>/g)].map(m=>m[1]),['Seleziona','Recesso','Comportamento Scorretto','Normalizzazione','Reclami su Fattura','Convergenza','Subentro','CS','Altro']);
+  const f=fixture();await f.ready();
+  f.nodes.gestionePratica.value='ASK';f.context.cambiaGestionePratica();
+  assert.equal(f.nodes.tipoAskNuova.disabled,false);assert.equal(f.nodes.tipoAskNuova.required,true);assert.equal(f.nodes.tipoAskNuovaSection.style.display,'block');
+  f.nodes.tipoAskNuova.value='Recesso';f.nodes.gestionePratica.value='Angel';f.context.cambiaGestionePratica();
+  assert.equal(f.nodes.tipoAskNuova.value,'');assert.equal(f.nodes.tipoAskNuova.required,false);assert.equal(f.nodes.tipoAskNuova.disabled,true);
+  assert.equal(f.nodes.tipoAskNuovaSection.style.display,'none');assert.equal(f.nodes.moduliSection.style.display,'none');
+});
+test('Nuova Segnalazione: ASK salva il tipo, impedisce tipi mancanti/estranei e fuori ASK salva null', async () => {
+  for(const [gestione,tipo,expected] of [['ASK','Recesso',true],['ASK','',false],['ASK','Guasti',false],['159','',false],['Angel','Recesso',true],['Interna negozio','',true]]){
+    const f=fixture();await f.ready();await f.input('cf',CF);await f.context.cercaCliente();
+    f.nodes.gestionePratica.value=gestione;f.nodes.tipoAskNuova.value=tipo;f.nodes.dettagli.value='Richiesta sintetica';
+    await f.submit();const insert=f.calls.find(c=>c.insert)?.insert;assert.equal(!!insert,expected,gestione+'/'+tipo);
+    if(insert){assert.equal(insert.gestione_pratica,gestione);assert.equal(insert.tipo_ask,gestione==='ASK'?tipo:null);}
+  }
+});
+test('Moduli ASK: Recesso e Comportamento Scorretto riusano le cartelle precedenti; gli altri non scaricano elenchi', async () => {
+  const f=fixture({storageList:async()=>({data:[{name:'Modulo <test>.pdf',metadata:{}}]})});await f.ready();
+  f.nodes.gestionePratica.value='ASK';f.context.cambiaGestionePratica();
+  for(const [tipo,path] of [['Recesso','modelli/disdetta'],['Comportamento Scorretto','modelli/comportamento-scorretto']]){
+    f.nodes.tipoAskNuova.value=tipo;await f.context.toggleModuli();
+    assert.equal(f.nodes.moduliSection.style.display,'block');assert.ok(f.calls.some(c=>c.path===path));
+    assert.match(f.nodes.moduliList.innerHTML,/Modulo &lt;test&gt;\.pdf/);assert.ok(f.nodes.moduliList.innerHTML.includes(path+'/'));
+  }
+  const before=f.calls.filter(c=>c.path).length;
+  for(const tipo of ['Normalizzazione','Reclami su Fattura','Convergenza','Subentro','CS','Altro']){
+    f.nodes.tipoAskNuova.value=tipo;await f.context.toggleModuli();assert.equal(f.nodes.moduliSection.style.display,'none');
+  }
+  assert.equal(f.calls.filter(c=>c.path).length,before);
+});
+test('Moduli ASK: cambio tipo/reset scartano risposte obsolete e un errore non diventa elenco vuoto', async () => {
+  const a=deferred(),b=deferred();const f=fixture({storageList:path=>path==='modelli/disdetta'?a.promise:b.promise});await f.ready();
+  f.nodes.gestionePratica.value='ASK';f.context.cambiaGestionePratica();
+  f.nodes.tipoAskNuova.value='Recesso';const first=f.context.toggleModuli();
+  f.nodes.tipoAskNuova.value='Comportamento Scorretto';const second=f.context.toggleModuli();
+  b.resolve({data:[{name:'Scorretto.pdf',metadata:{}}]});await second;
+  a.resolve({data:[{name:'Recesso.pdf',metadata:{}}]});await first;
+  assert.match(f.nodes.moduliList.innerHTML,/Scorretto\.pdf/);assert.doesNotMatch(f.nodes.moduliList.innerHTML,/Recesso\.pdf/);
+  const delayed=deferred(),g=fixture({storageList:()=>delayed.promise});await g.ready();g.nodes.gestionePratica.value='ASK';g.context.cambiaGestionePratica();
+  g.nodes.tipoAskNuova.value='Recesso';const req=g.context.toggleModuli();g.nodes.formNuova.reset();
+  delayed.resolve({data:[{name:'Vecchio.pdf',metadata:{}}]});await req;
+  assert.equal(g.nodes.moduliSection.style.display,'none');assert.equal(g.nodes.tipoAskNuova.disabled,true);
+  const h=fixture({storageList:async()=>({error:new Error('offline')})});await h.ready();h.nodes.gestionePratica.value='ASK';h.nodes.tipoAskNuova.value='Recesso';await h.context.toggleModuli();
+  assert.match(h.nodes.moduliList.textContent,/Impossibile caricare/);assert.doesNotMatch(h.nodes.moduliList.textContent,/Nessun modulo/);
+});
+test('Gestione ASK: precompila la tipologia iniziale, conserva i tipi storici e non perde la scelta alla chiusura', async () => {
+  const f=fixture();await f.ready();f.context.record={id:42,gestione_pratica:'ASK',tipo_ask:'Recesso',stato:'Da gestire'};f.run('dataGest=[record]');
+  await f.context.openGest(42);
+  assert.match(f.nodes.modalGestBody.innerHTML,/value="Recesso" selected/);
+  assert.match(f.context.opzioniTipoAsk('Guasti'),/value="Guasti" selected/);
+  assert.doesNotMatch(f.context.opzioniTipoAsk('<img src=x>'),/<img/);
+  f.nodes.mAzione.value='Non Gestibile';await f.context.salvaGest();
+  const update=f.calls.find(c=>c.update)?.update;assert.equal(update.stato,'Chiuso');assert.equal(update.tipo_ask,'Recesso');
 });
