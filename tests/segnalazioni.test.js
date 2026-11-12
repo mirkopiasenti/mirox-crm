@@ -9,7 +9,7 @@ const source = [...page.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].m
 const CF = 'RSSMRA80A01H501U', PIVA = '01114601006';
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function deferred() { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; }
-function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }, lookup, confirmation = false, logoutError = null, records = [], storageList } = {}) {
+function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }, lookup, confirmation = false, logoutError = null, records = [], storageList, updateResult, uploadResult } = {}) {
   const nodes = {}, calls = [], timers = new Map(); let timerId = 0;
   for (const m of page.matchAll(/\bid="([\w-]+)"/g)) {
     const n = nodes[m[1]] = new Element('div'); n.style = {}; n.innerHTML = ''; n.remove = () => {}; n.appendChild = node => n.append(node);
@@ -24,15 +24,18 @@ function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }
       insert(data) { call.insert = data; return q; }, update(data) { call.update = data; return q; },
       single() { return q; },
       then(resolve, reject) {
+        if(call.update&&updateResult)return Promise.resolve(updateResult(call)).then(resolve,reject);
+        if(call.update)records.filter(r=>r.id===call.filters.id).forEach(r=>Object.assign(r,call.update));
         const result = table === 'anagrafica' ? (lookup ? lookup(call) : { data: [{ cf_piva: call.filters.cf_piva, ragione_sociale: 'Cliente sintetico', cellulare: '3331234567' }] }) : call.insert ? { data: { id: 999 } } : { data: records.filter(r => Object.entries(call.filters).every(([k,v]) => Array.isArray(v) ? v.includes(r[k]) : r[k] === v) && (!call.notNull || r[call.notNull] != null)), count: records.filter(r => Object.entries(call.filters).every(([k,v]) => Array.isArray(v) ? v.includes(r[k]) : r[k] === v)).length };
         return Promise.resolve(result).then(resolve, reject);
       }
     }; return q;
   }, storage: { from(bucket) { return { list: async path => { calls.push({bucket,path}); return storageList?storageList(path):{ data: [] }; } }; } } };
-  const document = { getElementById: id => nodes[id], querySelectorAll: () => [], addEventListener() {}, createElement() { const n = new Element(); n.remove = () => {}; return n; } };
+  const tabs={richiesta:new Element('button'),gestione:new Element('button'),riepilogo:new Element('button')};
+  const document = { getElementById: id => nodes[id], querySelector: selector => tabs[selector.match(/data-tab="([^"]+)"/)?.[1]]||null, querySelectorAll: () => [], addEventListener() {}, createElement() { const n = new Element(); n.remove = () => {}; return n; } };
   nodes.formNuova.reportValidity = () => ['ragioneSociale', 'tel', 'cf', 'dettagli', 'gestionePratica'].every(id => nodes[id].value);
   nodes.formNuova.reset = () => { nodes.formNuova.emit('reset'); ['ragioneSociale', 'tel', 'cf', 'dettagli', 'gestionePratica'].forEach(id => { nodes[id].value = ''; }); nodes.operatore.value = nodes.operatore.defaultValue; };
-  const window = { db, location: { href: '' }, MiroxUI: { async confirm(msg, opts) { calls.push({ confirm: msg, opts }); return confirmation; } } };
+  const window = { db, MiroxStorageUpload:{async upload(options){calls.push({upload:options});if(uploadResult)return uploadResult(options);}}, location: { href: '' }, MiroxUI: { async confirm(msg, opts) { calls.push({ confirm: msg, opts }); return confirmation; } } };
   const context = vm.createContext({ window, document, Auth: auth, console, setTimeout: fn => { timers.set(++timerId, fn); return timerId; }, clearTimeout: id => timers.delete(id) });
   vm.runInContext(fs.readFileSync(require.resolve('../js/mirox-safe.js'), 'utf8'), context);
   context.MiroxSafe = window.MiroxSafe;
@@ -41,7 +44,7 @@ function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }
   const run = code => vm.runInContext(code, context);
   const input = async (id, value) => { nodes[id].value = value; await nodes[id].emit('input'); };
   const submit = async () => { await nodes.formNuova.handlers.submit[0]({ target: nodes.formNuova, preventDefault() {} }); };
-  return { nodes, context, calls, run, input, submit, timers, ready: () => run('authReady') };
+  return { nodes, context, calls, run, input, submit, timers, tabs, ready: () => run('authReady') };
 }
 
 test('Segnalazioni: CF/PIVA precede gli altri dati, operatore non selezionabile, nessuna urgenza o Escalation nella UI', () => {
@@ -240,12 +243,80 @@ test('Moduli ASK: cambio tipo/reset scartano risposte obsolete e un errore non d
   const h=fixture({storageList:async()=>({error:new Error('offline')})});await h.ready();h.nodes.gestionePratica.value='ASK';h.nodes.tipoAskNuova.value='Recesso';await h.context.toggleModuli();
   assert.match(h.nodes.moduliList.textContent,/Impossibile caricare/);assert.doesNotMatch(h.nodes.moduliList.textContent,/Nessun modulo/);
 });
-test('Gestione ASK: precompila la tipologia iniziale, conserva i tipi storici e non perde la scelta alla chiusura', async () => {
+test('Gestione ASK: mostra il tipo iniziale in sola lettura e salva il numero senza menu azione', async () => {
   const f=fixture();await f.ready();f.context.record={id:42,gestione_pratica:'ASK',tipo_ask:'Recesso',stato:'Da gestire'};f.run('dataGest=[record]');
   await f.context.openGest(42);
-  assert.match(f.nodes.modalGestBody.innerHTML,/value="Recesso" selected/);
+  assert.match(f.nodes.modalGestBody.innerHTML,/ASK - Recesso/);
+  assert.doesNotMatch(f.nodes.modalGestBody.innerHTML,/id="mAzione"|id="mTipoAsk"/);
   assert.match(f.context.opzioniTipoAsk('Guasti'),/value="Guasti" selected/);
   assert.doesNotMatch(f.context.opzioniTipoAsk('<img src=x>'),/<img/);
-  f.nodes.mAzione.value='Non Gestibile';await f.context.salvaGest();
-  const update=f.calls.find(c=>c.update)?.update;assert.equal(update.stato,'Chiuso');assert.equal(update.tipo_ask,'Recesso');
+  f.nodes.mNumAsk.value='ASK-123';await f.context.salvaGest();
+  const update=f.calls.find(c=>c.update)?.update;assert.equal(update.stato,'Segnalazione in Corso');assert.equal(update.tipo_ask,'Recesso');
+});
+
+test('Da gestire: i tre percorsi mostrano la gestione scelta nel riquadro giallo e soltanto i propri comandi', async () => {
+  for(const [gestione,tipo,label,action,numero,button] of [
+    ['ASK','Recesso','ASK - Recesso',false,true,'Salva'],['Angel',null,'Angel',false,false,'Confermo apertura Angel'],
+    ['Interna negozio',null,'Gestione negozio',true,true,'Salva'],['159',null,'159',true,true,'Salva']]){
+    const f=fixture();await f.ready();f.context.row={id:1,gestione_pratica:gestione,tipo_ask:tipo};f.run('dataGest=[row]');await f.context.openGest(1);
+    const html=f.nodes.modalGestBody.innerHTML;
+    assert.ok(html.includes('<div class="gestione-scelta">'+label+'</div>'));
+    assert.equal(html.includes('id="mAzione"'),action);assert.equal(html.includes('id="mNumAsk"'),numero);
+    assert.ok(html.includes('onclick="salvaGest()">'+button+'</button>'));
+    assert.match(html,/id="mNote"/);assert.match(html,/id="mFileInput"/);
+  }
+});
+test('ASK: numero vuoto o solo spazi blocca senza upload/update; testo non vuoto salva e apre Riepilogo', async () => {
+  const row={id:42,gestione_pratica:'ASK',tipo_ask:'Comportamento Scorretto',stato:'Da gestire'};
+  const f=fixture({records:[row]});await f.ready();f.context.rows=[row];f.run('dataGest=rows');await f.context.openGest(42);
+  f.nodes.mNumAsk.value='   ';await f.context.salvaGest();assert.equal(f.calls.filter(c=>c.update||c.upload).length,0);
+  f.nodes.mNumAsk.value='  ASK-2026/Testo  ';f.nodes.mNote.value=' Nota di prova ';
+  f.nodes.mAzione.value='Non Gestibile';f.nodes.mTipoAsk.value='Altro'; // valori estranei al percorso diretto ignorati
+  f.nodes.fRiepSearch.value='Filtro precedente';await f.context.salvaGest();
+  const update=f.calls.find(c=>c.update).update;
+  assert.equal(update.azione_eseguita,'ASK');assert.equal(update.tipo_ask,'Comportamento Scorretto');assert.equal(update.numero_ask,'ASK-2026/Testo');
+  assert.equal(update.stato,'Segnalazione in Corso');assert.ok(update.data_apertura_segnalazione);assert.equal(update.note_back_office,'Nota di prova');
+  assert.ok(f.tabs.riepilogo.classList.contains('active'));assert.match(f.nodes.tbRiep.innerHTML,/ASK - Comportamento Scorretto/);
+  assert.equal(f.nodes.fRiepSearch.value,'');assert.equal(f.nodes.modalGest.classList.contains('active'),false);
+});
+test('Angel: conferma senza numero o azione manuale, conserva note/allegati e mostra il riepilogo dedicato', async () => {
+  const row={id:42,gestione_pratica:'Angel',stato:'Da gestire'};
+  const f=fixture({records:[row]});await f.ready();f.context.rows=[row];f.run('dataGest=rows');await f.context.openGest(42);
+  f.nodes.mNote.value='Contattato il supporto';f.nodes.mNumAsk.value='IGNORATO';f.nodes.mAzione.value='Non Gestibile';
+  f.run("gestFiles=[{name:'prova.pdf',size:20}]");await f.context.salvaGest();
+  const update=f.calls.find(c=>c.update).update;
+  assert.equal(update.azione_eseguita,'Angel');assert.equal(update.stato,'Segnalazione in Corso');assert.equal(update.numero_ask,null);assert.equal(update.tipo_ask,null);
+  assert.equal(update.note_back_office,'Contattato il supporto');assert.equal(f.calls.filter(c=>c.upload).length,1);
+  assert.ok(f.tabs.riepilogo.classList.contains('active'));await f.context.openRiep(42);
+  assert.equal(f.nodes.modalRiepTitle.textContent,'Riepilogo Angel');assert.match(f.nodes.modalRiepBody.innerHTML,/Apertura Angel/);assert.match(f.nodes.modalRiepBody.innerHTML,/Confermata/);
+});
+test('Gestione negozio: conserva le quattro azioni e le precedenti regole di chiusura/ASK', async () => {
+  for(const action of ['Call me Back','Non Gestibile','Gestione Interna','ASK']){
+    const row={id:42,gestione_pratica:'Interna Negozio',stato:'Da gestire'};
+    const f=fixture({records:[row]});await f.ready();f.context.rows=[row];f.run('dataGest=rows');await f.context.openGest(42);
+    f.nodes.mAzione.value=action;f.nodes.mTipoAsk.value='Guasti';f.nodes.mNumAsk.value='123';await f.context.salvaGest();
+    const update=f.calls.find(c=>c.update).update;
+    assert.equal(update.azione_eseguita,action);assert.equal(update.stato,['Call me Back','Non Gestibile'].includes(action)?'Chiuso':'Segnalazione in Corso');
+    assert.equal(!!update.data_chiusura,['Call me Back','Non Gestibile'].includes(action));
+    assert.equal(update.tipo_ask,action==='ASK'?'Guasti':null);assert.equal(update.numero_ask,action==='ASK'?'123':null);
+  }
+});
+test('Salvataggio: errore mantiene dettaglio/dati per retry; doppio click e chiusura durante invio bloccati', async () => {
+  const pending=deferred();let fail=true;
+  const row={id:42,gestione_pratica:'ASK',tipo_ask:'Recesso',stato:'Da gestire'};
+  const f=fixture({records:[row],updateResult:()=>fail?pending.promise:{error:null}});await f.ready();f.context.rows=[row];f.run('dataGest=rows');await f.context.openGest(42);
+  f.nodes.mNumAsk.value='123';f.nodes.mNote.value='Non perdere';
+  const first=f.context.salvaGest();await tick();assert.equal(f.nodes.mSalvaGestione.disabled,true);
+  await f.context.salvaGest();f.context.closeModal('modalGest');assert.equal(f.nodes.modalGest.classList.contains('active'),true);
+  assert.equal(f.calls.filter(c=>c.update).length,1);
+  pending.resolve({error:new Error('offline')});await first;
+  assert.equal(f.nodes.modalGest.classList.contains('active'),true);assert.equal(f.nodes.mNumAsk.value,'123');assert.equal(f.nodes.mNote.value,'Non perdere');assert.equal(f.nodes.mSalvaGestione.disabled,false);
+  fail=false;await f.context.salvaGest();assert.equal(f.calls.filter(c=>c.update).length,2);assert.equal(f.nodes.modalGest.classList.contains('active'),false);
+});
+test('Upload fallito: nessun avanzamento o aggiornamento, allegati conservati e contenuti visualizzati escaped', async () => {
+  const row={id:42,gestione_pratica:'ASK',tipo_ask:'<img src=x>',stato:'Da gestire',note_back_office:'</textarea><img src=x>'};
+  const f=fixture({records:[row],uploadResult:async()=>{throw new Error('upload fallito');}});await f.ready();f.context.rows=[row];f.run('dataGest=rows');await f.context.openGest(42);
+  assert.doesNotMatch(f.nodes.modalGestBody.innerHTML,/<img/);assert.match(f.nodes.modalGestBody.innerHTML,/&lt;img src=x&gt;/);
+  f.nodes.mNumAsk.value='123';f.run("gestFiles=[{name:'prova.pdf',size:20}]");await f.context.salvaGest();
+  assert.equal(f.calls.filter(c=>c.update).length,0);assert.equal(f.run('gestFiles.length'),1);assert.equal(f.nodes.modalGest.classList.contains('active'),true);
 });

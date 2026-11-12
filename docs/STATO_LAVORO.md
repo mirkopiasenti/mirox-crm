@@ -2,6 +2,12 @@
 
 Aggiornato:2026-11-12. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
+## Segnalazioni — percorsi Da gestire12/11, push autorizzato
+
+- Riquadro giallo con ASK - tipo, Angel o Gestione negozio. ASK mostra solo numero obbligatorio/testo non vuoto, note/allegati; salva azione ASK/tipo iniziale/In Corso/data apertura e apre Riepilogo. Angel mostra note/allegati e Confermo apertura Angel; salva azione Angel/In Corso/data apertura, apre Riepilogo con dettaglio dedicato Apertura Angel confermata.
+- Interna negozio e gestioni legacy conservano menu azione e regole precedenti. Navigazione dopo salvataggio riuscito, filtri Riepilogo ripuliti per mostrare la pratica. Doppio click e chiusura durante invio bloccati; errori upload/DB conservano dettaglio e dati per retry, nessun avanzamento su errore.
+- Build,26test mirati e suite734/734verdi; DOM Node reale dei3popup/ASK obbligatorio/retry/navigazione/Angel/interna verificato senza browser o dati reali. README/AGENTS/CLAUDE/databaseREADME aggiornati, nessuna migration o email. Push richiesto: prossimo passo pubblicare e verificare CI/HTTP; altri WIP esclusi.
+
 ## Segnalazioni — tipo ASK nelle liste12/11, push autorizzato
 
 - Colonna Gestione pratica di Da gestire e Riepilogo: ASK con sottotipo mostra `ASK - <tipo_ask>`, esempio ASK - Recesso. Storico senza tipo resta ASK, altre gestioni invariate, assente trattino. Funzione comune e risultato escaped, nessuna query o scrittura dati.

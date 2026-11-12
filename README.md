@@ -47,6 +47,8 @@ Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push
 
 ## Segnalazioni — aggiornamento11/11/2026
 
+Da gestire distingue i tre percorsi e mostra la scelta nel riquadro giallo: ASK richiede solo numero ASK, note e allegati facoltativi; Salva porta al Riepilogo. Angel offre note/allegati e Confermo apertura Angel, con passaggio al Riepilogo Angel e conferma dedicata. Interna negozio mantiene la scelta Azione Eseguita e le regole precedenti. ASK e Angel restano in corso dopo l’apertura; errori mantengono il dettaglio per riprovare.
+
 Inserimento aggiornato12/11: Gestione pratica offre Angel, ASK e Interna negozio. Scegliendo ASK compare il tipo obbligatorio: Recesso, Comportamento Scorretto, Normalizzazione, Reclami su Fattura, Convergenza, Subentro, CS o Altro. Recesso e Comportamento Scorretto mostrano i rispettivi PDF gia disponibili. La scelta viene salvata ed e visibile nel dettaglio della segnalazione.
 
 Le schede Da gestire e Riepilogo mostrano la colonna Gestione pratica dopo Cliente. Per ASK comprende anche il tipo scelto, ad esempio `ASK - Recesso`; lo storico senza tipo mostra ASK. Le altre gestioni conservano il nome e se assenti compare un trattino.

@@ -1,5 +1,7 @@
 # /database/ — Migrazioni SQL storiche
 
+Segnalazioni12/11, Da gestire: riusa i campi esistenti. ASK salva `azione_eseguita=ASK`, numero non vuoto, tipo iniziale e note; Angel salva `azione_eseguita=Angel`, note e valori ASK nulli. Entrambi impostano Segnalazione in Corso e data apertura per comparire nel Riepilogo. Interna negozio conserva i valori e stati precedenti. Nessuna nuova colonna, stato, migration, constraint, trigger o email; nessuna riscrittura dello storico.
+
 Segnalazioni12/11, classificazione all’inserimento: valori nuovi di `gestione_pratica` Angel/ASK/Interna negozio e sottotipo ASK nel campo gia esistente `tipo_ask` (null fuori ASK). Nessuna modifica schema, CHECK, RLS, RPC o bucket; i PDF restano negli stessi path `modelli/disdetta` e `modelli/comportamento-scorretto`. Nessuna riscrittura dei valori storici; le nuove scelte sono salvate solo all’invio di nuove segnalazioni.
 
 ## Assicurazione impianti Luce e Gas — 12/11/2026
