@@ -1,6 +1,15 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-11. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+Aggiornato:2026-11-12. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+
+## Luce e Gas — assicurazione impianti12/11 (push richiesto)
+
+- Popup dopo i dati contratto: «È stata attivata l’assicurazione impianti?», pulsanti Sì/No; chiusura non registra risposta. Energia Consumer/Business, scelta distinta per contratto, conservata in carrello/bozze/modifica e azzerata per il successivo/cambio categoria. Risposte tardive scartate, doppi click bloccati, vecchie bozze devono completare la scelta.
+- `vendita_contratti.assicurazione_impianti` boolean nullable senza default; CHECK non null solo Energia. Migrazione sorgente20261112214904 applicata/riletta production20261112215514.2860contratti preesistenti senza risposta e hash dati precedenti identico; RLS/grant/trigger/advisor invariati. Nessuna tabella CC modificata.
+- Backend richiede booleano contro catalogo prima delle scritture; carrello e dettaglio Verifica mostrano la risposta, quest’ultimo in sola lettura («Non indicata» per storico). Cambio categoria fuori Energia azzera il campo. Punteggi/gare/CSV/assicurazioni autonome invariati.
+- QA:7test nuovi;43test mirati, SQL PGlite0.5.13 isolato e `npm test`723/723 con build verdi. Suite fuori sandbox solo per server localhost dei test preesistenti. Nessuna pratica reale, email o browser usati. README/AGENTS/CLAUDE/databaseREADME aggiornati, WIP Gare/Seconda linea conservati. Modifiche parallele a Segnalazioni e relativi test comparse durante la sessione: non toccate, da escludere dal rilascio di questo intervento.
+- Push richiesto esplicitamente il12/11: rilascio limitato a impianti e relativa documentazione, WIP esclusi. Prossimo: verificare CI/pubblicazione e provare un inserimento in negozio.
+
 
 ## Segnalazioni — coda comune e rimozione email11/11
 

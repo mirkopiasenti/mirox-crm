@@ -250,6 +250,7 @@ function normalizeContractInput(contract, index) {
     //  - prezzo_fisso: prezzo di vendita per contratti Fisso (chiesto da popup UI)
     //  - reload_exchange + reload_forever: solo Mobile / Customer Base (migration 035)
     pod_pdr: cleanString(contract?.pod_pdr) || null,
+    assicurazione_impianti: contract?.assicurazione_impianti ?? null,
     numero_contratto_energia: cleanString(contract?.numero_contratto_energia) || null,
     prezzo_fisso: (() => {
       const v = contract?.prezzo_fisso;
@@ -447,6 +448,16 @@ function normalizeComparableText(value) {
     .replace(/[^a-zA-Z0-9]+/g, '')
     .toLowerCase()
     .trim();
+}
+
+function validateAssicurazioneImpianti(contract, categoryName) {
+  const value = contract.assicurazione_impianti;
+  if (normalizeCategoryName(categoryName) === 'energia') {
+    if (typeof value !== 'boolean') throw new Error('Indica se è stata attivata l’assicurazione impianti: Sì oppure No');
+    return value;
+  }
+  if (value != null) throw new Error('Assicurazione impianti ammessa solo per Luce e Gas');
+  return null;
 }
 
 function validateCategorySpecificRules({ contract, category, offer, index }) {
@@ -929,6 +940,8 @@ exports.handler = async (event) => {
         throw Object.assign(new Error('Codice cliente WindTre obbligatorio nel caricamento manuale'), { statusCode: 400 });
       }
       if (customerCode) customerCodes.push(customerCode);
+      try { contract.assicurazione_impianti = validateAssicurazioneImpianti(contrattiRaw[i], category.nome); }
+      catch (error) { error.statusCode = 400; throw error; }
       if (contract.codice_contratto) {
         if (seenPdaCodes.has(contract.codice_contratto)) throw Pda.duplicateError();
         seenPdaCodes.add(contract.codice_contratto);
@@ -1459,6 +1472,7 @@ exports.handler = async (event) => {
 
         // Campi extra Mirox (vedi migration 012_contratti_extra_fields.sql)
         pod_pdr: item.pod_pdr,
+        assicurazione_impianti: item.assicurazione_impianti,
         ...Object.fromEntries(Pda.FIELDS.map(k => [k, item[k]])),
         numero_contratto_energia: item.numero_contratto_energia,
         prezzo_fisso: item.prezzo_fisso,
@@ -1625,6 +1639,7 @@ exports.handler = async (event) => {
 };
 
 exports._test = {
+  validateAssicurazioneImpianti,
   validateCategorySpecificRules,
   authenticatedOperatorId,
   assertPersistedContractScores,

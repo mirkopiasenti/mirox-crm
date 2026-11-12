@@ -2,6 +2,18 @@
 
 Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della rete Konatech. Static frontend HTML/JS + Netlify Functions (Node) + Supabase Postgres.
 
+## Assicurazione impianti Luce e Gas — 12/11/2026
+
+Durante l’inserimento di ogni contratto Luce e Gas Consumer o Business, dopo i dati
+contratto un popup chiede «È stata attivata l’assicurazione impianti?» con Sì/No.
+La risposta resta nel carrello e nelle bozze ed è salvata nel campo booleano
+`vendita_contratti.assicurazione_impianti`. Chiudere il popup non registra un No.
+Il dettaglio di Verifica Contratti mostra la scelta in sola lettura; per lo storico
+senza risposta mostra «Non indicata». Punteggi e gare invariati.
+Migrazione database applicata e verificata; push richiesto il12/11, pubblicazione
+in preparazione.
+
+
 ## Monitor KPI negozio — aggiornato06/11/2026
 
 Correzione visiva 09/11. La pagina riserva il 3% dell’altezza in alto, il 2,5%

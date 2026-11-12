@@ -1,5 +1,24 @@
 # /database/ — Migrazioni SQL storiche
 
+## Assicurazione impianti Luce e Gas — 12/11/2026
+
+Sorgente `20261112214904_vendita_energia_assicurazione_impianti.sql` creata con CLI
+ufficiale; applicata/riletta production come `20261112215514`. Aggiunge soltanto
+`vendita_contratti.assicurazione_impianti` boolean nullable senza default e CHECK
+`vendita_assicurazione_impianti_energia`: valori non null solo su snapshot Energia.
+True=Sì, false=No, NULL=storico/non rilevata o altre categorie. Nessun backfill:
+i 2860 contratti esistenti conservano tutti i campi precedenti (hash identico).
+RLS, grant, trigger, advisor e tabelle CC invariati. Nessuna nuova RPC o policy.
+Il wizard richiede una scelta esplicita per ogni nuovo Energia Consumer/Business;
+backend verifica la categoria reale e il tipo booleano prima di ogni scrittura.
+Bozze precedenti senza scelta richiedono completamento dal carrello. Verifica
+Contratti espone il dato in sola lettura; l’eventuale cambio categoria fuori
+Energia lo azzera. Nessun nuovo conteggio/polizza/punteggio o modifica CSV.
+QA SQL isolata: `scripts/verifica-assicurazione-impianti-sql.js` con
+`MIROX_PGLITE_MODULE` puntato a PGlite0.5.13 temporaneo, senza dipendenze npm nuove
+nel progetto. Storico, Sì/No, Consumer/Business e CHECK/cambio categoria verificati.
+Suite completa723/723 verde; push richiesto il12/11, pubblicazione in preparazione.
+
 Segnalazioni11/11, colonna Gestione pratica: sola visualizzazione di `segnalazioni.gestione_pratica` nelle due liste Da gestire/Riepilogo. Nessuna migration, query aggiuntiva o scrittura dati.
 
 Segnalazioni11/11/2026: modifica della pagina senza migration o scritture dati. I nuovi record omettono `urgenza`, gia nullable e compatibile con il CHECK esistente; gli eventuali valori storici sono conservati. Escalation non e piu selezionabile e viene presentato come Segnalazione in Corso per compatibilita. Nome operatore dal profilo autenticato e ricerca CF/P.IVA tramite AnagraficaHelper (sola lettura anagrafica); le correzioni di ragione sociale/numero sono salvate soltanto nella segnalazione. Schema, RLS, RPC, trigger, bucket, profili e tabelle CC invariati. Ulteriore semplificazione11/11: nuove segnalazioni con stato `Da gestire`, nessun assegnatario; i record legacy In attesa Assegnazione/Assegnata sono letti nella coda comune senza UPDATE. ASK Manuale salva l’autore autenticato. Rimossi invii email dal modulo e bloccati lato API anche i client legacy (410), senza modificare o eliminare template/log a DB.

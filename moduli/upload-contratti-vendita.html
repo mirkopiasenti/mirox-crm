@@ -1517,6 +1517,7 @@ Reload Forever
  };
  const runtimeState = {
  isSubmitting: false,
+ assicurazioneImpianti: null,
  editingTempId: null,
  fileFallback: {},
  uploadBoxes: {},
@@ -3346,6 +3347,7 @@ Reload Forever
 
  function resetPendingPdaSelection() {
  runtimeState.pdaRevision++;
+ runtimeState.assicurazioneImpianti = null;
  renderPdaFields({});
  runtimeState.pendingPda = null;
  runtimeState.pendingTipoFirma = null;
@@ -3370,6 +3372,7 @@ Reload Forever
  }
 
  function resetContractFields() {
+ runtimeState.assicurazioneImpianti = null;
  renderPdaFields({});
  refs.offerta.value = '';
  refs.opzione.value = '';
@@ -3931,6 +3934,7 @@ Reload Forever
  //  - prezzo_fisso: valorizzato dal popup quando categoria = Fisso (vedi btnStep2Next)
  //  - reload_exchange + reload_forever: solo per Mobile / Customer Base (migration 035)
  pod_pdr: isCategory(categoriaNome, 'Energia') ? (refs.podPdr.value.trim() || null) : null,
+ assicurazione_impianti: isCategory(categoriaNome, 'Energia') ? runtimeState.assicurazioneImpianti : null,
  numero_contratto_energia: isCategory(categoriaNome, 'Energia')
    ? (refs.numeroContrattoEnergia.value.trim() || null)
    : null,
@@ -4070,6 +4074,7 @@ Reload Forever
 </div> ${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}
 <div class="details">
 <div><b>Offerta:</b> ${escapeHtml(item.offerta_nome || item.snapshot.offerta || '-')}</div>
+${isCategory(item.categoria_nome || item.snapshot.categoria, 'Energia') ? `<div><b>Assicurazione impianti:</b> ${item.assicurazione_impianti === true ? 'Sì' : item.assicurazione_impianti === false ? 'No' : 'Non indicata'}</div>` : ''}
 ${window.MiroxPdaUI.summary(item, { wizard: true })}
 <div><b>Opzione:</b> ${escapeHtml(item.opzione_nome || item.snapshot.opzione || '-')}</div>
 <div><b>Reload:</b> ${escapeHtml(item.reload_nome || item.snapshot.reload || '-')}</div>
@@ -4574,6 +4579,12 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  const draft = collectContractDraft(selectedContractFiles, {
  tempId: runtimeState.editingTempId || null
  });
+ if (isCategory(draft.categoria_nome, 'Energia') && typeof draft.assicurazione_impianti !== 'boolean') {
+ const risposta = await chiediAssicurazioneImpianti();
+ if (risposta === null || !stillCurrent()) return;
+ runtimeState.assicurazioneImpianti = risposta;
+ draft.assicurazione_impianti = risposta;
+ }
 
  if (isCurrentCategoriaPda() && !await checkPendingCode()) return;
  if (!stillCurrent()) return;
@@ -4625,6 +4636,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
 
  function loadCartContractInForm(item) {
+ runtimeState.assicurazioneImpianti = typeof item.assicurazione_impianti === 'boolean' ? item.assicurazione_impianti : null;
  // Carichiamo un contratto gia' salvato in carrello: NON riapplicare OCR sopra
  // le scelte dell'operatore (anche se lastOcrData e' ancora in runtimeState).
  if (typeof runtimeState !== 'undefined') runtimeState.ocrDeviceApplied = true;
@@ -4816,6 +4828,10 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  && !(item.files?.permesso_soggiorno || []).length) throw new Error(`Contratto ${index + 1}: permesso di soggiorno mancante. Modifica il contratto nel carrello e caricalo.`);
  });
  const contratti = state.cart.contratti.map((item, idx) => {
+ const isEnergia = String(item.categoria_nome || item.categoria_snapshot || item.snapshot?.categoria || '').trim().toLowerCase() === 'energia';
+ if (isEnergia && typeof item.assicurazione_impianti !== 'boolean') {
+ throw new Error(`Contratto ${idx + 1}: indica se è stata attivata l'assicurazione impianti. Modifica il contratto nel carrello.`);
+ }
  if (item.flags.sim_mnp_required && (!Array.isArray(item.files.sim_mnp) || item.files.sim_mnp.length === 0)) {
  throw new Error(`Contratto ${idx + 1}: fotocopia SIM mancante`);
  }
@@ -4848,6 +4864,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  // Campi nuovi propagati al backend (buildInvioPayload)
  pod_pdr: item.pod_pdr || null,
  numero_contratto_energia: item.numero_contratto_energia || null,
+ assicurazione_impianti: isEnergia ? item.assicurazione_impianti : null,
  prezzo_fisso: (item.prezzo_fisso !== null && item.prezzo_fisso !== undefined) ? item.prezzo_fisso : null,
  convergenza: item.convergenza || null,
 	 reload_exchange: item.reload_exchange === true,
@@ -5464,6 +5481,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  smartphone_reload_modalita: (refs.smartphoneReloadModalita && refs.smartphoneReloadModalita.value) || '',
  // Campi nuovi (draft autosave)
  pod_pdr: refs.podPdr ? (refs.podPdr.value || '') : '',
+ assicurazione_impianti: runtimeState.assicurazioneImpianti,
  numero_contratto_energia: refs.numeroContrattoEnergia ? (refs.numeroContrattoEnergia.value || '') : '',
  prezzo_fisso: (refs.numeroContrattoEnergia && refs.numeroContrattoEnergia.dataset.prezzoFisso) || '',
  convergenza: (refs.numeroContrattoEnergia && refs.numeroContrattoEnergia.dataset.convergenza) || '',
@@ -5598,6 +5616,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  if (refs.smartphoneReloadModalita) refs.smartphoneReloadModalita.value = contractForm.smartphone_reload_modalita || '';
  // Campi nuovi (restore)
  if (refs.podPdr) refs.podPdr.value = contractForm.pod_pdr || '';
+ runtimeState.assicurazioneImpianti = typeof contractForm.assicurazione_impianti === 'boolean' ? contractForm.assicurazione_impianti : null;
  if (refs.numeroContrattoEnergia) {
    refs.numeroContrattoEnergia.value = contractForm.numero_contratto_energia || '';
    if (contractForm.prezzo_fisso) refs.numeroContrattoEnergia.dataset.prezzoFisso = String(contractForm.prezzo_fisso);
@@ -6327,6 +6346,12 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
  collectContractDraft({}, { skipFileValidation: true });
  const categoriaNome = getCategoriaName();
+ if (isCategory(categoriaNome, 'Energia')) {
+ const risposta = await chiediAssicurazioneImpianti();
+ if (risposta === null || revision !== runtimeState.pdaRevision || category !== getCategoriaName()) return;
+ runtimeState.assicurazioneImpianti = risposta;
+ queueDraftSave();
+ }
  if (isCategory(categoriaNome, 'Fisso')) {
  if (!window.MiroxUI) {
  showUserError('Modulo UI Mirox non caricato. Ricarica la pagina.', 'Errore');
@@ -6357,6 +6382,23 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  showUserError(error.message, 'Verifica contratto');
  } finally { refs.btnContrattoNext.disabled = false; }
  });
+
+ // Chiudere il popup non equivale a rispondere No.
+ function chiediAssicurazioneImpianti() {
+ return new Promise((resolve) => {
+ let decided = false;
+ const m = window.MiroxUI._build({
+ title: 'Assicurazione impianti',
+ bodyHtml: '<p>È stata attivata l’assicurazione impianti?</p>',
+ footerHtml: '<button type="button" class="mx-btn mx-btn-secondary" data-impianti-no>No</button>' +
+ '<button type="button" class="mx-btn mx-btn-primary" data-impianti-si>Sì</button>',
+ onClose: () => { if (!decided) resolve(null); }
+ });
+ const scegli = (risposta) => { decided = true; m.close(); resolve(risposta); };
+ m.foot.querySelector('[data-impianti-si]').addEventListener('click', () => scegli(true));
+ m.foot.querySelector('[data-impianti-no]').addEventListener('click', () => scegli(false));
+ });
+ }
 
  // Popup custom per contratti Fisso: prezzo di vendita + convergenza (dropdown).
  // Ritorna { prezzo, convergenza } su conferma, null su annulla.

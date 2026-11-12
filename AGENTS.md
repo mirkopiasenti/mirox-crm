@@ -497,6 +497,7 @@ oggetti e nessun cambio globale. QA isolata50check con default production.
 - RPC chiave: `crm_can_access_page(text)`, `crm_normalize_*`, `crm_import_call_center_lead_outbound_batch`
 
 ### Vendita (focus di questo progetto)
+- Assicurazione impianti Luce e Gas (12/11/2026): `vendita_contratti.assicurazione_impianti` boolean nullable, true=Sì/false=No, NULL=non rilevata nello storico o categoria diversa da Energia. CHECK limita i valori non null a `categoria_snapshot='Energia'`. Migrazione sorgente `database/20261112214904_vendita_energia_assicurazione_impianti.sql`, applicata/riletta production come `20261112215514`; 2860 contratti preesistenti identici per impronta, RLS/grant/trigger e advisor invariati. Nessuna tabella condivisa CC modificata.
 - Verifica automatica **modalità collaudo**: `vendita_verifica_config`, `vendita_verifiche`, `vendita_verifica_csv`, `vendita_verifica_esecuzioni`, `vendita_verifica_documenti`, `vendita_verifica_notifiche`; RLS server-only e RPC nuove INVOKER. Migration20261027172616 applicata/riletta27/10, default collaudo. Nessuna tabella condivisa CC modificata.
 - `vendita_stati_verifica_manuale` — esiti manuali per contratto. Migrazione11/11 `20261111133257` aggiunge motivo e versione, lettura RLS Verifica Contratti e RPC INVOKER service-only con motivazione obbligatoria sul rosso e concorrenza sulla revisione.
 - `vendita_categorie` — Mobile, Fisso, Energia, Allarmi, Customer Base, Assicurazioni
@@ -656,6 +657,10 @@ Le pagine post-vendita dei punti 8–11 espongono `Vai alla pratica` per ogni ri
 ---
 
 ## Regole di business chiave
+
+### Assicurazione impianti Luce e Gas (12/11/2026)
+
+Inserimento Luce e Gas12/11/2026: dopo i dati contratto, popup MiroxUI con domanda «È stata attivata l’assicurazione impianti?» e soli pulsanti Sì/No. Chiusura senza risposta interrompe il passaggio, mai convertita in No. Scelta obbligatoria per ogni nuovo contratto Energia Consumer/Business, distinta nel carrello e conservata in modifica/bozza, azzerata per il contratto successivo o al cambio categoria; risposta tardiva scartata. Le vecchie bozze senza scelta devono completarla prima dell’invio. Backend valida il booleano contro la categoria riletta dal catalogo prima di scrivere anagrafica/pratica/file; nessuna deduzione OCR, attivazione assicurativa, nuova polizza, punteggio o regola gare. Carrello e dettaglio Verifica Contratti mostrano la risposta (quest’ultimo in sola lettura; storico «Non indicata»). Cambiare categoria fuori Energia azzera il campo per rispettare il CHECK. Push richiesto esplicitamente il12/11; pubblicazione in preparazione.
 
 ### Segnalazioni — aggiornamento11/11/2026
 

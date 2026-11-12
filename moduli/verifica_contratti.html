@@ -531,7 +531,7 @@ async function caricaContratti(statoControllo) {
         tipo_attivazione, apri_chiudi, intestatario, switch_sim, modalita_pagamento,
         dispositivo_associato, imei, fascia_prezzo, tipo_acquisto, finanziaria, kolme,
         smartphone_reload, smartphone_reload_modalita,
-        pod_pdr, numero_contratto_energia, ex_fornitore, prezzo_fisso, convergenza, reload_exchange, reload_forever,
+        pod_pdr, numero_contratto_energia, ex_fornitore, assicurazione_impianti, prezzo_fisso, convergenza, reload_exchange, reload_forever,
         codice_contratto, costo_offerta_mensile, portabilita, numero_telefono, numero_provvisorio, numero_mnp, operatore_provenienza, professional_cloud, professional_cloud_gestione,
         codice_rivenditore,
         punteggio_offerta, punteggio_opzione, punteggio_extra, punteggio_totale,
@@ -971,6 +971,10 @@ function apriPopupDettaglio(c, opts) {
           <label>POD / PDR contatore <span class="required vc-required-energia">*</span></label>
           <input type="text" id="vc_pod_pdr" maxlength="32" value="${escapeHtml(c.pod_pdr || '')}" ${ro} placeholder="Es. IT001E12345678">
         </div>
+        <div class="det-field" id="vc_field_assicurazione_impianti">
+          <label>Assicurazione impianti</label>
+          <input type="text" value="${c.assicurazione_impianti === true ? 'Sì' : c.assicurazione_impianti === false ? 'No' : 'Non indicata'}" readonly>
+        </div>
         <div class="det-field" id="vc_field_num_contratto_energia">
           <label>Numero Contratto Energia <span class="required">*</span> <small style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;">(obbligatorio per verificare)</small></label>
           <input type="text" id="vc_numero_contratto_energia" value="${escapeHtml(c.numero_contratto_energia || '')}" ${ro} placeholder="Inserisci il numero contratto">
@@ -1216,6 +1220,7 @@ function applyVisibilityRules() {
 
   // ---- Sezione Extra (campi specifici categoria) ----
   _show('vc_field_pod', isEnergia);
+  _show('vc_field_assicurazione_impianti', isEnergia);
   _show('vc_field_num_contratto_energia', isEnergia);
   _show('vc_field_ex_fornitore', isEnergia);
   _show('vc_field_prezzo_fisso', isFisso);
