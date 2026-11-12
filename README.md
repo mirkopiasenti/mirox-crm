@@ -49,7 +49,7 @@ Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push
 
 Inserimento aggiornato12/11: Gestione pratica offre Angel, ASK e Interna negozio. Scegliendo ASK compare il tipo obbligatorio: Recesso, Comportamento Scorretto, Normalizzazione, Reclami su Fattura, Convergenza, Subentro, CS o Altro. Recesso e Comportamento Scorretto mostrano i rispettivi PDF gia disponibili. La scelta viene salvata ed e visibile nel dettaglio della segnalazione.
 
-Le schede Da gestire e Riepilogo mostrano anche la colonna Gestione pratica, dopo Cliente, con la scelta salvata sulla segnalazione; se assente compare un trattino.
+Le schede Da gestire e Riepilogo mostrano la colonna Gestione pratica dopo Cliente. Per ASK comprende anche il tipo scelto, ad esempio `ASK - Recesso`; lo storico senza tipo mostra ASK. Le altre gestioni conservano il nome e se assenti compare un trattino.
 
 - Eliminata la distinzione Normale/Urgente in inserimento, elenchi, filtri e dettagli.
 - Nel Riepilogo restano Segnalazione in Corso e Chiuso; rimossa la scelta Escalation. Eliminata la scheda Da assegnare: le nuove richieste entrano direttamente in Da gestire, insieme a quelle gia in attesa di assegnazione o assegnate.

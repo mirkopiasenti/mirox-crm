@@ -21,7 +21,7 @@ QA SQL isolata: `scripts/verifica-assicurazione-impianti-sql.js` con
 nel progetto. Storico, Sì/No, Consumer/Business e CHECK/cambio categoria verificati.
 Suite completa723/723 verde; push richiesto il12/11, pubblicazione in preparazione.
 
-Segnalazioni11/11, colonna Gestione pratica: sola visualizzazione di `segnalazioni.gestione_pratica` nelle due liste Da gestire/Riepilogo. Nessuna migration, query aggiuntiva o scrittura dati.
+Segnalazioni12/11, colonna Gestione pratica: sola visualizzazione di `segnalazioni.gestione_pratica` e `tipo_ask` nelle liste Da gestire/Riepilogo. ASK con tipo mostra `ASK - <tipo_ask>`; senza tipo storico resta ASK. Nessuna migration, query aggiuntiva o scrittura dati.
 
 Segnalazioni11/11/2026: modifica della pagina senza migration o scritture dati. I nuovi record omettono `urgenza`, gia nullable e compatibile con il CHECK esistente; gli eventuali valori storici sono conservati. Escalation non e piu selezionabile e viene presentato come Segnalazione in Corso per compatibilita. Nome operatore dal profilo autenticato e ricerca CF/P.IVA tramite AnagraficaHelper (sola lettura anagrafica); le correzioni di ragione sociale/numero sono salvate soltanto nella segnalazione. Schema, RLS, RPC, trigger, bucket, profili e tabelle CC invariati. Ulteriore semplificazione11/11: nuove segnalazioni con stato `Da gestire`, nessun assegnatario; i record legacy In attesa Assegnazione/Assegnata sono letti nella coda comune senza UPDATE. ASK Manuale salva l’autore autenticato. Rimossi invii email dal modulo e bloccati lato API anche i client legacy (410), senza modificare o eliminare template/log a DB.
 

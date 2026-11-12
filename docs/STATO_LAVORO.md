@@ -2,6 +2,11 @@
 
 Aggiornato:2026-11-12. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
+## Segnalazioni — tipo ASK nelle liste12/11, push autorizzato
+
+- Colonna Gestione pratica di Da gestire e Riepilogo: ASK con sottotipo mostra `ASK - <tipo_ask>`, esempio ASK - Recesso. Storico senza tipo resta ASK, altre gestioni invariate, assente trattino. Funzione comune e risultato escaped, nessuna query o scrittura dati.
+- Build e20test mirati verdi; replay dei due renderer con Recesso/Comportamento Scorretto/tipo assente/Angel/dati escaped. README/AGENTS/CLAUDE/databaseREADME aggiornati. Push richiesto esplicitamente, prossimo passo verifica CI/HTTP dopo pubblicazione.
+
 ## Segnalazioni — nuovo inserimento ASK12/11, push autorizzato
 
 - Gestione pratica: Angel, ASK, Interna negozio. ASK abilita il secondo select obbligatorio con Recesso, Comportamento Scorretto, Normalizzazione, Reclami su Fattura, Convergenza, Subentro, CS, Altro. Sottotipo salvato in `tipo_ask`, null fuori ASK; cambio/reset pulisce i campi dipendenti.
