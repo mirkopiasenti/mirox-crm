@@ -2,7 +2,7 @@
 
 Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della rete Konatech. Static frontend HTML/JS + Netlify Functions (Node) + Supabase Postgres.
 
-## Codice cliente in Verifica Contratti —13/11/2026, pronto in locale
+## Codice cliente in Verifica Contratti —13/11/2026, pubblicato
 
 Nel dettaglio, Dati cliente mostra i codici cliente WindTre registrati per
 l’anagrafica, in sola lettura e con lettere, punti e zeri conservati. Nessun codice
@@ -12,7 +12,7 @@ Sul gruppo delle26pratiche In Attesa Mobile sono già stati rimossi22esiti verdi
 e4rossi per ripartire da In attesa. PDA controllate: nessuna delle tre opzioni
 Reload Exchange/Forever/Professional Cloud presente; aggiunti4codici esatti con
 punto senza eliminare quelli precedenti. Contratti e allegati invariati.
-Build e785/785test verdi. La visualizzazione UI richiede ancora la pubblicazione.
+Build e785/785test verdi. Pubblicato13/11 con `18d71f6`: CI43447547729 LinuxNode22/Windows verde,785test; Netlify6af7251873130dbaa4ce7858 online. Verificati6asset/HTML/script/stili/PrettyURL e action get_codici_cliente401 senza JWT. Nessuna nuova scrittura DB nel push.
 
 ## Reload Exchange e Forever nell’upload — 13/11/2026
 

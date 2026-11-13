@@ -16,8 +16,7 @@ in PGlite0.5.13. Esecuzione psql via pooler IPv4/TLS verify-full dopo conferma u
 e scadenze del connettore MCP. Manifest, SQL, PDF e prima/dopo soltanto in
 `.backup-private/mobile-in-attesa-20261113/` ignorata, senza dati cliente in Git.
 La nuova action di sola lettura get_codici_cliente usa il registro esistente e la
-ACL Verifica Contratti; nessun grant diretto al browser. Codice UI/API non ancora
-pubblicato, build e785/785test verdi.
+ACL Verifica Contratti; nessun grant diretto al browser. Codice UI/API pubblicato, build e785/785test verdi. Pubblicato13/11 con `18d71f6`: CI43447547729 LinuxNode22/Windows verde,785test; Netlify6af7251873130dbaa4ce7858 online. Verificati6asset/HTML/script/stili/PrettyURL e action get_codici_cliente401 senza JWT. Nessuna nuova scrittura DB nel push.
 
 ## Gestione Reload Forever —13/11/2026
 

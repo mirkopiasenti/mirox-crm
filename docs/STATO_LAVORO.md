@@ -2,12 +2,12 @@
 
 Aggiornato:2026-11-13. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Mobile In attesa / codici cliente —13/11, dati applicati e UI locale
+## Mobile In attesa / codici cliente —13/11, pubblicati
 
 - Perimetro26Mobile da_controllare, tutti con override (22Da confermare/4Da verificare). PDA scaricate/rilette25testuali+1scansione visiva:0Exchange/0Forever/0Cloud, gestioni non da inventare. Su conferma utente26override eliminati, ora tutti In attesa; contratti interi/allegati/registro precedente identici nella rilettura.
 - 4codici esatti con punto da PDA aggiunti senza rimuovere varianti precedenti (registro82→86). Nessun dato anagrafica/schema/RLS/CC, automatismo o invio cambiato. MCP execute_sql: conferme scadute3volte anche dopo OKutente; eseguito con psql/poolerIPv4/TLSverify-full, dopo testSQLPGlite preflight/reset/rollback. Prove/PDF/manifest/SQL sensibili soltanto `.backup-private/mobile-in-attesa-20261113/` ignorata.
 - Verifica Contratti: nuovo campo readonly Codice cliente WindTre nei Dati cliente, codici del registro anagrafico da APIget_codici_cliente/solaACLVerifica, errori/risposte malformate bloccanti, vuoto=Non disponibile; valori escaped e punti/lettere/zeri conservati. Build e785/785test in copia isolata verdi,40mirati verdi; README/AGENTS/CLAUDE/databaseREADME aggiornati.
-- Push UI/API richiesto13/11: preparazione del rilascio e verifica CI/Netlify/HTTP; reset e registro già live. Ultimo mainba1688f (Malpractis231faa7 online,781test; CI43416294398 verde). Nessuna nuova scrittura DB durante la pubblicazione.
+- Pubblicato13/11 con `18d71f6`: CI43447547729 LinuxNode22/Windows verde,785test; Netlify6af7251873130dbaa4ce7858 online. Verificati6asset/HTML/script/stili/PrettyURL e action get_codici_cliente401 senza JWT. Nessuna nuova scrittura DB nel push. Prossimo: ricaricare Verifica Contratti e aprire il dettaglio; nessun rilascio applicativo pendente. Resoconto HTTP in `.backup-private/release-codici-verifica-20261113/` ignorata.
 
 ## Compilatore Malpractis —13/11, scelta unica e storico pubblicati
 

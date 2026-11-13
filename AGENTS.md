@@ -137,8 +137,8 @@ anche nei Verificati, tutti i codici del registro anagrafico senza perdere punti
 lettere/zeri e con escape HTML. Lettura via nuova action `get_codici_cliente` su
 `gestisci-vendita-contratto`, ACL dedicata Verifica Contratti e service role;
 nessun grant browser al registro. Registro vuoto=Non disponibile, errore di lettura
-o risposta malformata blocca il dettaglio. UI/API pronti in locale, non pubblicati;
-785/785test e build verdi,40mirati e SQL PGlite con rollback verdi.
+o risposta malformata blocca il dettaglio. UI/API pubblicati;
+785/785test e build verdi,40mirati e SQL PGlite con rollback verdi. Pubblicato13/11 con `18d71f6`: CI43447547729 LinuxNode22/Windows verde,785test; Netlify6af7251873130dbaa4ce7858 online. Verificati6asset/HTML/script/stili/PrettyURL e action get_codici_cliente401 senza JWT. Nessuna nuova scrittura DB nel push.
 
 ## Gestione Reload Forever —13/11/2026, pubblicata
 
