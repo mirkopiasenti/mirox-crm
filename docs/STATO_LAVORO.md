@@ -7,13 +7,13 @@ Aggiornato:2026-11-13. Promemoria di ripresa, non autorizza ulteriori push o att
 - Pubblicati afaad3f (script gare/seconda linea già applicati),4599afd (Reload) e637643a (Malpractis/guide). CI43409260251 LinuxNode22 e Windows nativo verde; build e775/775 sulla copia esatta indice,566checkSQLpermessi e harness gare/info/seconda linea verdi. Nessuna nuova esecuzione degli script dati storici.
 - Netlify6af6e630ffdc19707b029587 online:12risorse/script/stili inline/PrettyURL identici alla build (sola normalizzazione link Netlify),4API401 senzaJWT. Nessun browser/provider AI/email/pratica reale. Catalogo Malpractis live20261113102548:19righe precedenti e9ACL identiche per hash; solo nuova pagina, abilitazioni operatori da Admin. Reload live20261113101528 già verificata, storico invariato. Prove HTTP/catalogo solo in `.backup-private/release-tutto-20261113/` ignorata.
 
-## Compilatore Malpractis —13/11, estensione pronta al push richiesto
+## Compilatore Malpractis —13/11, scelta unica e storico pubblicati
 
 - Correzione proprietario: scelta Nuova attivazione/Linea già attiva e una sola problematica dall’elenco radio della colonna; cambio linea pulisce la scelta. Server rifiuta zero/più motivi o motivi dell’altra colonna. Dati rivenditore, ricerca CRM e due caselle TIM indipendenti conservati.
 - Nuova scheda Storico Malpractis: data Rome/cliente/CF-PIVA/numero/linea, Visualizza PDF e Duplica dati. Copia snapshot solo dopo nuova ricerca e selezione stessa anagrafica; cliente diverso/vuoto senza dati vecchi. PDF privati, URL300s, storico senza snapshot/path nel listing, retry UUID/hash/autore senza duplicati; nessun invio.
 - Migration sorgente20261113111030 creata CLI, applicata/riletta production20261113111917 su richiesta esplicita di storico+push: malpractis_generati RLS/service-only SELECT-INSERT e bucket privato malpractis-files5MiB. Archivio0righe, grant browser assenti; fingerprint colonne esistenti/policy/bucket precedenti/profili e conteggi9534anagrafiche/55disdette identici. Nessuna modifica CC/anagrafica/ACL o backfill. Advisor errori/warning invariati; solo INFO RLS senza policy39vs38, voluto per registro server-only. Snapshot privato ignorato `.backup-private/malpractis-storico-20261113/`.
 - Build e781/781test verdi nella copia isolata;14test Malpractis (tutte13posizioni PDF, errori/retry/idempotenza/listing/duplica/DOM),14checkSQL isolati. PDF singolo verificato visivamente, nessun browser/provider/email/pratica reale. README/AGENTS/CLAUDE/databaseREADME/docsPermessi aggiornati.
-- Prossimo: commit/push di tutto autorizzato, CI/Netlify e verifica HTTP; poi ricaricare Dashboard/compilatore. Rilascio iniziale637643a/c457559 già online, nuova estensione non ancora pubblicata.
+- Estensione pubblicata13/11 con `231faa7`: CI43416294398 LinuxNode22/Windows verde,781test; Netlify6af6f284f1efdb59ac981d4d online. Verificati12asset/HTML/script/stili/PrettyURL e4API401 senza JWT. Prossimo: ricaricare Dashboard/compilatore e provare lo storico; nessun invio o pratica reale usati nei collaudi.
 
 ## Reload automatici e gestione Forever —13/11, pubblicati
 
