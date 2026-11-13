@@ -1,6 +1,14 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-12. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+Aggiornato:2026-11-13. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+
+## Codici cliente WindTre con punto —13/11, rilascio autorizzato
+
+- Validazione cliente separata da quella contratto: conserva punti/prefissi/zeri, accetta P2234324/235345/1.2343245/123.131243 in manuale/OCR/testo PDF/backend. Punto in qualunque posizione anche iniziale/finale/ripetuto (.123/123./1..23/..P123..); massimo80caratteri, primo alfanumerico o punto/almeno una cifra; spazi/maiuscole come prima.
+- CHECK del solo registro ampliato: sorgente20261113090317→production20261113090516 e successiva estensione punto iniziale sorgente20261113090800→production20261113090903, applicate/rilette;80righe identiche per impronta, PK/FK/RLS/grant invariati. Nessuna modifica alle tabelle anagrafica/CC o pratica reale.
+- Build e735/735test verdi;60mirati, PDF sintetico, wizard/restore/backend e SQL PGlite0.5.13 verdi. Suite fuori sandbox per serverlocalhost preesistenti. Advisor prima/dopo invariati (rilievi legacy estranei). README/AGENTS/CLAUDE/databaseREADME aggiornati; WIP preesistenti conservati. CLI migration new non utilizzabile per errore profilo; sorgente creata localmente e SQL applicato via MCP.
+- Push autorizzato13/11. Prossimo: completare push e verificare asset core/OCR, CI e Netlify.
+
 
 ## Segnalazioni — percorsi Da gestire12/11, push autorizzato
 

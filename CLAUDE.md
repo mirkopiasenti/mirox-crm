@@ -490,7 +490,18 @@ nessuna migration o riscrittura storica. Solo test interni/HTTP, senza browser.
 Codici cliente WindTre anagrafici (27/10): una anagrafica puo' avere piu' codici,
 conservati tutti senza sostituzione. Da PDA Mobile/Fisso/Customer Base si legge
 "Codice Cliente", distinto dal codice contratto; testo con prefissi e zeri
-iniziali, nessuna conversione numerica. Nuovo campo anagrafico nel wizard;
+iniziali, nessuna conversione numerica. Dal13/11 accetta e conserva anche i punti:
+P2234324, 235345, 1.2343245, 123.131243. Validazione cliente separata da quella
+contratto, condivisa fra manuale/OCR/testo PDF/backend; massimo80caratteri,
+primo alfanumerico o punto e almeno una cifra, lettere/cifre/punto/trattino/slash;
+punto ammesso in qualunque posizione anche ripetuto, conservato integralmente.
+Spazi rimossi e lettere maiuscole come prima. CHECK del solo registro adeguato
+con sorgente `database/20261113090317_codici_cliente_windtre_punti.sql`, applicata
+production `20261113090516`; successiva estensione punto iniziale sorgente
+`database/20261113090800_codici_cliente_windtre_punto_iniziale.sql`, production
+`20261113090903`:80righe identiche, RLS/grant invariati. Rilascio
+applicativo autorizzato13/11, build e735/735test verdi.
+Nuovo campo anagrafico nel wizard;
 manuale obbligatorio dopo il controllo duplicati e prima dello staging. AI lo
 compila dalla PDA; se assente/illeggibile/discordante chiede input, senza
 riutilizzare il codice di un'altra PDA. Ogni contratto del carrello conserva il

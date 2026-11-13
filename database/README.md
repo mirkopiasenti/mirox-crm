@@ -565,6 +565,20 @@ Non attivare il sistema: in collaudo restano esclusi approvazioni e invii.
 
 ## Codici cliente WindTre anagrafici (27/10/2026, migration applicata)
 
+Adeguamento13/11: `20261113090317_codici_cliente_windtre_punti.sql`, applicata
+production `20261113090516`, amplia solo il CHECK `codice_cliente` del registro
+`anagrafica_codici_cliente_windtre` per conservare i punti. Ammessi P2234324,
+235345, 1.2343245, 123.131243; massimo80caratteri, primo alfanumerico o punto e almeno
+una cifra, caratteri lettere/cifre/punto/trattino/slash. Punto in qualsiasi posizione,
+anche iniziale/finale/ripetuto: `.123`, `123.`, `1..23`, `..P123..`; estensione
+`20261113090800_codici_cliente_windtre_punto_iniziale.sql`, applicata production
+`20261113090903`, successiva alla precedente migration.80righe preesistenti
+identiche per impronta; PK/FK/RLS/grant e tabelle condivise anagrafica/CC invariati.
+Collaudo PGlite0.5.13 esteso in `scripts/verifica-codici-cliente-sql.js`: vecchio
+rifiuto riprodotto, migrazione conserva lo storico, insert/idempotenza dei quattro
+formati, zeri iniziali e punti distinti, input invalidi, FK e privilegi verificati.
+Rilascio validazione UI/OCR/backend autorizzato13/11, build e735/735test verdi.
+
 Codici cliente WindTre anagrafici (27/10): una anagrafica puo' avere piu' codici,
 conservati tutti senza sostituzione. Da PDA Mobile/Fisso/Customer Base si legge
 "Codice Cliente", distinto dal codice contratto; testo con prefissi e zeri

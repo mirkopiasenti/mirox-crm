@@ -487,7 +487,7 @@ oggetti e nessun cambio globale. QA isolata50check con default production.
 ### Anagrafica & Auth (condiviso)
 - `profili` — utenti CRM, `ruolo` IN ('admin','operatore'), `pagine_accessibili` jsonb per ACL Call Center, `alias_di` self-FK opzionale verso il profilo canonico. Il backfill alias usa `applica_alias_backfill_v2(uuid)` (migration `053`), SECURITY DEFINER con controllo `ruolo='admin'`; la v1 viene chiusa al client dalla migration post-deploy `054`.
 - `anagrafica` — cliente unificato, `cf_piva` UNIQUE, `cluster` operativo condiviso (`Consumer`/`Business`; i passaporti cluster vendita `Turista` vengono salvati qui come `Consumer`). Colonna `email` (text, NULL ammesso a livello DB; obbligatoria lato wizard solo per `Consumer`/`Business`). RPC `cerca_o_crea_anagrafica(p_..., p_email)` UPSERT. Migrations `057` + `059`: consolidate 8 duplicazioni certe da identificativi fiscali/import errati e dal doppione tecnico `TEST`/`test`, spostando tutte le FK e conservando ogni record eliminato in `vendita_log_modifiche`; le omonimie con CF/P.IVA validi distinti restano separate. Migration `070`: trigger `trg_anagrafica_normalizza_localita` su INSERT/UPDATE di Comune/Provincia, limitato a normalizzazione sintattica non bloccante (maiuscole, spazi, apostrofi, entità HTML), così resta compatibile con ogni sorgente legacy. Migration `071`: bonifica una tantum di 1.094 località deterministiche, elimina soltanto la riga isolata `ALTEDO` e conserva lo storico delle due anagrafiche con località non determinabile azzerando Comune/Provincia; le 119 sigle provinciali correnti in conflitto non vengono sovrascritte.
-- `anagrafica_codici_cliente_windtre` — piu codici testuali per anagrafica, PK (anagrafica_id,codice_cliente), RLS ON e registro append-only via backend. Migration `20261027220802` applicata; nessun backfill.
+- `anagrafica_codici_cliente_windtre` — piu codici testuali per anagrafica, PK (anagrafica_id,codice_cliente), RLS ON e registro append-only via backend. Migration `20261027220802` applicata; nessun backfill. CHECK ampliato ai punti con migration production `20261113090516` (sorgente `20261113090317_codici_cliente_windtre_punti.sql`), poi punto iniziale `20261113090903` (sorgente `20261113090800_codici_cliente_windtre_punto_iniziale.sql`);80righe/RLS/grant invariati.
 - `mirox_comuni_istat` — catalogo server-only di 7.893 comuni italiani aggiornato al 21/02/2026 (codice ISTAT, denominazione maiuscola, sigla/nome provincia e regione). RLS attiva, nessun grant `anon`/`authenticated`, indice prefix su `nome`; la Function lo usa per autocomplete e validazione senza esporlo al browser.
 - `mirox_anagrafica_localita_audit` — audit server-only creato dalla migration `071`: conserva prima/dopo delle 1.094 correzioni e lo snapshot completo recuperabile dell'unica anagrafica eliminata. RLS attiva senza policy browser; `service_role` dispone della sola lettura esplicita. Non ha FK verso `anagrafica`, così lo snapshot di una cancellazione resta disponibile.
 
@@ -972,7 +972,21 @@ Non attivare il sistema: in collaudo restano esclusi approvazioni e invii.
 Codici cliente WindTre anagrafici (27/10): una anagrafica puo' avere piu' codici,
 conservati tutti senza sostituzione. Da PDA Mobile/Fisso/Customer Base si legge
 "Codice Cliente", distinto dal codice contratto; testo con prefissi e zeri
-iniziali, nessuna conversione numerica. Nuovo campo anagrafico nel wizard;
+iniziali, nessuna conversione numerica. Dal13/11 sono ammessi anche i punti,
+conservati nel valore (esempi: P2234324, 235345, 1.2343245, 123.131243).
+Validazione cliente separata da quella contratto: lettere, cifre, punto,
+trattino e slash, massimo80caratteri, primo carattere alfanumerico o punto e almeno
+una cifra; punto ammesso in qualunque posizione anche ripetuto, senza rimuoverlo.
+Spazi rimossi e lettere maiuscole come prima. Regola comune a
+input manuale, OCR/testo PDF e backend; CHECK del solo registro adeguato.
+Migration production `20261113090516` applicata/riletta:80righe identiche per
+impronta e RLS/grant invariati; sorgente `database/20261113090317_codici_cliente_windtre_punti.sql`.
+Estensione punto iniziale production `20261113090903` applicata/riletta, sorgente
+`database/20261113090800_codici_cliente_windtre_punto_iniziale.sql`; stesso riscontro
+sulle80righe e permessi, test inclusi su punti iniziali/finali/ripetuti.
+Rilascio applicativo autorizzato13/11.735/735test e build
+verdi, collaudo SQL isolato e lettura PDF sintetico/restore/backend/wizard verificati.
+Nuovo campo anagrafico nel wizard;
 manuale obbligatorio dopo il controllo duplicati e prima dello staging. AI lo
 compila dalla PDA; se assente/illeggibile/discordante chiede input, senza
 riutilizzare il codice di un'altra PDA. Ogni contratto del carrello conserva il

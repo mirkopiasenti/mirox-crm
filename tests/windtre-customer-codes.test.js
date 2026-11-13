@@ -16,6 +16,19 @@ test('codici cliente testuali: prefisso e zeri, deduplica, input invalido senza 
  assert.throws(()=>Pda.customerCodes('P00001'),/Elenco/);assert.throws(()=>Pda.customerCodes(['<script>']),/non valido/);
  assert.equal(normalizeResult({codice_cliente:'P 00001',codice_contratto:'C00002'}).codice_cliente,'P00001');
 });
+test('codici cliente WindTre con punti conservati da validazione, OCR e lettura etichetta; codici contratto invariati',()=>{
+ for(const code of ['P2234324','235345','1.2343245','123.131243','001.0023','P1/02-3','.123','123.','1..23','..P123..']){
+  assert.equal(Pda.customerCode(code,true),code);
+  assert.equal(normalizeResult({codice_cliente:code}).codice_cliente,code);
+  assert.deepEqual(customerCodeFields(`Codice Cliente: ${code} Codice Contratto: C99999`),{codice_cliente:code});
+ }
+ assert.equal(Pda.customerCode(' 001 . 0023 '),'001.0023');
+ assert.deepEqual(Pda.customerCodes(['1.2343245','1 . 2343245','12343245']),['1.2343245','12343245']);
+ for(const code of ['.','...','P.FOREVER','1,234','1@234','1<script>','1'.repeat(81)])assert.equal(Pda.customerCode(code),null);
+ assert.equal(Pda.customerCode('1'.repeat(80)),'1'.repeat(80));
+ assert.equal(Pda.code('1.2343245'),null);
+ assert.equal(Pda.code('C00002'),'C00002');
+});
 test('etichetta cliente distinta da contratto/POS; assenza, discordanza e ripetizioni trattate senza inventare',()=>{
  assert.deepEqual(customerCodeFields('Codice Cliente: P 0001234567 Codice Contratto: 99999999'),{codice_cliente:'P0001234567'});
  assert.deepEqual(customerCodeFields('Numero Contratto: 1234\nCodice POS: 9001415852'),{});
@@ -26,8 +39,8 @@ test('etichetta cliente distinta da contratto/POS; assenza, discordanza e ripeti
 });
 test('PDF testuale: codice cliente letto anche senza sezioni SIM e senza confonderlo con codice contratto',async()=>{
  const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica),page=pdf.addPage();
- page.drawText('Codice Cliente: P 0000012345 Codice Contratto: C99999',{x:30,y:700,size:10,font});
- const data=await readPdfFields(await pdf.save());assert.equal(data.codice_cliente,'P0000012345');assert.equal(data.codice_contratto,undefined);
+ page.drawText('Codice Cliente: 001.2343245 Codice Contratto: C99999',{x:30,y:700,size:10,font});
+ const data=await readPdfFields(await pdf.save());assert.equal(data.codice_cliente,'001.2343245');assert.equal(data.codice_contratto,undefined);
 });
 test('append idempotente: piu codici, nessuna sostituzione o update e nessuna scrittura per lista vuota',async()=>{
  const stored=new Set(['P00001']);let calls=0;
@@ -53,8 +66,8 @@ for(const existing of [true,false])test(`garantisci anagrafica ${existing?'esist
  const db={from(table){if(table===TABLE)return {async upsert(rows){rows.forEach(r=>stored.add(r.codice_cliente));return {};}};
  assert.equal(table,'anagrafica');const q={select(){return q;},ilike(){return q;},async limit(){return {data:existing?[{id,...cliente}]:[]};},
  insert(row){anaWrites++;assert.equal(row.codici_cliente_windtre,undefined);assert.equal(row.codice_cliente,undefined);return q;},async single(){return {data:{id}};},update(){throw new Error('Nessun aggiornamento anagrafico previsto');}};return q;}};
- const handler=api(db),result=await handler({httpMethod:'POST',body:JSON.stringify({cliente:{...cliente,codici_cliente_windtre:['P00002','P00001']}})});
- assert.equal(result.statusCode,200);assert.equal(anaWrites,existing?0:1);assert.deepEqual([...stored].sort(),['P00001','P00002']);
+ const handler=api(db),result=await handler({httpMethod:'POST',body:JSON.stringify({cliente:{...cliente,codici_cliente_windtre:['1.2343245','123.131243','P00001']}})});
+ assert.equal(result.statusCode,200);assert.equal(anaWrites,existing?0:1);assert.deepEqual([...stored].sort(),['1.2343245','123.131243','P00001']);
 });
 test('codici anagrafici invalidi bloccano prima di qualsiasi scrittura',async()=>{
  const result=await api({from(){throw new Error('Non deve interrogare DB');}})({httpMethod:'POST',body:JSON.stringify({cliente:{codici_cliente_windtre:['<script>']}})});
@@ -66,8 +79,8 @@ test('codice cliente corrente sopravvive a correzione, restore e reset della ste
  const ctx={refs,document:{getElementById:()=>root},getCategoriaName:()=> 'Fisso',queueDraftSave(){},window:{MiroxPda:Pda,MiroxPdaUI:{formHtml:()=>'',bindForm(){},readForm:()=>({})}}};
  vm.runInNewContext(source.slice(a,b)+';this.render=renderPdaFields;this.read=readPdaFields;',ctx);
  ctx.render({codice_cliente:'P00001'});assert.equal(refs.codiceCliente.value,'P00001');
- refs.codiceCliente.value='P00002';ctx.render();const saved=ctx.read();assert.equal(saved.codice_cliente,'P00002');
- ctx.render(saved);assert.equal(ctx.read().codice_cliente,'P00002');ctx.render({});assert.equal(ctx.read().codice_cliente,null);
+ refs.codiceCliente.value='001.2343245';ctx.render();const saved=ctx.read();assert.equal(saved.codice_cliente,'001.2343245');
+ ctx.render(saved);assert.equal(ctx.read().codice_cliente,'001.2343245');ctx.render({});assert.equal(ctx.read().codice_cliente,null);
 });
 for(const [category,value] of [['Fisso',null],['Customer Base','<invalid>'],['Energia','P00001']])
 test(`create: ${category} respinge codice cliente ${value===null?'mancante':'non ammesso'} prima delle scritture`,async()=>{

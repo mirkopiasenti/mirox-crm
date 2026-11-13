@@ -430,9 +430,9 @@ test('payload server conserva i valori PDA nascosti senza inviare metadati UI',(
 });
 
 test('codice cliente AI acquisito da ogni PDA, senza modificare OTP della prima pratica',async()=>{
- for(const completed of [false,true]){
-  const ui=pdaWizardFixture({completed,customerCode:'P 0001234567'});await ui.run();
-  assert.equal(ui.form.codice_cliente,'P0001234567');assert.ok(!ui.calls.includes('ask-customer-code'));
+ for(const completed of [false,true])for(const code of ['P 0001234567','1.2343245','123.131243','.123','123.','..P123..']){
+  const ui=pdaWizardFixture({completed,customerCode:code});await ui.run();
+  assert.equal(ui.form.codice_cliente,code.replace(/\s/g,''));assert.ok(!ui.calls.includes('ask-customer-code'));
   if(completed)assert.equal(ui.contact,'3350000000');
  }
 });

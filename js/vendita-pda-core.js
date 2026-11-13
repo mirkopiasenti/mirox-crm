@@ -15,8 +15,8 @@
   }
   // Codice cliente e codice contratto sono identificativi distinti, entrambi testuali.
   function customerCode(value, required = false) {
-    const normalized = code(value);
-    const parsed = normalized && /\d/.test(normalized) ? normalized : null;
+    const normalized = typeof value === 'string' ? value.replace(/\s/g, '').toUpperCase() : '';
+    const parsed = /^[A-Z0-9.][A-Z0-9./-]{0,79}$/.test(normalized) && /\d/.test(normalized) ? normalized : null;
     if (required && !parsed) throw new Error('Codice cliente WindTre obbligatorio o non valido: compilalo nei dati anagrafici');
     return parsed;
   }
