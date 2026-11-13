@@ -62,7 +62,7 @@ Seconda linea Fisso31/10/2026: catalogo e storico a1,50 punti gara per richiesta
 
 ## Planning personale (rilascio29/10/2026)
 
-Gestione Reload Forever13/11/2026: Mobile/Customer Base con flag attiva apre popup Mantieni attiva/Richiedi disattivazione, senza dedurre la scelta dall’OCR. Modifiche di spunta/gestione confermate; chiusura senza risposta, bozze/carrello/restore e risposte tardive protetti. Visibile/editabile nel dettaglio Verifica Contratti. Nuova colonna `reload_forever_gestione` nullable; migration sorgente20261113100628/live20261113101528 applicata/riletta,2860contratti/RLS/grant/trigger/vincoli precedenti identici, advisor invariati. Nuovo upload richiede gestione con flag true, storico NULL senza backfill. Nessuna notifica/email nuova, disattivazione effettiva sul portale WindTre. Build e767/767test verdi, SQL PGlite verde; codice non ancora online. Regola completa in AGENTS.
+Gestione Reload Forever13/11/2026: Mobile/Customer Base con flag attiva apre popup Mantieni attiva/Richiedi disattivazione, senza dedurre la scelta dall’OCR. Modifiche di spunta/gestione confermate; chiusura senza risposta, bozze/carrello/restore e risposte tardive protetti. Visibile/editabile nel dettaglio Verifica Contratti. Nuova colonna `reload_forever_gestione` nullable; migration sorgente20261113100628/live20261113101528 applicata/riletta,2860contratti/RLS/grant/trigger/vincoli precedenti identici, advisor invariati. Nuovo upload richiede gestione con flag true, storico NULL senza backfill. Nessuna notifica/email nuova, disattivazione effettiva sul portale WindTre. Build e767/767test verdi, SQL PGlite verde; Pubblicato13/11 con `637643a`, CI `43409260251` Linux/Windows verde (775test) e Netlify `6af6e630ffdc19707b029587` online. Verifica HTTP di12risorse, script/stili inline, PrettyURL e4API401 senza JWT riuscita. Regola completa in AGENTS.
 
 Correzione sessione CC05/11/2026: `moduli/call-center/js/config.js` espone lo stesso client Supabase anche come `window.db`, richiesto da MiroxApi per leggere e rinnovare il JWT. Il solo `const db` lasciava le richieste degli slot senza Authorization, pur con disponibilita corretta nel DB. Riprodotto il difetto con configurazione/MiroxApi/client slot reali; regressione sulle tre pagine con sessione valida/scaduta,9–10chiusi e11aperto.649/649test verdi, nessun nuovo client/Auth, nessuna modifica a planning, flag, disponibilita SQL, schema, RPC, trigger o permessi. I componenti condivisi devono ricevere il client su window, senza duplicare la sessione.
 
@@ -1106,7 +1106,7 @@ richiede MiroxUI.confirm; durante attesa/annullamento resta il valore precedente
 Restore/carrello e nuove PDA non aprono conferme; risposte obsolete vengono
 scartate al cambio PDA/contratto/offerta/cluster/categoria/reset. La gestione
 Reload Forever estende il flusso a Verifica Contratti come descritto nella regola
-dedicata; Smartphone Reload, Exchange e notifiche restano separati. Pronto in locale.
+dedicata; Smartphone Reload, Exchange e notifiche restano separati. Pubblicato13/11 con `637643a`, CI `43409260251` Linux/Windows verde (775test) e Netlify `6af6e630ffdc19707b029587` online. Verifica HTTP di12risorse, script/stili inline, PrettyURL e4API401 senza JWT riuscita.
 
 
 ### Codice rivenditore (dal 2026-07-18, migration `050`)

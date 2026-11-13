@@ -2,22 +2,27 @@
 
 Aggiornato:2026-11-13. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Compilatore Malpractis —13/11, pronto in locale
+## Push di tutto —13/11, completato
+
+- Pubblicati afaad3f (script gare/seconda linea già applicati),4599afd (Reload) e637643a (Malpractis/guide). CI43409260251 LinuxNode22 e Windows nativo verde; build e775/775 sulla copia esatta indice,566checkSQLpermessi e harness gare/info/seconda linea verdi. Nessuna nuova esecuzione degli script dati storici.
+- Netlify6af6e630ffdc19707b029587 online:12risorse/script/stili inline/PrettyURL identici alla build (sola normalizzazione link Netlify),4API401 senzaJWT. Nessun browser/provider AI/email/pratica reale. Catalogo Malpractis live20261113102548:19righe precedenti e9ACL identiche per hash; solo nuova pagina, abilitazioni operatori da Admin. Reload live20261113101528 già verificata, storico invariato. Prove HTTP/catalogo solo in `.backup-private/release-tutto-20261113/` ignorata.
+
+## Compilatore Malpractis —13/11, pubblicato
 
 - Applicazioni → nuovo compilatore, stile Disdette, ricerca CRM obbligatoria prima del form; prefill modificabile di intestatario/CF-PIVA/cellulare/email. Manuale solo dopo ricerca riuscita vuota, errori e risposte obsolete bloccati, cambio cliente azzera modulo/download.
 - Domanda per ogni dato e casella pertinente; motivi Sì/No per nuova attivazione/linea attiva, due TIM distinti su conferma esplicita del proprietario. Appuntamenti facoltativi se non concordati, data Rome modificabile, firma manuale. KONA TECH/9001415852 fissi anche server-side; PDF originale ASK03/2020 preservato, testi fuori spazio rifiutati, niente archivio/invii.
 - Nuova API gestisci-malpractis con JWT/ACL fresche per ricerca/generazione. Catalogo locale20pagine; migration20261113101731 solo INSERT mirox_pagine, nessuna assegnazione implicita o modifica schema/CC/anagrafica/RLS/RPC. CLI new tentata, EPERM telemetria; SQL locale collaudato; applicata/riletta production20261113102548 su richiesta pushdi tutto,19righe catalogo precedenti e9ACL identiche per hash. Operatori da abilitare esplicitamente dopo rilascio; Admin ammessi.
-- Build e775/775test verdi in copia isolata (HTML scaricati privati esclusi; fuori sandbox solo HTTP/SMTP localhost preesistenti).22mirati e566check SQL isolati verdi; PDF nuovi/attivi e due TIM verificati visivamente. Nessun browser, servizio/dato reale o deploy per questo lavoro. README/AGENTS/CLAUDE/databaseREADME/docsPermessi aggiornati, WIP Reload/Gare/Seconda linea conservati.
-- Prossimo: pushdi tutto autorizzato13/11 in questa chat; catalogo già applicato. Verificare CI/Netlify/HTTP, poi abilitazioni da Admin e prova grafica del proprietario. Nessun dubbio pendente dopo chiarimento TIM.
+- Build e775/775test verdi in copia isolata (HTML scaricati privati esclusi; fuori sandbox solo HTTP/SMTP localhost preesistenti).22mirati e566check SQL isolati verdi; PDF nuovi/attivi e due TIM verificati visivamente. Nessun browser o dato cliente reale nel collaudo; pubblicazione verificata sopra. README/AGENTS/CLAUDE/databaseREADME/docsPermessi aggiornati, Reload/Gare/Seconda linea inclusi nel rilascio complessivo.
+- Prossimo: ricaricare Dashboard e abilitare gli operatori da Admin; prova grafica del proprietario. Nessun dubbio pendente dopo chiarimento TIM.
 
-## Reload automatici e gestione Forever —13/11, pronti in locale
+## Reload automatici e gestione Forever —13/11, pubblicati
 
 - Upload Mobile/Customer Base precompila Exchange/Forever da Opzioni/servizi della SIM contrattuale: riconosce Pack5G Reload exChange e Reload Forever Basic, separati da Smartphone Reload. Presenza da testo; assenza richiede accordo AI, incerto senza spuntare. Ogni modifica manuale delle due spunte richiede conferma.
 - Conferma proprietario: anche per Forever popup Mantieni attiva/Richiedi disattivazione, scelta per contratto in bozze/carrello e dettaglio Verifica Contratti (editabile). Chiusura non inventa gestione; nuovo upload la richiede se attiva. Cambi di gestione confermati, reset/risposte tardive/doppi cambi protetti. Nessuna email/notifica aggiunta; disattivazione effettiva sul portale WindTre.
 - `reload_forever_gestione` text nullable, CHECK su valori/scope/coerenza, nessun default/backfill; storico/client precedenti compatibili. Sorgente20261113100628 creata CLI, live20261113101528 applicata/riletta:2860contratti/RLS/grant/trigger/vincoli preesistenti identici per hash, advisor invariati. Confronti privati in `.backup-private/reload-forever-gestione-20261113/` ignorata.
 - Build e767/767test verdi in copia isolata dei sorgenti (escluso HTML di backup privato con link relativi; fuori sandbox soltanto per server HTTP/SMTP localhost dei test).98mirati e SQL PGlite0.5.13 verdi: popup/click/annulla/stale/restore/scope/API prima delle scritture/payload/Verifica. Nessun browser/provider AI/email o pratica reale. README/AGENTS/CLAUDE/databaseREADME aggiornati; altri WIP conservati.
 - PDF Exchange30/07 e Forever Basic30/10 già verificati visivamente; parser locale conferma true/false e false/true. PDF/riferimenti solo nelle cartelle ignorate `.backup-private/ricerca-reload-{exchange,forever}-20261113/`.
-- Prossimo: pushdi tutto autorizzato13/11; preparazione commit con Malpractis e scriptSQL. Verificare CI/Netlify/asset/inline/API; database già pronto, codice non ancora online.
+- Prossimo: ricaricare Upload e Verifica Contratti; nessun rilascio pendente.
 
 ## Codici cliente WindTre con punto —13/11, pubblicati
 

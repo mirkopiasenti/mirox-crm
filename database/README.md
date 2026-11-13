@@ -14,7 +14,7 @@ disattivazione eseguita. Nessuna nuova email/notifica o cambio a Smartphone Relo
 advisor prima/dopo invariati. Controlli privati in
 `.backup-private/reload-forever-gestione-20261113/verifica-migrazione.json` ignorata.
 QA PostgreSQL PGlite0.5.13: `scripts/verifica-reload-forever-sql.js`; build e767/767test
-verdi. Codice applicativo pronto in locale, non ancora pubblicato.
+verdi. Pubblicato13/11 con `637643a`, CI `43409260251` Linux/Windows verde (775test) e Netlify `6af6e630ffdc19707b029587` online. Verifica HTTP di12risorse, script/stili inline, PrettyURL e4API401 senza JWT riuscita.
 
 Segnalazioni12/11, Da gestire: riusa i campi esistenti. ASK salva `azione_eseguita=ASK`, numero non vuoto, tipo iniziale e note; Angel salva `azione_eseguita=Angel`, note e valori ASK nulli. Entrambi impostano Segnalazione in Corso e data apertura per comparire nel Riepilogo. Interna negozio conserva i valori e stati precedenti. Nessuna nuova colonna, stato, migration, constraint, trigger o email; nessuna riscrittura dello storico.
 
@@ -316,7 +316,7 @@ Debug29/10: migration invariata, ricollaudata isolata; corrette UI e PDF, inclus
 la conservazione del documento/versione CAS dopo caricamento mensile fallito.
 Nessun nuovo DDL o applicazione production per il planning.
 
-## Compilatore Malpractis — catalogo locale 13/11/2026
+## Compilatore Malpractis — catalogo applicato13/11/2026
 
 `20261113101731_compilatore_malpractis.sql`, applicata/riletta production13/11 come `20261113102548`: INSERT idempotente della sola pagina `compilatore_malpractis` in `mirox_pagine` (catalogo da19 a20). Nessun UPDATE ai permessi utenti o seed automatico, nessuna modifica a dati anagrafica, CC, RLS, trigger, RPC, bucket o schema. Un record discordante causa rollback. Admin sempre ammessi; abilitazioni operatori esplicite dal pannello esistente. Applicata prima del codice compatibile, su richiesta di push di tutto;19righe catalogo precedenti e9ACL identiche per hash. La generazione PDF è senza archivio e non richiede tabelle o bucket nuovi.
 

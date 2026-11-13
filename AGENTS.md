@@ -107,15 +107,15 @@ L'utente può chiedere in qualsiasi momento cosa è stato fatto in una sessione:
 
 ---
 
-## Compilatore Malpractis —13/11/2026, pronto in locale
+## Compilatore Malpractis —13/11/2026, pubblicato
 
 Applicazioni → `moduli/compilatore_malpractis.html`, stile Disdette, ricerca CRM obbligatoria prima dei dati. Prefill modificabile dei soli intestatario/CF-PIVA/cellulare/email disponibili; manuale solo dopo ricerca riuscita vuota. Errori bloccanti, risposte obsolete scartate, cambio anagrafica azzera dati/download. Una domanda per campo e per ogni casella pertinente; i due TIM/Telecom Italia sono distinti per conferma esplicita del proprietario. Domande per stato linea, motivi Sì/No con almeno uno positivo, operatore, conoscenza WINDTRE (Sì/No/Non noto), descrizione, appuntamenti e data. Soli appuntamenti facoltativi se non concordati, data corrente Rome modificabile, firma manuale e identità da allegare all’invio.
 
 `js/malpractis-core.js` condivide domande/validazione browser-server; pagina in `js/compilatore-malpractis.js` e `css/compilatore-malpractis.css`. `gestisci-malpractis.js` GET ricerca limitata senza scritture in anagrafica, POST genera PDF originale ASK03/2020 da `_templates/malpractis/` tramite `_lib/pdf-malpractis.js`; KONA TECH/9001415852 fissi server-side. PDF solo download in memoria/no-store, nessun archivio/Storage/email/invio ASK, firma vuota. Overflow rifiutato senza tagliare testo. `requireAuth` con endpoint censito e ACL fresche prima di ricerca/generazione; nessuna nuova dipendenza/env/cron. Il template va incluso in `netlify.toml`.
 
-Catalogo locale20pagine: migration `20261113101731_compilatore_malpractis.sql` aggiunge soltanto `mirox_pagine.compilatore_malpractis`, idempotente e bloccante su conflitto. Nessun seed/UPDATE ACL, storico, policy, RPC o tabelle CC/anagrafica. Admin ammessi, operatori solo dopo assegnazione esplicita da Admin. Migration applicata/riletta production13/11 come20261113102548 su richiesta di push di tutto:19righe catalogo precedenti e9ACL identiche per hash, nuova pagina corretta. Pubblicazione autorizzata in preparazione.
+Catalogo locale20pagine: migration `20261113101731_compilatore_malpractis.sql` aggiunge soltanto `mirox_pagine.compilatore_malpractis`, idempotente e bloccante su conflitto. Nessun seed/UPDATE ACL, storico, policy, RPC o tabelle CC/anagrafica. Admin ammessi, operatori solo dopo assegnazione esplicita da Admin. Migration applicata/riletta production13/11 come20261113102548 su richiesta di push di tutto:19righe catalogo precedenti e9ACL identiche per hash, nuova pagina corretta. Pubblicato13/11 con `637643a`, CI `43409260251` Linux/Windows verde (775test) e Netlify `6af6e630ffdc19707b029587` online. Verifica HTTP di12risorse, script/stili inline, PrettyURL e4API401 senza JWT riuscita.
 
-## Gestione Reload Forever —13/11/2026, pronta in locale
+## Gestione Reload Forever —13/11/2026, pubblicata
 
 Mobile/Customer Base: Reload Forever presente nella PDA apre la scelta Mantieni
 attiva / Richiedi disattivazione. Presenza e intenzione sono dati distinti;
@@ -132,7 +132,7 @@ Smartphone Reload o Reload Exchange. Migration sorgente20261113100628 applicata
 production20261113101528:2860righe preesistenti/RLS/grant/trigger/vincoli
 precedenti identici per impronta e advisor invariati. Build e767/767test verdi
 in copia isolata; SQL PGlite0.5.13 verde. Nessun browser/provider AI/email o
-pratica reale. Applicativo non ancora pubblicato.
+pratica reale. Pubblicato13/11 con `637643a`, CI `43409260251` Linux/Windows verde (775test) e Netlify `6af6e630ffdc19707b029587` online. Verifica HTTP di12risorse, script/stili inline, PrettyURL e4API401 senza JWT riuscita.
 
 ## Documento di riconoscimento nell’upload (09/11/2026)
 
@@ -1265,7 +1265,7 @@ richiede MiroxUI.confirm; durante attesa/annullamento resta il valore precedente
 Restore/carrello e nuove PDA non aprono conferme; risposte obsolete vengono
 scartate al cambio PDA/contratto/offerta/cluster/categoria/reset. La gestione
 Reload Forever estende il flusso a Verifica Contratti come descritto nella regola
-dedicata; Smartphone Reload, Exchange e notifiche restano separati. Pronto in locale.
+dedicata; Smartphone Reload, Exchange e notifiche restano separati. Pubblicato13/11 con `637643a`, CI `43409260251` Linux/Windows verde (775test) e Netlify `6af6e630ffdc19707b029587` online. Verifica HTTP di12risorse, script/stili inline, PrettyURL e4API401 senza JWT riuscita.
 
 - **Smartphone Reload** (solo se `dispositivo_associato=true`, migration `035`): risposta alla riga "È stata richiesta l'attivazione contestuale dell'opzione SMARTPHONE RELOAD SI [X] NO [X]" del PDA WindTre. `smartphone_reload` boolean NULL (true=Si, false=No, NULL=non specificato). Auto-compilato dall'OCR. Se `smartphone_reload=true` allora `smartphone_reload_modalita` text NOT NULL CHECK IN ('Mantenere attivo','Disattivazione cliente') — **manuale operatore** (non estraibile dal PDA). CHECK DB di coerenza: modalita IS NULL ⇔ smartphone_reload IS NOT TRUE.
 

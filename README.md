@@ -12,8 +12,7 @@ bozze/carrello e mostrata/modificata nel dettaglio di Verifica Contratti. Chiude
 il popup non assegna una scelta; il nuovo upload richiede la gestione se attiva.
 La disattivazione effettiva resta sul portale WindTre. Smartphone Reload e relative
 notifiche restano separati; nessun invio aggiunto. Nuova colonna nullable già
-applicata/riletta, storico invariato. Build e767/767test verdi; codice pronto in
-locale, da pubblicare su richiesta.
+applicata/riletta, storico invariato. Pubblicato13/11 con `637643a`, CI `43409260251` Linux/Windows verde (775test) e Netlify `6af6e630ffdc19707b029587` online. Verifica HTTP di12risorse, script/stili inline, PrettyURL e4API401 senza JWT riuscita.
 
 ## Assicurazione impianti Luce e Gas — 12/11/2026
 
@@ -690,13 +689,13 @@ Lo storico mostra tutte le disdette generate: nome, cognome e codice fiscale per
 
 Il PDF archiviato è accessibile solo tramite signed URL di 5 minuti restituito da `gestisci-disdette`. La migration additiva `database/063_compilatore_disdette.sql` crea la tabella server-only `disdette_generate` e il bucket privato `disdette-files`; `database/064_disdette_duplica_ricerca.sql` aggiunge numero disdetto e snapshot JSON server-only. Entrambe risultano applicate in produzione.
 
-### Compilatore Malpractis — pronto in locale 13/11/2026
+### Compilatore Malpractis — pubblicato13/11/2026
 
 Da Applicazioni, `moduli/compilatore_malpractis.html` apre prima la ricerca CRM per nome, cognome, CF, ragione sociale o P.IVA. La selezione precompila solo intestatario, CF/P.IVA, cellulare ed e-mail disponibili, tutti modificabili. Ricerca riuscita senza risultati abilita il modulo manuale; errori e risposte obsolete non consentono di saltare la ricerca. Cambia anagrafica azzera modulo e download.
 
 Stile coerente con Disdette e una domanda per ogni dato: dati personali/contratto/documento, tipo di segnalazione, nuova attivazione o linea attiva, singole problematiche con risposta Sì/No, Open Fiber o due caselle TIM indipendenti (conferma del proprietario), conoscenza del cliente WINDTRE, descrizione, appuntamenti e data. Tutti i dati pertinenti sono obbligatori salvo i due appuntamenti, compilabili se concordati. Data odierna Europe/Rome modificabile. Firma manuale; copia identità da allegare all’invio da parte dell’operatore.
 
-`gestisci-malpractis` verifica JWT e ACL fresche, sovrappone i dati al PDF originale fornito tramite `pdf-lib` e restituisce il PDF scaricabile in memoria, senza storico, Storage, email o invio ASK. KONA TECH e 9001415852 sono fissi nel backend. Validazione condivisa; testi che non rientrano vengono rifiutati senza troncamenti. Migration `database/20261113101731_compilatore_malpractis.sql` applicata/riletta production come `20261113102548`: aggiunge solo la ventesima pagina al catalogo, senza abilitare operatori;19righe catalogo precedenti e9ACL identiche per hash. Admin ammessi, operatori da abilitare esplicitamente in Permessi pagine. Push di tutto autorizzato il13/11; pubblicazione in preparazione.
+`gestisci-malpractis` verifica JWT e ACL fresche, sovrappone i dati al PDF originale fornito tramite `pdf-lib` e restituisce il PDF scaricabile in memoria, senza storico, Storage, email o invio ASK. KONA TECH e 9001415852 sono fissi nel backend. Validazione condivisa; testi che non rientrano vengono rifiutati senza troncamenti. Migration `database/20261113101731_compilatore_malpractis.sql` applicata/riletta production come `20261113102548`: aggiunge solo la ventesima pagina al catalogo, senza abilitare operatori;19righe catalogo precedenti e9ACL identiche per hash. Admin ammessi, operatori da abilitare esplicitamente in Permessi pagine. Pubblicato13/11 con `637643a`, CI `43409260251` Linux/Windows verde (775test) e Netlify `6af6e630ffdc19707b029587` online. Verifica HTTP di12risorse, script/stili inline, PrettyURL e4API401 senza JWT riuscita.
 
 ### Compilatore Subentri
 
