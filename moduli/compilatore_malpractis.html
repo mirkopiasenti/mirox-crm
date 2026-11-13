@@ -16,7 +16,9 @@
 </head>
 <body>
   <header class="page-header"><div><h1>Compilatore Malpractis</h1><p>Compila il modulo di segnalazione WINDTRE.</p><a href="../dashboard.html" class="btn-back">Torna alla dashboard</a></div></header>
+  <nav class="nav-tabs" aria-label="Sezioni Malpractis"><button type="button" class="nav-tab active" id="tabCompiler">Compila segnalazione</button><button type="button" class="nav-tab" id="tabHistory">Storico Malpractis</button></nav>
   <main class="page-shell">
+    <div id="compilerPanel">
     <section class="customer-search-card" id="searchCard">
       <h2>Richiama un’anagrafica dal CRM</h2>
       <p>Cerca per nome, cognome, codice fiscale, ragione sociale o partita IVA. Se non ci sono risultati, potrai compilare i dati manualmente.</p>
@@ -34,7 +36,8 @@
         <div class="dealer-note">Rivenditore: <strong>KONA TECH</strong> · Codice rivenditore: <strong>9001415852</strong></div>
         <fieldset class="form-section"><legend>Dati personali e contratto</legend><div class="form-grid" id="customerFields"></div></fieldset>
         <fieldset class="form-section"><legend>Segnalazione</legend><div class="form-grid" id="reportFields"></div></fieldset>
-        <fieldset class="form-section"><legend>Problematiche riscontrate</legend><p>Rispondi a ogni domanda. Puoi indicare più problematiche.</p><div class="form-grid" id="reasonFields"></div></fieldset>
+        <fieldset class="form-section" id="reasonSection" hidden><legend id="reasonLegend">Problematica riscontrata</legend><p>Scegli una sola voce dell’elenco.</p><div class="reason-list" id="reasonFields"></div></fieldset>
+        <fieldset class="form-section" id="operatorSection" hidden><legend>Operatore coinvolto</legend><div class="form-grid" id="operatorFields"></div></fieldset>
         <fieldset class="form-section"><legend>Descrizione e appuntamenti</legend>
           <div class="form-grid">
             <div class="field full"><label for="descrizione">Come descrivi nel dettaglio la segnalazione?</label><textarea id="descrizione" name="descrizione" rows="5" maxlength="1200" required></textarea><small>Il testo deve rientrare nello spazio del modulo originale. Per “Altro”, specifica qui il problema.</small></div>
@@ -47,6 +50,11 @@
         <p id="generateState" role="status" aria-live="polite"></p>
         <div class="form-actions"><button class="btn btn-primary" type="submit" id="generateButton">Genera PDF</button><a class="btn btn-primary" id="downloadPdf" hidden>Scarica PDF</a></div>
       </form>
+    </section>
+    </div>
+    <section class="form-card" id="historyPanel" hidden>
+      <div class="form-card-head"><div><h2>Storico Malpractis</h2><p>Segnalazioni generate e archiviate nel CRM.</p></div><button class="change-customer" type="button" id="refreshHistory">Aggiorna</button></div>
+      <div class="form-body"><p id="historyState" role="status" aria-live="polite"></p><div class="history-table-wrap"><table><thead><tr><th>Data</th><th>Cliente</th><th>CF / P.IVA</th><th>Numero fisso</th><th>Linea</th><th>Azioni</th></tr></thead><tbody id="historyRows"></tbody></table></div><button class="change-customer" id="loadMoreHistory" type="button" hidden>Carica altri</button></div>
     </section>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>

@@ -29,6 +29,14 @@ h2 { margin: 0; font-size: 18px; }
 .field label { display: block; margin-bottom: 7px; font-size: 13px; }
 .field input, .field select, .field textarea { width: 100%; margin: 0; }
 .field textarea { resize: vertical; font: inherit; }
+.reason-list { display: grid; gap: 10px; }
+.reason-choice { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border: 1px solid var(--mx-border); border-radius: 10px; font-size: 13px; cursor: pointer; }
+.reason-choice:hover, .reason-choice:has(input:checked) { border-color: var(--mx-primary); background: var(--mx-primary-bg); }
+.reason-choice input { flex: 0 0 auto; width: auto !important; margin: 2px 0 0; accent-color: var(--mx-primary); }
+.history-table-wrap { overflow-x: auto; }
+.history-table-wrap table { width: 100%; border-collapse: collapse; }
+.history-table-wrap th, .history-table-wrap td { padding: 12px 10px; text-align: left; border-bottom: 1px solid var(--mx-border-light); font-size: 13px; }
+.history-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .signature-note { padding: 12px 14px; border-radius: 10px; background: var(--mx-info-bg); font-size: 12px; line-height: 1.5; }
 .form-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: flex-end; padding-top: 16px; }
 .form-actions .btn { width: auto !important; min-width: 180px; }

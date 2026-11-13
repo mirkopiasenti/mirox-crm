@@ -64,9 +64,10 @@
     data.stato_linea = choice(payload.stato_linea, ['nuova', 'attiva'], 'Stato della linea');
     data.documento_tipo = choice(payload.documento_tipo, ['ci', 'patente', 'passaporto', 'altro'], 'Tipo documento');
     data.motivi = {};
+    if (reasons.some(r => r.group !== data.stato_linea && payload.motivi?.[r.key] === 'si')) throw new Error('Motivo non valido per lo stato della linea');
     for (const r of reasons) data.motivi[r.key] = r.group === data.stato_linea
       ? choice(payload.motivi?.[r.key], ['si', 'no'], r.label) : 'no';
-    if (!Object.values(data.motivi).includes('si')) throw new Error('Indica almeno un motivo della segnalazione');
+    if (Object.values(data.motivi).filter(value => value === 'si').length !== 1) throw new Error('Scegli un solo motivo della segnalazione');
     data.open_fiber = data.stato_linea === 'nuova' ? choice(payload.open_fiber, ['si', 'no'], 'Operatore Open Fiber') : 'no';
     data.tim_prima = data.stato_linea === 'attiva' ? choice(payload.tim_prima, ['si', 'no'], 'Operatore TIM/Telecom Italia, prima casella') : 'no';
     data.tim_seconda = data.stato_linea === 'attiva' ? choice(payload.tim_seconda, ['si', 'no'], 'Operatore TIM/Telecom Italia, seconda casella') : 'no';

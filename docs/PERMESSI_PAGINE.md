@@ -32,7 +32,7 @@ e paginazione oltre 500 utenti.
 
 ## Estensione locale Malpractis —13/11/2026
 
-Catalogo corrente nel codice:20pagine (6Vendita,11Post-Vendita,3Applicazioni), con `compilatore_malpractis`. Migration `database/20261113101731_compilatore_malpractis.sql` applicata/riletta prima del codice compatibile come `20261113102548`: solo nuova riga catalogo, nessuna assegnazione implicita o modifica agli accessi preesistenti. `gestisci-malpractis` richiede la nuova ACL sia per cercare sia per generare. Admin ammessi, operatori da abilitare esplicitamente. I conteggi19 e il seed riportati sotto descrivono il rilascio originale del27/10. Collaudo isolato aggiornato:566verifiche, retry e conservazione integrale ACL/policy/catalogo precedente.
+Catalogo corrente nel codice:20pagine (6Vendita,11Post-Vendita,3Applicazioni), con `compilatore_malpractis`. Migration `database/20261113101731_compilatore_malpractis.sql` applicata/riletta prima del codice compatibile come `20261113102548`: solo nuova riga catalogo, nessuna assegnazione implicita o modifica agli accessi preesistenti. `gestisci-malpractis` richiede la nuova ACL per cercare, generare/archiviare, consultare storico, visualizzare PDF e duplicare dati. Admin ammessi, operatori da abilitare esplicitamente. I conteggi19 e il seed riportati sotto descrivono il rilascio originale del27/10. Collaudo isolato aggiornato:566verifiche, retry e conservazione integrale ACL/policy/catalogo precedente.
 
 ## Utilizzo
 
