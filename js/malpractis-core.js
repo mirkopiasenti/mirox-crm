@@ -5,7 +5,7 @@
   else root.MalpractisCore = api;
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
-  const dealer = Object.freeze({ ragione_sociale: 'KONA TECH', codice: '9001415852' });
+  const dealer = Object.freeze({ ragione_sociale: 'KONA TECH SRL', codice: '9001415852' });
   const reasons = [
     ['mai_contattato', 'nuova', 'Il cliente non è mai stato contattato per l’appuntamento?', 52.5, 314.2],
     ['tecnico_assente', 'nuova', 'Il tecnico non si è presentato all’appuntamento?', 52.5, 338.3],

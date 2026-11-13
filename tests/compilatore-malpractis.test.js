@@ -38,7 +38,7 @@ function archiveFixture() {
 }
 test('ogni campo e scelta pertinente è validato; dati fissi indipendenti dal payload', () => {
   for (const f of Core.fields) assert.throws(() => Core.validate(payload({ [f.key]: '' })), /obbligatorio/);
-  assert.deepEqual(Core.dealer, { ragione_sociale: 'KONA TECH', codice: '9001415852' });
+  assert.deepEqual(Core.dealer, { ragione_sociale: 'KONA TECH SRL', codice: '9001415852' });
   for (const [key, value] of [['cf_piva', 'errato'], ['email', 'errata'], ['cellulare', '+12'], ['data', '2026-02-30'], ['primo_appuntamento', '2026-11-13T25:20'], ['documento_tipo', 'inventato'], ['conoscenza_cliente', ''], ['descrizione', '']]) {
     assert.throws(() => Core.validate(payload({ [key]: value })));
   }
@@ -84,7 +84,7 @@ test('PDF originale invariato e output a una pagina, dati fissi, celle e due TIM
     const doc = await PDFDocument.load(generated.buffer);
     assert.equal(doc.getPageCount(), 1);
     const { text } = await extractText(new Uint8Array(generated.buffer), { mergePages: true });
-    for (const value of ['KONA TECH', '9001415852', '1.2343245', 'CLIENTE DIMOSTRATIVO', '13/11/2026 - 10:30']) assert.ok(text.includes(value), value);
+    for (const value of ['KONA TECH SRL', '9001415852', '1.2343245', 'CLIENTE DIMOSTRATIVO', '13/11/2026 - 10:30']) assert.ok(text.includes(value), value);
     // Gli stream aggiunti contengono le crocette alle due coordinate distinte.
     const streams = doc.getPage(0).node.Contents();
     const { decodePDFRawStream } = require('pdf-lib/cjs/core/streams/decode');

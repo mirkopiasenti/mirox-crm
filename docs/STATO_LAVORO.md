@@ -9,6 +9,11 @@ Aggiornato:2026-11-13. Promemoria di ripresa, non autorizza ulteriori push o att
 - Verifica Contratti: nuovo campo readonly Codice cliente WindTre nei Dati cliente, codici del registro anagrafico da APIget_codici_cliente/solaACLVerifica, errori/risposte malformate bloccanti, vuoto=Non disponibile; valori escaped e punti/lettere/zeri conservati. Build e785/785test in copia isolata verdi,40mirati verdi; README/AGENTS/CLAUDE/databaseREADME aggiornati.
 - Pubblicato13/11 con `18d71f6`: CI43447547729 LinuxNode22/Windows verde,785test; Netlify6af7251873130dbaa4ce7858 online. Verificati6asset/HTML/script/stili/PrettyURL e action get_codici_cliente401 senza JWT. Nessuna nuova scrittura DB nel push. Prossimo: ricaricare Verifica Contratti e aprire il dettaglio; nessun rilascio applicativo pendente. Resoconto HTTP in `.backup-private/release-codici-verifica-20261113/` ignorata.
 
+## Ragione sociale Malpractis —13/11, correzione in rilascio
+
+- Rivenditore fisso KONA TECH SRL nel compilatore e nei PDF nuovi, versione v4. Codice9001415852, dati cliente e storico invariati; nessun DB/migration. Test esistenti aggiornati alla dicitura completa, PDF sintetico verificato; pubblicazione nel seguito del push già autorizzato per le correzioni Malpractis.
+- Prossimo: verifica CI/Netlify; per aggiornare un PDF precedente usare Duplica dati e Genera PDF.
+
 ## Centratura CF/P.IVA Malpractis —13/11, pubblicata
 
 - Eliminati x fisso e passo approssimativo: coordinate dei17separatori originali, ogni carattere centrato con metà larghezza HelveticaBold. Allineati PIVA11cifre e CF16caratteri; baseline e resto modulo invariati. Nuovi documenti v3, vecchi PDF immutabili (Duplica dati per rigenerare).

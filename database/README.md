@@ -348,6 +348,8 @@ Storico globale per gli abilitati Malpractis, listing senza snapshot/path; detta
 
 Centratura CF/P.IVA13/11: versione rendering dei nuovi documenti `ask-03-2020-v3`; stessa struttura del registro e bucket, nessuna migration/backfill o riscrittura dei PDF esistenti. Per ottenere la versione corretta si usa Duplica dati e una nuova generazione.
 
+Rettifica rivenditore13/11: i nuovi PDF `ask-03-2020-v4` riportano KONA TECH SRL. Nessuna migration o riscrittura dei documenti archiviati; i nuovi PDF si ottengono con Duplica dati.
+
 ## Permessi pagine Mirox — migration applicata 27/10/2026
 
 La query Admin usa le colonne esistenti `nome`/`username` di profili, senza

@@ -50,7 +50,7 @@ async function generate(client, auth, body, makePdf) {
   if (uploadError) throw uploadError;
   const row = { id, intestatario: data.intestatario, cf_piva: data.cf_piva, numero_fisso: data.numero_fisso, stato_linea: data.stato_linea,
     dati_compilazione: data, richiesta_sha256: requestHash, storage_bucket: BUCKET, storage_path: storagePath, nome_file: filename,
-    pdf_sha256: crypto.createHash('sha256').update(result.buffer).digest('hex'), template_versione: 'ask-03-2020-v3', created_by: author,
+    pdf_sha256: crypto.createHash('sha256').update(result.buffer).digest('hex'), template_versione: 'ask-03-2020-v4', created_by: author,
     created_by_nome: String(auth.profilo?.nome || auth.profilo?.username || 'Operatore Mirox').slice(0, 250) };
   const { data: saved, error } = await client.from('malpractis_generati').insert(row).select(LIST_FIELDS).single();
   if (error) {
