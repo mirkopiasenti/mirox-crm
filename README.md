@@ -2,6 +2,18 @@
 
 Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della rete Konatech. Static frontend HTML/JS + Netlify Functions (Node) + Supabase Postgres.
 
+## Codice cliente in Verifica Contratti —13/11/2026, pronto in locale
+
+Nel dettaglio, Dati cliente mostra i codici cliente WindTre registrati per
+l’anagrafica, in sola lettura e con lettere, punti e zeri conservati. Nessun codice
+registrato mostra Non disponibile; un errore di lettura blocca il caricamento.
+La lettura è autenticata tramite l’API esistente, senza accesso browser al registro.
+Sul gruppo delle26pratiche In Attesa Mobile sono già stati rimossi22esiti verdi
+e4rossi per ripartire da In attesa. PDA controllate: nessuna delle tre opzioni
+Reload Exchange/Forever/Professional Cloud presente; aggiunti4codici esatti con
+punto senza eliminare quelli precedenti. Contratti e allegati invariati.
+Build e785/785test verdi. La visualizzazione UI richiede ancora la pubblicazione.
+
 ## Reload Exchange e Forever nell’upload — 13/11/2026
 
 La lettura PDA precompila le due caselle sotto Offerta per Mobile/Customer Base.
@@ -239,7 +251,7 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `crea-vendita-pratica-carrello` | POST | authenticated | Crea pratica + N contratti in stato provvisorio `bozza`, promuove i PDA e supporta le action idempotenti `finalize` / `rollback_upload_failure`. L'operatore viene sempre ricavato dal JWT. Per cluster `Turista` salva `cluster_cliente='Turista'` sui contratti, usa `Consumer` su `anagrafica` e non richiede email. Valida codice/dati Mobile e duplicati prima delle scritture; collisioni UNIQUE restituiscono 409 dopo rollback della bozza. |
 | `upload-vendita-documento` | POST multipart | authenticated | Upload di PDF reali su `contratti-vendita` (anche staging `temp/<sess>/`). Verifica proprietà operatore/admin sulle bozze; sulle pratiche inviate consente la gestione da Verifica Contratti. Valida coerenza pratica/anagrafica/contratto, deriva il path dalla pratica e attribuisce l'upload all'utente autenticato |
 | `upload-documento-modulo` | POST multipart | authenticated | Upload server-side per i bucket operativi Apri/Chiudi, Switch SIM, Comodato, Rimborsi, Protecta e Segnalazioni. Accetta PDF reali; nel bucket Segnalazioni anche immagini JPG/JPEG, PNG, GIF, WEBP, BMP, TIFF, HEIC/HEIF e AVIF. Verifica firma e MIME, limita i file a 20 MB e registra l'operatore JWT nei metadati Storage |
-| `gestisci-vendita-contratto` | POST | authenticated | Aggiornamento/verifica/riapertura dei contratti e rimozione allegati. Accetta soltanto campi consentiti, deriva snapshot e punteggi dal catalogo e usa l'identità JWT per `controllato_da`. Nuove action `check_codice` e `update_pda` per controllo globale/editor dei dati PDA, con gestione collisioni e concorrenza. |
+| `gestisci-vendita-contratto` | POST | authenticated | Aggiornamento/verifica/riapertura dei contratti e rimozione allegati. Accetta soltanto campi consentiti, deriva snapshot e punteggi dal catalogo e usa l'identità JWT per `controllato_da`. Action `get_codici_cliente` legge il registro del cliente del contratto per la sola ACL Verifica Contratti; `check_codice` e `update_pda` gestiscono controllo globale/editor dei dati PDA, collisioni e concorrenza. |
 | `gestisci-controllo-fissi` | POST | **admin** | Corregge un esito Fisso inserito per errore riportando una pratica da `Attivo` o `KO` a `In Attivazione`, azzerando i campi di esito e registrando l'admin nell'audit. Il pulsante appare accanto allo stato e la pagina chiede conferma prima del ripristino |
 | `gestisci-controllo-lg` | POST | authenticated / **admin** per esiti manuali | Applica in batch gli esiti CSV rispettando i blocchi manuali; consente agli admin di impostare un esito motivato e protetto oppure di riattivare esplicitamente gli aggiornamenti CSV |
 | `gestisci-operazioni-post-vendita` | POST | authenticated / **admin** per rimborso manuale | Gestisce tutte le scritture dei rimborsi e l'esito Apri/Chiudi: `create_rimborso_manuale` richiede `ruolo='admin'`, mentre creazione/completamento ordinari e `mark_apri_chiudi_ko` sono disponibili agli account autenticati attivi |

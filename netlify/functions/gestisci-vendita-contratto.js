@@ -343,6 +343,18 @@ async function updateContract({ supabase, auth, body }) {
   return response(200, { success: true, contratto });
 }
 
+async function getCustomerCodes({ supabase, body }) {
+  if (!isUuid(body.contratto_id)) return response(400, { success: false, error: 'contratto_id non valido' });
+  const { data: contract, error: contractError } = await supabase.from('vendita_contratti')
+    .select('anagrafica_id').eq('id', body.contratto_id).maybeSingle();
+  if (contractError) throw contractError;
+  if (!contract) return response(404, { success: false, error: 'Contratto non trovato' });
+  const { data, error } = await supabase.from('anagrafica_codici_cliente_windtre')
+    .select('codice_cliente').eq('anagrafica_id', contract.anagrafica_id).order('codice_cliente');
+  if (error) throw new Error('Impossibile leggere i codici cliente WindTre. Riprova.');
+  return response(200, { success: true, codici_cliente: (data || []).map(row => row.codice_cliente) });
+}
+
 async function updatePda({ supabase, auth, body }) {
   if (!isUuid(body.contratto_id)) return response(400, { success: false, error: 'contratto_id non valido' });
   const { data: current, error } = await supabase.from('vendita_contratti')
@@ -438,6 +450,7 @@ exports.handler = async (event) => {
       const duplicate = await Pda.findDuplicate(supabase, body.codice_contratto);
       return response(200, { success: true, duplicate });
     }
+    if (body.action === 'get_codici_cliente') return await getCustomerCodes({ supabase, body });
     if (body.action === 'update_pda') return await updatePda({ supabase, auth, body });
     if (body.action === 'set_stato_verifica_manuale') return await setManualReviewStatus({ supabase, auth, body });
     if (body.action === 'update') {
@@ -459,6 +472,7 @@ exports.handler = async (event) => {
 };
 
 exports._test = {
+  getCustomerCodes,
   updatePda,
   setManualReviewStatus,
   assertPersistedContractScores,

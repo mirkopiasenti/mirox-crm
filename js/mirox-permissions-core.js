@@ -105,7 +105,7 @@
       'gestisci-malpractis': ['compilatore_malpractis'],
       'elimina-vendita-contratto': ['verifica_contratti'],
       'upload-documento-modulo': [...new Set(Object.values(buckets).flatMap(b => b.write))],
-      'gestisci-vendita-contratto': body.action === 'set_stato_verifica_manuale' ? ['verifica_contratti']
+      'gestisci-vendita-contratto': ['set_stato_verifica_manuale', 'get_codici_cliente'].includes(body.action) ? ['verifica_contratti']
         : body.action === 'check_codice' ? ['upload_contratti', ...editors] : editors,
       'gestisci-operazioni-post-vendita': [body.action === 'mark_apri_chiudi_ko' ? 'apri_chiudi' : 'gestione_rimborsi'],
       'mirox-send-email': ({ ordine_smartphone_nuovo: ['ordini_smartphone'], segnalazione_assegnata: ['segnalazioni'] })[body.template] || []

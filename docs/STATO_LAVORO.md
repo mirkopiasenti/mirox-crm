@@ -2,10 +2,12 @@
 
 Aggiornato:2026-11-13. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Push di tutto —13/11, completato
+## Mobile In attesa / codici cliente —13/11, dati applicati e UI locale
 
-- Pubblicati afaad3f (script gare/seconda linea già applicati),4599afd (Reload) e637643a (Malpractis/guide). CI43409260251 LinuxNode22 e Windows nativo verde; build e775/775 sulla copia esatta indice,566checkSQLpermessi e harness gare/info/seconda linea verdi. Nessuna nuova esecuzione degli script dati storici.
-- Netlify6af6e630ffdc19707b029587 online:12risorse/script/stili inline/PrettyURL identici alla build (sola normalizzazione link Netlify),4API401 senzaJWT. Nessun browser/provider AI/email/pratica reale. Catalogo Malpractis live20261113102548:19righe precedenti e9ACL identiche per hash; solo nuova pagina, abilitazioni operatori da Admin. Reload live20261113101528 già verificata, storico invariato. Prove HTTP/catalogo solo in `.backup-private/release-tutto-20261113/` ignorata.
+- Perimetro26Mobile da_controllare, tutti con override (22Da confermare/4Da verificare). PDA scaricate/rilette25testuali+1scansione visiva:0Exchange/0Forever/0Cloud, gestioni non da inventare. Su conferma utente26override eliminati, ora tutti In attesa; contratti interi/allegati/registro precedente identici nella rilettura.
+- 4codici esatti con punto da PDA aggiunti senza rimuovere varianti precedenti (registro82→86). Nessun dato anagrafica/schema/RLS/CC, automatismo o invio cambiato. MCP execute_sql: conferme scadute3volte anche dopo OKutente; eseguito con psql/poolerIPv4/TLSverify-full, dopo testSQLPGlite preflight/reset/rollback. Prove/PDF/manifest/SQL sensibili soltanto `.backup-private/mobile-in-attesa-20261113/` ignorata.
+- Verifica Contratti: nuovo campo readonly Codice cliente WindTre nei Dati cliente, codici del registro anagrafico da APIget_codici_cliente/solaACLVerifica, errori/risposte malformate bloccanti, vuoto=Non disponibile; valori escaped e punti/lettere/zeri conservati. Build e785/785test in copia isolata verdi,40mirati verdi; README/AGENTS/CLAUDE/databaseREADME aggiornati.
+- Push UI/API richiesto13/11: preparazione del rilascio e verifica CI/Netlify/HTTP; reset e registro già live. Ultimo mainba1688f (Malpractis231faa7 online,781test; CI43416294398 verde). Nessuna nuova scrittura DB durante la pubblicazione.
 
 ## Compilatore Malpractis —13/11, scelta unica e storico pubblicati
 

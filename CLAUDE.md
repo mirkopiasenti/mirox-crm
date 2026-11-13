@@ -1,5 +1,7 @@
 # CLAUDE.md — Guida per AI assistants
 
+Riscontro Mobile13/11:26PDA di In Attesa Mobile controllate, nessuna delle3opzioni ReloadExchange/Forever/Cloud attiva;26override manuali azzerati (22verdi/4rossi), tutti In attesa.4codici con punto da PDA aggiunti in append, contratti/allegati/registro precedente identici. Operazione confermata ed eseguita via psql TLS/pooler dopo scadenze MCP; snapshot privati ignorati. UI Verifica pronta in locale: Codice cliente WindTre readonly nei Dati cliente via get_codici_cliente, sola ACL Verifica Contratti, errori bloccanti e valori escaped.785test/build verdi; nessun nuovo push richiesto per questa modifica. Regola completa in AGENTS.
+
 Compilatore Malpractis13/11: ricerca anagrafica prima del modulo, scelta unica della problematica nella colonna Nuova attivazione/Linea già attiva, due TIM indipendenti. PDF originale ASK con KONA TECH/9001415852 fissi e firma manuale. Storico privato malpractis_generati/malpractis-files, Visualizza PDF e Duplica dati dopo ricerca della stessa anagrafica; retry idempotenti, nessun invio. Migration storico20261113111030 applicata/riletta live20261113111917; catalogo20pagine e ACL già pubblicati con637643a/c457559, operatori senza assegnazioni implicite. Estensione231faa7 pubblicata, CI43416294398 Linux/Windows verde781test, Netlify6af6f284f1efdb59ac981d4d/HTTP verificati; dettagli nel promemoria. Dettagli README/AGENTS e docs/PERMESSI_PAGINE.md.
 
 

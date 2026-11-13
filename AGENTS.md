@@ -117,6 +117,29 @@ Catalogo locale20pagine: migration `20261113101731_compilatore_malpractis.sql` a
 
 Estensione13/11 richiesta dal proprietario: scheda Storico Malpractis (data/cliente/CF-PIVA/numero/linea), Visualizza PDF via signed URL300s, Duplica dati recupera snapshot e ricerca obbligatoria; copia solo dopo selezione della stessa anagrafica, altri clienti/vuoto partono senza snapshot. Retry identificati da UUID/hash dati e autore login server, senza duplicati; upload rimosso se INSERT fallisce. Migration `20261113111030_malpractis_storico.sql` crea solo `malpractis_generati` RLS/server-only (SELECT/INSERT service_role, niente grant browser) e bucket privato `malpractis-files` PDF5MiB, nessuna policy Storage browser o modifica a CC/anagrafica. Listing senza snapshot/path; tutte le azioni richiedono ACL Malpractis fresca. Nessun backfill dei PDF precedenti allo storico. Migrazione applicata/riletta production20261113111917: registro vuoto, grant/RLS corretti; colonne/policy/bucket precedenti/profili identici per hash,9534anagrafiche/55disdette conservati. Estensione pubblicata13/11 con `231faa7`: CI43416294398 LinuxNode22/Windows verde,781test; Netlify6af6f284f1efdb59ac981d4d online. Verificati12asset/HTML/script/stili/PrettyURL e4API401 senza JWT.
 
+## Riscontro Mobile in attesa e codici cliente —13/11/2026
+
+Su richiesta del proprietario: perimetro esatto dei26contratti Mobile ancora
+`da_controllare`, senza filtri periodo/negozio. PDA rilette (25testuali e1scansione
+verificata visivamente): nessuna Reload Exchange/Forever/Professional Cloud attiva.
+Solo se presenti, Forever e Cloud avrebbero gestione Richiedi disattivazione,
+senza inventare una risposta né disattivare servizi. Azzerati26override manuali
+(22Da confermare/4Da verificare), tutti ora In attesa; nessun contratto approvato
+o riaperto. Inserite4forme esatte dei codici cliente con punto lette dalla PDA;
+forme precedenti e registro esistente conservati, nessuna deduzione di equivalenza.
+Transazione con perimetro/versioni/updated_at attesi, backup privato e confronto
+integrale prima/dopo: contratti/allegati/codici precedenti identici. Nessun nuovo
+schema/RLS/CC/anagrafica, verifica automatica o invio. MCP conferme scadute anche
+dopo OK esplicito; eseguito tramite psql/pooler IPv4 verificato/TLS verify-full.
+Prove soltanto `.backup-private/mobile-in-attesa-20261113/` ignorata.
+Verifica Contratti mostra Codice cliente WindTre nei Dati cliente, in sola lettura
+anche nei Verificati, tutti i codici del registro anagrafico senza perdere punti
+lettere/zeri e con escape HTML. Lettura via nuova action `get_codici_cliente` su
+`gestisci-vendita-contratto`, ACL dedicata Verifica Contratti e service role;
+nessun grant browser al registro. Registro vuoto=Non disponibile, errore di lettura
+o risposta malformata blocca il dettaglio. UI/API pronti in locale, non pubblicati;
+785/785test e build verdi,40mirati e SQL PGlite con rollback verdi.
+
 ## Gestione Reload Forever —13/11/2026, pubblicata
 
 Mobile/Customer Base: Reload Forever presente nella PDA apre la scelta Mantieni

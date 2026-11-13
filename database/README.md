@@ -1,5 +1,24 @@
 # /database/ — Migrazioni SQL storiche
 
+## Riscontro Mobile in attesa —13/11/2026, dati applicati
+
+26contratti Mobile `da_controllare`,25PDA testuali e1scansione controllata
+visivamente; nessuna delle3opzioni Reload Exchange/Forever/Professional Cloud
+presente, flag e gestioni già coerenti. Eliminate soltanto26righe di override
+`vendita_stati_verifica_manuale` (22Da confermare/4Da verificare), ripristinando
+l’esito visibile In attesa. Registro `anagrafica_codici_cliente_windtre`:82→86righe,
+4codici con punto letti dalle PDA inseriti in append; valori precedenti invariati.
+Nessuna UPDATE a contratti o anagrafica, né schema/RLS/grant/trigger nuovi.
+Perimetro esatto, versioni e updated_at verificati nella transazione; hash integrale
+contratti invariato e rilettura indipendente di26contratti/allegati/registro.
+Preflight/reset/rollback su perimetro-versione-contratto-effetti collaterali provati
+in PGlite0.5.13. Esecuzione psql via pooler IPv4/TLS verify-full dopo conferma utente
+e scadenze del connettore MCP. Manifest, SQL, PDF e prima/dopo soltanto in
+`.backup-private/mobile-in-attesa-20261113/` ignorata, senza dati cliente in Git.
+La nuova action di sola lettura get_codici_cliente usa il registro esistente e la
+ACL Verifica Contratti; nessun grant diretto al browser. Codice UI/API non ancora
+pubblicato, build e785/785test verdi.
+
 ## Gestione Reload Forever —13/11/2026
 
 Migration sorgente `20261113100628_reload_forever_gestione.sql` creata tramite CLI,

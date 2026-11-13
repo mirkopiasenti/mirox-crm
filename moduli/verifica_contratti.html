@@ -742,7 +742,7 @@ async function apriDettaglioContratto(id, stateKey) {
     // Carica liste utili per le tendine (categorie, offerte, opzioni, reload).
     // NB: vendita_reload non ha colonna offerta_id (è una lista globale di
     // reload), e il flag è "attivo" (maschile), non "attiva" come le altre.
-    const [catRes, offRes, opzRes, offOpzRes, relRes, filesRes, profRes] = await Promise.all([
+    const [catRes, offRes, opzRes, offOpzRes, relRes, filesRes, profRes, codesRes] = await Promise.all([
       sb.from('vendita_categorie').select('id, nome').eq('attiva', true).order('ordine'),
       sb.from('vendita_offerte').select('id, categoria_id, nome_offerta, cluster_cliente, punteggio_gara, punteggio_extra_gara').eq('attiva', true),
       sb.from('vendita_opzioni').select('id, categoria_id, offerta_id, nome_opzione, cluster_cliente, punteggio_gara, punteggio_extra_gara').eq('attiva', true),
@@ -755,7 +755,8 @@ async function apriDettaglioContratto(id, stateKey) {
       // può avere N contratti, ognuno con i propri PDF).
       sb.from('vendita_documenti').select('id, tipo_documento, storage_bucket, storage_path, file_name, uploaded_at').eq('contratto_id', fromState.id).order('uploaded_at', { ascending: false }),
       // Lista operatori per la dropdown "Operatore" (modifica utente che ha inserito la pratica)
-      sb.from('profili').select('id, nome').eq('attivo', true).order('nome', { ascending: true })
+      sb.from('profili').select('id, nome').eq('attivo', true).order('nome', { ascending: true }),
+      gestisciVenditaContratto({ action: 'get_codici_cliente', contratto_id: fromState.id })
     ]);
     if (catRes.error) throw catRes.error;
     if (offRes.error) throw offRes.error;
@@ -763,6 +764,9 @@ async function apriDettaglioContratto(id, stateKey) {
     if (offOpzRes.error) throw offOpzRes.error;
     if (relRes.error) throw relRes.error;
     if (filesRes.error) throw filesRes.error;
+    if (!Array.isArray(codesRes.codici_cliente) || codesRes.codici_cliente.some(value => typeof value !== 'string')) {
+      throw new Error('Risposta dei codici cliente WindTre non valida. Riprova.');
+    }
     const categorie = catRes.data || [];
     const offerte = offRes.data || [];
     const opzioni = opzRes.data || [];
@@ -777,7 +781,7 @@ async function apriDettaglioContratto(id, stateKey) {
       profili = [{ id: fromState.operatore_id, nome }, ...profili];
     }
     loader.hide();
-    apriPopupDettaglio(fromState, { categorie, offerte, opzioni, offerteOpzioni, reload, allegati, profili, isReadOnly, stateKey });
+    apriPopupDettaglio(fromState, { categorie, offerte, opzioni, offerteOpzioni, reload, allegati, profili, codiciCliente: codesRes.codici_cliente, isReadOnly, stateKey });
   } catch (e) {
     loader.error('Errore caricamento');
     console.error('Errore dettaglio:', e);
@@ -788,6 +792,7 @@ async function apriDettaglioContratto(id, stateKey) {
 function apriPopupDettaglio(c, opts) {
   const { categorie, offerte, opzioni, offerteOpzioni, reload, allegati, profili, isReadOnly, stateKey } = opts;
   const ana = c.anagrafica || {};
+  const codiciClienteHtml = renderCodiciCliente(opts.codiciCliente);
   const isEnergia = (c.categoria_snapshot || '').toLowerCase().includes('energia');
   const isFisso = (c.categoria_snapshot || '').toLowerCase().includes('fisso');
   const isMobile = (c.categoria_snapshot || '').toLowerCase().includes('mobile');
@@ -834,6 +839,7 @@ function apriPopupDettaglio(c, opts) {
     <div class="det-section">
       <h4>Dati cliente <small style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;font-size:11px;">(modifiche su tabella anagrafica condivisa)</small></h4>
       <div class="det-grid">
+        ${codiciClienteHtml}
         <div class="det-field"><label>CF / P.IVA</label><input type="text" id="vc_cf_piva" value="${escapeHtml(ana.cf_piva || '')}" ${disabled} readonly style="text-transform:uppercase;"></div>
         <div class="det-field"><label>Cluster</label><input type="text" id="vc_cluster" value="${escapeHtml(ana.cluster || '')}" ${disabled} readonly></div>
         <div class="det-field"><label>Ragione Sociale</label><input type="text" id="vc_ragione_sociale" value="${escapeHtml(ana.ragione_sociale || '')}" ${ro}></div>
@@ -1497,6 +1503,12 @@ window.rimuoviAllegato = rimuoviAllegato;
 // ============================================================
 // LEGGE CAMPI POPUP E COSTRUISCE PAYLOAD PER UPDATE
 // ============================================================
+function renderCodiciCliente(codici = []) {
+  const values = [...new Set(codici.filter(value => typeof value === 'string' && value.trim()))];
+  return '<div class="det-field"><label>Codice cliente WindTre</label><div style="padding:9px 0;overflow-wrap:anywhere;">'
+    + (values.length ? values.map(value => escapeHtml(value)).join('<br>') : 'Non disponibile') + '</div></div>';
+}
+
 function leggiPayloadDalPopup() {
   const get = (id) => document.getElementById(id);
   const v = (id) => get(id) ? get(id).value : '';
