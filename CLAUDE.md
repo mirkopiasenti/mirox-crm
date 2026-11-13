@@ -1,10 +1,13 @@
 # CLAUDE.md — Guida per AI assistants
 
+Compilatore Malpractis13/11 pronto in locale: Applicazioni, ricerca anagrafica prima del modulo, domande per tutti i dati/caselle (due TIM indipendenti), PDF originale ASK con KONA TECH/9001415852 fissi, firma manuale. Nessun archivio/invio. Nuova ACL `compilatore_malpractis`, catalogo locale20pagine; migration `20261113101731_compilatore_malpractis.sql` solo INSERT catalogo, da applicare prima del rilascio, operatori senza assegnazioni implicite. Nessun DB/deploy eseguito per questo compilatore. Dettagli in README/AGENTS e docs/PERMESSI_PAGINE.md.
+
+
 Segnalazioni12/11, Da gestire: ASK senza menu azione/tipo modificabile, solo numero obbligatorio e note/allegati; Angel senza numero/menu, bottone Confermo apertura Angel e riepilogo dedicato. Entrambi salvano In Corso e aprono Riepilogo; solo Interna negozio e gestioni legacy conservano il menu azione. Scelta sempre in evidenza nel riquadro giallo. Doppio click/chiusura durante salvataggio bloccati, errori ritentabili. Nessuna migration o email.
 
 Segnalazioni12/11: nuovo inserimento con Angel/ASK/Interna negozio e secondo select ASK obbligatorio a8voci (regola completa in AGENTS). Recesso e Comportamento Scorretto riusano gli elenchi PDF esistenti, richieste obsolete scartate. Sottotipo in `tipo_ask`, precompilato in gestione e conservato anche chiudendo con un’azione diversa da ASK; tipi storici ammessi nell’editor. ASK Manuale e storico invariati; nessuna migration, email o push automatico.
 
-Luce e Gas12/11/2026: popup esplicito Sì/No sull’assicurazione impianti dopo i dati contratto per Energia Consumer/Business. Chiusura senza scelta non vale No; scelta per singolo contratto conservata in carrello/bozze, azzerata per il successivo. Backend salva `vendita_contratti.assicurazione_impianti` boolean nullable, storico NULL/«Non indicata», CHECK solo Energia. Migrazione sorgente20261112214904 applicata production20261112215514,2860contratti/RLS/grant/trigger/advisor invariati. Verifica Contratti mostra il dato in sola lettura; cambio categoria fuori Energia lo azzera. QA SQL isolata e suite723/723 verdi. Push richiesto il12/11, pubblicazione in preparazione. Regole complete in AGENTS/databaseREADME.
+Luce e Gas12/11/2026: popup esplicito Sì/No sull’assicurazione impianti dopo i dati contratto per Energia Consumer/Business. Chiusura senza scelta non vale No; scelta per singolo contratto conservata in carrello/bozze, azzerata per il successivo. Backend salva `vendita_contratti.assicurazione_impianti` boolean nullable, storico NULL/«Non indicata», CHECK solo Energia. Migrazione sorgente20261112214904 applicata production20261112215514,2860contratti/RLS/grant/trigger/advisor invariati. Verifica Contratti mostra il dato in sola lettura; cambio categoria fuori Energia lo azzera. QA SQL isolata e suite723/723 verdi. Pubblicato il12/11 con `b602816`: CI43316501274 Linux/Windows verde,723test; Netlify6af6380510ea6e2e7e177eb3 online. Verificati via HTTP popup/script/stili su entrambe le URL delle due pagine,5asset/SHA e API401 senza JWT. Il successivo rilascio parallelo66a391c/Netlify6af63831b459c7cc43e1fde6 conserva identici i file impianti, riletti anche online. Regole complete in AGENTS/databaseREADME.
 
 Segnalazioni12/11: Gestione pratica dopo Cliente in Da gestire e Riepilogo mostra `ASK - <tipo_ask>` per ASK con tipo valorizzato; lo storico senza tipo resta ASK, le altre gestioni mantengono il nome e il valore assente mostra un trattino. Testo composto ed escaped da entrambi i renderer, nessuna scrittura DB.
 
@@ -46,12 +49,20 @@ Rettifica avvisi Gare04/11, pubblicata: ! solo se esiste una riga della stessa s
 
 Accesso bonus04/11, pubblicato: da novembre2026 quattro soglie personali obbligatorie (Fisso10Consumer+Business, Energia10Consumer+Business, MobileBusiness10tutte offerte Mobile, FissoBusiness1incluso nei10), un contratto=un pezzo, alias/entrambi negozi e no reinserimenti. Righe compenso invariate, totale0se manca una soglia anche con bonus squadra. Riepilogo soglia/inserito KOrosso/OKverde e ! sulle righe interessate, incluso PNG. Minimo garaFisso10anche nel popup tramite `database/configura_accesso_bonus_da_novembre_2026.sql`:2670righe/890mesi, altri campi/storico/catalogo/profili conservati. Push72ee5ee completato, CI41886971509LinuxNode22verde640test, Netlify6aeb788855eac0b0b73d8a82 online e asset/inline HTTP identici. Script dati applicato/riletto2670Fisso/890mesi, hash campi estranei/altri obiettivi/storico/catalogo/profili identici; renderer reale conferma bonus150visibile/totale0con5SIM e totale300con10SIM/tutte soglie, popupFisso10. Snapshot privati ignorati, nessun browser/account/sessione/email/contratto modificato. Dettagli in AGENTS/databaseREADME/promemoria.
 
+Info Gare Individuali04/11:5popup riscritti/spaziati come richiesto da novembre2026 in avanti,11570sole descrizioni mensili aggiornate in produzione con `database/aggiorna_info_gare_da_novembre_2026.sql`. Newline reali per il renderer; nessun importo/obiettivo/regola/scope modificato. Hash finanziari/altri record/storico/catalogo/profili identici. QA PGlite e click renderer reali con dati riletti verdi, snapshot privati ignorati. La replica originale puo segnalare il nuovo testo come conflitto: non sovrascriverlo. Nessun codice runtime/deploy. Fonti AGENTS/databaseREADME/promemoria.
+
 UI Dashboard Pezzi04/11: `#monthToolbar` condiviso Gare/Avanzamento ora ha select auto-width, minimi150pxmese/96pxanno e spazio freccia; campi non restringibili e coppie label/select a capo sui display stretti. Solo CSS/markup, build verificata, nessun DB o calcolo modificato. Pubblicato04/11 `3454cfe`, CI41859513225verde, Netlify6aeb50fdd37bd8459551ab7b online e CSS/markup/script/asset HTTP identici.
+
+Replica Gare Individuali04/11/2026: proprietario conferma tutta la scheda ottobre da novembre in avanti. Script dati `database/replica_gare_da_novembre_2026.sql` applicato/riletto:22configurazioni x890mesi(novembre2026–dicembre2100, limite CHECK attuale)=19580INSERT. Francesca→Vincenzo solo destinatari/allowlist/descrizione, nessun alias; altri valori esatti.121righe preesistenti/catalogo/profili identici, Avanzamento escluso. Preflight/retry e rollback PGlite0.5.13 verdi, regole reali novembre TIED/CB/Assicurazioni confermate dal core; autenticato legge22righe, indice mensile usato. Nessun codice runtime/schema/cron/deploy; copie private ignorate. Fonti AGENTS/databaseREADME/promemoria.
 
 Avvicendamento, correzione04/11/2026: l'account Francesca resta disabilitato e Vincenzo attivo/operatore/in gara sul proprio UUID. Nei report conta il periodo: Francesca fino a ottobre2026 incluso, Vincenzo da novembre. `reportProfiles`, `dayOperators` e guard compensi nel core condiviso, allineati Dashboard/PNG/Target/Admin; account e dati storici non modificati. Riprodotti400EUR erronei su Vincenzo a ottobre e confrontati tutti i compensi/avanzamenti ottobre con il renderer precedente al cambio: identici dopo la correzione. Risposte obsolete scartate e mappe Day/Mensile separate. Rilascio correttivo04/11 `08dcedb` online, CI41851792451verde633test e Netlify6aeb467d157b9756ead0ee3a verificati per SHA/asset/inlineDashboardAdmin; guida `docs/DEBUG_AVVICENDAMENTO_OPERATORI_2026-11-04.md`, AGENTS/databaseREADME/promemoria.
 
+Seconda linea Fisso31/10/2026: catalogo e storico a1,50 punti gara per richiesta proprietario, Extra P.IVA resta1,00. Rettifica dati applicata production:9contratti allineati/7corretti, audit7+1, totali ricalcolati, nessuna invalidazione documentale o notifica. Script `database/configura_punteggio_seconda_linea.sql` (default preflight); fonti AGENTS/databaseREADME/promemoria. Nessun nuovo schema o deploy.
+
 
 ## Planning personale (rilascio29/10/2026)
+
+Gestione Reload Forever13/11/2026: Mobile/Customer Base con flag attiva apre popup Mantieni attiva/Richiedi disattivazione, senza dedurre la scelta dall’OCR. Modifiche di spunta/gestione confermate; chiusura senza risposta, bozze/carrello/restore e risposte tardive protetti. Visibile/editabile nel dettaglio Verifica Contratti. Nuova colonna `reload_forever_gestione` nullable; migration sorgente20261113100628/live20261113101528 applicata/riletta,2860contratti/RLS/grant/trigger/vincoli precedenti identici, advisor invariati. Nuovo upload richiede gestione con flag true, storico NULL senza backfill. Nessuna notifica/email nuova, disattivazione effettiva sul portale WindTre. Build e767/767test verdi, SQL PGlite verde; codice non ancora online. Regola completa in AGENTS.
 
 Correzione sessione CC05/11/2026: `moduli/call-center/js/config.js` espone lo stesso client Supabase anche come `window.db`, richiesto da MiroxApi per leggere e rinnovare il JWT. Il solo `const db` lasciava le richieste degli slot senza Authorization, pur con disponibilita corretta nel DB. Riprodotto il difetto con configurazione/MiroxApi/client slot reali; regressione sulle tre pagine con sessione valida/scaduta,9–10chiusi e11aperto.649/649test verdi, nessun nuovo client/Auth, nessuna modifica a planning, flag, disponibilita SQL, schema, RPC, trigger o permessi. I componenti condivisi devono ricevere il client su window, senza duplicare la sessione.
 
@@ -499,8 +510,10 @@ Spazi rimossi e lettere maiuscole come prima. CHECK del solo registro adeguato
 con sorgente `database/20261113090317_codici_cliente_windtre_punti.sql`, applicata
 production `20261113090516`; successiva estensione punto iniziale sorgente
 `database/20261113090800_codici_cliente_windtre_punto_iniziale.sql`, production
-`20261113090903`:80righe identiche, RLS/grant invariati. Rilascio
-applicativo autorizzato13/11, build e735/735test verdi.
+`20261113090903`:80righe identiche, RLS/grant invariati. Pubblicato
+13/11 con `1d64940`, CI43402343513 Linux/Windows verde, Netlify
+6af6d97729db26e9ce8959ad online; HTTP5file/HTML/inline e punti in tutte le
+posizioni verificati, OCR401 senza JWT. Build e735/735test verdi.
 Nuovo campo anagrafico nel wizard;
 manuale obbligatorio dopo il controllo duplicati e prima dello staging. AI lo
 compila dalla PDA; se assente/illeggibile/discordante chiede input, senza
@@ -1081,6 +1094,20 @@ Quando l'utente carica un PDA + sceglie "Analizza con AI", i dati estratti dall'
 - **Energia**: campo `pod_pdr` raccolto nel wizard. `numero_contratto_energia` e `ex_fornitore` (text libero) sono predisposti vuoti dal wizard e diventano **obbligatori in fase di verifica** (`moduli/verifica_contratti.html` → `confermaVerifica` valida entrambi prima del passaggio a `stato_controllo='controllato'`).
 - **Assicurazioni**: `modalita_pagamento_assicurazione` IN ('RID','Carta di Credito','Carta di Debito') e `ricorrenza_assicurazione` IN ('Mensile','Annuale'), entrambi obbligatori (CHECK DB su migration 021). Sono colonne separate dal `modalita_pagamento` di Allarmi. **Bonus Annuale** (migration `049`): se `ricorrenza_assicurazione='Annuale'`, il backend `crea-vendita-pratica-carrello.js` somma il valore di `impostazioni['bonus_assicurazione_annuale']` (default `0.5`) al `punteggio_gara_opzione` alla creazione del contratto. Valore snapshot alla creazione, i contratti storici NON vengono ricalcolati se l'admin cambia il bonus. Editabile da Admin → Configurazione Vendita (sezione "Bonus Assicurazione Annuale").
 - **Mobile / Customer Base**: 2 checkbox `reload_exchange` + `reload_forever` (migration `035`). Entrambi boolean NOT NULL DEFAULT false. Allineati esteticamente sotto la dropdown Offerta nel wizard, visibili solo per Mobile/Customer Base. Catalogo `vendita_reload` non più gestito (vedi "Note operative consapevoli").
+
+Dal13/11/2026, in Upload, la lettura PDA precompila le due spunte indipendenti
+`reload_exchange`/`reload_forever` da Opzioni/servizi nel riquadro contrattuale
+DATI DELLA SIM WINDTRE, anche Pack 5G Reload exChange e Reload Forever Basic.
+Condizioni generali, prevalidazione e SMARTPHONE RELOAD SI/NO non sono prove.
+OCR nullable; il parser testuale conferma la presenza, mentre un No testuale
+richiede accordo AI; letture incomplete/discordanti restano incerte e non
+attivano spunte. Ogni modifica manuale, anche ripetuta o da nessuna selezione,
+richiede MiroxUI.confirm; durante attesa/annullamento resta il valore precedente.
+Restore/carrello e nuove PDA non aprono conferme; risposte obsolete vengono
+scartate al cambio PDA/contratto/offerta/cluster/categoria/reset. La gestione
+Reload Forever estende il flusso a Verifica Contratti come descritto nella regola
+dedicata; Smartphone Reload, Exchange e notifiche restano separati. Pronto in locale.
+
 
 ### Codice rivenditore (dal 2026-07-18, migration `050`)
 Ogni contratto è etichettato col punto vendita di **inserimento**: `9001415852` = Legnago (negozio principale, dove gira Mirox), `9000822241` = Cerea (piccolo negozio, senza gestionale locale). Un contratto acquisito a Legnago può poi essere spostato amministrativamente su Cerea, ma resta contabilizzato al negozio di **inserimento**.

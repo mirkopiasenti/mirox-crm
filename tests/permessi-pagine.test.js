@@ -32,7 +32,7 @@ function clientFixture() {
 }
 
 test('catalogo completo, nessun permesso implicito e ruolo Admin indipendente dal CC', () => {
-  assert.equal(Core.pages.length, 19); assert.equal(new Set(Core.keys).size, 19);
+  assert.equal(Core.pages.length, 20); assert.equal(new Set(Core.keys).size, 20);
   for (const page of Core.pages) {
     assert.ok(fs.existsSync(path.join(ROOT, page.path)));
     assert.equal(Core.pageForPath('/' + page.path + '?id=1#detail').key, page.key);
@@ -76,7 +76,7 @@ test('ogni function protetta dichiara un endpoint statico censito, senza fidarsi
     assert.notEqual(Core.endpointPages(match[1]), null);
     assert.doesNotMatch(source, /endpoint:\s*event\./);
   }
-  assert.equal(count, 23);
+  assert.equal(count, 24);
   assert.deepEqual(Core.endpointPages('gestisci-vendita-contratto', { body: JSON.stringify({ action: 'check_codice' }) }), ['upload_contratti', ...Core.editors]);
   assert.deepEqual(Core.endpointPages('gestisci-vendita-contratto', { body: JSON.stringify({ action: 'update_pda' }) }), Core.editors);
   assert.deepEqual(Core.endpointPages('gestisci-vendita-contratto', { body: JSON.stringify({ action: 'set_stato_verifica_manuale' }) }), ['verifica_contratti']);
@@ -364,7 +364,7 @@ test('UI Admin: bozza, annulla cambio utente, copia, conferma, salvataggio e con
   await $('savePermissions').click(); assert.equal(posted, null); // Conferma annullata.
   confirm = true; await $('savePermissions').click();
   assert.equal(posted.utente_id, ID(2)); assert.equal(posted.versione, 1);
-  assert.equal(posted.pagine.ticket, true); assert.equal(Object.keys(posted.pagine).length, 19);
+  assert.equal(posted.pagine.ticket, true); assert.equal(Object.keys(posted.pagine).length, 20);
   assert.equal($('savePermissions').disabled, true);
   toggle('upload_contratti').checked = true; await toggle('upload_contratti').emit('change'); conflict = true;
   await $('savePermissions').click();

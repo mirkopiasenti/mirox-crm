@@ -1,5 +1,21 @@
 # /database/ — Migrazioni SQL storiche
 
+## Gestione Reload Forever —13/11/2026
+
+Migration sorgente `20261113100628_reload_forever_gestione.sql` creata tramite CLI,
+applicata/riletta production `20261113101528`. Aggiunge solo la colonna text nullable
+`vendita_contratti.reload_forever_gestione` e un CHECK: se valorizzata richiede
+`reload_forever=true`, categoria Mobile/Customer Base e valore Mantieni attiva o
+Richiedi disattivazione. NULL ammesso per storico/client precedenti, senza default
+o backfill; la creazione via nuovo backend richiede la decisione se flag true.
+Gestione distinta dalla presenza letta dalla PDA: richiedere non certifica una
+disattivazione eseguita. Nessuna nuova email/notifica o cambio a Smartphone Reload.
+2860contratti precedenti/RLS/grant/trigger/vincoli preesistenti identici per impronta;
+advisor prima/dopo invariati. Controlli privati in
+`.backup-private/reload-forever-gestione-20261113/verifica-migrazione.json` ignorata.
+QA PostgreSQL PGlite0.5.13: `scripts/verifica-reload-forever-sql.js`; build e767/767test
+verdi. Codice applicativo pronto in locale, non ancora pubblicato.
+
 Segnalazioni12/11, Da gestire: riusa i campi esistenti. ASK salva `azione_eseguita=ASK`, numero non vuoto, tipo iniziale e note; Angel salva `azione_eseguita=Angel`, note e valori ASK nulli. Entrambi impostano Segnalazione in Corso e data apertura per comparire nel Riepilogo. Interna negozio conserva i valori e stati precedenti. Nessuna nuova colonna, stato, migration, constraint, trigger o email; nessuna riscrittura dello storico.
 
 Segnalazioni12/11, classificazione all’inserimento: valori nuovi di `gestione_pratica` Angel/ASK/Interna negozio e sottotipo ASK nel campo gia esistente `tipo_ask` (null fuori ASK). Nessuna modifica schema, CHECK, RLS, RPC o bucket; i PDF restano negli stessi path `modelli/disdetta` e `modelli/comportamento-scorretto`. Nessuna riscrittura dei valori storici; le nuove scelte sono salvate solo all’invio di nuove segnalazioni.
@@ -21,7 +37,9 @@ Energia lo azzera. Nessun nuovo conteggio/polizza/punteggio o modifica CSV.
 QA SQL isolata: `scripts/verifica-assicurazione-impianti-sql.js` con
 `MIROX_PGLITE_MODULE` puntato a PGlite0.5.13 temporaneo, senza dipendenze npm nuove
 nel progetto. Storico, Sì/No, Consumer/Business e CHECK/cambio categoria verificati.
-Suite completa723/723 verde; push richiesto il12/11, pubblicazione in preparazione.
+Suite completa723/723 verde. Pubblicato il12/11 con `b602816`, CI43316501274
+Linux/Windows verde e Netlify6af6380510ea6e2e7e177eb3 online; HTTP delle pagine/asset
+e API401 verificati. Nessuna ulteriore migration durante il push.
 
 Segnalazioni12/11, colonna Gestione pratica: sola visualizzazione di `segnalazioni.gestione_pratica` e `tipo_ask` nelle liste Da gestire/Riepilogo. ASK con tipo mostra `ASK - <tipo_ask>`; senza tipo storico resta ASK. Nessuna migration, query aggiuntiva o scrittura dati.
 
@@ -129,6 +147,58 @@ con le configurazioni production rilette:9Fissi decurtazione/10Fissi100EUR,
 bonus squadra150visibile con5SIM/totale0, tutte soglie raggiunte con10SIM/
 totale300EUR. Nessun contratto, account, sessione o notifica modificati.
 
+## Testi info gare — aggiornati04/11/2026
+
+`aggiorna_info_gare_da_novembre_2026.sql` modifica soltanto
+`compenso_regola.gara.descrizione` da novembre2026 a dicembre2100:
+5metriche,13descrizioni per mese,11570UPDATE. Newline reali (`chr(10)`),
+convertiti in `<br>` dal renderer esistente; riga vuota = due newline.
+TIED separa le frasi; CB usa il testo compatto richiesto; Partita IVA e
+Assicurazioni aggiungono BONUS DI SQUADRA; W3 aggiunge50EURperPROTECTABUSINESS.
+Partita IVA conserva le soglie precedenti e W3 le due voci precedenti.
+
+Applicato e riletto production. Impronte finanziarie senza descrizione/timestamp
+identiche, e hash integrali degli altri record, dello storico fino a ottobre,
+del catalogo e dei profili identici. Nessun obiettivo, importo, scaglione,
+condizione, allowlist, peso o tipo di conteggio/compenso cambiato. Avanzamento e
+metriche omonime esclusi dalla selezione. Nessuna migration/schema/RLS/RPC,
+modifica runtime, deploy o sessione Auth. Snapshot prima/dopo solo nella
+cartella ignorata `.backup-private/info-gare-20261104/`.
+
+QA `scripts/check-info-gare-sql.cjs` con PGlite0.5.13 temporaneo: preflight e
+rollback,11570sole descrizioni, retry senza riscritture, rifiuto descrizioni
+personalizzate e rollback su cambi compensi/catalogo. Renderer e handler click
+reali producono i5popup esatti, poi riverificati con i dati production riletti.
+Il costruttore delle fixture e condiviso con `check-replica-gare-sql.cjs`.
+Gli override descrittivi sono successivi alla replica: la replica originale
+rileva questi nuovi testi come conflitto e non deve riportarli ai testi vecchi.
+
+## Replica Gare Individuali — dati applicati04/11/2026
+
+Richiesta esplicita: tutta la scheda di ottobre, non i soli tre cambi rispetto a
+settembre. `replica_gare_da_novembre_2026.sql` conserva il default preflight.
+Applicato/riletto production:22configurazioni per890mesi, da novembre2026 a
+dicembre2100 (limite reale CHECK `gom_anno_chk`),19580INSERT. Nessuna modifica
+schema/RLS/RPC/trigger o migration, cron o codice runtime; nessun deploy richiesto.
+Destinatari Francesca→Vincenzo e relativa allowlist/descrizione Assicurazioni;
+Matteo/Mirko e ogni altro valore obiettivo/compenso conservati esattamente.
+Avanzamento Mensile escluso per conferma del proprietario.121righe preesistenti,
+inclusi settembre/ottobre, catalogo e profili identici per hash prima/dopo.
+Tutte le19580righe rilette uguali al modello con le sole sostituzioni autorizzate;
+nessuna Francesca nei destinatari/regole futuri e nessun avanzamento futuro creato.
+
+Solo INSERT mancanti: retry idempotente, conflitti futuri discordanti bloccanti,
+nessuna sovrascrittura delle successive modifiche Admin per singolo mese.
+Gli altri mesi gia configurati restano indipendenti dalle modifiche manuali.
+QA isolata con `scripts/check-replica-gare-sql.cjs` e PGlite0.5.13 in `/private/tmp`:
+preflight e rollback senza mutazioni, replica totale/parziale,19580righe/890mesi,
+confronto integrale modello, retry e rifiuto/rollback di conflitti, sorgente
+inattesa, destinatario cessato ed effetti collaterali sui profili. Nessuna nuova
+dipendenza runtime. Motore JS sui valori reali novembre: TIED35=100EUR,
+CB35+15=100EUR e34+16=0, Assicurazioni10punti squadra=50EURciascuno.
+Lettura authenticated operatore:22righe; query mensile usa `idx_gom_anno_mese`.
+Copie/hash prima e dopo soltanto in `.backup-private/replica-gare-20261104/`.
+
 ## Avvicendamento Francesca / Vincenzo — dati applicati02/11/2026
 
 `configura_avvicendamento_vincenzo.sql` conserva il default `applica=false`.
@@ -142,7 +212,7 @@ restano attribuiti al suo UUID. Impronte prima/dopo identiche su tutte le75altre
 tabelle pubbliche (contratti, documenti, CC, gare, verifiche e planning); altri
 profili/ACL invariati. Nessun cambio schema/RLS/RPC/trigger o credenziale Auth.
 Retry idempotente solo sul risultato atteso, rifiuta profilo/ACL discordanti.
-Obiettivi precedenti invariati; novembre2026ancora senza configurazione.
+Obiettivi precedenti invariati; la replica04/11 sopra descritta configura ora novembre e i mesi successivi.
 Il primo renderer pubblicato02/11 (`b1f97c2`) usava i profili attuali anche nei
 periodi storici: correzione04/11 soltanto nel codice, senza riapplicare questo
 script. `reportProfiles` proietta i profili canonici per mese: Francesca fino a
@@ -156,6 +226,26 @@ Guida `docs/DEBUG_AVVICENDAMENTO_OPERATORI_2026-11-04.md`. Correzione pubblicata
 04/11 `08dcedb`, CI41851792451verde e Netlify6aeb467d157b9756ead0ee3a
 verificati via HTTP per SHA/asset e script inline Dashboard/Admin; nessuna
 scrittura DB. Codice planning recente conservato identico.
+
+## Seconda linea Fisso — rettifica dati applicata31/10/2026
+
+`configura_punteggio_seconda_linea.sql` e uno script dati atomico, con preflight
+di default (`applica=false`) e verifiche sulle righe attese, senza DDL/migration.
+Il proprietario ha richiesto1,50 punti gara anche su tutto lo storico:
+aggiornati `vendita_opzioni.punteggio_gara` e legacy `punti_base`, poi il solo
+`vendita_contratti.punteggio_gara_opzione`; il trigger esistente ricalcola
+totali gara e legacy e registra audit. Extra Gara P.IVA dell'opzione resta1,00.
+Applicato production e riletto31/10: 1catalogo, 9contratti allineati, 7corretti
+da1 a1,50 (6ottobre/1luglio), 2gia1,50 (marzo/giugno). Totali coerenti,
+7audit contratti marcati `seconda_linea_2026_10_31` e1audit catalogo.
+Contesto transazionale `mirox.verifica_commit` ripristinato: nessun riesame,
+notifica o modifica degli stati. Fingerprint identici prima/dopo per campi
+estranei, altri contratti, altre opzioni, verifiche e notifiche.
+Snapshot punteggi prima/dopo solo in `.backup-private/seconda-linea-20261031/`.
+SQL PGlite isolato con CHECK/audit reali: preflight senza scritture, ricalcolo,
+retry idempotente e rollback su numero/stato dati inatteso o invalidazione
+documentale. Harness `scripts/check-seconda-linea-sql.cjs`; nessuna dipendenza
+runtime aggiunta. Nessun cambio a schema/RLS/RPC/CC, codice JS o deploy.
 
 ## Reinserimenti Fisso — migration applicata production31/10/2026
 
@@ -225,6 +315,12 @@ performance: solo nuovo indice audit inutilizzato. Deploy verificato online29/10
 Debug29/10: migration invariata, ricollaudata isolata; corrette UI e PDF, inclusa
 la conservazione del documento/versione CAS dopo caricamento mensile fallito.
 Nessun nuovo DDL o applicazione production per il planning.
+
+## Compilatore Malpractis — catalogo locale 13/11/2026
+
+`20261113101731_compilatore_malpractis.sql`, applicata/riletta production13/11 come `20261113102548`: INSERT idempotente della sola pagina `compilatore_malpractis` in `mirox_pagine` (catalogo da19 a20). Nessun UPDATE ai permessi utenti o seed automatico, nessuna modifica a dati anagrafica, CC, RLS, trigger, RPC, bucket o schema. Un record discordante causa rollback. Admin sempre ammessi; abilitazioni operatori esplicite dal pannello esistente. Applicata prima del codice compatibile, su richiesta di push di tutto;19righe catalogo precedenti e9ACL identiche per hash. La generazione PDF è senza archivio e non richiede tabelle o bucket nuovi.
+
+La CLI `migration new compilatore_malpractis` è stata tentata e ha fallito con EPERM sulla telemetria del profilo; file creato localmente con timestamp corrente. `scripts/verifica-permessi-pagine-sql.js` applica estensione e retry in PGlite: confronto integrale ACL/catalogo precedente/policy, matrice20pagine e salvataggio/revoca/audit;566verifiche verdi. Catalogo e ACL production riletti prima/dopo durante la preparazione del rilascio; nessuna assegnazione utente modificata.
 
 ## Permessi pagine Mirox — migration applicata 27/10/2026
 
@@ -577,7 +673,10 @@ identiche per impronta; PK/FK/RLS/grant e tabelle condivise anagrafica/CC invari
 Collaudo PGlite0.5.13 esteso in `scripts/verifica-codici-cliente-sql.js`: vecchio
 rifiuto riprodotto, migrazione conserva lo storico, insert/idempotenza dei quattro
 formati, zeri iniziali e punti distinti, input invalidi, FK e privilegi verificati.
-Rilascio validazione UI/OCR/backend autorizzato13/11, build e735/735test verdi.
+Validazione UI/OCR/backend pubblicata13/11 con `1d64940`, CI43402343513
+Linux/Windows verde e Netlify6af6d97729db26e9ce8959ad online; HTTP core/punti/
+5file e HTML/inline verificati, OCR401 senza JWT. Build e735/735test verdi.
+Nessuna nuova migration o scrittura dati durante il push.
 
 Codici cliente WindTre anagrafici (27/10): una anagrafica puo' avere piu' codici,
 conservati tutti senza sostituzione. Da PDA Mobile/Fisso/Customer Base si legge

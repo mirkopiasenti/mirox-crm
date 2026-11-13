@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compilatore Malpractis - Mirox</title>
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/mirox-permissions.css">
+  <script src="../js/mirox-permissions-core.js"></script>
+  <script src="../js/mirox-permissions-ui.js"></script>
+  <link rel="stylesheet" href="../css/mirox-modules.css">
+  <link rel="stylesheet" href="../css/compilatore-malpractis.css">
+  <script src="../js/mirox-safe.js"></script>
+</head>
+<body>
+  <header class="page-header"><div><h1>Compilatore Malpractis</h1><p>Compila il modulo di segnalazione WINDTRE.</p><a href="../dashboard.html" class="btn-back">Torna alla dashboard</a></div></header>
+  <main class="page-shell">
+    <section class="customer-search-card" id="searchCard">
+      <h2>Richiama un’anagrafica dal CRM</h2>
+      <p>Cerca per nome, cognome, codice fiscale, ragione sociale o partita IVA. Se non ci sono risultati, potrai compilare i dati manualmente.</p>
+      <form id="searchForm" class="customer-search-form" role="search">
+        <label class="sr-only" for="searchInput">Cerca anagrafica</label>
+        <input id="searchInput" type="search" minlength="2" maxlength="80" required autocomplete="off" placeholder="Nome, cognome, CF, ragione sociale o P.IVA">
+        <button class="btn btn-primary" id="searchButton" type="submit">Cerca</button>
+      </form>
+      <p id="searchState" role="status" aria-live="polite"></p>
+      <div id="searchResults" class="customer-results"></div>
+    </section>
+    <section class="form-card" id="formCard" hidden>
+      <div class="form-card-head"><div><h2>Compila la segnalazione</h2><p id="customerSummary"></p></div><button class="change-customer" type="button" id="changeCustomer">Cambia anagrafica</button></div>
+      <form id="compilerForm" class="form-body">
+        <div class="dealer-note">Rivenditore: <strong>KONA TECH</strong> · Codice rivenditore: <strong>9001415852</strong></div>
+        <fieldset class="form-section"><legend>Dati personali e contratto</legend><div class="form-grid" id="customerFields"></div></fieldset>
+        <fieldset class="form-section"><legend>Segnalazione</legend><div class="form-grid" id="reportFields"></div></fieldset>
+        <fieldset class="form-section"><legend>Problematiche riscontrate</legend><p>Rispondi a ogni domanda. Puoi indicare più problematiche.</p><div class="form-grid" id="reasonFields"></div></fieldset>
+        <fieldset class="form-section"><legend>Descrizione e appuntamenti</legend>
+          <div class="form-grid">
+            <div class="field full"><label for="descrizione">Come descrivi nel dettaglio la segnalazione?</label><textarea id="descrizione" name="descrizione" rows="5" maxlength="1200" required></textarea><small>Il testo deve rientrare nello spazio del modulo originale. Per “Altro”, specifica qui il problema.</small></div>
+            <div class="field"><label for="primo_appuntamento">Quali erano data e ora del primo appuntamento?</label><input id="primo_appuntamento" name="primo_appuntamento" type="datetime-local"><small>Lascia vuoto se non è stato concordato.</small></div>
+            <div class="field"><label for="nuovo_appuntamento">Quali sono data e ora dell’eventuale nuovo appuntamento?</label><input id="nuovo_appuntamento" name="nuovo_appuntamento" type="datetime-local"><small>Lascia vuoto se non è stato concordato.</small></div>
+            <div class="field"><label for="data">Qual è la data del modulo?</label><input id="data" name="data" type="date" required></div>
+          </div>
+        </fieldset>
+        <p class="signature-note">La firma va apposta dal cliente sul PDF. Prima dell’invio, allega una copia del documento di identità valido come richiesto dal modulo.</p>
+        <p id="generateState" role="status" aria-live="polite"></p>
+        <div class="form-actions"><button class="btn btn-primary" type="submit" id="generateButton">Genera PDF</button><a class="btn btn-primary" id="downloadPdf" hidden>Scarica PDF</a></div>
+      </form>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js" integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy" crossorigin="anonymous"></script>
+  <script src="../js/config.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/mirox-ui.js"></script>
+  <script src="../js/mirox-api.js"></script>
+  <script src="../js/malpractis-core.js"></script>
+  <script src="../js/compilatore-malpractis.js"></script>
+</body>
+</html>

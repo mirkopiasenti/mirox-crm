@@ -24,7 +24,8 @@
     ['controllo_allarmi', 'Controllo Allarmi', 'Post-Vendita', 'controllo_allarmi.html'],
     ['ticket', 'Ticket', 'Post-Vendita', 'ticket.html'],
     ['compilatore_disdette', 'Compilatore disdette', 'Applicazioni', 'compilatore_disdette.html'],
-    ['compilatore_subentri', 'Compilatore Subentri', 'Applicazioni', 'compilatore_subentri.html']
+    ['compilatore_subentri', 'Compilatore Subentri', 'Applicazioni', 'compilatore_subentri.html'],
+    ['compilatore_malpractis', 'Compilatore Malpractis', 'Applicazioni', 'compilatore_malpractis.html']
   ].map(([key, label, group, file]) => Object.freeze({ key, label, group, path: `moduli/${file}` }));
   const keys = pages.map(p => p.key);
   const contracts = ['upload_contratti', 'verifica_contratti', 'storico_cliente', 'dashboard_pezzi', 'controllo_fissi', 'controllo_lg', 'controllo_allarmi', 'controllo_assicurazioni'];
@@ -101,6 +102,7 @@
       'gestisci-verifica-automatica': ['verifica_contratti'],
       'gestisci-anagrafiche': ['anagrafiche'],
       'gestisci-disdette': ['compilatore_disdette'], 'gestisci-subentri': ['compilatore_subentri'],
+      'gestisci-malpractis': ['compilatore_malpractis'],
       'elimina-vendita-contratto': ['verifica_contratti'],
       'upload-documento-modulo': [...new Set(Object.values(buckets).flatMap(b => b.write))],
       'gestisci-vendita-contratto': body.action === 'set_stato_verifica_manuale' ? ['verifica_contratti']

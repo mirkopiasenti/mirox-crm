@@ -43,6 +43,15 @@ async function run() {
       GRANT SELECT ON public.storico_cliente,public.view_vendita_dashboard_giornaliera,public.view_vendita_dashboard_mensile TO authenticated,service_role;`);
     const sharedBefore = (await db.query("SELECT column_name,data_type FROM information_schema.columns WHERE table_name='profili' ORDER BY ordinal_position")).rows;
     await db.exec(fs.readFileSync(path.join(__dirname, '../database/20261027221833_permessi_pagine_mirox.sql'), 'utf8'));
+    const aclBefore = (await db.query('SELECT * FROM public.mirox_permessi_utente ORDER BY utente_id')).rows;
+    const catalogBefore = (await db.query('SELECT * FROM public.mirox_pagine ORDER BY chiave')).rows;
+    const policiesBefore = (await db.query('SELECT * FROM pg_policies ORDER BY schemaname,tablename,policyname')).rows;
+    const extension = fs.readFileSync(path.join(__dirname, '../database/20261113101731_compilatore_malpractis.sql'), 'utf8');
+    await db.exec(extension);
+    await db.exec(extension); // Retry non amplia i permessi e non duplica la pagina.
+    check((await db.query('SELECT * FROM public.mirox_permessi_utente ORDER BY utente_id')).rows, aclBefore);
+    check((await db.query("SELECT * FROM public.mirox_pagine WHERE chiave <> 'compilatore_malpractis' ORDER BY chiave")).rows, catalogBefore);
+    check((await db.query('SELECT * FROM pg_policies ORDER BY schemaname,tablename,policyname')).rows, policiesBefore);
     check((await db.query("SELECT column_name,data_type FROM information_schema.columns WHERE table_name='profili' ORDER BY ordinal_position")).rows, sharedBefore);
     check((await db.query('SELECT chiave,etichetta,reparto,percorso FROM public.mirox_pagine ORDER BY chiave')).rows,
       Core.pages.map(p => ({ chiave: p.key, etichetta: p.label, reparto: p.group, percorso: p.path })).sort((a, b) => a.chiave.localeCompare(b.chiave)));
