@@ -73,6 +73,19 @@ function sectionFields(text, completeText = true) {
   const simBlocks = sections(simHeader), mnps = sections(mnpHeader);
   const contractual = simBlocks.filter(block => /Piano\s+Telefonico\s*:|Opzioni\s*\/\s*servizi\s*:/i.test(block));
   const sims = contractual.length ? contractual : simBlocks;
+  // Reload vale solo nella lista delle opzioni della SIM contrattuale.
+  // Condizioni generali e prevalidazione non attestano un'opzione attivata.
+  const reload = {};
+  for (const [key, name] of [['reload_exchange', 'exchange'], ['reload_forever', 'forever']]) {
+    const values = contractual.map(block => {
+      const match = block.match(/Opzioni\s*\/\s*servizi\s*:[ \t]*([\s\S]*?)(?=\n[ \t]*(?:Costo\s+attivazione|Confermo|Firma|Data\s*:)|$)/i);
+      if (!match || !match[1].trim()) return undefined;
+      if (new RegExp('\\bReload\\s+' + name + '\\b', 'i').test(match[1])) return true;
+      if (/\uFFFD|\uFFFF/.test(match[1])) return undefined;
+      return completeText && /\bCosto\s+attivazione|Confermo\s+di\s+aver/i.test(block) ? false : undefined;
+    });
+    if (values.some(v => v !== undefined)) reload[key] = values.every(v => v !== undefined && v === values[0]) ? values[0] : null;
+  }
   const cloudValues = [...fixedCloudValues(normalized, completeText), ...contractual.map(block => {
     const match = block.match(/Opzioni\s*\/\s*servizi\s*:[ \t]*([\s\S]*?)(?=\n[ \t]*(?:Costo\s+attivazione|Confermo|Firma|Data\s*:)|$)/i);
     if (!match || !match[1].trim()) return undefined;
@@ -80,7 +93,7 @@ function sectionFields(text, completeText = true) {
     if (/\uFFFD|\uFFFF/.test(match[1])) return undefined;
     return completeText && /\bCosto\s+attivazione|Confermo\s+di\s+aver/i.test(block) ? false : undefined;
   })];
-  const fixed = { ...fixedActivationFields(normalized), ...customerCodeFields(normalized) };
+  const fixed = { ...fixedActivationFields(normalized), ...customerCodeFields(normalized), ...reload };
   if (cloudValues.some(v => v !== undefined)) {
     if (cloudValues.every(v => v !== undefined && v === cloudValues[0])) fixed.professional_cloud = cloudValues[0];
     else fixed.professional_cloud = null;

@@ -1214,6 +1214,16 @@ Reload Exchange
 <input id="reload_forever" type="checkbox" style="width:18px;height:18px;accent-color:#FF6600;cursor:pointer;">
 Reload Forever
 </label>
+<div id="fieldReloadForeverGestione" hidden>
+<label for="reload_forever_gestione">Gestione Reload Forever</label>
+<select id="reload_forever_gestione">
+<option value="">Seleziona...</option>
+<option value="Mantieni attiva">Mantieni attiva</option>
+<option value="Richiedi disattivazione">Richiedi disattivazione</option>
+</select>
+<button type="button" id="btnReloadForeverGestione" class="mx-btn mx-btn-secondary">Scegli gestione</button>
+<p class="hint">La richiesta di disattivazione deve essere eseguita sul portale WindTre.</p>
+</div>
 </div>
 </div> <div id="fieldOpzione" class="field hidden">
 <label for="opzione_id">Opzione</label>
@@ -1664,6 +1674,9 @@ Reload Forever
  codiceRivenditore: document.getElementById('codice_rivenditore'),
  reloadExchange: document.getElementById('reload_exchange'),
  reloadForever: document.getElementById('reload_forever'),
+ reloadForeverGestione: document.getElementById('reload_forever_gestione'),
+ fieldReloadForeverGestione: document.getElementById('fieldReloadForeverGestione'),
+ btnReloadForeverGestione: document.getElementById('btnReloadForeverGestione'),
  fieldReloadFlags: document.getElementById('fieldReloadFlags'),
  numeroContrattoEnergia: document.getElementById('numero_contratto_energia'),
  fieldCluster: document.getElementById('fieldCluster'),
@@ -3219,6 +3232,36 @@ Reload Forever
  refs.reload.value = (preserveCurrent && hasCurrent) ? currentValue : '';
  }
 
+ async function confirmReloadFlagChange(field, label) {
+ const previous = field.dataset.reloadConfirmed === 'true';
+ const selected = field.checked;
+ // Conserva il valore precedente anche per bozza e carrello fino alla conferma.
+ field.checked = previous;
+ if (selected === previous || field.dataset.reloadPending) return;
+ const category = getCategoriaName();
+ if (!isCategory(category, 'Mobile') && !isCategory(category, 'Customer Base')) return;
+ const revision = runtimeState.pdaRevision;
+ const editingId = runtimeState.editingTempId;
+ const offerId = refs.offerta.value;
+ const cluster = refs.cluster.value;
+ const token = String(runtimeState.reloadConfirmSequence = (runtimeState.reloadConfirmSequence || 0) + 1);
+ field.dataset.reloadPending = token;
+ try {
+ const confirmed = await window.MiroxUI.confirm(
+ 'Vuoi ' + (selected ? 'attivare' : 'disattivare') + ' la spunta "' + label + '" per questo contratto?',
+ { title: 'Conferma modifica ' + label, okText: 'Conferma modifica', cancelText: 'Annulla' }
+ );
+ if (!confirmed || field.dataset.reloadPending !== token || runtimeState.pdaRevision !== revision
+ || runtimeState.editingTempId !== editingId || refs.offerta.value !== offerId
+ || refs.cluster.value !== cluster || getCategoriaName() !== category) return;
+ field.checked = selected;
+ field.dataset.reloadConfirmed = String(selected);
+ queueDraftSave();
+ } finally {
+ if (field.dataset.reloadPending === token) delete field.dataset.reloadPending;
+ }
+ }
+
  function isOfferFlagEnabled(offerta, key) {
  if (!offerta || !key) return false;
  const value = offerta[key];
@@ -3321,6 +3364,7 @@ Reload Forever
  root.dataset.pdaFixedActivationManual = (data?.pda_tipo_attivazione_manuale === true
  || (data?.pda_tipo_attivazione_manuale === undefined && Boolean(data?.tipo_attivazione))) ? 'true' : 'false';
  delete root.dataset.pdaFixedActivationPending;
+ setReloadFlags(data);
  root.innerHTML = window.MiroxPdaUI.formHtml(window.MiroxPda.normalize(data || {}), category, { wizard: true, reading: root.dataset.pdaReading, cluster });
  window.MiroxPdaUI.bindForm(root, { context: () => [runtimeState.pdaRevision, runtimeState.editingTempId, refs.offerta.value, refs.cluster.value, refs.cfPiva?.value || ''].join('|') });
  if (!root.dataset.autosaveBound) {
@@ -3330,9 +3374,31 @@ Reload Forever
  root.dataset.autosaveBound = 'true';
  }
  }
+ function setReloadFlags(data = {}) {
+ for (const [key, field] of [['reload_exchange', refs.reloadExchange], ['reload_forever', refs.reloadForever]]) {
+ if (!field) continue;
+ const allowed = isCategory(getCategoriaName(), 'Mobile') || isCategory(getCategoriaName(), 'Customer Base');
+ field.checked = allowed && data[key] === true;
+ field.dataset.reloadConfirmed = String(field.checked);
+ delete field.dataset.reloadPending;
+ }
+ if (refs.reloadForeverGestione) {
+ refs.reloadForeverGestione.value = refs.reloadForever.checked ? data.reload_forever_gestione || '' : '';
+ window.MiroxPdaUI.bindReloadForever(refs.fieldReloadFlags, {
+ flag: refs.reloadForever, action: refs.reloadForeverGestione,
+ management: refs.fieldReloadForeverGestione, chooseButton: refs.btnReloadForeverGestione,
+ context: () => [runtimeState.pdaRevision, runtimeState.editingTempId, getCategoriaName(), refs.offerta.value, refs.cluster.value].join('|'),
+ onChange: queueDraftSave
+ });
+ }
+ }
+
  function readPdaFields() {
  const root = document.getElementById('pdaContractFields');
  return { ...window.MiroxPdaUI.readForm(root), pda_lettura: root.dataset.pdaReading || 'manuale',
+ reload_exchange: refs.reloadExchange?.checked === true,
+ reload_forever: refs.reloadForever?.checked === true,
+ reload_forever_gestione: refs.reloadForever?.checked ? refs.reloadForeverGestione?.value || null : null,
  codice_cliente: window.MiroxPda.customerCode(refs.codiceCliente?.value ?? root.dataset.pdaCustomerCode),
  pda_opzione_manuale: root.dataset.pdaOptionManual === 'true',
  pda_dispositivo_auto: root.dataset.pdaDeviceAuto === 'true' ? true : root.dataset.pdaDeviceAuto === 'false' ? false : null,
@@ -3524,8 +3590,7 @@ Reload Forever
  const showReloadFlags = isMobile || isCustomerBase;
  if (refs.fieldReloadFlags) refs.fieldReloadFlags.classList.toggle('hidden', !showReloadFlags);
  if (!showReloadFlags) {
- if (refs.reloadExchange) refs.reloadExchange.checked = false;
- if (refs.reloadForever) refs.reloadForever.checked = false;
+ setReloadFlags();
  }
  // Campi specifici Assicurazioni: modalita_pagamento_assicurazione + ricorrenza_assicurazione
  const isAssicurazioni = isCategory(categoriaNome, 'Assicurazioni');
@@ -3888,6 +3953,7 @@ Reload Forever
 
  return {
  ...window.MiroxPda.validate(readPdaFields(), categoriaNome, { cluster: refs.cluster.value, requireCloud: true }),
+ ...window.MiroxPda.validateReloadForever(readPdaFields(), categoriaNome, { required: true }),
  codice_cliente: readPdaFields().codice_cliente,
  pda_lettura: readPdaFields().pda_lettura,
  pda_opzione_manuale: readPdaFields().pda_opzione_manuale,
@@ -4869,6 +4935,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  convergenza: item.convergenza || null,
 	 reload_exchange: item.reload_exchange === true,
 	 reload_forever: item.reload_forever === true,
+ reload_forever_gestione: window.MiroxPda.validateReloadForever(item, item.categoria_nome || item.snapshot?.categoria, { required: true }).reload_forever_gestione,
 	 // Codice Rivenditore: non deve andare perso fra carrello e backend.
 	 codice_rivenditore: CODICE_RIVENDITORE_DEFAULT,
 	 // PDA in staging: il backend promuovera' temp/<sess>/<file> con nome progressivo
@@ -5365,6 +5432,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  });
 
  refs.opzione.addEventListener('change', confirmMobileOptionChange);
+ refs.reloadExchange.addEventListener('change', () => confirmReloadFlagChange(refs.reloadExchange, 'Reload Exchange'));
  refs.tipoAttivazione.addEventListener('change', confirmFixedActivationChange);
  refs.apriChiudi.addEventListener('change', renderDynamicSections);
  refs.dispositivoAssociato.addEventListener('change', confirmDeviceChange);
@@ -6288,6 +6356,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  // Gli altri contratti aggiornano soltanto i dati contratto/dispositivo, mai il contatto OTP.
  if (refs.codiceRivenditore) refs.codiceRivenditore.value = CODICE_RIVENDITORE_DEFAULT;
  renderPdaFields({ ...window.MiroxPda.normalize(data), pda_lettura: data.pda_lettura,
+ reload_exchange: data.reload_exchange, reload_forever: data.reload_forever,
  codice_cliente: data.codice_cliente,
  pda_dispositivo_auto: data.dispositivo_presente, pda_dispositivo_manuale: false,
  pda_tipo_attivazione_auto: data.tipo_attivazione_fisso, pda_tipo_attivazione_manuale: false });

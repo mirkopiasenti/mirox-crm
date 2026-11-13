@@ -37,6 +37,7 @@ const CONTRACT_FIELDS = new Set([
   'convergenza',
   'reload_exchange',
   'reload_forever',
+  'reload_forever_gestione',
   'codice_rivenditore'
 ]);
 const ANAGRAFICA_FIELDS = new Set([
@@ -225,7 +226,7 @@ async function updateContract({ supabase, auth, body }) {
     .from('vendita_contratti')
     .select(`
       id, anagrafica_id, pratica_id, stato_controllo, updated_at,
-      categoria_id, categoria_snapshot, offerta_id, opzione_id, reload_id, assicurazione_impianti,
+      categoria_id, categoria_snapshot, offerta_id, opzione_id, reload_id, reload_forever, reload_forever_gestione, assicurazione_impianti,
       ricorrenza_assicurazione, codice_contratto, costo_offerta_mensile, portabilita,
       numero_telefono, numero_provvisorio, numero_mnp, operatore_provenienza, cluster_cliente, professional_cloud, professional_cloud_gestione,
       punteggio_gara_offerta, punteggio_gara_opzione,
@@ -260,6 +261,12 @@ async function updateContract({ supabase, auth, body }) {
       if (finalCategory !== 'Energia' && current.assicurazione_impianti != null) {
         patch.assicurazione_impianti = null;
       }
+      if (finalCategory !== current.categoria_snapshot && !Pda.reloadScope(finalCategory)) {
+        patch.reload_forever = false;
+        patch.reload_forever_gestione = null;
+      }
+      const requireReload = current.reload_forever !== true || current.reload_forever_gestione != null || patch.reload_forever_gestione != null;
+      Object.assign(patch, Pda.validateReloadForever({ ...current, ...patch }, finalCategory, { required: requireReload }));
       const pdaPatch = Pda.validate({ ...current, ...patch }, finalCategory,
         { requireCode: Boolean(current.codice_contratto), allowLegacy: !Pda.hasMobileData(current), cluster: current.cluster_cliente, requireCloud: current.professional_cloud != null });
       Object.assign(patch, pdaPatch);

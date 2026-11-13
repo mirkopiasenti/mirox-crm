@@ -531,7 +531,7 @@ async function caricaContratti(statoControllo) {
         tipo_attivazione, apri_chiudi, intestatario, switch_sim, modalita_pagamento,
         dispositivo_associato, imei, fascia_prezzo, tipo_acquisto, finanziaria, kolme,
         smartphone_reload, smartphone_reload_modalita,
-        pod_pdr, numero_contratto_energia, ex_fornitore, assicurazione_impianti, prezzo_fisso, convergenza, reload_exchange, reload_forever,
+        pod_pdr, numero_contratto_energia, ex_fornitore, assicurazione_impianti, prezzo_fisso, convergenza, reload_exchange, reload_forever, reload_forever_gestione,
         codice_contratto, costo_offerta_mensile, portabilita, numero_telefono, numero_provvisorio, numero_mnp, operatore_provenienza, professional_cloud, professional_cloud_gestione,
         codice_rivenditore,
         punteggio_offerta, punteggio_opzione, punteggio_extra, punteggio_totale,
@@ -1007,6 +1007,15 @@ function apriPopupDettaglio(c, opts) {
             <input type="checkbox" id="vc_reload_forever" ${c.reload_forever ? 'checked' : ''} ${disabled} style="width:18px;height:18px;accent-color:#FF6600;cursor:pointer;">
             <span style="font-size:13.5px;font-weight:500;">Attivo</span>
           </label>
+          <div id="vc_field_reload_forever_gestione" ${c.reload_forever ? '' : 'hidden'}>
+            <label for="vc_reload_forever_gestione">Gestione Reload Forever</label>
+            <select id="vc_reload_forever_gestione" ${disabled}>
+              <option value="">Non indicata</option>
+              ${window.MiroxPda.CLOUD_ACTIONS.map(value => `<option value="${escapeHtml(value)}" ${c.reload_forever_gestione === value ? 'selected' : ''}>${escapeHtml(value)}</option>`).join('')}
+            </select>
+            <button type="button" id="vc_reload_forever_choose" class="mx-btn mx-btn-secondary" ${disabled}>Scegli gestione</button>
+            <p class="hint">La richiesta di disattivazione deve essere eseguita sul portale WindTre.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -1067,6 +1076,12 @@ function apriPopupDettaglio(c, opts) {
   const titolo = `Contratto · ${escapeHtml(ana.ragione_sociale || c.id)}`;
   const m = window.MiroxUI._build({ title: titolo, bodyHtml, footerHtml, large: true });
   let pdaOtherFieldsDirty = false;
+  window.MiroxPdaUI.bindReloadForever(m.body, {
+    flag: m.body.querySelector('#vc_reload_forever'), action: m.body.querySelector('#vc_reload_forever_gestione'),
+    management: m.body.querySelector('#vc_field_reload_forever_gestione'), chooseButton: m.body.querySelector('#vc_reload_forever_choose'),
+    context: () => [c.id, c.updated_at, m.body.querySelector('#vc_categoria_id')?.value, m.body.querySelector('#vc_offerta_id')?.value].join('|'),
+    onChange: () => { pdaOtherFieldsDirty = true; }
+  });
   m.body.addEventListener('input', () => { pdaOtherFieldsDirty = true; });
   m.body.addEventListener('change', () => { pdaOtherFieldsDirty = true; });
   m.body.querySelector('[data-edit-pda]')?.addEventListener('click', async () => {
@@ -1576,6 +1591,7 @@ function leggiPayloadDalPopup() {
     convergenza: isFisso ? (v('vc_convergenza') || null) : null,
     reload_exchange: showRX ? ck('vc_reload_exchange') : false,
     reload_forever: showRX ? ck('vc_reload_forever') : false,
+    reload_forever_gestione: showRX && ck('vc_reload_forever') ? v('vc_reload_forever_gestione') || null : null,
     // Codice Rivenditore (migration 050): fallback su Legnago se assente/invalido
     codice_rivenditore: (['9001415852','9000822241'].includes(v('vc_codice_rivenditore'))
       ? v('vc_codice_rivenditore')

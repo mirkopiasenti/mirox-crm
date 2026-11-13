@@ -30,11 +30,12 @@ for(const [suffix,type] of [['Finanziato','Finanziamento'],['VAR','VAR']])test('
  assert.throws(()=>validateCategorySpecificRules({contract:{...c,tipo_acquisto:type==='VAR'?'Finanziamento':'VAR'},category:{nome:'Customer Base'},offer,index:0}),/tipo acquisto/);
 });
 function wizard(name,category='Customer Base',fwa=false) {
- const elements={},refs=new Proxy(elements,{get:(map,key)=>map[key] ||= {value:'',checked:false,disabled:false,classList:{toggle(){},add(){}}}});
+ const elements={},refs=new Proxy(elements,{get:(map,key)=>map[key] ||= {value:'',checked:false,dataset:{},disabled:false,classList:{toggle(){},add(){}}}});
  const html=fs.readFileSync(require('node:path').join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
  const start=html.indexOf(' function renderDynamicSections()'),end=html.indexOf(' function getClienteFormData()',start);
- const context={window:{MiroxPda:require('../js/vendita-pda-core')},renderPdaFields(){},maybeSelectMobileOption(){},maybeSelectFixedActivation(){},maybeSelectOcrDevice(){},refs,MiroxCustomerBaseDevice:device,getCategoriaName:()=>category,getOffertaName:()=>name,filteredOpzioni:()=>[],shouldShowDevice:()=>true,shouldShowSwitchSim:()=>false,shouldShowOpzione:()=>false,getCurrentDocumentRequirements:()=>({copia_sim_mnp:false,copia_bolletta:false}),isCategory:(a,b)=>a.toLowerCase()===b.toLowerCase(),normalizeSiNo:v=>v,isFwaIndoor:()=>fwa,clearInputFiles(){},uiState:{view:'wizard',step:3},updateScorePreview(){},maybeApplyOcrDevice(){}};
- return {refs,render:()=>vm.runInNewContext(html.slice(start,end)+'\nrenderDynamicSections();',context)};
+ const context={runtimeState:{},queueDraftSave(){},window:{MiroxPda:require('../js/vendita-pda-core'),MiroxPdaUI:{bindReloadForever(){}}},renderPdaFields(){},maybeSelectMobileOption(){},maybeSelectFixedActivation(){},maybeSelectOcrDevice(){},refs,MiroxCustomerBaseDevice:device,getCategoriaName:()=>category,getOffertaName:()=>name,filteredOpzioni:()=>[],shouldShowDevice:()=>true,shouldShowSwitchSim:()=>false,shouldShowOpzione:()=>false,getCurrentDocumentRequirements:()=>({copia_sim_mnp:false,copia_bolletta:false}),isCategory:(a,b)=>a.toLowerCase()===b.toLowerCase(),normalizeSiNo:v=>v,isFwaIndoor:()=>fwa,clearInputFiles(){},uiState:{view:'wizard',step:3},updateScorePreview(){},maybeApplyOcrDevice(){}};
+ const reloadStart=html.indexOf(' function setReloadFlags('),reloadEnd=html.indexOf(' function readPdaFields()',reloadStart);
+ return {refs,render:()=>vm.runInNewContext(html.slice(reloadStart,reloadEnd)+html.slice(start,end)+'\nrenderDynamicSections();',context)};
 }
 test('wizard reale imposta telefono e finanziamento senza errori di inizializzazione',()=>{
  const ui=wizard('Cambio Piano + Telefono Finanziato');ui.render();

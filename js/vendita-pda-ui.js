@@ -140,6 +140,87 @@
     if (previous === 'true' && !previousAction) void choose();
   }
 
+  function chooseReloadForeverAction() {
+    return new Promise(resolve => {
+      let done = false;
+      const modal = window.MiroxUI._build({ title: 'Gestione Reload Forever',
+        bodyHtml: '<p>Vuoi mantenere attiva Reload Forever oppure richiederne la disattivazione?</p>',
+        footerHtml: '<button type="button" class="mx-btn mx-btn-primary" data-reload-keep>Mantieni attiva</button>'
+          + '<button type="button" class="mx-btn mx-btn-secondary" data-reload-stop>Richiedi disattivazione</button>',
+        onClose: () => { if (!done) resolve(null); } });
+      const finish = value => { done = true; modal.close(); resolve(value); };
+      modal.foot.querySelector('[data-reload-keep]').addEventListener('click', () => finish(Pda.CLOUD_ACTIONS[0]));
+      modal.foot.querySelector('[data-reload-stop]').addEventListener('click', () => finish(Pda.CLOUD_ACTIONS[1]));
+    });
+  }
+  const reloadBindings = new WeakMap();
+  function bindReloadForever(root, options) {
+    reloadBindings.get(root)?.cleanup();
+    const { flag, action, management, chooseButton } = options;
+    if (!flag || !action || !management || !chooseButton) return;
+    let previous = flag.checked, previousAction = previous ? action.value : '', pending = false;
+    action.value = previousAction;
+    const listeners = [];
+    const on = (element, type, listener) => { element.addEventListener(type, listener); listeners.push(() => element.removeEventListener(type, listener)); };
+    const binding = { cleanup() { listeners.forEach(remove => remove()); } };
+    reloadBindings.set(root, binding);
+    const context = () => options.context ? options.context() : '';
+    const valid = stamp => reloadBindings.get(root) === binding && root.isConnected !== false && context() === stamp;
+    const show = () => { management.hidden = !flag.checked; };
+    const changed = () => { show(); options.onChange?.(); action.dispatchEvent(new Event('change', { bubbles: true })); };
+    const lock = async run => {
+      if (pending) { flag.checked = previous; action.value = previousAction; return; }
+      pending = true;
+      const stamp = context();
+      try { await run(() => valid(stamp)); } finally { pending = false; }
+    };
+    on(flag, 'input', event => event.stopPropagation());
+    on(action, 'input', event => event.stopPropagation());
+    on(flag, 'change', async () => {
+      const selected = flag.checked;
+      flag.checked = previous;
+      if (selected === previous) return;
+      await lock(async current => {
+        const ok = await window.MiroxUI.confirm('Vuoi ' + (selected ? 'attivare' : 'disattivare') + ' la spunta "Reload Forever" per questo contratto?',
+          { title: 'Conferma modifica Reload Forever', okText: 'Conferma modifica', cancelText: 'Annulla' });
+        if (!ok || !current()) return;
+        const decision = selected ? await chooseReloadForeverAction() : '';
+        if (!current() || (selected && !decision)) return;
+        previous = selected; previousAction = decision;
+        flag.checked = previous; flag.dataset.reloadConfirmed = String(previous); action.value = previousAction; changed();
+      });
+    });
+    on(action, 'change', async () => {
+      const selected = action.value;
+      action.value = previousAction;
+      if (selected === previousAction) return;
+      await lock(async current => {
+        if (!previous || !Pda.CLOUD_ACTIONS.includes(selected)) return;
+        if (previousAction) {
+          const ok = await window.MiroxUI.confirm('Vuoi cambiare la gestione Reload Forever da "' + previousAction + '" a "' + selected + '"?',
+            { title: 'Conferma modifica gestione', okText: 'Conferma modifica', cancelText: 'Mantieni scelta attuale' });
+          if (!ok || !current()) return;
+        }
+        if (!current()) return;
+        previousAction = selected; action.value = selected; changed();
+      });
+    });
+    const choose = () => lock(async current => {
+      if (!previous || flag.disabled || action.disabled) return;
+      const decision = await chooseReloadForeverAction();
+      if (!decision || !current() || decision === previousAction) return;
+      if (previousAction) {
+        const ok = await window.MiroxUI.confirm('Vuoi cambiare la gestione Reload Forever da "' + previousAction + '" a "' + decision + '"?',
+          { title: 'Conferma modifica gestione', okText: 'Conferma modifica', cancelText: 'Mantieni scelta attuale' });
+        if (!ok || !current()) return;
+      }
+      previousAction = decision; action.value = decision; changed();
+    });
+    on(chooseButton, 'click', choose);
+    show();
+    if (previous && !previousAction) void choose();
+  }
+
   function formHtml(data = {}, category, options = {}) {
     if (!Pda.isPda(category)) return '';
     const input = (key, label, extra = '') => '<label style="display:block;margin:10px 0;"><span data-pda-label="' + key + '">' + esc(label) + '</span>'
@@ -218,5 +299,5 @@
       });
     });
   }
-  window.MiroxPdaUI = { api, checkCode, duplicateNotice, askCode, askCustomerCode, askCost, askContact, formHtml, bindForm, bindCloudForm, chooseCloudAction, readForm, summary, edit };
+  window.MiroxPdaUI = { api, checkCode, duplicateNotice, askCode, askCustomerCode, askCost, askContact, formHtml, bindForm, bindCloudForm, chooseCloudAction, chooseReloadForeverAction, bindReloadForever, readForm, summary, edit };
 })();

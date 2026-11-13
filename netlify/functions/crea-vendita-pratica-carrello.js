@@ -260,6 +260,7 @@ function normalizeContractInput(contract, index) {
     })(),
     reload_exchange: parseBoolean(contract?.reload_exchange, false) === true,
     reload_forever: parseBoolean(contract?.reload_forever, false) === true,
+    reload_forever_gestione: cleanString(contract?.reload_forever_gestione),
     // Reinserimento (migration 033): questi campi devono sopravvivere alla
     // normalizzazione, altrimenti il backend ricade sempre su "inserimento".
     stato_inserimento: cleanString(contract?.stato_inserimento) || 'inserimento',
@@ -462,6 +463,7 @@ function validateAssicurazioneImpianti(contract, categoryName) {
 
 function validateCategorySpecificRules({ contract, category, offer, index }) {
   const categoryName = normalizeCategoryName(category?.nome);
+  Object.assign(contract, Pda.validateReloadForever(contract, category?.nome, { required: true }));
   validateCombination(contract,offer?.nome_offerta,category?.nome);
 
   if (categoryName === 'fisso') {
@@ -930,7 +932,10 @@ exports.handler = async (event) => {
       const category = (pdaCategories || []).find(c => c.id === contract.categoria_id);
       if (!category) throw new Error('Categoria non trovata');
       // Validate raw values too: malformed input must not silently become null.
-      try { Object.assign(contract, Pda.validate(contrattiRaw[i], category.nome, { cluster, requireCloud: Pda.cloudScope(category.nome, cluster) && Object.prototype.hasOwnProperty.call(contrattiRaw[i], 'professional_cloud') })); }
+      try {
+        Object.assign(contract, Pda.validate(contrattiRaw[i], category.nome, { cluster, requireCloud: Pda.cloudScope(category.nome, cluster) && Object.prototype.hasOwnProperty.call(contrattiRaw[i], 'professional_cloud') }));
+        Object.assign(contract, Pda.validateReloadForever(contrattiRaw[i], category.nome, { required: true }));
+      }
       catch (error) { error.statusCode = 400; throw error; }
       const customerCode = Pda.customerCode(contrattiRaw[i].codice_cliente);
       if (contrattiRaw[i].codice_cliente && (!customerCode || !Pda.isPda(category.nome))) {
@@ -1478,6 +1483,7 @@ exports.handler = async (event) => {
         prezzo_fisso: item.prezzo_fisso,
         reload_exchange: item.reload_exchange,
         reload_forever: item.reload_forever,
+        reload_forever_gestione: item.reload_forever_gestione,
 
         // Codice Rivenditore (vedi migration 050): sempre valorizzato, default Legnago.
         codice_rivenditore: item.codice_rivenditore,

@@ -165,14 +165,14 @@ test('editor PDA respinge collisione concorrente tramite vincolo DB senza succes
   assert.equal(response.statusCode,409);assert.equal(JSON.parse(response.body).error_code,'contratto_duplicato');
 });
 
-function pdaWizardFixture({ completed = false, duplicate = false, manual = false, stale = false, differentClient = false, incomplete = false, ocrFailure = false, missingCode = false, customerCode = null, cancelCustomer = false, staleCustomer = false } = {}) {
+function pdaWizardFixture({ reload = {}, completed = false, duplicate = false, manual = false, stale = false, differentClient = false, incomplete = false, ocrFailure = false, missingCode = false, customerCode = null, cancelCustomer = false, staleCustomer = false } = {}) {
   const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
   const start=source.indexOf(' async function processPda(useAi)');
   const end=source.indexOf(" refs.btnPdaAnalyzeAi.addEventListener",start);
   const runtimeState={anagraficaCompleted:completed,pdaRevision:1,processingPda:false,editingTempId:null};
   const calls=[]; let contact='3350000000', form;
   const refs={filePda:{files:[{}]},btnPdaAnalyzeAi:{},btnPdaSkipAi:{},codiceRivenditore:{},cfPiva:{value:'RSSMRA80A01H501U'}};
-  const response={...mobile,cellulare:'3359999999',codice_contratto:'NEW',cf_piva:differentClient?'VRDLGI80A01H501U':null,codice_rivenditore:'9000822241',codice_cliente:customerCode};
+  const response={...mobile,...reload,cellulare:'3359999999',codice_contratto:'NEW',cf_piva:differentClient?'VRDLGI80A01H501U':null,codice_rivenditore:'9000822241',codice_cliente:customerCode};
   if(incomplete)response.numero_telefono=null;
   if(missingCode)response.codice_contratto=null;
   const ctx={runtimeState,refs,window:{MiroxPda:Pda,MiroxPdaUI:{
@@ -194,6 +194,12 @@ test('wizard multi-contratto analizza ogni PDA preservando il contatto della pri
   const second=pdaWizardFixture({completed:true});await second.run();assert.equal(second.contact,'3350000000');
   assert.ok(second.calls.includes('ocr'));assert.ok(second.calls.includes('step:3'));assert.equal(second.form.codice_contratto,'NEW');assert.equal(second.form.pda_lettura,'ai');
   assert.ok(!second.calls.includes('ask-contact'));assert.ok(!second.calls.includes('anagrafica'));
+});
+test('wizard propaga entrambi i flag Reload letti senza perderli nella normalizzazione PDA',async()=>{
+  for(const flags of [{reload_exchange:true,reload_forever:false},{reload_exchange:false,reload_forever:true},{reload_exchange:true,reload_forever:true}]){
+    const ui=pdaWizardFixture({reload:flags});await ui.run();
+    assert.equal(ui.form.reload_exchange,flags.reload_exchange);assert.equal(ui.form.reload_forever,flags.reload_forever);
+  }
 });
 test('wizard manuale chiede codice e controlla duplicati prima di contatto e upload',async()=>{
   const ui=pdaWizardFixture({manual:true});await ui.run();
@@ -314,7 +320,7 @@ test(`aprire dati PDA da ${file} non scarta le altre modifiche non salvate`,asyn
   const events={};let edit,closed=false,toasts=0;
   const m={body:{addEventListener(name,fn){events[name]=fn;},querySelector(){return {addEventListener(name,fn){edit=fn;}};}},close(){closed=true;}};
   const ui={toast(){toasts++;}};
-  vm.runInNewContext(source.slice(start,end),{m,window:{MiroxUI:ui},MiroxUI:ui});
+  vm.runInNewContext(source.slice(start,end),{m,c:{id:'test'},window:{MiroxUI:ui,MiroxPdaUI:{bindReloadForever(){}}},MiroxUI:ui});
   events.input();await edit();assert.equal(closed,false);assert.equal(toasts,1);
 });
 
