@@ -9,11 +9,11 @@ Aggiornato:2026-11-13. Promemoria di ripresa, non autorizza ulteriori push o att
 - Verifica Contratti: nuovo campo readonly Codice cliente WindTre nei Dati cliente, codici del registro anagrafico da APIget_codici_cliente/solaACLVerifica, errori/risposte malformate bloccanti, vuoto=Non disponibile; valori escaped e punti/lettere/zeri conservati. Build e785/785test in copia isolata verdi,40mirati verdi; README/AGENTS/CLAUDE/databaseREADME aggiornati.
 - Pubblicato13/11 con `18d71f6`: CI43447547729 LinuxNode22/Windows verde,785test; Netlify6af7251873130dbaa4ce7858 online. Verificati6asset/HTML/script/stili/PrettyURL e action get_codici_cliente401 senza JWT. Nessuna nuova scrittura DB nel push. Prossimo: ricaricare Verifica Contratti e aprire il dettaglio; nessun rilascio applicativo pendente. Resoconto HTTP in `.backup-private/release-codici-verifica-20261113/` ignorata.
 
-## Centratura CF/P.IVA Malpractis —13/11, pronta al push richiesto
+## Centratura CF/P.IVA Malpractis —13/11, pubblicata
 
 - Eliminati x fisso e passo approssimativo: coordinate dei17separatori originali, ogni carattere centrato con metà larghezza HelveticaBold. Allineati PIVA11cifre e CF16caratteri; baseline e resto modulo invariati. Nuovi documenti v3, vecchi PDF immutabili (Duplica dati per rigenerare).
 - Test indipendente legge i separatori dal PDF originale e i caratteri dal risultato:4PIVA/CF, tutte16celle e larghezze differenti, errore<0,001pt.15test Malpractis e suite786/786/build verdi in copia isolata (fuori sandbox solo serverlocalhost preesistenti); ingrandimento PDF verificato visivamente. PDF cliente e render privati in `.backup-private/malpractis-centratura-20261113/`/Downloads, nessuna pratica/provider/DB modificati o browser usati. README/AGENTS/CLAUDE/databaseREADME aggiornati.
-- Prossimo: commit/push autorizzato, CI/Netlify e API anonima; poi rigenerare il modulo dallo storico. Nessuna migration richiesta.
+- Pubblicato703a1bc, CI43466386463 LinuxNode22/Windows verde786test; Netlify6af73f4f4920ca3b10c391e9 online,12asset/HTML/inline/PrettyURL e4API401 verificati. Nessun DB/migration o documento reale scritto. Prossimo: rigenerare il modulo dallo storico con Duplica dati; vecchi PDF non riscritti.
 
 ## Compilatore Malpractis —13/11, scelta unica e storico pubblicati
 
