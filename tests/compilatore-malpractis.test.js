@@ -53,6 +53,30 @@ test('ogni campo e scelta pertinente è validato; dati fissi indipendenti dal pa
 test('prefill CRM solo dei dati presenti, senza inventare contratto o documento', () => {
   assert.deepEqual(Core.prefill({ ragione_sociale: 'AZIENDA TEST', cf_piva: '12345678901', cellulare: '3331234567', email: 'test@example.test' }), { intestatario: 'AZIENDA TEST', cf_piva: '12345678901', cellulare: '3331234567', email: 'test@example.test' });
 });
+test('P.IVA e CF: ogni carattere è centrato fra i separatori effettivi del modello', async () => {
+  const { getDocumentProxy } = require('unpdf');
+  const original = await getDocumentProxy(new Uint8Array(fs.readFileSync(templatePath())));
+  const templateText = await (await original.getPage(1)).getTextContent();
+  const row = templateText.items.filter(item => item.transform && Math.abs(item.transform[5] - 612.8388) < .001);
+  const bars = row.filter(item => item.str === '|');
+  const label = row.find(item => item.str.endsWith('IVA |'));
+  // Il primo separatore è nell'item dell'etichetta; gli altri sono item singoli.
+  const separators = [label.transform[4] + label.width - bars[0].width / 2,
+    ...bars.map(item => item.transform[4] + item.width / 2)];
+  assert.equal(separators.length, 17);
+  for (const code of ['01234567890', '98765432109', 'RSSMRA80A01H501U', 'WILMIO00T41Z404A']) {
+    const output = await generateMalpractisPdf(payload({ cf_piva: code }));
+    const document = await getDocumentProxy(new Uint8Array(output.buffer));
+    const content = await (await document.getPage(1)).getTextContent();
+    const characters = content.items.filter(item => item.transform && Math.abs(item.transform[5] - 613.49) < .001 && item.transform[4] < 320 && /^[A-Z0-9]$/.test(item.str));
+    assert.equal(characters.map(item => item.str).join(''), code);
+    characters.forEach((item, index) => {
+      const center = item.transform[4] + item.width / 2;
+      const expected = (separators[index] + separators[index + 1]) / 2;
+      assert.ok(Math.abs(center - expected) < .001, `Cella ${index + 1}: ${center} / ${expected}`);
+    });
+  }
+});
 test('PDF originale invariato e output a una pagina, dati fissi, celle e due TIM indipendenti', async () => {
   const before = fs.readFileSync(templatePath());
   for (const [first, second] of [['si', 'no'], ['no', 'si'], ['si', 'si']]) {

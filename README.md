@@ -715,6 +715,8 @@ La scheda **Storico Malpractis** mostra data Rome, intestatario, CF/P.IVA, numer
 
 Estensione pubblicata13/11 con `231faa7`: CI43416294398 LinuxNode22/Windows verde,781test; Netlify6af6f284f1efdb59ac981d4d online. Verificati12asset/HTML/script/stili/PrettyURL e4API401 senza JWT.
 
+Centratura CF/P.IVA corretta13/11: ciascun carattere usa il punto medio dei separatori reali del modello e metà della propria larghezza tipografica; tutte16celle allineate, senza deriva progressiva. Nuovi PDF marcati ask-03-2020-v3; quelli già archiviati restano immutabili, da rigenerare con Duplica dati. Nessuna modifica DB o dati; test geometrico indipendente dal codice di posizionamento e controllo visivo riusciti.
+
 ### Compilatore Subentri
 
 `moduli/compilatore_subentri.html` è collegata alle Applicazioni della dashboard. All’apertura si sceglie Mobile o Fisso: Fisso è temporaneamente disabilitato. Mobile mostra cinque categorie; è implementato soltanto **Microbusiness a Privato**, mentre le altre quattro attendono le rispettive procedure dell’utente.

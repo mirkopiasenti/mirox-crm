@@ -346,6 +346,8 @@ La CLI `migration new compilatore_malpractis` è stata tentata e ha fallito con 
 
 Storico globale per gli abilitati Malpractis, listing senza snapshot/path; dettagli duplica e signed URL300s solo da Function con ACL fresca. `scripts/verifica-malpractis-storico-sql.js` verifica isolatamente RLS/grant/INSERT/UPDATE-DELETE negati/bucket/rollback e conservazione di profili/bucket/policy precedenti (14check). Applicata/riletta production13/11 come `20261113111917` prima del codice compatibile, su richiesta storico+push. Archivio vuoto, privilegi/RLS corretti; fingerprint colonne esistenti/policy/bucket precedenti/profili e conteggi anagrafica/disdette identici. Advisor warning/errori invariati; solo INFO RLS senza policy sul nuovo registro server-only (atteso).
 
+Centratura CF/P.IVA13/11: versione rendering dei nuovi documenti `ask-03-2020-v3`; stessa struttura del registro e bucket, nessuna migration/backfill o riscrittura dei PDF esistenti. Per ottenere la versione corretta si usa Duplica dati e una nuova generazione.
+
 ## Permessi pagine Mirox — migration applicata 27/10/2026
 
 La query Admin usa le colonne esistenti `nome`/`username` di profili, senza

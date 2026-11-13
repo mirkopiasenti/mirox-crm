@@ -4,6 +4,10 @@ const path = require('node:path');
 const { PDFDocument, StandardFonts } = require('pdf-lib');
 const Core = require('../../../js/malpractis-core');
 const TEMPLATE = 'modulo-malpractice-ask.pdf';
+// Centri dei 17 separatori del campo CF/P.IVA nel modello originale ASK.
+const FISCAL_SEPARATORS = [121.4403, 133.6413, 145.8416, 158.0419, 170.2429,
+  182.4439, 194.6449, 206.8459, 219.0469, 231.2479, 243.4489, 255.6499,
+  267.8509, 280.0519, 292.2529, 304.4539, 316.6549];
 function templatePath() {
   for (const directory of [path.join(__dirname, '_templates/malpractis'), path.join(__dirname, '../_templates/malpractis'), path.join(process.cwd(), 'netlify/functions/_templates/malpractis')]) {
     const file = path.join(directory, TEMPLATE);
@@ -44,7 +48,10 @@ async function generateMalpractisPdf(payload) {
   draw(Core.dealer.ragione_sociale, 397, 64, 150, 10, bold);
   check(46.5, data.tipo_segnalazione === 'sollecito' ? 178 : 190);
   // Le 16 celle prestampate iniziano dopo l'etichetta CF/P.IVA.
-  [...data.cf_piva].forEach((c, i) => draw(c, 123.3 + 12.15 * i, 228.4, 8, 8, bold));
+  [...data.cf_piva].forEach((c, i) => {
+    const center = (FISCAL_SEPARATORS[i] + FISCAL_SEPARATORS[i + 1]) / 2;
+    draw(c, center - bold.widthOfTextAtSize(c, 8) / 2, 228.4, 8, 8, bold);
+  });
   draw(data.codice_contratto, 381, 228.4, 54, 8);
   draw(data.codice_cliente, 484, 228.4, 66, 8);
   draw(data.intestatario, 173, 241, 377);

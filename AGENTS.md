@@ -140,6 +140,8 @@ nessun grant browser al registro. Registro vuoto=Non disponibile, errore di lett
 o risposta malformata blocca il dettaglio. UI/API pubblicati;
 785/785test e build verdi,40mirati e SQL PGlite con rollback verdi. Pubblicato13/11 con `18d71f6`: CI43447547729 LinuxNode22/Windows verde,785test; Netlify6af7251873130dbaa4ce7858 online. Verificati6asset/HTML/script/stili/PrettyURL e action get_codici_cliente401 senza JWT. Nessuna nuova scrittura DB nel push.
 
+Centratura CF/P.IVA corretta13/11: ciascun carattere usa il punto medio dei separatori reali del modello e metà della propria larghezza tipografica; tutte16celle allineate, senza deriva progressiva. Nuovi PDF marcati ask-03-2020-v3; quelli già archiviati restano immutabili, da rigenerare con Duplica dati. Solo rendering PDF: invariati dati, firma, scelte, archivio/ACL e DB.
+
 ## Gestione Reload Forever —13/11/2026, pubblicata
 
 Mobile/Customer Base: Reload Forever presente nella PDA apre la scelta Mantieni
