@@ -3,7 +3,7 @@
   const Core = root.MiroxSegnalazioneMobileCore;
   const pending = new Map();
   const active = new Map();
-  function open(contract, { autore, onCreated } = {}) {
+  function open(contract, { autore } = {}) {
     if (!Core.isMobile(contract.categoria_snapshot)) return null;
     const key = `mirox-segnalazione-mobile:${autore}:${contract.id}`;
     if (active.has(key)) return active.get(key);
@@ -70,9 +70,7 @@
           throw new Error(result.error || 'Esito non disponibile. Premi Riprova per verificare la stessa richiesta.');
         }
         remember(null); busy = false; m.close();
-        if (onCreated) onCreated(result);
         await root.MiroxUI.alert(`Segnalazione #${result.segnalazione_id} aperta in Da gestire con ${result.allegati} allegati.`, { title: 'Segnalazione aperta', type: 'success' });
-        root.location.assign(`/moduli/segnalazioni.html?segnalazione_id=${result.segnalazione_id}`);
       } catch (e) { error.textContent = e.message || 'Creazione non completata. Premi Riprova.'; }
       finally { busy = false; progress.hidden = true; if (!closed) render(); }
     });

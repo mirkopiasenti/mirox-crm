@@ -185,15 +185,29 @@ test('Mobile popup: solo Mobile, tre scelte, Altro richiede note; No conserva i 
   assert.equal(f.requests.length, 0); assert.equal(m.closed, false); assert.equal(m.fields['#mobileSegNote'].value, 'Nota facoltativa');
   assert.equal(f.confirmations[0].opts.okText, 'Sì'); assert.equal(f.confirmations[0].opts.cancelText, 'No');
 });
-test('Mobile popup: sì blocca chiusura/doppio clic, mostra spinner e conferma solo dopo il successo', async () => {
-  const f = uiFixture(), m = f.open(); await f.choose(m, 'Reload Forever');
+test('Mobile popup: sì blocca i doppi clic e conferma il successo lasciando aperto il contratto senza navigazione', async () => {
+  const f = uiFixture();
+  let openSignal;
+  const parent = { closed: false, fields: { cliente: 'Cliente sintetico', telefono: '3331234567' }, body: {
+    scrollTop: 180, querySelector() { return { addEventListener(_, handler) { openSignal = handler; } }; }
+  }, close() { this.closed = true; } };
+  const page = fs.readFileSync(require.resolve('../moduli/verifica_contratti.html'), 'utf8');
+  const start = page.indexOf("  m.body.querySelector('[data-apri-segnalazione-mobile]')");
+  const end = page.indexOf("  m.body.querySelector('[data-edit-pda]')", start);
+  vm.runInNewContext(page.slice(start, end), { m: parent, window: f.root, pdaOtherFieldsDirty: false,
+    c: { id: CONTRACT, updated_at: DATE, categoria_snapshot: 'Mobile', anagrafica: { ragione_sociale: 'Cliente sintetico' } },
+    getProfiloCorrenteVC: async () => ({ id: AUTHOR }) });
+  await openSignal();
+  const m = f.modals[0]; await f.choose(m, 'Reload Forever');
   let resolve; f.state.network = () => new Promise(r => { resolve = r; });
   const sending = f.submit(m); await new Promise(r => setImmediate(r));
   assert.equal(m.fields['[data-mobile-progress]'].hidden, false); assert.equal(m.fields['#mobileSegMotivo'].disabled, true);
   m.close(); assert.equal(m.closed, false); await f.submit(m); assert.equal(f.requests.length, 1); assert.equal(f.alerts.length, 0);
   resolve({ ok: true, json: async () => ({ success: true, segnalazione_id: 42, allegati: 3 }) }); await sending;
   assert.equal(m.closed, true); assert.match(f.alerts[0].msg, /#42.*Da gestire.*3 allegati/);
-  assert.equal(f.navigations[0], '/moduli/segnalazioni.html?segnalazione_id=42'); assert.equal(f.memory.size, 0);
+  assert.equal(f.navigations.length, 0); assert.equal(f.memory.size, 0);
+  assert.equal(parent.closed, false); assert.equal(parent.body.scrollTop, 180);
+  assert.deepEqual(parent.fields, { cliente: 'Cliente sintetico', telefono: '3331234567' });
 });
 test('Mobile popup: errore conserva richiesta e note anche riaprendo; retry recupera senza cambiare UUID', async () => {
   const f = uiFixture(), m = f.open(); await f.choose(m, 'Altro', 'Una nota');

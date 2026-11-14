@@ -1100,7 +1100,7 @@ function apriPopupDettaglio(c, opts) {
     }
     const profile = await getProfiloCorrenteVC();
     if (!profile?.id) return;
-    window.MiroxSegnalazioneMobile.open(c, { autore: profile.id, onCreated: () => m.close() });
+    window.MiroxSegnalazioneMobile.open(c, { autore: profile.id });
   });
   m.body.querySelector('[data-edit-pda]')?.addEventListener('click', async () => {
     if (pdaOtherFieldsDirty) {

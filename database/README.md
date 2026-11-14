@@ -2,6 +2,10 @@
 
 ## Segnalazioni da Mobile —14/11/2026, migration applicata
 
+Rettifica UI14/11 pronta in locale: dopo la creazione compare la conferma e resta
+aperto il dettaglio del contratto in Verifica Contratti. La segnalazione entra
+sempre in Da gestire; nessuna modifica a Function, schema, RPC o dati necessaria.
+
 `20261114090437_segnalazioni_mobile.sql`, generata con la CLI, applicata/riletta
 production14/11 come `20261114092756`:
 nuovo registro `segnalazioni_mobile_richieste` RLS con SELECT/INSERT/UPDATE solo
