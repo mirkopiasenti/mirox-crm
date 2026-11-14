@@ -127,11 +127,14 @@ dell’opzione né cambia presenza/gestione/stato del contratto. Modifiche del d
 da salvare prima. Conferma e popup Sì/No; No conserva i dati senza scritture.
 Dopo Sì popup originale occupato/spinner, chiusura/doppi clic bloccati; successo
 soltanto dopo tutti gli allegati e INSERT. Rettifica14/11 richiesta dopo il primo
-rilascio, pronta in locale: conferma di successo e chiusura del solo popup di
+rilascio, pubblicata: conferma di successo e chiusura del solo popup di
 inserimento; pagina e dettaglio del contratto restano aperti con dati e posizione
 conservati, senza navigazione o apertura di altre pagine. Il deep-link numerico
 `?segnalazione_id=` resta supportato per collegamenti espliciti a Segnalazioni.
-Nessun invio ASK/email o disattivazione.
+Nessun invio ASK/email o disattivazione. Rettifica pubblicata con `b3782b5`,
+CI43583316045 LinuxNode22/Windows verde806test, Netlify6af831979840bd93a5c6bde4
+online;8asset/HTML/script/stili/PrettyURL e2API401 verificati. Nessuna nuova
+migration o scrittura DB;79test mirati e suite806/806/build verdi in copia isolata.
 
 Function `apri-segnalazione-mobile.js`: JWT/ACL fresche, autore da profilo,
 identità/recapiti/indirizzo/codici cliente/riferimenti dal contratto persistito;

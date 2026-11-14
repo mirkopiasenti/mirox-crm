@@ -2,7 +2,7 @@
 
 ## Segnalazioni da Mobile —14/11/2026, migration applicata
 
-Rettifica UI14/11 pronta in locale: dopo la creazione compare la conferma e resta
+Rettifica UI14/11 pubblicata con `b3782b5` (CI43583316045 Linux/Windows806test e HTTP verdi): dopo la creazione compare la conferma e resta
 aperto il dettaglio del contratto in Verifica Contratti. La segnalazione entra
 sempre in Da gestire; nessuna modifica a Function, schema, RPC o dati necessaria.
 
