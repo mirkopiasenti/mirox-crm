@@ -1,27 +1,5 @@
 # /database/ — Migrazioni SQL storiche
 
-## Segnalazioni da Mobile —14/11/2026, migration applicata
-
-`20261114090437_segnalazioni_mobile.sql`, generata con la CLI, applicata/riletta
-production14/11 come `20261114092756`:
-nuovo registro `segnalazioni_mobile_richieste` RLS con SELECT/INSERT/UPDATE solo
-service_role e due RPC INVOKER senza EXECUTE browser. Prenota ID dalla sequenza
-Segnalazioni già esistente, conserva UUID/hash/autore/snapshot e lease2min.
-`prepara_segnalazione_mobile` serializza i retry e rifiuta autore/payload/fonti
-diversi; `completa_segnalazione_mobile` richiede la lease e tutte le copie Storage,
-poi inserisce Segnalazioni e marca il registro completato nella stessa transazione.
-Le copie parziali sono riprendibili, senza riga incompleta in Da gestire; originali
-immutati. Nessuna modifica a colonne, policy, grant, trigger o dati preesistenti
-di Segnalazioni/vendita/anagrafica/CC; nessun nuovo bucket, backfill o invio.
-Solo Mobile, entrambe ACL Verifica Contratti e Segnalazioni controllate nella
-Function. Reload Forever/Professional Cloud → ASK - Normalizzazione; Altro →
-Interna negozio, note obbligatorie. Registro0righe, grant/RLS/RPC corretti;
-2864contratti/5832documenti/9540anagrafiche/9profili/606segnalazioni, sequenza624,
-bucket/oggetti e schema/policy/grant/trigger/funzioni precedenti identici per impronta.
-Advisor warning/errori invariati; INFO RLS senza policy40vs39 atteso per registro
-service-only. Snapshot privati in `.backup-private/release-segnalazioni-mobile-20261114/`.
-QA isolato: `MIROX_PGLITE_MODULE=/percorso/@electric-sql/pglite node scripts/verifica-segnalazioni-mobile-sql.js`.
-
 ## Riscontro Mobile in attesa —13/11/2026, dati applicati
 
 26contratti Mobile `da_controllare`,25PDA testuali e1scansione controllata

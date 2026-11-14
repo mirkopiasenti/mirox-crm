@@ -4,7 +4,7 @@ Regola attuale: da novembre2026 incluso e in tutti i mesi successivi `vincenzo` 
 
 Conferma esplicita del proprietario: il filtro disponibilità CC dal2026-11 richiede solo Matteo per tutta la durata, sottraendo le sue assenze/riposi/chiusure/offsite. Senza prima approvazione resta il fallback storico. Appuntamenti già fissati, regole legacy di griglia/anticipo/buffer/occupazione e guard finale restano conservati. Vincenzo non limita più gli slot. Migration delle sole due funzioni `presenza_v1`/`personale_salva_mese`, senza nuovi privilegi o modifica alle tabelle CC.
 
-Migration applicata/riletta14/11 come20261114090359: slot SQL indipendenti da Vincenzo e nessuno slot senza Matteo, dati/snapshot/privilegi/trigger invariati. UI/API locali senza push, build789/789,113checkSQL e DOM verdi.
+Migration applicata/riletta14/11 come20261114090359: slot SQL indipendenti da Vincenzo e nessuno slot senza Matteo, dati/snapshot/privilegi/trigger invariati. UI/API pubblicati14/11 con e0d8752, CI43580607391 LinuxNode22/Windows verde789test; HTTPasset/pagine/PrettyURL/API verificati.113checkSQL e DOM verdi, nessuna nuova scrittura DB durante il push.
 
 Il modello iniziale e i rilasci sotto documentano lo storico e sono superati per la presenza operativa di Vincenzo. Applicazione/verifiche e rilascio sono registrati in `STATO_LAVORO.md`.
 
