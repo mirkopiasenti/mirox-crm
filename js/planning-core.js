@@ -80,10 +80,35 @@
         from: e.from, until: e.until, week: e.week.map(slots) };
     }) };
   }
+  // Uscita autorizzata dal proprietario: identità stabile, nessuna cancellazione.
+  function isOperationalEmployee(id, value) {
+    return id !== 'vincenzo' || month(value) < '2026-11';
+  }
+  function operationalConfig(config, value) {
+    month(value);
+    return {employees:validateConfig(config).employees.filter(e => isOperationalEmployee(e.id,value))};
+  }
+  function operationalDocument(document) {
+    const clean = validateDocument(document);
+    return {...clean, employees:clean.employees.filter(e => isOperationalEmployee(e.id,clean.month)),
+      entries:clean.entries.filter(e => isOperationalEmployee(e.employeeId,clean.month))};
+  }
+  function preserveArchived(document, previous) {
+    const clean = operationalDocument(document);
+    if (!previous) return validateDocument(clean);
+    // Mantiene esattamente i record archiviati, anche se una vecchia UI li modifica.
+    validateDocument(previous);
+    if (previous.month !== clean.month) fail('Archivio di un altro mese');
+    return {...clean,
+      employees:[...clean.employees,...clone(previous.employees.filter(e => !isOperationalEmployee(e.id,clean.month)))],
+      entries:[...clean.entries,...clone(previous.entries.filter(e => !isOperationalEmployee(e.employeeId,clean.month)))]};
+  }
+  const requiresRotation = document => ['matteo','vincenzo'].every(id => document.employees.some(e => e.id === id));
   function generate(value, config, firstMondayOff = null) {
     const employees = validateConfig(config).employees.filter(e => e.from <= month(value) && (!e.until || e.until >= value));
     if (!employees.length) fail('Nessun dipendente attivo nel mese');
     if (firstMondayOff !== null && !['matteo','vincenzo'].includes(firstMondayOff)) fail('Alternanza non valida');
+    if (!requiresRotation({employees})) firstMondayOff = null;
     const days = dates(value), firstMonday = days.find(d => weekday(d) === 1);
     const entries = [];
     for (const date of days) {
@@ -184,5 +209,5 @@
     easter.setUTCDate(easter.getUTCDate()+1);
     return easter.toISOString().slice(0,10) === date ? 'Lunedì dell’Angelo' : '';
   }
-  return {TYPES,WEEKDAYS,UUID,clone,month,dates,weekday,minutes,hours,slots,parseSlots,formatSlots,slotMinutes,defaultConfig,validateConfig,generate,validateDocument,absenceMinutes,availableSlots,summary,publicDocument,holiday};
+  return {TYPES,WEEKDAYS,UUID,clone,month,dates,weekday,minutes,hours,slots,parseSlots,formatSlots,slotMinutes,defaultConfig,validateConfig,isOperationalEmployee,operationalConfig,operationalDocument,preserveArchived,requiresRotation,generate,validateDocument,absenceMinutes,availableSlots,summary,publicDocument,holiday};
 });

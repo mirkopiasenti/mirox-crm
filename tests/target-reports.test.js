@@ -116,7 +116,7 @@ function pageContext(file,db,extra={}) {
   vm.runInContext(script.split(file==='admin-gare.html'?'async function init()':'(function init()')[0],ctx);
   return {ctx,nodes};
 }
-for(const period of ['2026-01','2026-07','2026-09','2026-10','2026-11','2026-12','2027-01']) {
+for(const period of ['2026-01','2026-07','2026-09','2026-10']) {
  test(`avvicendamento ${period}: tre schede, PNG e Target seguono il periodo, bonus squadra soltanto all'operatore ammesso`,async()=> {
   const historical=period<'2026-11',eligible=historical?FRANCESCA:VINCENZO,ineligible=historical?VINCENZO:FRANCESCA;
   const name=historical?'Francesca':'Vincenzo',other=historical?'Vincenzo':'Francesca';
@@ -160,7 +160,7 @@ for(const period of ['2026-01','2026-07','2026-09','2026-10','2026-11','2026-12'
 }
 test('decorrenza: confine ottobre/novembre, anni successivi, UUID e input profili immutati',()=> {
  const profiles=Object.freeze(periodFixture().profili.map(p=>Object.freeze(p))),before=JSON.stringify(profiles);
- for(const [period,name] of [['2026-10-31','FRANCESCA'],['2026-11-01','VINCENZO'],['2027-01','VINCENZO']]) {
+ for(const [period,name] of [['2026-10-31','FRANCESCA'],['2026-11-01','CEREA'],['2027-01','CEREA']]) {
   assert.equal(core.dayOperators(period)[2],name);
   const selected=core.reportProfiles(profiles,period).filter(p=>p.attivo&&p.in_gara);
   assert.equal(selected.some(p=>p.id===FRANCESCA),name==='FRANCESCA');
@@ -188,7 +188,7 @@ test('Admin segue il mese per scelta, obiettivi, guard scrittura e copia senza r
    {id:779,anno:2026,mese:10,metrica_id:1,operatore_id:'op',obiettivo:35});
  db.tables.gara_obiettivi_mensili=structuredClone(f.gara_obiettivi_mensili);
  state.mese=11;state.operatoreSelezionato=FRANCESCA;await ctx.loadObiettivi();
- assert.ok(state.operatoriInGara.some(p=>p.id===VINCENZO));assert.ok(!state.operatoriInGara.some(p=>p.id===FRANCESCA));
+ assert.ok(!state.operatoriInGara.some(p=>p.id===VINCENZO));assert.ok(!state.operatoriInGara.some(p=>p.id===FRANCESCA));
  assert.notEqual(state.operatoreSelezionato,FRANCESCA);
  await assert.rejects(ctx.upsertObiettivo(1,FRANCESCA,{obiettivo:35}),/fuori dal periodo/);
  await ctx.duplicaDaMesePrecedente();
@@ -211,11 +211,11 @@ test('cambio rapido ottobre -> novembre: risposte mensili e giornaliere obsolete
  let held=holdFirst(db,'profili'),old=ctx.caricaDatiMensili();await held.started;
  state.mese=11;assert.equal(await ctx.caricaDatiMensili(),true);held.release();assert.equal(await old,false);
  assert.equal(state.loadedMonthKey,'2026-11');assert.equal(state.mese,11);
- assert.ok(!state.operatoriInGara.some(p=>p.id===FRANCESCA));assert.ok(state.operatoriInGara.some(p=>p.id===VINCENZO));
+ assert.ok(!state.operatoriInGara.some(p=>p.id===FRANCESCA));assert.ok(!state.operatoriInGara.some(p=>p.id===VINCENZO));
  assert.ok(state.contrattiMese.every(c=>c.data_contratto.startsWith('2026-11')));
  held=holdFirst(db,'profili');state.dataSelezionata='2026-10-05';old=ctx.caricaDay();await held.started;
  state.dataSelezionata='2026-11-05';await ctx.caricaDay();held.release();await old;
- assert.match(nodes.get('pezziTable').innerHTML,/>VINCENZO<\/th>/);assert.doesNotMatch(nodes.get('pezziTable').innerHTML,/FRANCESCA/);
+ assert.doesNotMatch(nodes.get('pezziTable').innerHTML,/>VINCENZO<\/th>/);assert.doesNotMatch(nodes.get('pezziTable').innerHTML,/FRANCESCA/);
  assert.ok(state.contrattiDay.every(c=>c.data_contratto.startsWith('2026-11')));
  assert.equal(state.loadedMonthKey,'2026-11');
  state.mese=10;assert.equal(await ctx.caricaDatiMensili(),true);
@@ -226,7 +226,7 @@ test('Admin cambio periodo durante lettura: obiettivi ottobre tardivi non vengon
  const state=vm.runInContext('State',ctx);Object.assign(state,{anno:2026,mese:10});await ctx.loadOperatori();
  const held=holdFirst(db,'gara_obiettivi_mensili'),old=ctx.loadObiettivi();await held.started;
  state.mese=11;await ctx.loadObiettivi();held.release();assert.equal(await old,false);
- assert.equal(state.obiettivi.length,0);assert.ok(state.operatoriInGara.some(p=>p.id===VINCENZO));
+ assert.equal(state.obiettivi.length,0);assert.ok(!state.operatoriInGara.some(p=>p.id===VINCENZO));
  assert.ok(!state.operatoriInGara.some(p=>p.id===FRANCESCA));
 });
 test('paginazione oltre 1000 e errori post-vendita non diventano report parziali',async()=> {
@@ -736,3 +736,24 @@ test('richiesta naturale: coda invia tre messaggi e al retry conserva snapshot e
   assert.equal(calls,4);assert.equal(job.stato,'inviato');
   const history=db.tables.mirox_target_sessioni[0].conversazione;assert.equal(history[0].content,text);assert.equal(history.length,4);assert.ok(history.every(m=>typeof m.content==='string'));
 }));
+
+for(const period of ['2026-11','2026-12','2027-01','2100-12']) test(`uscita Vincenzo ${period}: tre schede/PNG/Target senza scheda o produzione cessata, dati conservati`,async()=>{
+ const db=fakeDb(periodFixture(period)),before=JSON.stringify(db.tables);
+ // Anche un alias del cessato e un profilo ancora attivo non devono riapparire.
+ db.tables.profili.push({id:'alias-vincenzo',nome:'Alias storico',attivo:true,alias_di:VINCENZO});
+ db.tables.vendita_contratti.push(contract('alias-cessato','Mobile',{operatore_id:'alias-vincenzo',cluster_cliente:'Business',data_contratto:period+'-05T12:00:00Z'}));
+ const snapshot=JSON.stringify(db.tables),{ctx,nodes}=pageContext('moduli/dashboard_pezzi.html',db);
+ const state=vm.runInContext('DPState',ctx);Object.assign(state,{anno:Number(period.slice(0,4)),mese:Number(period.slice(5)),dataSelezionata:period+'-05'});
+ await ctx.caricaDatiMensili();await ctx.caricaDay();vm.runInContext('renderGare(); renderAvanzamento();',ctx);
+ for(const id of ['pezziTable','tabContentGare','tabContentAvanzamento']) assert.doesNotMatch(nodes.get(id).innerHTML,/Vincenzo|Francesca/i);
+ assert.deepEqual(core.dayOperators(period),['MATTEO','MIRKO','CEREA']);
+ for(const id of [VINCENZO,FRANCESCA]) assert.equal(core.valutaGara(teamMetric,{...teamGoal,anno:2026,mese:11},state.contrattiMese,id,state.resolveOperatore,period).ammissibile,false);
+ const team=core.valutaGara(teamMetric,teamGoal,state.contrattiMese,'op',state.resolveOperatore,period);
+ assert.equal(team.attualeSquadra,48,'la produzione cessata e i suoi alias non alimentano i bonus squadra');
+ const p=await reports.buildReports(db,period+'-05',new Date('2101-01-01T12:00:00Z'));
+ assert.equal(p.vendite.totale,49);assert.equal(p.mensile.find(r=>r.nome==='Mobile').pezzi,49);
+ assert.equal(JSON.stringify(db.tables),snapshot);assert.ok(before.includes(VINCENZO));
+ assert.equal(core.reportProfiles([{id:'omonimo',nome:'Vincenzo',attivo:true}],period).length,1,'identità per UUID, non per nome');
+ const admin=pageContext('admin-gare.html',db);const a=vm.runInContext('State',admin.ctx);Object.assign(a,{anno:Number(period.slice(0,4)),mese:Number(period.slice(5))});
+ await admin.ctx.loadOperatori();await assert.rejects(admin.ctx.upsertObiettivo(1,VINCENZO,{obiettivo:35}),/fuori dal periodo/);
+});

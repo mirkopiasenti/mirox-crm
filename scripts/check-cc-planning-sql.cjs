@@ -165,6 +165,46 @@ async function run(){
     }
     console.log('Replay locale su proiezione production priva di note/causali/clienti:',JSON.stringify(output));
   }
+  // Regola14/11: sola presenza Matteo da novembre, senza alterare lo storico.
+  const departure=fs.readFileSync('database/20261114085607_uscita_vincenzo_planning_cc.sql','utf8');
+  const snapshot=await scalar("select jsonb_agg(to_jsonb(t) order by mese) from personale_planning_mesi t");
+  const appointmentSnapshot=await scalar("select jsonb_agg(to_jsonb(t) order by id) from appuntamenti t");
+  const acl=await scalar("select jsonb_agg(jsonb_build_array(oid::text,proacl::text,prosecdef,proconfig) order by oid) from pg_proc where oid in ('mirox_cc_privato.presenza_v1(jsonb,timestamp,timestamp)'::regprocedure,'public.personale_salva_mese(uuid,date,integer,jsonb,boolean)'::regprocedure)");
+  await db.exec(departure);await db.exec(departure); // retry idempotente
+  equal(await scalar("select jsonb_agg(to_jsonb(t) order by mese) from personale_planning_mesi t"),snapshot);
+  equal(await scalar("select jsonb_agg(to_jsonb(t) order by id) from appuntamenti t"),appointmentSnapshot);
+  equal(await scalar("select jsonb_agg(jsonb_build_array(oid::text,proacl::text,prosecdef,proconfig) order by oid) from pg_proc where oid in ('mirox_cc_privato.presenza_v1(jsonb,timestamp,timestamp)'::regprocedure,'public.personale_salva_mese(uuid,date,integer,jsonb,boolean)'::regprocedure)"),acl);
+  d=document();day(d,'vincenzo').offsite=true;day(d,'vincenzo').slots=[];
+  equal(await presence(d,'10:30'),true);equal(await presence(d,'12:00'),true);equal(await presence(d,'12:01'),false);
+  d=Core.operationalDocument(d);await save(d);equal(contains(await available(),'12:00'),true);
+  day(d).offsite=true;await save(d);equal(await available(),[]);await reject(()=>insert('10:30'));
+  d=Core.operationalDocument(document());day(d).absences=[{type:'permessi',fullDay:false,start:'10:00',end:'10:30'}];
+  equal(await presence(d,'09:45'),false);equal(await presence(d,'10:30'),true);
+  d=Core.operationalDocument(document());day(d).closed=true;day(d).slots=[];equal(await presence(d,'10:30'),false);
+  d=Core.operationalDocument(document());await save(d,false);equal(await available(),await legacySlots());
+  const fresh=Core.generate('2026-12',Core.operationalConfig(Core.defaultConfig(),'2026-12'));
+  const saved=await scalar('select personale_salva_mese($1,$2,$3,$4,$5)',[actor,'2026-12-01',0,fresh,true]);
+  equal(saved.pubblicato.firstMondayOff,null);equal(saved.pubblicato.employees.map(e=>e.id),['matteo','isabella']);
+  // Script dati: profilo conservato, contratti/configurazioni/planning identici, retry.
+  await db.exec("alter table profili add column nome text,add column username text,add column alias_di uuid,add column slug text,add column in_gara boolean default true,add column updated_at timestamptz default now()");
+  const id='c8c45da2-0cda-41eb-86cc-0272b8baa200';
+  await db.query("insert into profili(id,attivo,ruolo,nome,username,slug) values($1,true,'operatore','Vincenzo','v.dipietro','vincenzo')",[id]);
+  const dataScript=fs.readFileSync('database/configura_uscita_vincenzo.sql','utf8');
+  await db.exec(dataScript);equal(await scalar('select attivo from profili where id=$1',[id]),true);
+  await db.exec(dataScript.replace('applica boolean := false','applica boolean := true'));
+  equal(await scalar('select attivo or in_gara from profili where id=$1',[id]),false);
+  equal(await scalar('select nome from profili where id=$1',[id]),'Vincenzo');
+  await db.exec(dataScript.replace('applica boolean := false','applica boolean := true'));
+  await db.query("update profili set nome='Diverso' where id=$1",[id]);
+  await reject(()=>db.exec(dataScript.replace('applica boolean := false','applica boolean := true')),/Profilo diverso/);await db.exec('rollback');
+  await db.query("update profili set nome='Vincenzo',attivo=true,in_gara=true where id=$1",[id]);
+  const historyBefore=await scalar("select jsonb_agg(to_jsonb(t) order by mese) from personale_planning_mesi t");
+  await db.exec("create function public.qa_sideeffect() returns trigger language plpgsql as $$begin update public.personale_planning_mesi set updated_at=now()+interval '1 hour';return new;end;$$;create trigger qa_sideeffect after update on public.profili for each row execute function public.qa_sideeffect()");
+  await reject(()=>db.exec(dataScript.replace('applica boolean := false','applica boolean := true')),/Storico alterato/);await db.exec('rollback');
+  equal(await scalar('select attivo and in_gara from profili where id=$1',[id]),true);
+  equal(await scalar("select jsonb_agg(to_jsonb(t) order by mese) from personale_planning_mesi t"),historyBefore);
+  await db.exec("create or replace function mirox_cc_privato.presenza_v1(p_documento jsonb,p_inizio timestamp,p_fine timestamp) returns boolean language sql as $$select false$$");
+  await reject(()=>db.exec(departure),/Funzioni diverse/);await db.exec('rollback');
   console.log(`SQL CC/planning: ${checks} verifiche riuscite; migration, filtro legacy, assenze, fuori negozio, snapshot, trigger, pubblico e privilegi.`);
 }
 run().catch(e=>{console.error(e.stack||e.message);process.exitCode=1;}).finally(()=>db.close());

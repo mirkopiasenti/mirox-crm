@@ -142,9 +142,9 @@ test('API conserva dettagli e orari formazione solo nello snapshot pubblicato de
   assert.equal(res.statusCode,200);assert.equal(own.details,'Formazione - Via Roma 10');assert.deepEqual(own.slots,[['08:00','13:00'],['14:00','18:00']]);
   assert.ok(!res.body.includes('SOLO-ADMIN'));assert.ok(!res.body.includes('aggiornato in bozza'));
 });
-test('API blocca pubblicazione senza assegnazione iniziale e mese discordante',async()=>{
+test('API ammette pubblicazione senza alternanza dopo uscita e blocca mese discordante',async()=>{
   const f=fixture(),d=Core.generate('2026-11',Core.defaultConfig());
-  assert.equal((await handle(post({action:'publish',month:d.month,version:0,document:d}),f.deps)).statusCode,400);
+  assert.equal((await handle(post({action:'publish',month:d.month,version:0,document:d}),f.deps)).statusCode,200);
   assert.equal((await handle(post({action:'save',month:'2026-12',version:0,document:d}),f.deps)).statusCode,400);
 });
 test('PDF personale e collettivo non contengono codici/causali; scheda ore admin li include',async()=>{
@@ -262,4 +262,36 @@ test('PDF personale include formazione e indirizzo senza note private, anche con
     assert.ok(items.some(i=>i.str==='Indicazioni'),'Intestazioni ripetute');
   }
   assert.ok(all.includes('W'.repeat(500)));await long.destroy?.();
+});
+
+test('uscita: roster operativo e nuovi mesi senza Vincenzo, archivio originale immutato',()=>{
+ const config=Core.defaultConfig(),legacy=doc(),before=JSON.stringify({config,legacy});
+ for(const period of ['2026-11','2026-12','2027-01','2099-12']){
+  const operational=Core.operationalConfig(config,period),fresh=Core.generate(period,operational);
+  assert.deepEqual(fresh.employees.map(e=>e.id),['matteo','isabella']);
+  assert.equal(Core.requiresRotation(fresh),false);assert.equal(fresh.firstMondayOff,null);
+ }
+ const visible=Core.operationalDocument(legacy);assert.equal(visible.entries.length,60);
+ assert.ok(!JSON.stringify(visible).includes('vincenzo'));
+ entry(visible).note='MODIFICA ATTIVA';const merged=Core.preserveArchived(visible,legacy);
+ assert.deepEqual(merged.entries.filter(e=>e.employeeId==='vincenzo'),legacy.entries.filter(e=>e.employeeId==='vincenzo'));
+ assert.equal(entry(merged).note,'MODIFICA ATTIVA');assert.equal(JSON.stringify({config,legacy}),before);
+});
+test('API uscita: mese e PDF proiettati, salvataggi mantengono tutti i turni archiviati e CAS',async()=>{
+ const f=fixture(),legacy=doc();entry(legacy,'2026-11-03','vincenzo').note='TRACCIA ARCHIVIATA';
+ f.state.row={mese:'2026-11-01',versione:8,bozza:Core.clone(legacy),pubblicato:Core.clone(legacy),pubblicato_versione:8};
+ const archived=JSON.stringify(f.state.row.bozza.entries.filter(e=>e.employeeId==='vincenzo'));
+ const response=await handle(get({month:'2026-11'}),f.deps);assert.equal(response.statusCode,200);assert.ok(!response.body.includes('vincenzo'));
+ const document=body(response).row.bozza;entry(document).note='Nuova nota';
+ let seen;const pdf=await handle(get({action:'pdf',month:'2026-11',type:'collective'}),{...f.deps,generatePdf:async d=>{seen=d;return Buffer.from('%PDF');}});
+ assert.equal(pdf.statusCode,200);assert.ok(!JSON.stringify(seen).includes('vincenzo'));
+ assert.equal((await handle(get({action:'pdf',month:'2026-11',employeeId:'vincenzo'}),f.deps)).statusCode,404);
+ const saved=await handle(post({action:'save',month:'2026-11',version:8,document}),f.deps);
+ assert.equal(saved.statusCode,200);assert.ok(!saved.body.includes('vincenzo'));
+ assert.equal(JSON.stringify(f.state.row.bozza.entries.filter(e=>e.employeeId==='vincenzo')),archived);
+ assert.equal((await handle(post({action:'save',month:'2026-11',version:8,document}),f.deps)).statusCode,409);
+ // Un vecchio client non può riscrivere il cessato.
+ const stale=Core.clone(legacy);entry(stale,'2026-11-03','vincenzo').note='SOVRASCRITTURA';
+ assert.equal((await handle(post({action:'publish',month:'2026-11',version:9,document:stale}),f.deps)).statusCode,200);
+ assert.equal(JSON.stringify(f.state.row.pubblicato.entries.filter(e=>e.employeeId==='vincenzo')),archived);
 });

@@ -3,10 +3,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const core = require('../js/dashboard-report-core');
-const V = 'c8c45da2-0cda-41eb-86cc-0272b8baa200';
+const O = '00000000-0000-4000-8000-000000000001';
 const M = '53f8fdfc-0595-4864-af49-5090bf3177db';
 const contract = (categoria, cluster = 'Consumer', extra = {}) => ({
-  operatore_id: V, categoria_snapshot: categoria, cluster_cliente: cluster,
+  operatore_id: O, categoria_snapshot: categoria, cluster_cliente: cluster,
   stato_inserimento: 'inserimento', codice_rivenditore: core.LEGNAGO, ...extra
 });
 const repeat = (n, categoria, cluster, extra) => Array.from({length:n}, () => contract(categoria, cluster, extra));
@@ -15,7 +15,7 @@ const complete = () => [...repeat(9, 'Fisso'), contract('Fisso', 'Business'),
 const source = fs.readFileSync(path.join(__dirname, '../moduli/dashboard_pezzi.html'), 'utf8');
 const script = [...source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
   .map(m => m[1]).find(s => s.includes('const sb')).split('(function init()')[0];
-function render({contracts = complete(), metrics, goals, month = 11, year = 2026, operators = [{id:V,nome:'Vincenzo'}]} = {}) {
+function render({contracts = complete(), metrics, goals, month = 11, year = 2026, operators = [{id:O,nome:'Operatore di prova'}]} = {}) {
   const nodes = new Map();
   const document = {getElementById(id) {
     if (!nodes.has(id)) nodes.set(id, {innerHTML:'',textContent:'',querySelectorAll:()=>[]});
@@ -30,4 +30,4 @@ function render({contracts = complete(), metrics, goals, month = 11, year = 2026
   vm.runInContext('renderGare()', context);
   return nodes.get('tabContentGare').innerHTML;
 }
-module.exports = {V,M,contract,repeat,complete,render,source};
+module.exports = {O,M,contract,repeat,complete,render,source};

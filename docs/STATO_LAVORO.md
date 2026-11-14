@@ -1,6 +1,14 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-13. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+Aggiornato:2026-11-14. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+
+## Uscita Vincenzo —14/11, DB applicato / UI locale senza push
+
+- Richiesta proprietario: da novembre2026 e futuro nessun Vincenzo nelle tre schede Dashboard Pezzi (Day/Gare/Mensile), PNG/monitor/Target/Admin o nel Personale operativo. Nessun sostituto/riattivazione Francesca; ottobre e periodi precedenti invariati. Contratti/obiettivi/turni mantengono gli UUID originali.
+- Profilo c8c45da2-0cda-41eb-86cc-0272b8baa200 conservato e ora attivo=false/in_gara=false. Script `database/configura_uscita_vincenzo.sql` applicato/riletto dopo preflight, controllo integrale di tutte le altre tabelle pubbliche e retry/rollback QA. Auth/ACL invariati. Copie/impronte solo `.backup-private/uscita-vincenzo-20261114/` ignorata.
+- Conferma esplicita: CC solo presenza Matteo. Migration sorgente20261114085607 applicata production20261114090359: sole funzioni INVOKER/service-only presenza_v1 e personale_salva_mese, nessun trigger/RPClegacy/grant/RLS/tabellaCC modificato. SQL reale:0differenze escludendo Vincenzo,0slot con Matteo fuori sede. Impronte2864contratti/19710obiettivi/540appuntamenti/planning/config/audit/ACL/altri profili identiche, advisor invariati.
+- UI/API locali: proiezioni roster per identità e mese; salvataggi mantengono i record cessati dal DB anche da vecchi client, nessuna rigenerazione turni altrui. PDF/esporti senza cessato; nuovi mesi senza alternanza obbligatoria. Core report esclude anche alias/produzione/bonus squadra del cessato; dati gare conservati.
+- Verifiche: build e suite789/789verdi in copia isolata,83mirati+21bonus/monitor,113checkSQL PGlite0.5.13 (preflight/retry/rollback effetti collaterali/conflitto sorgente, RLS/CAS/trigger/pubblico), SQLplanning e DOM Node senza browser verdi. README/AGENTS/CLAUDE/databaseREADME/guidaPlanning aggiornati. Push autorizzato14/11: rilascio limitato a Vincenzo/Personale/Dashboard/TV, CI e deploy da verificare. Altri lavori locali esclusi.
 
 ## Mobile In attesa / codici cliente —13/11, pubblicati
 

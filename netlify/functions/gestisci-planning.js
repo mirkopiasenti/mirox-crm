@@ -5,6 +5,9 @@ const headers = {'Content-Type':'application/json', 'Cache-Control':'no-store', 
   'Access-Control-Allow-Headers':'Content-Type, Authorization', 'Access-Control-Allow-Methods':'GET, POST, OPTIONS'};
 const reply = (statusCode,data) => ({statusCode,headers,body:JSON.stringify(data)});
 async function checked(query) { const {data,error} = await query; if (error) throw error; return data; }
+const operationalRow = row => row ? {...row,
+  bozza:row.bozza ? Core.operationalDocument(row.bozza) : null,
+  pubblicato:row.pubblicato ? Core.operationalDocument(row.pubblicato) : null} : null;
 async function handle(event,deps={}) {
   if (event.httpMethod === 'OPTIONS') return reply(200,{});
   if (!['GET','POST'].includes(event.httpMethod)) return reply(405,{error:'Metodo non consentito'});
@@ -28,7 +31,7 @@ async function handle(event,deps={}) {
     if (['month','pdf','config','access'].includes(action) && event.httpMethod !== 'GET') return reply(405,{error:'Usa GET per la consultazione'});
     const configRow = await checked(client.from('personale_planning_config').select('documento,versione').eq('id',true).maybeSingle());
     const config = configRow ? Core.validateConfig(configRow.documento) : Core.defaultConfig();
-    const ownEmployee = config.employees.find(e => e.profileId === auth.user.id);
+    const ownEmployee = config.employees.find(e => e.profileId === auth.user.id && Core.isOperationalEmployee(e.id,e.from));
     if (action === 'access') return reply(200,{allowed:admin || !!ownEmployee});
     if (!admin && !ownEmployee) return reply(403,{error:'Il tuo account non è ancora collegato a un dipendente. Contatta l’amministratore.'});
     if (action === 'config') {
@@ -39,7 +42,10 @@ async function handle(event,deps={}) {
     if (action === 'config_save') {
       let normalized;
       try { normalized = Core.validateConfig(params.config); } catch (e) { return reply(400,{error:e.message}); }
-      const linked = normalized.employees.filter(e => e.profileId).map(e => e.profileId);
+      // Le identità cessate restano in configurazione anche da client precedenti.
+      normalized.employees = normalized.employees.filter(e => Core.isOperationalEmployee(e.id,e.from))
+        .concat(config.employees.filter(e => !Core.isOperationalEmployee(e.id,e.from)));
+      const linked = normalized.employees.filter(e => e.profileId && Core.isOperationalEmployee(e.id,e.from)).map(e => e.profileId);
       if (linked.length) {
         const found = await checked(client.from('profili').select('id,attivo').in('id',linked));
         if (found.length !== linked.length || found.some(p => p.attivo !== true)) return reply(400,{error:'Collega soltanto account esistenti e attivi'});
@@ -56,15 +62,18 @@ async function handle(event,deps={}) {
       try { document = Core.validateDocument(params.document); } catch (e) { return reply(400,{error:e.message}); }
       if (document.month !== value) return reply(400,{error:'Il mese non coincide'});
       if (document.employees.some(e => !config.employees.some(c => c.id === e.id))) return reply(400,{error:'Dipendente non presente in configurazione'});
-      if (action === 'publish' && !document.firstMondayOff) return reply(400,{error:'Scegli l’alternanza iniziale prima di approvare il planning'});
+      document = Core.operationalDocument(document);
+      if (action === 'publish' && Core.requiresRotation(document) && !document.firstMondayOff) return reply(400,{error:'Scegli l’alternanza iniziale prima di approvare il planning'});
+      const previous = await checked(client.from('personale_planning_mesi').select('bozza').eq('mese',`${value}-01`).maybeSingle());
+      document = Core.preserveArchived(document,previous?.bozza);
       const row = await checked(client.rpc('personale_salva_mese',{p_autore:auth.user.id,p_mese:`${value}-01`,p_versione:params.version,p_documento:document,p_pubblica:action==='publish'}));
-      return reply(200,{row});
+      return reply(200,{row:operationalRow(row)});
     }
     const row = await checked(client.from('personale_planning_mesi').select('mese,versione,bozza,pubblicato,pubblicato_versione,pubblicato_at,updated_at').eq('mese',`${value}-01`).maybeSingle());
     if (action === 'month') {
       if (admin) {
         const audit = await checked(client.from('personale_planning_audit').select('id,azione,versione,created_at').eq('mese',`${value}-01`).order('id',{ascending:false}).limit(20));
-        return reply(200,{row,audit});
+        return reply(200,{row:operationalRow(row),audit});
       }
       const document = row?.pubblicato ? Core.publicDocument(row.pubblicato,ownEmployee.id) : null;
       return reply(200,{document:document?.employees.length ? document : null,publishedAt:document?.employees.length ? row.pubblicato_at : null});
@@ -74,7 +83,8 @@ async function handle(event,deps={}) {
     if (!admin && (type !== 'personal' || (params.employeeId && params.employeeId !== ownEmployee.id) || (params.source && params.source !== 'published'))) return reply(403,{error:'Puoi esportare soltanto il tuo planning pubblicato'});
     const source = admin ? (params.source || 'draft') : 'published';
     if (!['draft','published'].includes(source)) return reply(400,{error:'Versione PDF non valida'});
-    const document = source === 'published' ? row?.pubblicato : row?.bozza;
+    const rawDocument = source === 'published' ? row?.pubblicato : row?.bozza;
+    const document = rawDocument ? Core.operationalDocument(rawDocument) : null;
     if (!document) return reply(404,{error:'Salva o pubblica il planning prima di esportarlo'});
     const employeeId = admin ? params.employeeId : ownEmployee.id;
     if (type !== 'collective' && !document.employees.some(e => e.id === employeeId)) return reply(404,{error:'Dipendente non presente nel mese'});

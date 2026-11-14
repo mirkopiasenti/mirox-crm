@@ -1,3 +1,13 @@
+# Uscita Vincenzo —14/11/2026
+
+Regola attuale: da novembre2026 incluso e in tutti i mesi successivi `vincenzo` esce dal roster operativo di Personale (dipendenti, calendario, schede ore, PDF). Le configurazioni precedenti e i turni raw nel database restano conservati; `operationalConfig`/`operationalDocument` proiettano le viste e il server riunisce i record archiviati prima dei salvataggi, usando la versione CAS esistente. I turni già salvati di Matteo e Isabella non vengono rigenerati. Nei nuovi mesi, senza coppia alternata, nessuna alternanza obbligatoria o mezza giornata dedotta automaticamente.
+
+Conferma esplicita del proprietario: il filtro disponibilità CC dal2026-11 richiede solo Matteo per tutta la durata, sottraendo le sue assenze/riposi/chiusure/offsite. Senza prima approvazione resta il fallback storico. Appuntamenti già fissati, regole legacy di griglia/anticipo/buffer/occupazione e guard finale restano conservati. Vincenzo non limita più gli slot. Migration delle sole due funzioni `presenza_v1`/`personale_salva_mese`, senza nuovi privilegi o modifica alle tabelle CC.
+
+Migration applicata/riletta14/11 come20261114090359: slot SQL indipendenti da Vincenzo e nessuno slot senza Matteo, dati/snapshot/privilegi/trigger invariati. UI/API locali senza push, build789/789,113checkSQL e DOM verdi.
+
+Il modello iniziale e i rilasci sotto documentano lo storico e sono superati per la presenza operativa di Vincenzo. Applicazione/verifiche e rilascio sono registrati in `STATO_LAVORO.md`.
+
 # Planning dipendenti — rilascio 29/10/2026
 
 Modulo richiesto dal proprietario per novembre 2026 in poi, solo Legnago.

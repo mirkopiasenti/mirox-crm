@@ -17,7 +17,7 @@ function reportPeriod(period) {
 }
 function isReportOperator(id,period) {
   const month=reportPeriod(period);
-  return id===FRANCESCA ? month<AVVICENDAMENTO : id!==VINCENZO || month>=AVVICENDAMENTO;
+  return id===FRANCESCA ? month<AVVICENDAMENTO : id!==VINCENZO;
 }
 function reportProfiles(profiles,period) {
   const month=reportPeriod(period);
@@ -25,7 +25,7 @@ function reportProfiles(profiles,period) {
     p.id===FRANCESCA ? {...p,attivo:true,in_gara:true} : p);
 }
 function dayOperators(period) {
-  return ['MATTEO','MIRKO',reportPeriod(period)<AVVICENDAMENTO?'FRANCESCA':'VINCENZO','CEREA'];
+  return ['MATTEO','MIRKO',...(reportPeriod(period)<AVVICENDAMENTO?['FRANCESCA']:[]),'CEREA'];
 }
 function isMonthlyCandidate(c) {
   return c.stato_inserimento !== 'reinserimento'

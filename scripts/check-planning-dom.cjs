@@ -20,7 +20,9 @@ async function setup(admin,state){
 }
 (async()=>{
  const state={row:null,requests:[]};const {document,window}=await setup(true,state),$=id=>document.getElementById(id),click=async el=>{el.dispatchEvent(new window.Event('click',{bubbles:true}));await settle();};
- assert.equal($('planningCalendar').querySelectorAll('tbody tr').length,30);assert.equal($('publishMonth').disabled,true);
+ assert.equal($('planningCalendar').querySelectorAll('tbody tr').length,30);assert.equal($('publishMonth').disabled,false);
+ assert.ok(!$('staffCards').textContent.includes('Vincenzo'));assert.ok(!$('planningCalendar').textContent.includes('Vincenzo'));
+ assert.equal($('firstMondayOff').parentElement.hidden,true);
  $('firstMondayOff').value='matteo';await click($('generateMonth'));assert.equal($('publishMonth').disabled,false);
  await click(document.querySelector('[data-day="2026-11-03"][data-employee="matteo"]'));assert.equal($('dayDialog').open,true);
  await click($('addAbsence'));let line=$('dayAbsences').firstElementChild;line.querySelector('[data-field=type]').value='malattia';line.querySelector('[data-field=duration]').value='hours';line.querySelector('[data-field=start]').value='10:00';line.querySelector('[data-field=end]').value='11:00';line.querySelector('[data-field=code]').value='CODICE-TEST';$('dayWorked').value='6';$('dayExtra').value='0.5';
@@ -41,7 +43,7 @@ async function setup(admin,state){
  const pendingState={row:{versione:5,pubblicato_versione:4,bozza:Core.generate('2026-11',Core.defaultConfig(),'matteo')},requests:[]};
  const pending=await setup(true,pendingState),pendingDoc=pending.document;
  pendingDoc.getElementById('firstMondayOff').value='vincenzo';pendingDoc.getElementById('firstMondayOff').dispatchEvent(new pending.window.Event('change',{bubbles:true}));await settle();
- assert.equal(pendingDoc.getElementById('publishMonth').disabled,true,'Alternanza non applicata: approvazione bloccata');
+ assert.equal(pendingDoc.getElementById('publishMonth').disabled,false,'Nessuna alternanza richiesta dopo uscita');
  pendingDoc.getElementById('firstMondayOff').value='matteo';pendingDoc.getElementById('firstMondayOff').dispatchEvent(new pending.window.Event('change',{bubbles:true}));await settle();
  assert.equal(pendingDoc.getElementById('publishMonth').disabled,false);
  // Un mese malformato non deve sostituire la versione CAS del mese ancora aperto.

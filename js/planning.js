@@ -7,7 +7,7 @@
   let dirty = false, staffDirty = false, busy = false, currentDay = null, view = 'calendar';
   function status(message,error=false) { $('planningStatus').textContent=message;$('planningStatus').classList.toggle('is-error',error); }
   function rotationPending() {
-    return admin && documentData && $('firstMondayOff').value !== (documentData.firstMondayOff || '');
+    return admin && documentData && Core.requiresRotation(documentData) && $('firstMondayOff').value !== (documentData.firstMondayOff || '');
   }
   function monthUnavailable() { return !documentData || $('planningMonth').value !== documentData.month; }
   function requireCurrentMonth() {
@@ -19,7 +19,7 @@
     if (admin) {
       const unavailable = monthUnavailable(), pending = rotationPending();
       $('saveMonth').disabled = busy || unavailable || pending || !dirty;
-      $('publishMonth').disabled = busy || unavailable || pending || !documentData?.firstMondayOff || (!dirty && row?.pubblicato_versione === row?.versione);
+      $('publishMonth').disabled = busy || unavailable || pending || (documentData && Core.requiresRotation(documentData) && !documentData.firstMondayOff) || (!dirty && row?.pubblicato_versione === row?.versione);
       $('generateMonth').disabled = busy || unavailable || !config;
       for (const id of ['firstMondayOff','pdfSource','pdfEmployee','hoursEmployee']) $(id).disabled = busy || unavailable;
       document.querySelectorAll('[data-export], [data-day]').forEach(el=>{el.disabled=busy || unavailable || pending;});
@@ -48,9 +48,14 @@
     if(!documentData)return;
     $('calendarTitle').textContent=`Planning di ${monthLabel(documentData.month)}`;
     $('firstMondayOff').value=documentData.firstMondayOff||'';
+    $('firstMondayOff').parentElement.hidden=!Core.requiresRotation(documentData);
     const firstMonday=Core.dates(documentData.month).find(d=>Core.weekday(d)===1);
     $('rotationHelp').textContent=`Settimana da lunedì ${firstMonday.slice(8)}/${firstMonday.slice(5,7)}. Chi ha il lunedì mattina libero lavora sabato pomeriggio; la settimana dopo si scambiano. Applicare gli orari sostituisce la bozza del mese.`;
     $('planningWarnings').textContent=documentData.firstMondayOff?'Festività evidenziate. Conferma le eventuali chiusure nel dettaglio del giorno. I riposi non sono ferie.':'Alternanza da assegnare: i turni mostrano le fasce di base, senza le mezze giornate libere. Scegli l’assegnazione e applica gli orari prima di pubblicare.';
+    if(!Core.requiresRotation(documentData)){
+      $('rotationHelp').textContent='Gli orari ricorrenti si applicano ai dipendenti presenti nel mese.';
+      $('planningWarnings').textContent='Festività evidenziate. I turni già salvati sono conservati; controlla le eventuali chiusure.';
+    }
     $('planningCalendar').innerHTML=`<thead><tr><th>Giorno</th>${documentData.employees.map(e=>`<th>${esc(e.name)}</th>`).join('')}</tr></thead><tbody>${Core.dates(documentData.month).map(date=>`<tr class="${Core.weekday(date)===0||Core.holiday(date)?'nonworking':''}"><td>${dayHeading(date)}</td>${documentData.employees.map(e=>{const day=documentData.entries.find(d=>d.date===date&&d.employeeId===e.id);return `<td><button class="shift-button" data-day="${esc(date)}" data-employee="${esc(e.id)}" aria-label="Modifica ${esc(e.name)} ${esc(dateLabel(date))}">${esc(shiftLabel(day))}${day.absences.length?`<small>${esc(day.absences.map(a=>a.type).join(', '))} · ${Core.hours(Core.absenceMinutes(day))}</small>`:''}${day.offsite?'<small>Fuori negozio</small>':''}${day.extraMinutes?`<small>Extra ${Core.hours(day.extraMinutes)}</small>`:''}${day.details?`<small class="planning-details">${esc(day.details)}</small>`:''}</button></td>`;}).join('')}</tr>`).join('')}</tbody>`;
     options($('pdfEmployee'));options($('hoursEmployee'));publication();renderHours();
   }
@@ -81,7 +86,7 @@
       const data = await (await request({action:'month',month:value})).json();
       if (admin) {
         const nextRow = data.row;
-        const nextDocument = nextRow ? Core.validateDocument(nextRow.bozza) : Core.generate(value,config);
+        const nextDocument = nextRow ? Core.operationalDocument(nextRow.bozza) : Core.generate(value,Core.operationalConfig(config,value));
         if (nextDocument.month !== value || !Array.isArray(data.audit) || (nextRow && (!Number.isSafeInteger(nextRow.versione) || nextRow.versione < 1))) {
           throw new Error('Il planning ricevuto non corrisponde al mese richiesto o non è valido.');
         }
@@ -130,10 +135,10 @@
     }catch(e){$('dayError').textContent=e.message;}
   }
   function renderStaff(){
-    $('staffCards').innerHTML=config.employees.map(e=>`<article data-staff="${esc(e.id)}"><h3>${esc(e.name)}</h3><label>Nome<input data-key="name" value="${esc(e.name)}" maxlength="80"></label><label>Account Mirox<select data-key="profileId"><option value="">Non collegato</option>${profiles.map(p=>`<option value="${esc(p.id)}"${p.id===e.profileId?' selected':''}>${esc(p.nome||p.username||p.id)}</option>`).join('')}</select></label><label>Ore contrattuali settimanali<input data-key="contractMinutes" type="number" min="0" max="168" step="any" value="${e.contractMinutes/60}"></label><div class="planning-form-grid"><label>Dal mese<input data-key="from" type="month" min="2026-11" value="${esc(e.from)}"></label><label>Ultimo mese (facoltativo)<input data-key="until" type="month" min="2026-11" value="${esc(e.until||'')}"></label></div><h3>Settimana di base</h3><p>Orari inizio-fine separati da punto e virgola; vuoto = riposo. Le mezze giornate alternate si applicano nel planning.</p>${[1,2,3,4,5,6,0].map(w=>`<label class="week-field">${esc(Core.WEEKDAYS[w].slice(0,3))}<input data-week="${w}" value="${esc(e.week[w].map(p=>p.join('-')).join('; '))}" aria-label="${esc(Core.WEEKDAYS[w]+' '+e.name)}"></label>`).join('')}</article>`).join('');
-    for(const e of config.employees){if(e.profileId&&!profiles.some(p=>p.id===e.profileId)){const option=document.createElement('option');option.value=e.profileId;option.textContent='Account non più attivo: ricollegare';option.selected=true;document.querySelector(`[data-staff="${e.id}"] [data-key=profileId]`).append(option);}}
+    $('staffCards').innerHTML=Core.operationalConfig(config,$('planningMonth').value).employees.map(e=>`<article data-staff="${esc(e.id)}"><h3>${esc(e.name)}</h3><label>Nome<input data-key="name" value="${esc(e.name)}" maxlength="80"></label><label>Account Mirox<select data-key="profileId"><option value="">Non collegato</option>${profiles.map(p=>`<option value="${esc(p.id)}"${p.id===e.profileId?' selected':''}>${esc(p.nome||p.username||p.id)}</option>`).join('')}</select></label><label>Ore contrattuali settimanali<input data-key="contractMinutes" type="number" min="0" max="168" step="any" value="${e.contractMinutes/60}"></label><div class="planning-form-grid"><label>Dal mese<input data-key="from" type="month" min="2026-11" value="${esc(e.from)}"></label><label>Ultimo mese (facoltativo)<input data-key="until" type="month" min="2026-11" value="${esc(e.until||'')}"></label></div><h3>Settimana di base</h3><p>Orari inizio-fine separati da punto e virgola; vuoto = riposo. Le mezze giornate alternate si applicano nel planning.</p>${[1,2,3,4,5,6,0].map(w=>`<label class="week-field">${esc(Core.WEEKDAYS[w].slice(0,3))}<input data-week="${w}" value="${esc(e.week[w].map(p=>p.join('-')).join('; '))}" aria-label="${esc(Core.WEEKDAYS[w]+' '+e.name)}"></label>`).join('')}</article>`).join('');
+    for(const e of Core.operationalConfig(config,$('planningMonth').value).employees){if(e.profileId&&!profiles.some(p=>p.id===e.profileId)){const option=document.createElement('option');option.value=e.profileId;option.textContent='Account non più attivo: ricollegare';option.selected=true;document.querySelector(`[data-staff="${e.id}"] [data-key=profileId]`).append(option);}}
   }
-  function readStaff(){return Core.validateConfig({employees:[...$('staffCards').children].map(card=>{const old=config.employees.find(e=>e.id===card.dataset.staff),get=key=>card.querySelector(`[data-key=${key}]`).value;return {...old,name:get('name'),profileId:get('profileId')||null,contractMinutes:duration(get('contractMinutes')),from:get('from'),until:get('until')||null,week:old.week.map((_,i)=>Core.parseSlots(card.querySelector(`[data-week="${i}"]`).value))};})});}
+  function readStaff(){return Core.validateConfig({employees:[...config.employees.filter(e=>!Core.isOperationalEmployee(e.id,e.from)),...[...$('staffCards').children].map(card=>{const old=config.employees.find(e=>e.id===card.dataset.staff),get=key=>card.querySelector(`[data-key=${key}]`).value;return {...old,name:get('name'),profileId:get('profileId')||null,contractMinutes:duration(get('contractMinutes')),from:get('from'),until:get('until')||null,week:old.week.map((_,i)=>Core.parseSlots(card.querySelector(`[data-week="${i}"]`).value))};})]});}
   async function saveStaff(){const next=readStaff();const result=await(await request({action:'config_save',config:next,version:configVersion},true)).json();config=result.config;configVersion=result.version;staffDirty=false;renderStaff();status('Configurazione salvata. I mesi esistenti conservano i propri turni.');}
   async function saveMonth(publish){
     requireCurrentMonth();
@@ -159,7 +164,7 @@
     if(admin){
       document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.view)));
       $('saveMonth').addEventListener('click',()=>run(()=>saveMonth(false)));$('publishMonth').addEventListener('click',()=>run(()=>saveMonth(true)));
-      $('generateMonth').addEventListener('click',()=>run(async()=>{if(staffDirty)throw new Error('Salva prima la configurazione dei dipendenti.');if(!await MiroxUI.confirm('Applicare gli orari ricorrenti sostituisce tutti i turni e cancella assenze, consuntivi, dettagli e note della bozza di questo mese. Continuare?'))return;documentData=Core.generate(documentData.month,config,$('firstMondayOff').value||null);markDirty();renderCalendar();status('Orari applicati alla bozza. Controlla e salva.');}));
+      $('generateMonth').addEventListener('click',()=>run(async()=>{if(staffDirty)throw new Error('Salva prima la configurazione dei dipendenti.');if(!await MiroxUI.confirm('Applicare gli orari ricorrenti sostituisce tutti i turni e cancella assenze, consuntivi, dettagli e note della bozza di questo mese. Continuare?'))return;documentData=Core.generate(documentData.month,Core.operationalConfig(config,documentData.month),$('firstMondayOff').value||null);markDirty();renderCalendar();status('Orari applicati alla bozza. Controlla e salva.');}));
       $('hoursEmployee').addEventListener('change',()=>{renderHours();controls();});
       $('firstMondayOff').addEventListener('change',()=>{controls();if(rotationPending())status('Alternanza modificata: premi Applica orari e alternanza per aggiornare i turni.');});
       document.querySelectorAll('[data-export]').forEach(button=>button.addEventListener('click',()=>run(()=>exportPdf(button.dataset.export))));

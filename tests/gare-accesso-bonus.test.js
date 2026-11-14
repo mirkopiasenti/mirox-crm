@@ -2,8 +2,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const core = require('../js/dashboard-report-core');
-const {V,M,contract,repeat,complete,render} = require('./gare-accesso-fixture.cjs');
-const access = (list,period='2026-11') => core.accessoBonusGare(list,V,id=>id==='alias-v'?V:id,period);
+const {O,M,contract,repeat,complete,render} = require('./gare-accesso-fixture.cjs');
+const access = (list,period='2026-11') => core.accessoBonusGare(list,O,id=>id==='alias-o'?O:id,period);
 const metric = {id:6,nome:'PARTITA IVA',tabella:'gara_individuale',tipo_conteggio:'individuale',tipo_compenso:'squadra',regola:{cluster:'Business'}};
 const goal = {metrica_id:6,operatore_id:null,anno:2026,mese:11,obiettivo:45,
   compenso_regola:{tipo:'scaglioni',scaglioni:[{da:35,importo:150,tipo_calcolo:'flat'}]}};
@@ -21,7 +21,7 @@ test('quattro requisiti personali con confine esatto e Fisso Business incluso ne
 test('accesso conta pezzi senza pesi, alias e tutti i Mobile Business; esclude Consumer, CB e reinserimenti',()=>{
   const names=['Professional Staff','Professional Full','Professional Country','Professional Dati','FWA Indoor','TIED','UNTIED','Nuova offerta'];
   const list=complete().filter(c=>c.categoria_snapshot!=='Mobile');
-  list.push(...names.map(nome_offerta_snapshot=>contract('Mobile','Business',{nome_offerta_snapshot,operatore_id:'alias-v'})),
+  list.push(...names.map(nome_offerta_snapshot=>contract('Mobile','Business',{nome_offerta_snapshot,operatore_id:'alias-o'})),
     ...repeat(2,'Mobile','Business',{codice_rivenditore:core.CEREA}),
     ...repeat(20,'Mobile'),...repeat(20,'Customer Base','Business'),
     ...repeat(20,'Mobile','Business',{stato_inserimento:'reinserimento'}),
@@ -43,7 +43,7 @@ test('nessuna retroattivita: ottobre senza requisiti; da novembre anche nei pros
 test('bonus squadra 150 visibile con 5 SIM personali, totale0 e indicatore sulla riga Partita IVA',()=>{
   const contracts=[...complete().filter(c=>c.categoria_snapshot!=='Mobile'),...repeat(5,'Mobile','Business'),
     ...repeat(29,'Mobile','Business',{operatore_id:M})];
-  const result=core.valutaGara(metric,goal,contracts,V,id=>id,'2026-11');
+  const result=core.valutaGara(metric,goal,contracts,O,id=>id,'2026-11');
   assert.equal(result.attualeSquadra,35);assert.equal(result.euro,150);
   const html=render({contracts,metrics:[metric],goals:[goal]});
   assert.match(html,/PARTITA IVA <span class="gara-accesso-warning"[^>]*>!<\/span>/);
@@ -63,7 +63,7 @@ test('bonus squadra 150 visibile con 5 SIM personali, totale0 e indicatore sulla
 test('totale sbloccato solo a tutte le soglie; somma bonus personali e squadra senza cambiare le righe',()=>{
   const contracts=[...complete(),...repeat(24,'Mobile','Business',{operatore_id:M})];
   const personal={id:2,nome:'TELEFONI FINANZIATI GA',tabella:'gara_individuale',regola:{categoria:'Mobile',cluster:'Business'}};
-  const personalGoal={metrica_id:2,operatore_id:V,anno:2026,mese:11,compenso_regola:{tipo:'per_pezzo',per_pezzo:5}};
+  const personalGoal={metrica_id:2,operatore_id:O,anno:2026,mese:11,compenso_regola:{tipo:'per_pezzo',per_pezzo:5}};
   const html=render({contracts,metrics:[metric,personal],goals:[goal,personalGoal]});
   assert.match(html,/class="compenso">€ 150</);assert.match(html,/class="compenso">€ 50</);
   assert.match(html,/compenso-tot">€ 200</);
@@ -97,7 +97,7 @@ test('minimo Fisso10: 9 decurtazione,10 compenso; gli scaglioni e il mese storic
 test('indicatore solo se una riga della stessa scheda guadagna almeno1EUR, anche dopo la riga col requisito mancante',()=>{
   const fixed={id:4,nome:'FISSO',tabella:'gara_individuale',regola:{categoria:'Fisso'}};
   const paid={id:2,nome:'TELEFONI FINANZIATI GA',tabella:'gara_individuale',regola:{categoria:'Mobile'}};
-  const fixedGoal={metrica_id:4,operatore_id:V,anno:2026,mese:11,compenso_regola:{tipo:'per_pezzo',per_pezzo:10}};
+  const fixedGoal={metrica_id:4,operatore_id:O,anno:2026,mese:11,compenso_regola:{tipo:'per_pezzo',per_pezzo:10}};
   for(const amount of [0,0.99,1,5]){
     const paidGoal={...fixedGoal,metrica_id:2,compenso_regola:{tipo:'per_pezzo',per_pezzo:amount}};
     for(const metrics of [[fixed,paid],[paid,fixed]]){
@@ -110,7 +110,7 @@ test('indicatore solo se una riga della stessa scheda guadagna almeno1EUR, anche
   }
   const html=render({contracts:[contract('Mobile')],metrics:[fixed,paid],goals:[fixedGoal,
     {...fixedGoal,metrica_id:2,compenso_regola:{tipo:'per_pezzo',per_pezzo:5}}],
-    operators:[{id:V,nome:'Vincenzo'},{id:M,nome:'Matteo'}]});
+    operators:[{id:O,nome:'Operatore di prova'},{id:M,nome:'Matteo'}]});
   const cards=html.split('<div class="gara-card"').slice(1);
   assert.match(cards[0],/gara-accesso-warning/);
   assert.doesNotMatch(cards[1],/gara-accesso-warning/,'il guadagno di un altro operatore non attiva il simbolo');
@@ -119,7 +119,7 @@ test('due compensi inferiori a1EUR o una semplice etichetta non attivano gli avv
   const fixed={id:4,nome:'FISSO',tabella:'gara_individuale',regola:{categoria:'Fisso'}};
   const paid={id:2,nome:'ALTRA GARA',tabella:'gara_individuale',regola:{categoria:'Mobile'}};
   const other={...paid,id:8,nome:'TERZA GARA'};
-  const makeGoal=(metrica_id,rule)=>({metrica_id,operatore_id:V,anno:2026,mese:11,compenso_regola:rule});
+  const makeGoal=(metrica_id,rule)=>({metrica_id,operatore_id:O,anno:2026,mese:11,compenso_regola:rule});
   const html=render({contracts:[contract('Mobile')],metrics:[fixed,paid,other],goals:[
     makeGoal(2,{tipo:'per_pezzo',per_pezzo:0.5}),makeGoal(8,{tipo:'per_pezzo',per_pezzo:0.5})]});
   assert.doesNotMatch(html,/gara-accesso-warning/);

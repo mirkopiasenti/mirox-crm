@@ -217,6 +217,12 @@ CB35+15=100EUR e34+16=0, Assicurazioni10punti squadra=50EURciascuno.
 Lettura authenticated operatore:22righe; query mensile usa `idx_gom_anno_mese`.
 Copie/hash prima e dopo soltanto in `.backup-private/replica-gare-20261104/`.
 
+## Uscita Vincenzo —14/11/2026
+
+Da novembre2026 e per tutti i mesi successivi Vincenzo è escluso dalle tre schede Dashboard/PNG/Target/Admin e dal Personale operativo. L'avvicendamento del02/11 sotto è superato per il suo ingresso, mentre Francesca resta nei periodi fino a ottobre. Profilo, Auth, ACL, contratti, obiettivi e snapshot planning conservati senza riassegnazioni. `configura_uscita_vincenzo.sql` imposta soltanto `profili.attivo=false,in_gara=false`, con preflight/idempotenza e impronte di tutte le altre tabelle pubbliche.
+
+Migration `20261114085607_uscita_vincenzo_planning_cc.sql`: `CREATE OR REPLACE` delle sole funzioni INVOKER/service-only `mirox_cc_privato.presenza_v1` (CC dipendente solo da Matteo dal2026-11) e `personale_salva_mese` (pubblicazione senza alternanza obbligatoria). Nessuna modifica a tabelle, colonne, RLS, grant, trigger, appuntamenti o RPC legacy CC. Frontend/API proiettano il roster e i PDF operativi; i salvataggi recuperano dal DB i record archiviati senza riscriverli con dati del client. Applicata/riletta production14/11 come20261114090359; script dati applicato e riletto, profilo inattivo/fuori gara. Impronte2864contratti/19710obiettivi/540appuntamenti/planning/ACL/altri profili identiche; soltanto2funzioni cambiate, privilegi/trigger e advisor invariati. Build789/789 e113check SQL verdi. UI/API ancora locali, nessun push; stato nel promemoria.
+
 ## Avvicendamento Francesca / Vincenzo — dati applicati02/11/2026
 
 `configura_avvicendamento_vincenzo.sql` conserva il default `applica=false`.
