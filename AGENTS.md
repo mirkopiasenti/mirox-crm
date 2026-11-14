@@ -115,7 +115,7 @@ L'utente può chiedere in qualsiasi momento cosa è stato fatto in una sessione:
 
 ---
 
-## Segnalazioni da Mobile —14/11/2026, schema applicato
+## Segnalazioni da Mobile —14/11/2026, pubblicate
 
 Solo categoria canonica Mobile (Consumer/Business), dettaglio Verifica Contratti
 anche Verificati: Apri segnalazione. Richieste entrambe le ACL Verifica Contratti
@@ -153,6 +153,9 @@ Registro vuoto e grant/RLS/RPC corretti; impronte di2864contratti,5832documenti,
 9540anagrafiche,9profili,606segnalazioni, bucket/oggetti e schema/policy/grant/trigger/
 funzioni preesistenti identiche. Sequenza624invariata; advisor warning/errori invariati,
 solo INFO atteso sul nuovo registro RLS senza policy. Nessuna pratica reale nei test.
+Pubblicato14/11 con `8f14a4d`, conservato nel rilascio `64b9f4b`: CI43580960766
+LinuxNode22/Windows verde806test, Netlify6af82a7628daa9146dbdef1f online.
+Verificati8asset/HTML/script/stili/PrettyURL e2API401 senza JWT.
 
 ## Compilatore Malpractis —13/11/2026, pubblicato
 

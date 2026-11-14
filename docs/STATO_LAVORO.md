@@ -2,12 +2,12 @@
 
 Aggiornato:2026-11-14. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Segnalazioni da Mobile —14/11, DB applicato / codice in pubblicazione
+## Segnalazioni da Mobile —14/11, pubblicate e DB applicato
 
 - Verifica Contratti, soli Mobile Consumer/Business anche Verificati: Apri segnalazione, scelte Reload Forever/Professional Cloud/Altro, note obbligatorie solo Altro. Conferma Sì/No, caricamento con popup bloccato, successo solo dopo creazione e apertura del dettaglio in Da gestire. Conferma proprietario: prime due ASK - Normalizzazione, Altro Interna negozio.
 - API dedicata con entrambe ACL fresche, autore login, cliente/recapiti/indirizzo/codici/riferimenti riletti dal contratto e tutti gli allegati copiati server-side. Nessun invio ASK/email o disattivazione; originali e contratto invariati. Retry UUID/hash/autore/lease con payload pendente in sessionStorage, nessun duplicato dopo errori o risposta persa.
 - Migration CLI `database/20261114090437_segnalazioni_mobile.sql` applicata/riletta production20261114092756: soltanto registro privato RLS e2RPC INVOKER/service-only,0righe/grant corretti. Prenotazione ID e INSERT/completamento atomici dopo tutte le copie;2864contratti/5832documenti/9540anagrafiche/9profili/606segnalazioni, sequenza624, bucket/oggetti e schema/policy/grant/trigger/funzioni precedenti identici. Advisor warning/errori invariati, solo INFO RLS senza policy40vs39 atteso. Snapshot privati `.backup-private/release-segnalazioni-mobile-20261114/`.
-- Verifiche:93test mirati e suite806/806/build verdi nella copia isolata del lavoro corrente, inclusi WIP paralleli; SQL PGlite0.5.13 permessi/concorrenza/file mancanti/retry/storico/originali verde. Nessun browser o pratica reale; sole nuove strutture DB. README/AGENTS/CLAUDE/databaseREADME/Permessi aggiornati. Push richiesto14/11: pubblicazione e controlli CI/Netlify in corso.
+- Verifiche:93test mirati e suite806/806/build verdi nella copia isolata del lavoro corrente, inclusi WIP paralleli; SQL PGlite0.5.13 permessi/concorrenza/file mancanti/retry/storico/originali verde. Nessun browser o pratica reale; sole nuove strutture DB. README/AGENTS/CLAUDE/databaseREADME/Permessi aggiornati. Pubblicato su richiesta14/11 con8f14a4d, conservato nel rilascio64b9f4b: CI43580960766 LinuxNode22/Windows806test verde, Netlify6af82a7628daa9146dbdef1f online;8asset/HTML/script/stili/PrettyURL e2API401 verificati. Prossimo: ricaricare Verifica Contratti e usare Apri segnalazione; nessun rilascio Mobile pendente.
 
 ## Uscita Vincenzo —14/11, pubblicato e DB applicato
 

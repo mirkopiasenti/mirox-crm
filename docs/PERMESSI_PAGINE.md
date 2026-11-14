@@ -1,6 +1,6 @@
 # Permessi pagine Mirox
 
-Estensione Mobile14/11 con schema applicato: `apri-segnalazione-mobile` richiede
+Estensione Mobile14/11 pubblicata: `apri-segnalazione-mobile` richiede
 **entrambe** Verifica Contratti e Segnalazioni, con controlli server freschi.
 La mappa endpoint applica Verifica Contratti; la Function verifica separatamente
 Segnalazioni prima di leggere dati o copiare file. Admin ammessi secondo il modello
