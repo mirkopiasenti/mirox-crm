@@ -70,6 +70,8 @@ Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push
 
 ## Segnalazioni — aggiornamento11/11/2026
 
+Estensione Mobile14/11: nel dettaglio Verifica Contratti il pulsante **Apri segnalazione** permette di scegliere Reload Forever, Professional Cloud o Altro. Note facoltative per le prime due, obbligatorie per Altro. Dopo Conferma e Sì, il popup resta aperto con caricamento; soltanto dopo la copia completa degli allegati conferma la creazione e apre il dettaglio in Segnalazioni → Da gestire. Le prime due scelte usano ASK - Normalizzazione, Altro usa Interna negozio. Cliente, recapiti, codici WindTre, riferimenti contratto e tutti gli allegati vengono recuperati dal contratto salvato. Richieste interrotte si riprendono senza duplicati. Richieste entrambe le abilitazioni Verifica Contratti e Segnalazioni; nessun invio ASK/email o disattivazione automatica. Migration `database/20261114090437_segnalazioni_mobile.sql` applicata/riletta20261114092756: registro privato/RPC, nessuna modifica alle tabelle o ai dati esistenti.
+
 Da gestire distingue i tre percorsi e mostra la scelta nel riquadro giallo: ASK richiede solo numero ASK, note e allegati facoltativi; Salva porta al Riepilogo. Angel offre note/allegati e Confermo apertura Angel, con passaggio al Riepilogo Angel e conferma dedicata. Interna negozio mantiene la scelta Azione Eseguita e le regole precedenti. ASK e Angel restano in corso dopo l’apertura; errori mantengono il dettaglio per riprovare.
 
 Inserimento aggiornato12/11: Gestione pratica offre Angel, ASK e Interna negozio. Scegliendo ASK compare il tipo obbligatorio: Recesso, Comportamento Scorretto, Normalizzazione, Reclami su Fattura, Convergenza, Subentro, CS o Altro. Recesso e Comportamento Scorretto mostrano i rispettivi PDF gia disponibili. La scelta viene salvata ed e visibile nel dettaglio della segnalazione.
@@ -232,6 +234,7 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 
 | Function | Metodo | Auth | Scopo |
 |---|---|---|---|
+| `apri-segnalazione-mobile` | POST | JWT + Verifica Contratti **e** Segnalazioni | Recupera cliente/allegati dal contratto Mobile; copia Storage e inserimento atomico/idempotente in Da gestire |
 | `target-telegram-webhook` | POST | secret Telegram + chat privata proprietario | Accoda testo/vocali nel bot dedicato Target; dedupe update e dialogo libero |
 | `target-worker-background` | POST background | HMAC + timestamp | Genera report/dialogo, memoria privata e consegna con checkpoint |
 | `cron-target-reports` | scheduled `*/5 * * * *` | cron Netlify | Report alle 19:45 italiane, calendario lavorativo, dedupe e risveglio coda Target |

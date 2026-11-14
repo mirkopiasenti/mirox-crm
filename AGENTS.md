@@ -115,6 +115,45 @@ L'utente può chiedere in qualsiasi momento cosa è stato fatto in una sessione:
 
 ---
 
+## Segnalazioni da Mobile —14/11/2026, schema applicato
+
+Solo categoria canonica Mobile (Consumer/Business), dettaglio Verifica Contratti
+anche Verificati: Apri segnalazione. Richieste entrambe le ACL Verifica Contratti
+e Segnalazioni; pulsante nascosto senza la seconda, nessun permesso assegnato.
+Motivi esatti Reload Forever/Professional Cloud/Altro, note facoltative sui primi
+due e obbligatorie non vuote su Altro (massimo4000caratteri). Le prime due creano
+ASK/tipo Normalizzazione, Altro Interna negozio/tipoNULL. Non dipende dalla spunta
+dell’opzione né cambia presenza/gestione/stato del contratto. Modifiche del dettaglio
+da salvare prima. Conferma e popup Sì/No; No conserva i dati senza scritture.
+Dopo Sì popup originale occupato/spinner, chiusura/doppi clic bloccati; successo
+soltanto dopo tutti gli allegati e INSERT, quindi dettaglio Segnalazioni Da gestire
+con deep-link numerico `?segnalazione_id=`. Nessun invio ASK/email o disattivazione.
+
+Function `apri-segnalazione-mobile.js`: JWT/ACL fresche, autore da profilo,
+identità/recapiti/indirizzo/codici cliente/riferimenti dal contratto persistito;
+scelta e note in dettagli_segnalazione insieme ai dati aggiuntivi del cliente.
+Tutti i documenti legati esattamente al contratto vengono copiati server-side
+da contratti-vendita in segnalazioni-files, senza limite artificiale2/3 e senza
+toccare originali. Identificatore documento nel nome evita omonimie. Controlli
+categoria, relazione documenti, versione contratto e impronta delle fonti prima
+e dopo la copia; errori di lettura bloccanti. `js/segnalazione-mobile-core.js`
+condivide scelte/validazione, `js/verifica-segnalazione-mobile.js` gestisce il popup.
+
+Migration sorgente `20261114090437_segnalazioni_mobile.sql`, applicata/riletta
+production14/11 come `20261114092756`:
+nuovo registro `segnalazioni_mobile_richieste`, RLS/server-only SELECT/INSERT/UPDATE,
+RPC INVOKER prepara/completa soltanto service_role. Prenota ID dalla sequenza
+esistente (possibili salti), UUID/hash/autore e lease2min impediscono duplicati
+concorrenti; INSERT Segnalazioni e completamento sono atomici dopo verifica di
+tutte le copie. Nessuna colonna/policy/trigger/grant di tabelle esistenti modificata.
+Richieste sospese e copie parziali restano riservate per il retry; nessuna pratica
+incompleta nella coda. Payload pendente in sessionStorage per autore/contratto e
+in memoria, rimosso al successo; esito incerto riprende lo stesso UUID e valori.
+Registro vuoto e grant/RLS/RPC corretti; impronte di2864contratti,5832documenti,
+9540anagrafiche,9profili,606segnalazioni, bucket/oggetti e schema/policy/grant/trigger/
+funzioni preesistenti identiche. Sequenza624invariata; advisor warning/errori invariati,
+solo INFO atteso sul nuovo registro RLS senza policy. Nessuna pratica reale nei test.
+
 ## Compilatore Malpractis —13/11/2026, pubblicato
 
 Applicazioni → `moduli/compilatore_malpractis.html`, stile Disdette, ricerca CRM obbligatoria prima dei dati. Prefill modificabile dei soli intestatario/CF-PIVA/cellulare/email disponibili; manuale solo dopo ricerca riuscita vuota. Errori bloccanti, risposte obsolete scartate, cambio anagrafica azzera dati/download. Una domanda per campo; per le problematiche una sola selezione radio dall’elenco della colonna scelta; i due TIM/Telecom Italia sono distinti per conferma esplicita del proprietario. Domande per stato linea, un solo motivo obbligatorio, nessuna voce dell’altra colonna, cambio linea azzera la selezione, operatore, conoscenza WINDTRE (Sì/No/Non noto), descrizione, appuntamenti e data. Soli appuntamenti facoltativi se non concordati, data corrente Rome modificabile, firma manuale e identità da allegare all’invio.
@@ -480,6 +519,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `gestisci-operazioni-post-vendita.js` (POST action-based) — sostituisce tutte le scritture browser su `post_vendita_gestione_rimborsi`: creazione, associazione path PDF e completamento restano disponibili agli account autenticati; `create_rimborso_manuale` è admin-only. `mark_apri_chiudi_ko` è disponibile agli account autenticati attivi, accetta soltanto pratiche ancora `IN CORSO` e aggiorna tramite service role. Operatore e stato del rimborso manuale sono derivati lato server. Migration post-deploy `056`: rimborsi write server-only e trigger DB che continua a impedire di introdurre `vendita_apri_chiudi.stato='KO'` con una scrittura diretta da sessioni non-admin.
 - `gestisci-subentri.js` (GET/POST JSON o multipart) — endpoint autenticato del Compilatore Subentri: ricerche CRM esatte per ruolo (solo P.IVA cedente/CF personale subentrante), `create` con UUID idempotente/modalità e manifest immutabili (standard senza documenti, invia_pratica con tre gruppi obbligatori), upload singolo PDF/JPEG/PNG max 4 MiB vincolato alla propria bozza, `finalize` con verifica byte/SHA256 di tutti gli allegati, storico globale dei soli generati, `documents`, `signed_url` (300 s) e `duplicate_data`. Usa esclusivamente `subentri_generati`/`subentri-files`; anagrafica solo letta. Errori tecnici ripuliti, nessun upload diretto dal browser.
 - `gestisci-malpractis.js` (GET/POST) — ricerca anagrafica e PDF originale ASK, ACL dedicata; archivio privato, storico/PDF/duplica dati, dati rivenditore fissi, nessun invio. Dettagli nella sezione Compilatore Malpractis.
+- `apri-segnalazione-mobile.js` (POST) — ACL Verifica Contratti e Segnalazioni congiunte, dati/allegati da contratto Mobile; copie Storage e creazione Da gestire idempotente. Migration applicata/riletta20261114092756.
 - `gestisci-disdette.js` (GET/POST action-based) — genera con `pdf-lib` uno dei quattro moduli WindTre precompilati, carica il risultato nel bucket privato `disdette-files`, registra numero cessato e snapshot validato in `disdette_generate`, elenca lo storico e crea signed URL di 5 minuti. L’action `duplicate_data` restituisce lo snapshot soltanto per SIM/Fisso dello stesso cluster; la ricerca GET `action=search_anagrafica` interroga `cf_piva`, `ragione_sociale` e `nome_referente` senza scrivere su `anagrafica`. Tutte le operazioni sono autenticate e la service role è l'unico soggetto con accesso diretto a tabella e bucket.
 - `elimina-vendita-contratto.js` (POST) — admin-only; elimina definitivamente contratto, record collegati e allegati Storage, e la pratica se rimane vuota.
 - `ocr-pda.js` (POST multipart, max 20MB) — OCR del PDA via Claude API (`claude-haiku-5-5`). **Dati cliente**: cf_piva, ragione_sociale, nome_referente, cellulare, email, provincia, comune, via, civico. **Codice Rivenditore** (dal 2026-07-18, migration `050`): `codice_rivenditore` estratto dal "Codice POS" WindTre, valori ammessi solo `'9001415852'` (Legnago) o `'9000822241'` (Cerea), altrimenti `null`. **Dati dispositivo** (dal 2026-06-26, PDA WindTre Mobile/Customer Base): `dispositivo_presente` (bool nullable: presenza/assenza esplicita/incerto), `tipo_acquisto` ('VAR' o 'Finanziamento'), `imei` (15 cifre), `prezzo_device` (stringa numerica es. "399.9"), `smartphone_reload` (bool nullable: true=SI[X], false=NO[X], null=sezione assente). Riconoscimento VAR vs Finanziamento via 3 segnali concordi nel PDA: titolo pagina ("Offerta con Finanziamento" vs "Offerta Vendita a Rate"), header sezione ("OFFERTA CON FINANZIAMENTO" vs "VENDITA A RATE"), riga Opzioni/servizi della SIM ("Vendita con Finanziamento" vs "Vendita a rate"). Validazione server-side: tipo_acquisto solo enum, imei regex 15 cifre, prezzo_device regex numerico (altrimenti `null` per evitare di sporcare il form). `finanziaria` e `kolme` NON sono estratti (non presenti nel PDA, compilazione manuale operatore). 200 con `data: {...}` se l'OCR estrae (campi `null` se parziale). In caso di errore "hard" l'errore Anthropic viene classificato in `error_code` strutturato: `ocr_credit_exhausted` (credit balance low → 503), `ocr_rate_limited` (429 → 503), `ocr_unavailable` (5xx/529 → 503), `ocr_auth_error` (401/403 → 503), `ocr_generic_error` (default → 500). Payload errore: `{success:false, error, error_code, http_status, provider_status, provider_message}`. Il client decide il popup in base a `error_code`. Richiede `ANTHROPIC_API_KEY`. Estrae inoltre codice PDA e dati Mobile (costo base, numero SIM, MNP, operatore, presenza portabilita); `cellulare` proviene esclusivamente dalla firma elettronica. Output max2400 token ed effort low su Haiku5.5; stessa chiave API, senza modifica delle regole estrattive. Estrae `tipo_attivazione_fisso` dalla casella nuova linea/numero attivo, con null per dato assente o ambiguo. Numerazioni e tipo attivazione recuperati anche da testo PDF per coordinate tramite `_lib/pda-pdf-text.js` e `unpdf@1.9.1`, esterno esbuild. Estrae anche codice_cliente WindTre, distinto dal codice contratto. Estrae professional_cloud nullable dalla SIM contrattuale Mobile o da Opzioni aggiuntive Fisso; No testuale richiede accordo AI, incerto manuale.
@@ -592,6 +632,7 @@ Identificazione PDA (rilascio27/10, migration `20261027110402_vendita_codice_pda
 Professional Cloud28/10: `vendita_contratti` aggiunge `professional_cloud` e `professional_cloud_gestione`, nullable per storico, CHECK di coerenza e scope Mobile/Fisso Business. Migration `20261028085821` applicata; nessun nuovo trigger/RLS/RPC o campo anagrafico. Estensione vincolo `20261028091505` applicata per Fisso Business.
 
 ### Applicazioni
+- `segnalazioni_mobile_richieste` — registro server-only delle aperture Mobile, snapshot/hash/autore e ID Segnalazione prenotato, lease2min; RPC INVOKER `prepara_segnalazione_mobile`/`completa_segnalazione_mobile` service-only, nessun accesso browser. Migration sorgente `20261114090437_segnalazioni_mobile.sql`, applicata20261114092756; Segnalazioni e bucket esistenti conservati.
 - `subentri_generati` — archivio server-only del Compilatore Subentri (migration `20261018180938_compilatore_subentri.sql`, applicata il 18/10/2026). Bozza immutabile per operatore con manifest allegati, SHA256 richiesta e snapshot. Migration `20261018184140_subentri_modalita_compilazione.sql` aggiunge `modalita_compilazione` (`invia_pratica` default per lo storico, oppure `standard`): CHECK manifest 3–12 file per invia_pratica, array vuoto per standard. `finalize` applica la modalità salvata e verifica i documenti previsti prima dello stato `generato`. Storico globale autenticato senza snapshot/documenti nel listing; PDF e allegati tramite signed URL della Function. Nessun grant browser né FK/trigger/RPC sulle tabelle CC condivise.
 - `malpractis_generati` — registro server-only dei PDF ASK, dati validati e hash richiesta/PDF, autore e path privato; RLS senza grant browser, solo SELECT/INSERT service_role. Migration `20261113111030_malpractis_storico.sql`; signed URL e duplicazione soltanto da `gestisci-malpractis`.
 - `disdette_generate` — indice server-only dei PDF creati dal Compilatore disdette (migrations `063` + `064`). Conserva tipo modulo, identificativi dello storico, numero cessato, snapshot JSON dei dati validati, path/hash/versione del PDF e operatore. Lo snapshot serve esclusivamente alla duplicazione nello stesso cluster e non viene mai incluso nell’elenco storico. Nessun grant a `anon` o `authenticated`; tutte le operazioni passano da `gestisci-disdette` con service role.
