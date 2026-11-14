@@ -103,6 +103,7 @@
       'gestisci-anagrafiche': ['anagrafiche'],
       'gestisci-disdette': ['compilatore_disdette'], 'gestisci-subentri': ['compilatore_subentri'],
       'gestisci-malpractis': ['compilatore_malpractis'],
+      'apri-segnalazione-mobile': ['verifica_contratti'], // La Function richiede anche Segnalazioni.
       'elimina-vendita-contratto': ['verifica_contratti'],
       'upload-documento-modulo': [...new Set(Object.values(buckets).flatMap(b => b.write))],
       'gestisci-vendita-contratto': ['set_stato_verifica_manuale', 'get_codici_cliente'].includes(body.action) ? ['verifica_contratti']

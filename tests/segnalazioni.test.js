@@ -9,7 +9,7 @@ const source = [...page.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].m
 const CF = 'RSSMRA80A01H501U', PIVA = '01114601006';
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function deferred() { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; }
-function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }, lookup, confirmation = false, logoutError = null, records = [], storageList, updateResult, uploadResult } = {}) {
+function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }, lookup, confirmation = false, logoutError = null, records = [], storageList, updateResult, uploadResult, locationSearch = '', omitFromList = false } = {}) {
   const nodes = {}, calls = [], timers = new Map(); let timerId = 0;
   for (const m of page.matchAll(/\bid="([\w-]+)"/g)) {
     const n = nodes[m[1]] = new Element('div'); n.style = {}; n.innerHTML = ''; n.remove = () => {}; n.appendChild = node => n.append(node);
@@ -23,10 +23,13 @@ function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }
       in(k, v) { call.filters[k] = v; return q; }, not(k, op, v) { call.notNull = k; return q; }, order() { return q; }, limit() { return q; },
       insert(data) { call.insert = data; return q; }, update(data) { call.update = data; return q; },
       single() { return q; },
+      maybeSingle() { call.single = true; return q; },
       then(resolve, reject) {
         if(call.update&&updateResult)return Promise.resolve(updateResult(call)).then(resolve,reject);
         if(call.update)records.filter(r=>r.id===call.filters.id).forEach(r=>Object.assign(r,call.update));
         const result = table === 'anagrafica' ? (lookup ? lookup(call) : { data: [{ cf_piva: call.filters.cf_piva, ragione_sociale: 'Cliente sintetico', cellulare: '3331234567' }] }) : call.insert ? { data: { id: 999 } } : { data: records.filter(r => Object.entries(call.filters).every(([k,v]) => Array.isArray(v) ? v.includes(r[k]) : r[k] === v) && (!call.notNull || r[call.notNull] != null)), count: records.filter(r => Object.entries(call.filters).every(([k,v]) => Array.isArray(v) ? v.includes(r[k]) : r[k] === v)).length };
+        if(call.single)result.data=result.data[0]||null;
+        else if(omitFromList&&table==='segnalazioni'&&!call.options?.head)result.data=[];
         return Promise.resolve(result).then(resolve, reject);
       }
     }; return q;
@@ -35,8 +38,8 @@ function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }
   const document = { getElementById: id => nodes[id], querySelector: selector => tabs[selector.match(/data-tab="([^"]+)"/)?.[1]]||null, querySelectorAll: () => [], addEventListener() {}, createElement() { const n = new Element(); n.remove = () => {}; return n; } };
   nodes.formNuova.reportValidity = () => ['ragioneSociale', 'tel', 'cf', 'dettagli', 'gestionePratica'].every(id => nodes[id].value);
   nodes.formNuova.reset = () => { nodes.formNuova.emit('reset'); ['ragioneSociale', 'tel', 'cf', 'dettagli', 'gestionePratica'].forEach(id => { nodes[id].value = ''; }); nodes.operatore.value = nodes.operatore.defaultValue; };
-  const window = { db, MiroxStorageUpload:{async upload(options){calls.push({upload:options});if(uploadResult)return uploadResult(options);}}, location: { href: '' }, MiroxUI: { async confirm(msg, opts) { calls.push({ confirm: msg, opts }); return confirmation; } } };
-  const context = vm.createContext({ window, document, Auth: auth, console, setTimeout: fn => { timers.set(++timerId, fn); return timerId; }, clearTimeout: id => timers.delete(id) });
+  const window = { db, MiroxStorageUpload:{async upload(options){calls.push({upload:options});if(uploadResult)return uploadResult(options);}}, location: { href: '', search: locationSearch }, MiroxUI: { async confirm(msg, opts) { calls.push({ confirm: msg, opts }); return confirmation; } } };
+  const context = vm.createContext({ window, document, Auth: auth, console, URLSearchParams, setTimeout: fn => { timers.set(++timerId, fn); return timerId; }, clearTimeout: id => timers.delete(id) });
   vm.runInContext(fs.readFileSync(require.resolve('../js/mirox-safe.js'), 'utf8'), context);
   context.MiroxSafe = window.MiroxSafe;
   vm.runInContext(fs.readFileSync(require.resolve('../js/anagrafica-helper.js'), 'utf8'), context);
@@ -319,4 +322,22 @@ test('Upload fallito: nessun avanzamento o aggiornamento, allegati conservati e 
   assert.doesNotMatch(f.nodes.modalGestBody.innerHTML,/<img/);assert.match(f.nodes.modalGestBody.innerHTML,/&lt;img src=x&gt;/);
   f.nodes.mNumAsk.value='123';f.run("gestFiles=[{name:'prova.pdf',size:20}]");await f.context.salvaGest();
   assert.equal(f.calls.filter(c=>c.update).length,0);assert.equal(f.run('gestFiles.length'),1);assert.equal(f.nodes.modalGest.classList.contains('active'),true);
+});
+
+for(const omitFromList of [false,true])test(`deep-link Mobile apre Da gestire e dettaglio anche fuori dalla prima pagina (${omitFromList})`,async()=>{
+  const row={id:42,gestione_pratica:'ASK',tipo_ask:'Normalizzazione',stato:'Da gestire',ragione_sociale:'Cliente sintetico',dettagli_segnalazione:'Reload Forever\nNota facoltativa'};
+  const f=fixture({records:[row],locationSearch:'?segnalazione_id=42',omitFromList});
+  await f.ready();await tick();await tick();
+  assert.equal(f.tabs.gestione.classList.contains('active'),true);
+  assert.equal(f.nodes.modalGest.classList.contains('active'),true);
+  assert.match(f.nodes.modalGestBody.innerHTML,/ASK - Normalizzazione/);
+  assert.match(f.nodes.modalGestBody.innerHTML,/Reload Forever/);
+  assert.ok(f.calls.some(c=>c.path==='segnalazione_42'));
+  assert.equal(f.calls.filter(c=>c.insert||c.update||c.upload).length,0);
+});
+test('deep-link Mobile scarta ID non numerici e non apre pratiche già uscite da Da gestire',async()=>{
+  const invalid=fixture({locationSearch:'?segnalazione_id=%3Cimg%3E'});await invalid.ready();await tick();
+  assert.equal(invalid.nodes.modalGest.classList.contains('active'),false);
+  const closed=fixture({records:[{id:42,stato:'Chiuso'}],locationSearch:'?segnalazione_id=42'});await closed.ready();await tick();await tick();
+  assert.equal(closed.nodes.modalGest.classList.contains('active'),false);assert.equal(closed.calls.filter(c=>c.update||c.insert).length,0);
 });

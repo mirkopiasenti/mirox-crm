@@ -352,6 +352,21 @@ const authReady=Auth.richiediAuth().then(profilo=>{
  updateCounters();return profilo;
 }).catch(()=>{toast('Impossibile caricare il profilo. Accedi nuovamente.','danger');return null;});
 
+// Collegamento alla pratica appena aperta dal dettaglio Mobile.
+authReady.then(async profilo=>{
+ if(!profilo||!window.location.search)return;
+ const id=new URLSearchParams(window.location.search).get('segnalazione_id');
+ if(!id||!/^\d{1,10}$/.test(id)||!Number.isSafeInteger(Number(id))||Number(id)<=0)return;
+ await switchTab('gestione');
+ if(!dataGest.some(r=>r.id===Number(id))){
+  const {data,error}=await sb.from('segnalazioni').select('*').eq('id',Number(id)).maybeSingle();
+  if(error)throw error;
+  if(data&&STATI_DA_GESTIRE.includes(data.stato)){dataGest.push(data);popolaOperatori('fGestOperatore',dataGest);filterGestione();}
+ }
+ if(dataGest.some(r=>r.id===Number(id)))await openGest(Number(id));
+ else toast('La segnalazione non è nella coda Da gestire. Cercala nel Riepilogo.','info');
+}).catch(()=>toast('Impossibile aprire il dettaglio della segnalazione. Riprova dalla scheda Da gestire.','danger'));
+
 async function cambiaUtenza(){
  if(cambioUtenzaInCorso||invioInCorso)return;
  cambioUtenzaInCorso=true;

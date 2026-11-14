@@ -76,7 +76,7 @@ test('ogni function protetta dichiara un endpoint statico censito, senza fidarsi
     assert.notEqual(Core.endpointPages(match[1]), null);
     assert.doesNotMatch(source, /endpoint:\s*event\./);
   }
-  assert.equal(count, 24);
+  assert.equal(count, 25);
   assert.deepEqual(Core.endpointPages('gestisci-vendita-contratto', { body: JSON.stringify({ action: 'check_codice' }) }), ['upload_contratti', ...Core.editors]);
   assert.deepEqual(Core.endpointPages('gestisci-vendita-contratto', { body: JSON.stringify({ action: 'update_pda' }) }), Core.editors);
   assert.deepEqual(Core.endpointPages('gestisci-vendita-contratto', { body: JSON.stringify({ action: 'set_stato_verifica_manuale' }) }), ['verifica_contratti']);

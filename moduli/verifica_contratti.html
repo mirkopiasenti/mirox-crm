@@ -243,6 +243,8 @@ body > .container { max-width: 1540px !important; width: 100%; }
 <script src="../js/mirox-api.js"></script>
 <script src="../js/vendita-pda-core.js"></script>
 <script src="../js/vendita-pda-ui.js"></script>
+<script src="../js/segnalazione-mobile-core.js"></script>
+<script src="../js/verifica-segnalazione-mobile.js"></script>
 
 <script src="../js/mirox-storage.js"></script>
 <script src="../js/mirox-folder.js"></script>
@@ -836,6 +838,7 @@ function apriPopupDettaglio(c, opts) {
       </div>
     </div>`;
   const bodyHtml = `${statoHtml}${pdaHtml}
+    ${window.MiroxSegnalazioneMobileCore.isMobile(c.categoria_snapshot) && window.MiroxPermissionsUI?.allowedPath('/moduli/segnalazioni.html') ? '<div class="det-section"><button type="button" class="mx-btn mx-btn-primary" data-apri-segnalazione-mobile>Apri segnalazione</button></div>' : ''}
     <div class="det-section">
       <h4>Dati cliente <small style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;font-size:11px;">(modifiche su tabella anagrafica condivisa)</small></h4>
       <div class="det-grid">
@@ -1090,6 +1093,15 @@ function apriPopupDettaglio(c, opts) {
   });
   m.body.addEventListener('input', () => { pdaOtherFieldsDirty = true; });
   m.body.addEventListener('change', () => { pdaOtherFieldsDirty = true; });
+  m.body.querySelector('[data-apri-segnalazione-mobile]')?.addEventListener('click', async () => {
+    if (pdaOtherFieldsDirty) {
+      window.MiroxUI.toast('Salva le modifiche prima di aprire la segnalazione.', 'warning');
+      return;
+    }
+    const profile = await getProfiloCorrenteVC();
+    if (!profile?.id) return;
+    window.MiroxSegnalazioneMobile.open(c, { autore: profile.id, onCreated: () => m.close() });
+  });
   m.body.querySelector('[data-edit-pda]')?.addEventListener('click', async () => {
     if (pdaOtherFieldsDirty) {
       window.MiroxUI.toast('Salva le altre modifiche prima di aprire i dati PDA.', 'warning');
