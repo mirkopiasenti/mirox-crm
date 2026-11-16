@@ -122,6 +122,12 @@ anche Verificati: Apri segnalazione. Rettifica16/11 confermata dal proprietario:
 per questa sola apertura basta l'ACL Verifica Contratti, riletta server-side.
 La pagina Segnalazioni e le relative letture/gestioni restano riservate alla sua
 ACL separata; nessuna assegnazione o modifica delle ACL degli account (Elon incluso).
+Correzione16/11 pubblicata con `c600aea`: CI43860963052 LinuxNode22/Windows
+verde808test, Netlify6afaed8a998ac89aa51b21ef online;8asset/HTML/script/stili/
+PrettyURL e2API401 verificati. Condizione HTML pubblicata valutata con ACL effettive
+di Elon: pulsante visibile e pagina Segnalazioni negata; profilo/ACL/versione1
+identici nella rilettura.95test mirati e suite808/808/build verdi, nessun browser,
+pratica reale o scrittura DB.
 Motivi esatti Reload Forever/Professional Cloud/Altro, note facoltative sui primi
 due e obbligatorie non vuote su Altro (massimo4000caratteri). Le prime due creano
 ASK/tipo Normalizzazione, Altro Interna negozio/tipoNULL. Non dipende dalla spunta

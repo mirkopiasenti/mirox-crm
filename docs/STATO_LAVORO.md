@@ -2,10 +2,10 @@
 
 Aggiornato:2026-11-16. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Apertura Mobile con sola Verifica —16/11, rilascio richiesto
+## Apertura Mobile con sola Verifica —16/11, pubblicata
 
 - Causa verificata su account Elon Grokbot: operatore attivo, sola ACL Verifica Contratti=true e Segnalazioni=false/versione1. Il doppio requisito UI/API nascondeva Apri segnalazione. Proprietario sceglie esplicitamente la sola apertura dal contratto, mantenendo riservata la pagina Segnalazioni, e richiede push.
-- UI e API ora usano la sola ACL Verifica Contratti fresca; pagina/letture/gestione Segnalazioni conservano la propria ACL. Nessun UPDATE di account/ACL, schema/RLS/RPC o grant.95test mirati e suite808/808/build verdi in copia isolata: creazione con sola Verifica, autore fresco, Segnalazioni vietata, revoca/disabled/errori ACL bloccano anche replay; nessuna pratica reale creata. Guide README/AGENTS/CLAUDE/databaseREADME/Permessi aggiornate. Prossimo: push richiesto e verifica HTTP/CI.
+- UI e API ora usano la sola ACL Verifica Contratti fresca; pagina/letture/gestione Segnalazioni conservano la propria ACL. Nessun UPDATE di account/ACL, schema/RLS/RPC o grant.95test mirati e suite808/808/build verdi in copia isolata: creazione con sola Verifica, autore fresco, Segnalazioni vietata, revoca/disabled/errori ACL bloccano anche replay; nessuna pratica reale creata. Guide README/AGENTS/CLAUDE/databaseREADME/Permessi aggiornate. Pubblicato su richiesta con c600aea: CI43860963052 LinuxNode22/Windows808test verde, Netlify6afaed8a998ac89aa51b21ef online;8asset/HTML/script/stili/PrettyURL e2API401 verificati. Condizione HTML live valutata con ACL effettive Elon: pulsante visibile/Segnalazioni negata; profilo/ACL/versione1 identici nella rilettura. Prossimo: ricaricare Verifica Contratti e aprire il dettaglio Mobile. Nessun rilascio pendente.
 
 ## Sospensione Netlify —14/11, accesso ripristinato
 
