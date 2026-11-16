@@ -1,7 +1,6 @@
 'use strict';
 const crypto = require('node:crypto');
 const { requireAuth, getAdminClient } = require('./_lib/require-auth');
-const { authorizePages } = require('./_lib/page-permissions');
 const Core = require('../../js/segnalazione-mobile-core');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const JOBS = 'segnalazioni_mobile_richieste';
@@ -62,9 +61,6 @@ async function handle(event, deps = {}) {
   let client, job, lease;
   try {
     client = (deps.getAdminClient || getAdminClient)();
-    const access = await (deps.authorizePages || authorizePages)(client, auth, ['segnalazioni']);
-    if (!access.ok) return reply(access.status, { error: access.error });
-    auth.profilo = access.profilo;
     if (!auth.profilo?.nome?.trim()) fail(400, 'Nome operatore non disponibile. Accedi nuovamente.', true);
     if (String(event.body || '').length > 20000) fail(413, 'Richiesta troppo grande.', true);
     let body;

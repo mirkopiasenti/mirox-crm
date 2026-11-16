@@ -1,11 +1,12 @@
 # Permessi pagine Mirox
 
-Estensione Mobile14/11 pubblicata: `apri-segnalazione-mobile` richiede
-**entrambe** Verifica Contratti e Segnalazioni, con controlli server freschi.
-La mappa endpoint applica Verifica Contratti; la Function verifica separatamente
-Segnalazioni prima di leggere dati o copiare file. Admin ammessi secondo il modello
-esistente; nessuna assegnazione implicita. Registro/RPC richieste service-only,
-nessun nuovo grant browser. Il pulsante è nascosto senza accesso Segnalazioni.
+Rettifica16/11, confermata dal proprietario: `apri-segnalazione-mobile` richiede
+**solo Verifica Contratti**, con JWT e ACL fresche verificati da `requireAuth`
+e dalla mappa endpoint. Il pulsante è visibile nel dettaglio Mobile anche con
+Segnalazioni disabilitato. La pagina Segnalazioni, le letture e la gestione delle
+richieste mantengono la propria ACL separata. Nessuna assegnazione implicita o
+modifica agli account, ai grant/RLS/RPC o al catalogo. Elon conserva soltanto
+Verifica Contratti. Registro richieste e copie Storage restano server-only.
 
 Rilascio 27/10/2026, autorizzato dal proprietario. Migration applicata e
 verificata in produzione con versione `20261027224328` (sorgente CLI

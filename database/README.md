@@ -2,6 +2,8 @@
 
 ## Segnalazioni da Mobile —14/11/2026, migration applicata
 
+Pulizia test14/11 richiesta esplicitamente dal proprietario dopo collaudo manuale riuscito: eliminate625/626/627, le3richieste in `segnalazioni_mobile_richieste` e8copie in `segnalazioni-files` via API Storage. Guardie su ID/impronte e transazione, poi rilettura0record/0richieste/0file; altre606segnalazioni, contratti/documenti/anagrafiche, altri file e sequenza627 invariati per impronta. Originali conservati, nessuna migration/schema/RLS o modifica applicativa. Conferma MCP scaduta senza esecuzione; eseguito con psql/pooler/TLSverify-full. Prove private ignorate `.backup-private/elimina-segnalazioni-test-20261114/`.
+
 Rettifica UI14/11 pubblicata con `b3782b5` (CI43583316045 Linux/Windows806test e HTTP verdi): dopo la creazione compare la conferma e resta
 aperto il dettaglio del contratto in Verifica Contratti. La segnalazione entra
 sempre in Da gestire; nessuna modifica a Function, schema, RPC o dati necessaria.
@@ -17,8 +19,9 @@ poi inserisce Segnalazioni e marca il registro completato nella stessa transazio
 Le copie parziali sono riprendibili, senza riga incompleta in Da gestire; originali
 immutati. Nessuna modifica a colonne, policy, grant, trigger o dati preesistenti
 di Segnalazioni/vendita/anagrafica/CC; nessun nuovo bucket, backfill o invio.
-Solo Mobile, entrambe ACL Verifica Contratti e Segnalazioni controllate nella
-Function. Reload Forever/Professional Cloud → ASK - Normalizzazione; Altro →
+Solo Mobile: dal16/11 la Function richiede la sola ACL Verifica Contratti fresca
+per aprire dal contratto. Pagina Segnalazioni/letture/gestione conservano l’ACL
+separata; nessun UPDATE di profili o ACL, né modifica a grant/RLS/RPC/schema. Reload Forever/Professional Cloud → ASK - Normalizzazione; Altro →
 Interna negozio, note obbligatorie. Registro0righe, grant/RLS/RPC corretti;
 2864contratti/5832documenti/9540anagrafiche/9profili/606segnalazioni, sequenza624,
 bucket/oggetti e schema/policy/grant/trigger/funzioni precedenti identici per impronta.

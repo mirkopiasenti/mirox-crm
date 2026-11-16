@@ -70,7 +70,7 @@ Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push
 
 ## Segnalazioni — aggiornamento11/11/2026
 
-Estensione Mobile14/11: nel dettaglio Verifica Contratti il pulsante **Apri segnalazione** permette di scegliere Reload Forever, Professional Cloud o Altro. Note facoltative per le prime due, obbligatorie per Altro. Dopo Conferma e Sì, il popup resta aperto con caricamento; soltanto dopo la copia completa degli allegati conferma la creazione. La segnalazione entra in Da gestire; pagina e dettaglio del contratto restano aperti in Verifica Contratti per continuare a lavorare sulla pratica (rettifica14/11 pubblicata con `b3782b5`; CI43583316045 Linux/Windows806test e HTTP verificati). Le prime due scelte usano ASK - Normalizzazione, Altro usa Interna negozio. Cliente, recapiti, codici WindTre, riferimenti contratto e tutti gli allegati vengono recuperati dal contratto salvato. Richieste interrotte si riprendono senza duplicati. Richieste entrambe le abilitazioni Verifica Contratti e Segnalazioni; nessun invio ASK/email o disattivazione automatica. Migration `database/20261114090437_segnalazioni_mobile.sql` applicata/riletta20261114092756: registro privato/RPC, nessuna modifica alle tabelle o ai dati esistenti. Pubblicato14/11 con `8f14a4d` (rilascio `64b9f4b`): CI43580960766 Linux/Windows806test e Netlify6af82a7628daa9146dbdef1f verdi;8asset/HTML/PrettyURL e2API401 verificati.
+Estensione Mobile14/11: nel dettaglio Verifica Contratti il pulsante **Apri segnalazione** permette di scegliere Reload Forever, Professional Cloud o Altro. Note facoltative per le prime due, obbligatorie per Altro. Dopo Conferma e Sì, il popup resta aperto con caricamento; soltanto dopo la copia completa degli allegati conferma la creazione. La segnalazione entra in Da gestire; pagina e dettaglio del contratto restano aperti in Verifica Contratti per continuare a lavorare sulla pratica (rettifica14/11 pubblicata con `b3782b5`; CI43583316045 Linux/Windows806test e HTTP verificati). Le prime due scelte usano ASK - Normalizzazione, Altro usa Interna negozio. Cliente, recapiti, codici WindTre, riferimenti contratto e tutti gli allegati vengono recuperati dal contratto salvato. Richieste interrotte si riprendono senza duplicati. Rettifica16/11: per aprire dal contratto basta Verifica Contratti; la pagina Segnalazioni mantiene il proprio permesso separato, senza assegnazioni aggiuntive agli account; nessun invio ASK/email o disattivazione automatica. Migration `database/20261114090437_segnalazioni_mobile.sql` applicata/riletta20261114092756: registro privato/RPC, nessuna modifica alle tabelle o ai dati esistenti. Pubblicato14/11 con `8f14a4d` (rilascio `64b9f4b`): CI43580960766 Linux/Windows806test e Netlify6af82a7628daa9146dbdef1f verdi;8asset/HTML/PrettyURL e2API401 verificati.
 
 Da gestire distingue i tre percorsi e mostra la scelta nel riquadro giallo: ASK richiede solo numero ASK, note e allegati facoltativi; Salva porta al Riepilogo. Angel offre note/allegati e Confermo apertura Angel, con passaggio al Riepilogo Angel e conferma dedicata. Interna negozio mantiene la scelta Azione Eseguita e le regole precedenti. ASK e Angel restano in corso dopo l’apertura; errori mantengono il dettaglio per riprovare.
 
@@ -234,7 +234,7 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 
 | Function | Metodo | Auth | Scopo |
 |---|---|---|---|
-| `apri-segnalazione-mobile` | POST | JWT + Verifica Contratti **e** Segnalazioni | Recupera cliente/allegati dal contratto Mobile; copia Storage e inserimento atomico/idempotente in Da gestire |
+| `apri-segnalazione-mobile` | POST | JWT + Verifica Contratti | Recupera cliente/allegati dal contratto Mobile; copia Storage e inserimento atomico/idempotente in Da gestire |
 | `target-telegram-webhook` | POST | secret Telegram + chat privata proprietario | Accoda testo/vocali nel bot dedicato Target; dedupe update e dialogo libero |
 | `target-worker-background` | POST background | HMAC + timestamp | Genera report/dialogo, memoria privata e consegna con checkpoint |
 | `cron-target-reports` | scheduled `*/5 * * * *` | cron Netlify | Report alle 19:45 italiane, calendario lavorativo, dedupe e risveglio coda Target |
@@ -907,6 +907,8 @@ Le pagine sono state copiate **mantenendo la loro logica interna** (testata in p
 - Dentro ogni pagina CC: bottone arancione "← Torna alla dashboard Mirox" in cima
 
 ## Pannello Admin Mirox
+
+Dal16/11 il permesso Verifica Contratti comprende Apri segnalazione per i soli contratti Mobile. L’abilitazione Segnalazioni resta necessaria per accedere alla pagina e gestire le richieste; nessun interruttore, ruolo o accesso dell’account viene aggiunto automaticamente.
 
 Nuova voce Configurazioni → **Monitor negozio**, solo Admin: codici monouso,
 stato/ultimo contatto e revoca; endpoint admin con profilo riletto e RPC con

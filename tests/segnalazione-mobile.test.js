@@ -7,6 +7,7 @@ const crypto = require('node:crypto');
 const Core = require('../js/segnalazione-mobile-core');
 const Api = require('../netlify/functions/apri-segnalazione-mobile')._test;
 const Permissions = require('../js/mirox-permissions-core');
+const { authorizePages } = require('../netlify/functions/_lib/page-permissions');
 const id = n => `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const AUTHOR = id(1), CONTRACT = id(2), REQUEST = id(3), PRACTICE = id(4), CUSTOMER = id(5);
 const DATE = '2026-11-14T08:00:00+00:00';
@@ -16,9 +17,11 @@ function fixture() {
   const tables = { vendita_contratti: [{ id: CONTRACT, pratica_id: PRACTICE, anagrafica_id: CUSTOMER, categoria_id: id(10), categoria_snapshot: 'Mobile', updated_at: DATE,
     codice_contratto: '0001234', numero_telefono: '3201234567' }], vendita_categorie: [{ id: id(10), nome: 'Mobile' }],
     anagrafica: [{ id: CUSTOMER, ragione_sociale: 'Cliente sintetico', cf_piva: '12345678901', nome_referente: 'Referente sintetico', cellulare: '3331234567', email: 'test@example.invalid', comune: 'Comune', via: 'Via Prova', civico: '1' }],
-    vendita_documenti: docs, anagrafica_codici_cliente_windtre: [{ anagrafica_id: CUSTOMER, codice_cliente: '1.00234' }], segnalazioni_mobile_richieste: [], segnalazioni: [] };
+    vendita_documenti: docs, anagrafica_codici_cliente_windtre: [{ anagrafica_id: CUSTOMER, codice_cliente: '1.00234' }], segnalazioni_mobile_richieste: [], segnalazioni: [],
+    profili: [{ id: AUTHOR, nome: 'Autore login', ruolo: 'operatore', attivo: true }],
+    mirox_permessi_utente: [{ utente_id: AUTHOR, pagine: { verifica_contratti: true, segnalazioni: false }, versione: 1 }] };
   const calls = [], copies = new Map();
-  const state = { failCopy: 0, copyCount: 0, failRead: '', failFinalize: false, loseReply: false, missingInfo: false, wrongSize: false, mutate: false, deny: false };
+  const state = { failCopy: 0, copyCount: 0, failRead: '', failFinalize: false, loseReply: false, missingInfo: false, wrongSize: false, mutate: false };
   const client = { from(table) {
     const filters = []; let changes, single = false;
     const q = { select() { return q; }, eq(k, v) { filters.push([k, v]); return q; }, order() { return q; }, maybeSingle() { single = true; return q; }, single() { single = true; return q; }, update(value) { changes = value; return q; },
@@ -58,9 +61,10 @@ function fixture() {
       return { data: { path: dst } };
     }, async info(path) { return { error: state.missingInfo ? new Error('Missing') : null, data: copies.has(path) ? { size: state.wrongSize ? 1 : 123 } : null }; }
   }; } } };
-  const deps = { getAdminClient: () => client, requireAuth: async (_, options) => {
-    assert.equal(options.endpoint, 'apri-segnalazione-mobile'); return { ok: true, user: { id: AUTHOR }, profilo: { nome: 'Autore login' } };
-  }, authorizePages: async (_, auth, pages) => { calls.push({ pages }); return state.deny ? { ok: false, status: 403, error: 'Accesso negato' } : auth; } };
+  const deps = { getAdminClient: () => client, requireAuth: async (event, options) => {
+    assert.equal(options.endpoint, 'apri-segnalazione-mobile');
+    return authorizePages(client, { ok: true, user: { id: AUTHOR }, profilo: { nome: 'Profilo in cache' } }, Permissions.endpointPages(options.endpoint, event));
+  } };
   const send = async (extra = {}, overrides = {}) => {
     const r = await Api.handle({ httpMethod: 'POST', body: JSON.stringify({ request_id: REQUEST, contratto_id: CONTRACT, expected_updated_at: DATE, motivo: 'Reload Forever', note: '', ...extra }), ...overrides }, deps);
     return { status: r.statusCode, ...JSON.parse(r.body) };
@@ -90,7 +94,8 @@ for (const motivo of Core.MOTIVI) test(`Mobile: ${motivo} crea Da gestire con au
   for (const text of [motivo, note, 'Referente sintetico', 'test@example.invalid', '1.00234', '0001234', '3201234567', 'Via Prova 1 Comune']) assert.ok(row.dettagli_segnalazione.includes(text));
   assert.equal(f.copies.size, 3);
   for (const call of f.calls.filter(c => c.copy)) { assert.equal(call.bucket, 'contratti-vendita'); assert.equal(call.options.destinationBucket, 'segnalazioni-files'); assert.match(call.dst, /^segnalazione_42\//); }
-  assert.deepEqual(f.calls.find(c => c.pages).pages, ['segnalazioni']);
+  assert.equal(f.tables.mirox_permessi_utente[0].pagine.segnalazioni, false);
+  assert.equal(Permissions.can(f.tables.profili[0], f.tables.mirox_permessi_utente[0].pagine, 'segnalazioni'), false);
 });
 test('Mobile: stesso request_id dopo errore di copia riprende i file e crea una sola segnalazione', async () => {
   const f = fixture(); f.state.failCopy = 2;
@@ -143,11 +148,37 @@ test('Mobile: letture fallite e mutazioni durante la copia impediscono il comple
   const f = fixture(); f.state.mutate = true;
   const r = await f.send(); assert.equal(r.status, 409); assert.equal(r.reset_request, true); assert.equal(f.tables.segnalazioni.length, 0);
 });
-test('Mobile: JWT e due ACL obbligatorie prima di leggere clienti o scrivere', async () => {
+test('Mobile: JWT e ACL Verifica fresche obbligatorie; Segnalazioni da sola non abilita l’apertura', async () => {
   const f = fixture(); f.deps.requireAuth = async () => ({ ok: false, status: 401, error: 'JWT mancante' });
   assert.equal((await f.send()).status, 401); assert.equal(f.calls.length, 0);
-  const g = fixture(); g.state.deny = true; assert.equal((await g.send()).status, 403); assert.equal(g.calls.filter(c => c.table || c.rpc).length, 0);
+  const g = fixture(); g.tables.mirox_permessi_utente[0].pagine = { verifica_contratti: false, segnalazioni: true };
+  assert.equal((await g.send()).status, 403);
+  assert.equal(g.calls.filter(c => c.rpc || (c.table && !['profili','mirox_permessi_utente'].includes(c.table))).length, 0);
   assert.deepEqual(Permissions.endpointPages('apri-segnalazione-mobile', {}), ['verifica_contratti']);
+});
+
+test('Mobile: revoca Verifica, account disabilitato o errore ACL bloccano anche il retry già completato', async () => {
+  for (const change of [f => { f.tables.mirox_permessi_utente[0].pagine.verifica_contratti = false; },
+    f => { f.tables.profili[0].attivo = false; }, f => { f.state.failRead = 'mirox_permessi_utente'; }]) {
+    const f = fixture(); assert.equal((await f.send()).status, 200); change(f); f.calls.length = 0;
+    assert.ok([403,503].includes((await f.send()).status));
+    assert.equal(f.calls.filter(c => c.rpc || (c.table && !['profili','mirox_permessi_utente'].includes(c.table))).length, 0);
+    assert.equal(f.tables.segnalazioni.length, 1); assert.equal(f.state.copyCount, 3);
+  }
+});
+
+test('Mobile: pulsante visibile con sola Verifica e pagina Segnalazioni ancora vietata', () => {
+  const page = fs.readFileSync(require.resolve('../moduli/verifica_contratti.html'), 'utf8');
+  const line = page.split('\n').find(s => s.includes('data-apri-segnalazione-mobile>'));
+  const condition = line.slice(line.indexOf('${') + 2, line.indexOf(" ? '<div"));
+  for (const pages of [{ verifica_contratti: true, segnalazioni: false }, { verifica_contratti: false, segnalazioni: true }, {}]) {
+    const profile = { ruolo: 'operatore', attivo: true };
+    const allowedPath = path => Permissions.can(profile, pages, Permissions.pageForPath(path).key);
+    const context = { window: { MiroxSegnalazioneMobileCore: Core, MiroxPermissionsUI: { allowedPath } }, c: { categoria_snapshot: 'Mobile' } };
+    assert.equal(vm.runInNewContext(condition, context), pages.verifica_contratti === true);
+    if (pages.verifica_contratti) assert.equal(allowedPath('/moduli/segnalazioni.html'), false);
+    context.c.categoria_snapshot = 'Customer Base'; assert.equal(vm.runInNewContext(condition, context), false);
+  }
 });
 
 function uiFixture() {
