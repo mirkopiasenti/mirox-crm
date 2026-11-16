@@ -115,6 +115,39 @@ L'utente può chiedere in qualsiasi momento cosa è stato fatto in una sessione:
 
 ---
 
+## Note contratto —16/11/2026, schema applicato
+
+Verifica Contratti, ogni categoria e contratto nuovo o preesistente, in attesa o
+verificato: campo Aggiungi nota e storico con autore/data Europe/Rome. Annotazioni
+interne per singolo contratto, distinte da note_controllo (esito verifica) e note
+della pratica/condivisione anagrafica. Testo facoltativo finché non si salva;
+Salva nota richiede testo non vuoto, massimo4000caratteri. Le note salvate si
+aggiungono allo storico senza sovrascrivere quelle precedenti; autore dal login
+fresco e timestamp DB. Note già registrate non modificabili/eliminabili dalla UI.
+Bozza per autore/contratto conservata in sessionStorage, retry UUID idempotente;
+errori mantengono il testo e non confermano un salvataggio incerto. Salvataggio
+indipendente dai dati del contratto, senza approvazione/riapertura/riesame,
+punteggi, notifiche o modifiche all’anagrafica. Stessa ACL Verifica Contratti per
+lettura e aggiunta via action get_note_contratto/add_nota_contratto della Function
+gestisci-vendita-contratto. Nessuna assegnazione agli account o accesso Segnalazioni.
+Registro dedicato vendita_note_contratto RLS/service-only SELECT/INSERT, FK al
+contratto con cascata sulla cancellazione definitiva e autore con nome snapshot.
+Nessun backfill: i vecchi contratti partono con storico vuoto; nessun filtro di
+periodo/stato/categoria o join con la pratica. Paginazione per cursore stabile.
+Core condiviso `js/contratto-note-core.js`, widget `js/verifica-note-contratto.js`
+e backend `_lib/contract-notes.js`; nessuna dipendenza/env/cron nuova. Migration
+sorgente `20261116163541_note_contratto.sql`, applicata/riletta production16/11
+come `20261116172228`. Bozza distinta per autore/contratto; durante l’invio blocca temporaneamente
+gli altri controlli e la chiusura del dettaglio, poi ripristina i disabled precedenti.
+La digitazione delle note non marca sporchi i dati PDA o anagrafici. Verifiche:
+82test mirati, suite820/820/build in copia isolata e SQL PGlite0.5.13 verdi
+(RLS/grant, append-only, FK/cursore/indice/cascata/rollback). Nessun browser,
+pratica reale o scrittura ai dati preesistenti. Registro vuoto/grant/RLS corretti;
+impronte2873contratti/5850documenti/9541anagrafiche/609segnalazioni, profili/ACL,
+bucket/oggetti e colonne/policy/grant/trigger/funzioni precedenti identiche.
+Advisor warning/errori invariati; INFO RLS senza policy41vs40 atteso per registro
+service-only. Prove private release-note-contratto-20261116. Push richiesto16/11.
+
 ## Segnalazioni da Mobile —14/11/2026, pubblicate
 
 Solo categoria canonica Mobile (Consumer/Business), dettaglio Verifica Contratti
@@ -532,6 +565,7 @@ Tutte le functions usano `SUPABASE_SERVICE_ROLE_KEY` e bypassano le RLS. Per que
 - `upload-vendita-documento.js` (POST multipart busboy, max 20MB) — accetta solo file con MIME e firma `%PDF-`, verifica proprietà operatore/admin per le bozze e consente agli operatori attivi la gestione delle pratiche `inviata` da Verifica Contratti. Valida relazioni pratica/anagrafica/contratto, deriva il path dalla pratica a DB e usa come `uploaded_by` il profilo autenticato. Rollback del file se l'INSERT DB fallisce. In staging con `temp_session_id` salva in `temp/<sess>/` senza record DB.
 - `upload-documento-modulo.js` (POST multipart busboy, max 20MB) — upload server-side autenticato per `apri-chiudi-files`, `switch-sim-files`, `comodato-files`, `rimborsi-files`, `protecta-files`, `segnalazioni-files`. Verifica firma e MIME dei PDF e delle immagini accettate in Segnalazioni, bucket, struttura path e limite di 20 MB; usa `upsert:false`, genera un suffisso anti-collisione conservando l'estensione e registra `uploaded_by` dal JWT nei metadati Storage.
 - `gestisci-vendita-contratto.js` (POST action-based) — `update` (`save`/`verify`/`reopen`) e `delete_document` per Verifica Contratti. Accetta solo campi in allowlist; aggiorna snapshot/punteggi dal catalogo soltanto quando cambia l'ID corrispondente, rifiuta punteggi nulli/non numerici e confronta la riga post-UPDATE con i componenti attesi. Imposta `controllato_da`/`updated_by` dal JWT e gestisce rimozione Storage + record DB. Sostituisce UPDATE/INSERT/DELETE diretti dal browser su `vendita_contratti`/`vendita_documenti`. Nuove action PDA: `check_codice` consulta globalmente; `update_pda` modifica solo gli sette nuovi campi per utenti attivi, con `expected_updated_at`, senza punteggi/stato/anagrafica. Collisione DB = 409 `contratto_duplicato`.
+  Action note get_note_contratto/add_nota_contratto: sola ACL Verifica Contratti, lettura/storico append-only via _lib/contract-notes, tutti gli stati/categorie e nessun UPDATE del contratto o riesame. Registro/migration locale nella sezione Note contratto.
 - `gestisci-controllo-fissi.js` (POST action-based, admin-only) — `reopen_activation` riporta una riga da `Attivo` o `KO` a `In Attivazione` soltanto se lo stato corrente è ancora uno dei due, azzera `data_attivazione` e `motivo_ko` e registra data/autore del ripristino dai dati JWT.
 - `gestisci-controllo-lg.js` (POST action-based) — `csv_update_batch` applica fino a 50 esiti WindTre per richiesta agli account autenticati e ricontrolla atomicamente `esito_manuale_bloccato=false`; `set_manual_outcome` e `unlock_manual_outcome` sono admin-only. Lo stato manuale richiede motivazione, registra autore/data, azzera i dettagli rifiuto provenienti dal CSV e rimane protetto finche' un admin non riattiva l'automatismo.
 - `gestisci-operazioni-post-vendita.js` (POST action-based) — sostituisce tutte le scritture browser su `post_vendita_gestione_rimborsi`: creazione, associazione path PDF e completamento restano disponibili agli account autenticati; `create_rimborso_manuale` è admin-only. `mark_apri_chiudi_ko` è disponibile agli account autenticati attivi, accetta soltanto pratiche ancora `IN CORSO` e aggiorna tramite service role. Operatore e stato del rimborso manuale sono derivati lato server. Migration post-deploy `056`: rimborsi write server-only e trigger DB che continua a impedire di introdurre `vendita_apri_chiudi.stato='KO'` con una scrittura diretta da sessioni non-admin.
@@ -628,6 +662,7 @@ Migration applicata production20261104220255, sorgente `database/20261104214454_
 - RPC chiave: `crm_can_access_page(text)`, `crm_normalize_*`, `crm_import_call_center_lead_outbound_batch`
 
 ### Vendita (focus di questo progetto)
+- `vendita_note_contratto` — storico append-only delle annotazioni per contratto, autore login/nome snapshot/data DB. RLS senza grant browser; SELECT/INSERT service_role e action Verifica Contratti get_note_contratto/add_nota_contratto, UUID idempotente. FK contratto ON DELETE CASCADE, indice contratto/data/id, nessun backfill o modifica ai contratti. Migration sorgente `20261116163541_note_contratto.sql`, applicata20261116172228.
 - Reload Forever (13/11/2026): `vendita_contratti.reload_forever_gestione` text nullable, Mantieni attiva/Richiedi disattivazione solo con flag true e categoria Mobile/Customer Base; NULL storico senza backfill. Migration sorgente `database/20261113100628_reload_forever_gestione.sql`, live `20261113101528`, dati/RLS/grant/trigger preesistenti invariati.
 - Assicurazione impianti Luce e Gas (12/11/2026): `vendita_contratti.assicurazione_impianti` boolean nullable, true=Sì/false=No, NULL=non rilevata nello storico o categoria diversa da Energia. CHECK limita i valori non null a `categoria_snapshot='Energia'`. Migrazione sorgente `database/20261112214904_vendita_energia_assicurazione_impianti.sql`, applicata/riletta production come `20261112215514`; 2860 contratti preesistenti identici per impronta, RLS/grant/trigger e advisor invariati. Nessuna tabella condivisa CC modificata.
 - Verifica automatica **modalità collaudo**: `vendita_verifica_config`, `vendita_verifiche`, `vendita_verifica_csv`, `vendita_verifica_esecuzioni`, `vendita_verifica_documenti`, `vendita_verifica_notifiche`; RLS server-only e RPC nuove INVOKER. Migration20261027172616 applicata/riletta27/10, default collaudo. Nessuna tabella condivisa CC modificata.

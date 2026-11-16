@@ -1,5 +1,27 @@
 # /database/ — Migrazioni SQL storiche
 
+## Note contratto —16/11/2026, migration applicata
+
+`20261116163541_note_contratto.sql`, creata con CLI, applicata/riletta
+production16/11 come `20261116172228`:
+nuova `vendita_note_contratto` con UUID richiesta PK, contratto, testo1–4000,
+autore login/nome snapshot e created_at DB. FK al contratto ON DELETE CASCADE,
+indice `(contratto_id,created_at DESC,id DESC)` per storico/cursore. Autore UUID
+senza FK alle tabelle condivise, nome conservato nello storico. RLS ON senza
+grant browser; service_role soltanto SELECT/INSERT, niente UPDATE/DELETE.
+Nessun cambiamento a colonne, trigger, RLS/grant esistenti, anagrafica/profili/CC;
+nessun backfill, stato/revisione/punteggio o notifica. Funziona per tutti i contratti
+preesistenti e nuovi, anche verificati; le Note controllo restano separate.
+Lettura/aggiunta via action `get_note_contratto`/`add_nota_contratto` della Function
+esistente con ACL Verifica Contratti fresca. UUID/autore/contratto/testo impediscono
+duplicati nei retry e conflitti; testo salvato immutabile, timestamp lato DB.
+SQL QA isolato: `MIROX_PGLITE_MODULE=/percorso/@electric-sql/pglite node scripts/verifica-note-contratto-sql.js`.
+Registro0righe e RLS/grant corretti;2873contratti/5850documenti/9541anagrafiche/
+609segnalazioni, profili/ACL, bucket/oggetti e colonne/policy/grant/trigger/funzioni
+precedenti identici per impronta. Advisor warning/errori invariati; solo INFO RLS
+senza policy41vs40 atteso sul nuovo registro server-only. Nessuna nota reale creata.
+Prove private ignorate `.backup-private/release-note-contratto-20261116/`.
+
 ## Segnalazioni da Mobile —14/11/2026, migration applicata
 
 Pulizia test14/11 richiesta esplicitamente dal proprietario dopo collaudo manuale riuscito: eliminate625/626/627, le3richieste in `segnalazioni_mobile_richieste` e8copie in `segnalazioni-files` via API Storage. Guardie su ID/impronte e transazione, poi rilettura0record/0richieste/0file; altre606segnalazioni, contratti/documenti/anagrafiche, altri file e sequenza627 invariati per impronta. Originali conservati, nessuna migration/schema/RLS o modifica applicativa. Conferma MCP scaduta senza esecuzione; eseguito con psql/pooler/TLSverify-full. Prove private ignorate `.backup-private/elimina-segnalazioni-test-20261114/`.

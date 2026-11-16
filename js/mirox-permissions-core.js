@@ -106,7 +106,7 @@
       'apri-segnalazione-mobile': ['verifica_contratti'], // Apertura dal contratto; gestione riservata all'ACL Segnalazioni.
       'elimina-vendita-contratto': ['verifica_contratti'],
       'upload-documento-modulo': [...new Set(Object.values(buckets).flatMap(b => b.write))],
-      'gestisci-vendita-contratto': ['set_stato_verifica_manuale', 'get_codici_cliente'].includes(body.action) ? ['verifica_contratti']
+      'gestisci-vendita-contratto': ['set_stato_verifica_manuale', 'get_codici_cliente', 'get_note_contratto', 'add_nota_contratto'].includes(body.action) ? ['verifica_contratti']
         : body.action === 'check_codice' ? ['upload_contratti', ...editors] : editors,
       'gestisci-operazioni-post-vendita': [body.action === 'mark_apri_chiudi_ko' ? 'apri_chiudi' : 'gestione_rimborsi'],
       'mirox-send-email': ({ ordine_smartphone_nuovo: ['ordini_smartphone'], segnalazione_assegnata: ['segnalazioni'] })[body.template] || []

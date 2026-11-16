@@ -1,5 +1,11 @@
 # Permessi pagine Mirox
 
+Note contratto16/11, schema applicato: `get_note_contratto` e `add_nota_contratto` su
+`gestisci-vendita-contratto` richiedono Verifica Contratti fresca, anche sui
+Verificati. Non basta Storico Cliente né Segnalazioni; nessun accesso nuovo agli
+account. Registro RLS/server-only SELECT/INSERT, senza grant browser o modifiche
+alle risorse condivise. Le note non cambiano lo stato di verifica del contratto.
+
 Rettifica16/11, confermata dal proprietario: `apri-segnalazione-mobile` richiede
 **solo Verifica Contratti**, con JWT e ACL fresche verificati da `requireAuth`
 e dalla mappa endpoint. Il pulsante è visibile nel dettaglio Mobile anche con

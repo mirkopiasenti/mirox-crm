@@ -1,5 +1,6 @@
 const Pda = require('./_lib/pda-contract');
 const { requireAuth: requireBaseAuth, getAdminClient } = require('./_lib/require-auth');
+const ContractNotes = require('./_lib/contract-notes');
 const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'gestisci-vendita-contratto' });
 const {
   assertPersistedContractScores,
@@ -451,6 +452,8 @@ exports.handler = async (event) => {
       return response(200, { success: true, duplicate });
     }
     if (body.action === 'get_codici_cliente') return await getCustomerCodes({ supabase, body });
+    if (body.action === 'get_note_contratto') return response(200, { success: true, ...await ContractNotes.list({ supabase, body }) });
+    if (body.action === 'add_nota_contratto') return response(200, { success: true, ...await ContractNotes.add({ supabase, auth, body }) });
     if (body.action === 'update_pda') return await updatePda({ supabase, auth, body });
     if (body.action === 'set_stato_verifica_manuale') return await setManualReviewStatus({ supabase, auth, body });
     if (body.action === 'update') {
