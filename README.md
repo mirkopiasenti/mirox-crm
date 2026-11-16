@@ -6,7 +6,7 @@ Modulo CRM per la gestione di vendite, post-vendita e supporto operativo della r
 
 Ogni contratto, nuovo o già presente e di qualsiasi categoria, dispone di **Note contratto** nel dettaglio di Verifica Contratti, anche nei Verificati. Scrivi in **Aggiungi nota** e premi **Salva nota**: la nota entra nello storico con autore e data/ora, conservando le precedenti. Le annotazioni sono separate dalle Note controllo della verifica; massimo4000caratteri. Bozze e ritentativi conservano il testo, con protezione dai duplicati. Il salvataggio lascia aperta la pratica e non cambia lo stato del contratto.
 
-Serve soltanto il permesso Verifica Contratti. Backend e registro dedicati non modificano anagrafica, punteggi o verifiche e non inviano notifiche. Migration `database/20261116163541_note_contratto.sql` applicata/riletta production20261116172228, registro vuoto e dati precedenti invariati; nessun aggiornamento massivo dei contratti esistenti necessario.
+Serve soltanto il permesso Verifica Contratti. Backend e registro dedicati non modificano anagrafica, punteggi o verifiche e non inviano notifiche. Migration `database/20261116163541_note_contratto.sql` applicata/riletta production20261116172228, registro vuoto e dati precedenti invariati; nessun aggiornamento massivo dei contratti esistenti necessario. Pubblicato16/11 con `7f82817`:820test e CI43918435703 Linux/Windows verdi, Netlify6afb3cd2ab03ad8934215024 online;10asset/HTML/PrettyURL e2API401 verificati.
 
 ## Codice cliente in Verifica Contratti —13/11/2026, pubblicato
 

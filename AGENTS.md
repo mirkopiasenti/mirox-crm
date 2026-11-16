@@ -115,7 +115,7 @@ L'utente può chiedere in qualsiasi momento cosa è stato fatto in una sessione:
 
 ---
 
-## Note contratto —16/11/2026, schema applicato
+## Note contratto —16/11/2026, pubblicate
 
 Verifica Contratti, ogni categoria e contratto nuovo o preesistente, in attesa o
 verificato: campo Aggiungi nota e storico con autore/data Europe/Rome. Annotazioni
@@ -146,7 +146,11 @@ pratica reale o scrittura ai dati preesistenti. Registro vuoto/grant/RLS corrett
 impronte2873contratti/5850documenti/9541anagrafiche/609segnalazioni, profili/ACL,
 bucket/oggetti e colonne/policy/grant/trigger/funzioni precedenti identiche.
 Advisor warning/errori invariati; INFO RLS senza policy41vs40 atteso per registro
-service-only. Prove private release-note-contratto-20261116. Push richiesto16/11.
+service-only. Prove private release-note-contratto-20261116. Pubblicato16/11 con
+`7f82817`, CI43918435703 LinuxNode22/Windows verde820test e Netlify
+6afb3cd2ab03ad8934215024 online;10asset/HTML/script/stili/PrettyURL e2API401
+verificati. Data API200 e lettura storico/cursore su contratti preesistenti
+in attesa e verificati riuscite senza inserire note reali.
 
 ## Segnalazioni da Mobile —14/11/2026, pubblicate
 

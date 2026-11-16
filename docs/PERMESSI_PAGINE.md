@@ -1,6 +1,6 @@
 # Permessi pagine Mirox
 
-Note contratto16/11, schema applicato: `get_note_contratto` e `add_nota_contratto` su
+Note contratto16/11, pubblicate: `get_note_contratto` e `add_nota_contratto` su
 `gestisci-vendita-contratto` richiedono Verifica Contratti fresca, anche sui
 Verificati. Non basta Storico Cliente né Segnalazioni; nessun accesso nuovo agli
 account. Registro RLS/server-only SELECT/INSERT, senza grant browser o modifiche
