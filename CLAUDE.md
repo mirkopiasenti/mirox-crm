@@ -1773,6 +1773,6 @@ Correzione31/10/2026 reinserimenti Fisso: Avanzamento Mensile include il nuovo F
 
 Nuove regole Consumer/Business, Professional Box manuale, quattro dati precompilati nella sola Verifica e Controllo Fissi solo riepilogo/esiti: fonte aggiornata AGENTS.md, sezione Nuovo flusso Fisso. Dettaglio separato dal catalogo per conservare punti/Day; storico con script separato e stati invariati. Non usare file comuni o 2,5 per distinguere la rete, non dedurre Fritz dalla PDA. Pubblicato17/11 con `f723b79`, CI Linux/Windows e verifica HTTP verdi; dettagli in docs/STATO_LAVORO.md.
 
-### Opzioni Mobile Business — rettifica17/11/2026 locale
+### Opzioni Mobile Business — rettifica17/11/2026 pubblicata
 
-Reload Exchange/Forever escluse Business da scope condiviso UI/API; Professional Cloud Mobile/Fisso Business sempre visibile anche se NULL («Non rilevato», nessun No inventato). Priorita cluster contratto, fallback anagrafico solo UI legacy. Nessun backfill dei verificati: il recupero Mobile13/11 riguardava solo26In attesa. Fonte aggiornata AGENTS.md, sezione Separazione Reload / Professional Cloud; push richiesto17/11, esito nel promemoria.
+Reload Exchange/Forever escluse Business da scope condiviso UI/API; Professional Cloud Mobile/Fisso Business sempre visibile anche se NULL («Non rilevato», nessun No inventato). Priorita cluster contratto, fallback anagrafico solo UI legacy. Nessun backfill dei verificati: il recupero Mobile13/11 riguardava solo26In attesa. Fonte aggiornata AGENTS.md, sezione Separazione Reload / Professional Cloud; pubblicata con `569908f`, CI Linux/Windows e HTTP verdi, esito nel promemoria.

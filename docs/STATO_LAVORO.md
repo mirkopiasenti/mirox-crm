@@ -2,11 +2,11 @@
 
 Aggiornato:2026-11-17. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Opzioni Mobile Business —17/11, push in corso
+## Opzioni Mobile Business —17/11, pubblicate
 
 - Caso segnalato su cliente Business gia verificato: anagrafica/contratti correttamente Business, Reload entrambe false, Cloud storico in parte NULL. Causa UI: Reload visibili dalla sola categoria e Cloud NULL omesso dal riepilogo. Il recupero13/11 riguardava solo26Mobile In attesa; i verificati non erano nel perimetro. Nessuna attivazione dimostrata dalla sola partita IVA.
 - Scope condiviso Reload categoria+cluster ora esclude Business in upload, restore, Verifica anche Verificati, payload e API create/update; Cloud Mobile/Fisso Business mostra «Non rilevato» se NULL, No resta No, decisione mancante resta Da definire. Priorita al cluster contratto e fallback anagrafico solo UI legacy. Nessuna migration/backfill/scrittura DB, stato, punteggio o notifica cambiati. Logs SQL senza errori restituiti, advisor letti; nessuna modifica DB da confrontare.
-- Suite832/832/build verdi in nuova copia isolata, test API reali prima delle scritture, visibilita/fallback/cluster e Cloud NULL/No/Si, DOM Node Fisso/Box verdi. Aggiornata aspettativa precedente che manteneva Reload nel Business. README/AGENTS/CLAUDE/databaseREADME aggiornati; nessun browser o pratica reale. Push richiesto17/11, verificare CI/deploy. Rilettura PDA separata se si vogliono recuperare i valori Cloud sconosciuti dei verificati; nessun backfill generale autorizzato da questa diagnosi.
+- Suite832/832/build verdi in nuova copia isolata, test API reali prima delle scritture, visibilita/fallback/cluster e Cloud NULL/No/Si, DOM Node Fisso/Box verdi. Aggiornata aspettativa precedente che manteneva Reload nel Business. README/AGENTS/CLAUDE/databaseREADME aggiornati; nessun browser o pratica reale. Pubblicato17/11 con `569908f`: CI44181328711 LinuxNode22/Windows verde,832test; Netlify6afcc888ce64a2d763b1af86 online. HTTP12asset/HTML/script/stili/PrettyURL e3API401 verificati. Prossimo: ricaricare Verifica Contratti/Upload; nessun rilascio funzionale pendente. Rilettura PDA separata se si vogliono recuperare i valori Cloud sconosciuti dei verificati; nessun backfill generale autorizzato da questa diagnosi.
 
 ## Correzione opzioni Upload Fisso —17/11, pubblicata
 
