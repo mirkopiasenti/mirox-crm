@@ -270,7 +270,10 @@
         [data.portabilita ? 'Numero da portare (MNP)' : 'Numero di cellulare', data.numero_telefono],
         ['Operatore provenienza', data.operatore_provenienza]);
     }
-    if (data.professional_cloud === true || data.professional_cloud === false) rows.push(['Professional Cloud', data.professional_cloud ? 'Si' : 'No'], ['Gestione Professional Cloud', data.professional_cloud_gestione]);
+    if (Pda.cloudScope(options.category || data.categoria_snapshot, options.cluster || data.cluster_cliente) || data.professional_cloud === true || data.professional_cloud === false) {
+      rows.push(['Professional Cloud', data.professional_cloud === true ? 'Si' : data.professional_cloud === false ? 'No' : 'Non rilevato']);
+      if (data.professional_cloud === true) rows.push(['Gestione Professional Cloud', data.professional_cloud_gestione || 'Da definire']);
+    }
     return rows.filter(([, v]) => v !== null && v !== undefined && v !== '')
       .map(([label, value]) => '<div><b>' + esc(label) + ':</b> ' + esc(value) + '</div>').join('');
   }

@@ -3242,7 +3242,7 @@ Reload Forever
  field.checked = previous;
  if (selected === previous || field.dataset.reloadPending) return;
  const category = getCategoriaName();
- if (!isCategory(category, 'Mobile') && !isCategory(category, 'Customer Base')) return;
+ if (!window.MiroxPda.reloadScope(category, refs.cluster.value)) return;
  const revision = runtimeState.pdaRevision;
  const editingId = runtimeState.editingTempId;
  const offerId = refs.offerta.value;
@@ -3381,7 +3381,7 @@ Reload Forever
  function setReloadFlags(data = {}) {
  for (const [key, field] of [['reload_exchange', refs.reloadExchange], ['reload_forever', refs.reloadForever]]) {
  if (!field) continue;
- const allowed = isCategory(getCategoriaName(), 'Mobile') || isCategory(getCategoriaName(), 'Customer Base');
+ const allowed = window.MiroxPda.reloadScope(getCategoriaName(), refs.cluster.value);
  field.checked = allowed && data[key] === true;
  field.dataset.reloadConfirmed = String(field.checked);
  delete field.dataset.reloadPending;
@@ -3605,7 +3605,7 @@ Reload Forever
  // (allineati esteticamente sotto la dropdown Offerta nel container #fieldReloadFlags).
  const isMobile = isCategory(categoriaNome, 'Mobile');
  const isCustomerBase = isCategory(categoriaNome, 'Customer Base');
- const showReloadFlags = isMobile || isCustomerBase;
+ const showReloadFlags = window.MiroxPda.reloadScope(categoriaNome, refs.cluster.value);
  if (refs.fieldReloadFlags) refs.fieldReloadFlags.classList.toggle('hidden', !showReloadFlags);
  if (!showReloadFlags) {
  setReloadFlags();
@@ -3972,7 +3972,7 @@ Reload Forever
  return {
  ...window.MiroxFisso.validate(readPdaFields(), categoriaNome, refs.cluster.value, {required:isCategory(categoriaNome,'Fisso')}),
  ...window.MiroxPda.validate(readPdaFields(), categoriaNome, { cluster: refs.cluster.value, requireCloud: true }),
- ...window.MiroxPda.validateReloadForever(readPdaFields(), categoriaNome, { required: true }),
+ ...window.MiroxPda.validateReloadForever(readPdaFields(), categoriaNome, { required: true, cluster: refs.cluster.value }),
  codice_cliente: readPdaFields().codice_cliente,
  pda_lettura: readPdaFields().pda_lettura,
  pda_opzione_manuale: readPdaFields().pda_opzione_manuale,
@@ -4955,7 +4955,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  convergenza: item.convergenza || null,
 	 reload_exchange: item.reload_exchange === true,
 	 reload_forever: item.reload_forever === true,
- reload_forever_gestione: window.MiroxPda.validateReloadForever(item, item.categoria_nome || item.snapshot?.categoria, { required: true }).reload_forever_gestione,
+ reload_forever_gestione: window.MiroxPda.validateReloadForever(item, item.categoria_nome || item.snapshot?.categoria, { required: true, cluster: cliente.cluster }).reload_forever_gestione,
 	 // Codice Rivenditore: non deve andare perso fra carrello e backend.
 	 codice_rivenditore: CODICE_RIVENDITORE_DEFAULT,
 	 // PDA in staging: il backend promuovera' temp/<sess>/<file> con nome progressivo

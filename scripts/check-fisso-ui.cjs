@@ -5,7 +5,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const F=require('../js/fisso-core');
 function setup(cluster='Business'){
  const {window}=parseHTML('<html><body><div id="root"></div></body></html>');let modal,closed=0;
- window.MiroxFisso=F;window.MiroxSafe={escapeHtml:v=>String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')};
+ window.MiroxFisso=F;window.MiroxPda=require('../js/vendita-pda-core');window.MiroxSafe={escapeHtml:v=>String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')};
  window.MiroxUI={_build(options){
    const foot=window.document.createElement('div');foot.innerHTML=options.footerHtml;
    const current={foot,options,close(){closed++;options.onClose?.();}};modal=current;return current;
@@ -84,7 +84,8 @@ function setup(cluster='Business'){
   let category='Fisso';
   const source=fs.readFileSync('moduli/verifica_contratti.html','utf8');const a=source.indexOf('function syncFixedSection()'),b=source.indexOf('// Ripopola la tendina Offerte',a);
   const ctx={window,document:window.document,_isCat:(a,b)=>a.toLowerCase().includes(b.toLowerCase()),_categoriaNomeSelezionato:()=>category,_offertaNomeSelezionata:()=> 'FWA - OUTDOOR',_show(id,visible){const el=window.document.getElementById(id);if(el)el.style.display=visible?'':'none';},repopulateOpzioni(){}};
-  vm.createContext(ctx);vm.runInContext(source.slice(a,b)+';applyVisibilityRules();',ctx);
+  const clusterStart=source.indexOf('function getContrattoCluster('),clusterEnd=source.indexOf('// Converte un ISO',clusterStart);
+  vm.createContext(ctx);vm.runInContext(source.slice(clusterStart,clusterEnd)+source.slice(a,b)+';applyVisibilityRules();',ctx);
   assert.equal(window.document.getElementById('vc_dispositivo_associato').value,'true');
   assert.equal(window.document.getElementById('vc_tipo_acquisto').disabled,true);
   assert.equal(window.document.getElementById('vc_field_imei').style.display,'');

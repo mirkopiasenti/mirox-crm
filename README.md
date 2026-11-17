@@ -1341,3 +1341,7 @@ Database gia aggiornato:406Fissi,393tecnologie riconosciute,6ProfessionalBox con
 Nell'upload Fisso la tecnologia e mostrata in sola lettura dalla PDA: l'operatore non la sceglie. Per Business risponde soltanto Si/No al Professional Box; eventuali correzioni della tecnologia si fanno nella Verifica Contratti.
 
 Correzione17/11: aggiornamento immediato della tendina Opzione quando OCR o Professional Box cambiano automaticamente l’offerta Fisso. Conserva scelte ancora compatibili e rende disponibili le opzioni previste dal catalogo, evitando la tendina vuota con validazione obbligatoria. Punteggi e dati storici invariati. Pubblicato17/11 con `7161506`: CI44117849495 LinuxNode22/Windows verde,829test; Netlify6afc76710f27189c6728439e online. HTTP12asset/HTML/script/stili/PrettyURL e3API401 verificati; nessun DB/storico modificato.
+
+## Opzioni Mobile Business — rettifica locale17/11/2026
+
+In Upload e Verifica Contratti, anche nei Verificati, Reload Exchange e Reload Forever sono escluse dal Business; il controllo usa categoria e cluster del contratto, con fallback anagrafico soltanto nella visualizzazione legacy. Le API di inserimento/modifica rifiutano le due Reload nel Business. Professional Cloud rimane per Mobile/Fisso Business e, se il dato storico manca, il riepilogo mostra «Non rilevato», distinto da No. Nessuna presenza o richiesta di disattivazione viene inventata. Il recupero Mobile precedente riguardava le sole26pratiche In attesa, non tutti i verificati. Correzione con push richiesto17/11; nessun dato storico, punteggio o stato cambiato.

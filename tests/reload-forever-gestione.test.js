@@ -42,7 +42,7 @@ function fixture(active = false, actionValue = '') {
   };
 }
 
-test('Reload Forever: nuovo upload richiede decisione, storico nullable e scope indipendente dal cluster', () => {
+test('Reload Forever: nuovo upload richiede decisione, storico nullable e scope escluso Business', () => {
   for (const category of ['Mobile', 'Customer Base']) {
     assert.throws(() => Pda.validateReloadForever({reload_forever: true}, category, {required:true}), /Seleziona/);
     assert.equal(Pda.validateReloadForever({reload_forever:true}, category).reload_forever_gestione, null);
@@ -140,6 +140,8 @@ test('Upload reale: render automatico, gestione scelta, restore e reset per cont
   const saved=JSON.parse(JSON.stringify(ctx.read()));assert.equal(saved.reload_forever_gestione,'Richiedi disattivazione');
   ctx.render(saved);assert.equal(ui.modals.length,0);assert.equal(ctx.read().reload_forever_gestione,'Richiedi disattivazione');
   assert.equal(refs.reloadExchange.checked,true);ctx.render({});assert.equal(ui.flag.checked,false);assert.equal(ui.action.value,'');
+  refs.cluster.value='Business';ctx.render({reload_exchange:true,reload_forever:true,reload_forever_gestione:'Mantieni attiva'});
+  assert.equal(refs.reloadExchange.checked,false);assert.equal(ui.flag.checked,false);assert.equal(ui.action.value,'');assert.equal(ui.modals.length,0);
 });
 
 function loadHandler(file, db) {
@@ -163,6 +165,27 @@ test('API create respinge Reload Forever senza decisione prima di ogni scrittura
   const result=await handler(event({cliente:{cf_piva:'RSSMRA80A01H501U',ragione_sociale:'Test',cluster:'Consumer',cellulare:'3331234567',email:'test@example.invalid'},
     contratti:[{categoria_id:'cat',offerta_id:'offer',codice_contratto:'TEST001',reload_forever:true}]}));
   assert.equal(result.statusCode,400);assert.match(JSON.parse(result.body).error,/gestione Reload Forever/);
+});
+
+test('Business: API create e modifica rifiutano entrambe le Reload prima di ogni scrittura',async()=>{
+  const id='11111111-1111-4111-8111-111111111111';
+  for(const flags of [{reload_exchange:true},{reload_forever:true,reload_forever_gestione:'Mantieni attiva'}]){
+    assert.equal(Pda.reloadScope('Mobile','Business'),false);
+    assert.equal(Pda.reloadScope('Customer Base','Business'),false);
+    assert.equal(Pda.reloadScope('Mobile','Consumer'),true);
+    assert.equal(Pda.reloadScope('Mobile','Turista'),true);
+    let writes=0;
+    const current={id,categoria_id:'cat',categoria_snapshot:'Mobile',cluster_cliente:'Business',stato_controllo:'controllato',updated_at:'2026-11-17T10:00:00Z',reload_exchange:false,reload_forever:false,professional_cloud:null};
+    const db={from(table){assert.equal(table,'vendita_contratti');return {select(){return this;},eq(){return this;},update(){writes++;throw new Error('Scrittura inattesa');},async maybeSingle(){return {data:current};}};}};
+    const update=loadHandler('gestisci-vendita-contratto.js',db);
+    const saved=await update(event({action:'update',mode:'save',contratto_id:id,expected_updated_at:current.updated_at,contratto:flags}));
+    assert.equal(saved.statusCode,400);assert.match(JSON.parse(saved.body).error,/non ammessi per Business/);assert.equal(writes,0);
+    const createDb={from(table){assert.equal(table,'vendita_categorie');return {select(){return this;},async in(){return {data:[{id:'cat',nome:'Mobile'}]};}};}};
+    const create=loadHandler('crea-vendita-pratica-carrello.js',createDb);
+    const created=await create(event({cliente:{cf_piva:'00560340291',ragione_sociale:'Fixture Business',cluster:'Business',cellulare:'3331234567',email:'test@example.invalid'},
+      contratti:[{categoria_id:'cat',offerta_id:'offer',codice_contratto:'TEST001',costo_offerta_mensile:10,portabilita:false,numero_telefono:'3331234567',...flags}]}));
+    assert.equal(created.statusCode,400);assert.match(JSON.parse(created.body).error,/non ammessi per Business/);
+  }
 });
 
 test('API Verifica salva la gestione e conserva storico senza inventarla; rifiuta incoerenze e revisioni obsolete',async()=>{
@@ -194,9 +217,13 @@ test('Verifica Contratti: dettaglio rende la scelta e payload preserva entrambe 
     assert.match(ctx.html,/Gestione Reload Forever/);assert.match(ctx.html,/vc_reload_forever_gestione" disabled/);
     if(decision)assert.ok(ctx.html.includes('value="'+decision+'" selected'));
     const fields={vc_categoria_id:{value:'cat'},vc_reload_forever:{value:'',checked:true},vc_reload_forever_gestione:{value:decision||''}};
-    const payloadCtx={window:{},document:{getElementById:key=>fields[key],querySelector:()=>({textContent:'Mobile'})}};
+    const payloadCtx={window:{MiroxPda:Pda},getContrattoCluster:c=>c.cluster_cliente || c.anagrafica?.cluster || '',document:{getElementById:key=>fields[key],querySelector:()=>({textContent:'Mobile'})}};
     vm.runInNewContext(source.slice(start,end)+';this.payload=leggiPayloadDalPopup;',payloadCtx);
     assert.equal(payloadCtx.payload().contratto.reload_forever_gestione,decision);
     fields.vc_reload_forever.checked=false;assert.equal(payloadCtx.payload().contratto.reload_forever_gestione,null);
+    payloadCtx.window.__currentVerificaContratto={cluster_cliente:'Business'};
+    fields.vc_reload_forever.checked=true;fields.vc_reload_exchange={checked:true};
+    const business=payloadCtx.payload().contratto;
+    assert.equal(business.reload_exchange,false);assert.equal(business.reload_forever,false);assert.equal(business.reload_forever_gestione,null);
   }
 });

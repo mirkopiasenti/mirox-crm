@@ -229,7 +229,7 @@ async function updateContract({ supabase, auth, body }) {
     .from('vendita_contratti')
     .select(`
       id, anagrafica_id, pratica_id, stato_controllo, updated_at,
-      categoria_id, categoria_snapshot, offerta_id, opzione_id, reload_id, reload_forever, reload_forever_gestione, assicurazione_impianti,
+      categoria_id, categoria_snapshot, offerta_id, opzione_id, reload_id, reload_exchange, reload_forever, reload_forever_gestione, assicurazione_impianti,
       tecnologia_fisso, professional_box, codice_cliente_fisso, codice_pos_fisso,
       ricorrenza_assicurazione, codice_contratto, costo_offerta_mensile, portabilita,
       numero_telefono, numero_provvisorio, numero_mnp, operatore_provenienza, cluster_cliente, professional_cloud, professional_cloud_gestione,
@@ -265,7 +265,8 @@ async function updateContract({ supabase, auth, body }) {
       if (finalCategory !== 'Energia' && current.assicurazione_impianti != null) {
         patch.assicurazione_impianti = null;
       }
-      if (finalCategory !== current.categoria_snapshot && !Pda.reloadScope(finalCategory)) {
+      if (finalCategory !== current.categoria_snapshot && !Pda.reloadScope(finalCategory, current.cluster_cliente)) {
+        patch.reload_exchange = false;
         patch.reload_forever = false;
         patch.reload_forever_gestione = null;
       }
@@ -282,14 +283,14 @@ async function updateContract({ supabase, auth, body }) {
         }
       } else if (Fixed.isFixed(current.categoria_snapshot)) { Object.assign(patch,Object.fromEntries(Fixed.FIELDS.map(k=>[k,null]))); }
       const requireReload = current.reload_forever !== true || current.reload_forever_gestione != null || patch.reload_forever_gestione != null;
-      Object.assign(patch, Pda.validateReloadForever({ ...current, ...patch }, finalCategory, { required: requireReload }));
+      Object.assign(patch, Pda.validateReloadForever({ ...current, ...patch }, finalCategory, { required: requireReload, cluster: current.cluster_cliente }));
       const pdaPatch = Pda.validate({ ...current, ...patch }, finalCategory,
         { requireCode: Boolean(current.codice_contratto), allowLegacy: !Pda.hasMobileData(current), cluster: current.cluster_cliente, requireCloud: current.professional_cloud != null });
       Object.assign(patch, pdaPatch);
       if (pdaPatch.codice_contratto) await Pda.assertAvailable(supabase, pdaPatch.codice_contratto, current.id);
     } catch (error) {
       if (error.statusCode === 409) throw error;
-      if (/obbligatorio|non valid[oa]|coerente|Seleziona|ammesso/.test(error.message)) error.statusCode = 400;
+      if (/obbligatorio|non valid[oa]|coerente|Seleziona|ammess[oi]/.test(error.message)) error.statusCode = 400;
       throw error;
     }
     snapshotPatch = await deriveCatalogSnapshots(supabase, current, patch);

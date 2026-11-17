@@ -1092,6 +1092,10 @@ solo con anagrafica e byte coincidenti. Nessun cambio modalita/email o storico.
 Guida e limiti: `docs/IDENTITA_UPLOAD_2026-10-28.md`. Pubblicato; collaudo
 scansioni reali e UI al proprietario, senza browser da parte dell’assistente.
 
+### Separazione Reload / Professional Cloud (rettifica17/11/2026)
+
+Reload Exchange e Reload Forever appartengono a Mobile/Customer Base fuori dal cluster Business; nel Business non vanno proposte ne accettate da upload o modifica API. Professional Cloud resta soltanto Mobile/Fisso Business. Usare lo scope condiviso categoria+cluster, con priorita al cluster del contratto e fallback anagrafico solo per visualizzare righe legacy. Non dedurre servizi attivi dalla partita IVA o dalla sola appartenenza Business. Nel riepilogo di un Business storico Cloud NULL deve apparire «Non rilevato», distinto da No esplicito; non assegnare automaticamente presenza/gestione o rieseguire un backfill su tutti i verificati. Il recupero Mobile13/11 riguardava le sole26pratiche In attesa. Rettifica UI/API con push richiesto17/11; dati storici invariati. Test reali delle due API bloccano entrambe le Reload Business prima delle scritture; visibilita Verificati/fallback/precedenza cluster e riepilogo Cloud NULL/No/Si verificati. Suite832/832 e build verdi in copia isolata, DOM Node Fisso/Box verde, nessun browser. README/CLAUDE/databaseREADME/promemoria aggiornati.
+
 ### Professional Cloud Mobile e Fisso Business (28/10/2026)
 
 Professional Cloud e' separata dall'opzione MNP, solo Mobile e Fisso Business. Il wizard

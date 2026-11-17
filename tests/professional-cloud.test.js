@@ -48,6 +48,39 @@ test('HTML Cloud visibile anche AI solo per Business Mobile, riepilogo mostra an
  assert.match(api.summary(data,{wizard:true}),/Professional Cloud.*No/);
  const history=fs.readFileSync(path.join(__dirname,'../moduli/storico_cliente.html'),'utf8');assert.match(history,/v !== false \|\| k === 'professional_cloud'/);
 });
+test('storico Business: Cloud sconosciuto e visibile come Non rilevato, distinto da No e senza decisione inventata',()=>{
+ const {api}=fixture();
+ for(const category of ['Mobile','Fisso']){
+  const row={categoria_snapshot:category,cluster_cliente:'Business',professional_cloud:null};
+  const unknown=api.summary(row);assert.match(unknown,/Professional Cloud.*Non rilevato/);assert.doesNotMatch(unknown,/Gestione Professional Cloud/);
+  assert.match(api.summary({...row,professional_cloud:false}),/Professional Cloud.*No/);
+  assert.match(api.summary({...row,professional_cloud:true}),/Gestione Professional Cloud.*Da definire/);
+  assert.doesNotMatch(api.summary({...row,cluster_cliente:'Consumer'}),/Professional Cloud/);
+  assert.match(api.summary({...row,cluster_cliente:null},{category,cluster:'Business'}),/Non rilevato/);
+ }
+});
+test('Verifica: Reload nascoste nel Business anche nei verificati e con fallback legacy; cluster del contratto prioritario',()=>{
+ const source=fs.readFileSync(path.join(__dirname,'../moduli/verifica_contratti.html'),'utf8');
+ const a=source.indexOf('function applyVisibilityRules()'),b=source.indexOf('// Ripopola la tendina Offerte',a);
+ const c=source.indexOf('function getContrattoCluster('),d=source.indexOf('// Converte un ISO',c);
+ const fields={},shown={},window={MiroxPda:Pda};
+ let category='Mobile';
+ const ctx={window,document:{querySelector:()=>null,getElementById:id=>fields[id] ||= {value:'',options:[],disabled:true}},
+  syncFixedSection(){},_categoriaNomeSelezionato:()=>category,_offertaNomeSelezionata:()=>'',_isCat:(a,b)=>a.toLowerCase()===b.toLowerCase(),_show:(id,value)=>shown[id]=value};
+ vm.createContext(ctx);vm.runInContext(source.slice(c,d)+source.slice(a,b),ctx);
+ for(const [row,visible] of [
+  [{cluster_cliente:'Business',stato_controllo:'controllato'},false],
+  [{cluster_cliente:null,anagrafica:{cluster:'Business'}},false],
+  [{cluster_cliente:'Business',anagrafica:{cluster:'Consumer'}},false],
+  [{cluster_cliente:'Consumer',anagrafica:{cluster:'Business'}},true],
+  [{cluster_cliente:'Turista'},true]
+ ]){
+  window.__currentVerificaContratto=row;vm.runInContext('applyVisibilityRules()',ctx);
+  assert.equal(shown.vc_field_reload_exchange,visible);assert.equal(shown.vc_field_reload_forever,visible);
+ }
+ category='Fisso';vm.runInContext('applyVisibilityRules()',ctx);
+ assert.equal(shown.vc_field_reload_exchange,false);assert.equal(shown.vc_field_reload_forever,false);
+});
 test('Si automatico apre una sola scelta dedicata; chiudere non inventa una decisione',async()=>{
  const ui=fixture('true');assert.equal(ui.dialogs.length,1);assert.equal(ui.action.value,'');
  ui.dialogs[0].close();await tick();assert.equal(ui.cloud.value,'true');assert.equal(ui.action.value,'');assert.equal(ui.saves.length,0);

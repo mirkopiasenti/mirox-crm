@@ -46,16 +46,19 @@
   function cloudScope(category, cluster) {
     return ['mobile', 'fisso'].includes(String(category || '').trim().toLowerCase()) && String(cluster || '').trim().toLowerCase() === 'business';
   }
-  function reloadScope(category) {
-    return ['mobile', 'customer base'].includes(String(category || '').trim().toLowerCase());
+  function reloadScope(category, cluster) {
+    return ['mobile', 'customer base'].includes(String(category || '').trim().toLowerCase())
+      && String(cluster || '').trim().toLowerCase() !== 'business';
   }
-  function validateReloadForever(input = {}, category, { required = false } = {}) {
+  function validateReloadForever(input = {}, category, { required = false, cluster = input.cluster_cliente } = {}) {
     const active = input.reload_forever === true || input.reload_forever === 'true';
+    const allowed = reloadScope(category, cluster);
     const action = typeof input.reload_forever_gestione === 'string' ? input.reload_forever_gestione.trim() || null : null;
+    if (String(cluster || '').trim().toLowerCase() === 'business' && (active || input.reload_exchange === true || input.reload_exchange === 'true' || action)) throw new Error('Reload Exchange e Reload Forever non ammessi per Business');
     if (input.reload_forever_gestione != null && input.reload_forever_gestione !== '' && typeof input.reload_forever_gestione !== 'string') throw new Error('Gestione Reload Forever non valida');
-    if (action && (!reloadScope(category) || !active || !CLOUD_ACTIONS.includes(action))) throw new Error('Gestione Reload Forever non valida senza opzione attiva Mobile o Customer Base');
-    if (reloadScope(category) && active && required && !action) throw new Error('Seleziona la gestione Reload Forever');
-    return { reload_forever: reloadScope(category) && active, reload_forever_gestione: action };
+    if (action && (!allowed || !active || !CLOUD_ACTIONS.includes(action))) throw new Error('Gestione Reload Forever non valida senza opzione attiva Mobile o Customer Base');
+    if (allowed && active && required && !action) throw new Error('Seleziona la gestione Reload Forever');
+    return { reload_forever: allowed && active, reload_forever_gestione: action };
   }
   function validateCloud(input, category, cluster, required = false) {
     const out = normalize(input);

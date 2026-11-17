@@ -465,7 +465,7 @@ function validateAssicurazioneImpianti(contract, categoryName) {
 
 function validateCategorySpecificRules({ contract, category, offer, index }) {
   const categoryName = normalizeCategoryName(category?.nome);
-  Object.assign(contract, Pda.validateReloadForever(contract, category?.nome, { required: true }));
+  Object.assign(contract, Pda.validateReloadForever(contract, category?.nome, { required: true, cluster: contract.cluster_cliente || offer?.cluster_cliente }));
   validateCombination(contract,offer?.nome_offerta,category?.nome);
 
   if (categoryName === 'fisso') {
@@ -939,7 +939,7 @@ exports.handler = async (event) => {
       // Validate raw values too: malformed input must not silently become null.
       try {
         Object.assign(contract, Pda.validate(contrattiRaw[i], category.nome, { cluster, requireCloud: Pda.cloudScope(category.nome, cluster) && Object.prototype.hasOwnProperty.call(contrattiRaw[i], 'professional_cloud') }));
-        Object.assign(contract, Pda.validateReloadForever(contrattiRaw[i], category.nome, { required: true }));
+        Object.assign(contract, Pda.validateReloadForever(contrattiRaw[i], category.nome, { required: true, cluster }));
       }
       catch (error) { error.statusCode = 400; throw error; }
       const customerCode = Pda.customerCode(contrattiRaw[i].codice_cliente);

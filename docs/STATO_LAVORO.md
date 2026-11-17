@@ -2,6 +2,12 @@
 
 Aggiornato:2026-11-17. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
+## Opzioni Mobile Business —17/11, push in corso
+
+- Caso segnalato su cliente Business gia verificato: anagrafica/contratti correttamente Business, Reload entrambe false, Cloud storico in parte NULL. Causa UI: Reload visibili dalla sola categoria e Cloud NULL omesso dal riepilogo. Il recupero13/11 riguardava solo26Mobile In attesa; i verificati non erano nel perimetro. Nessuna attivazione dimostrata dalla sola partita IVA.
+- Scope condiviso Reload categoria+cluster ora esclude Business in upload, restore, Verifica anche Verificati, payload e API create/update; Cloud Mobile/Fisso Business mostra «Non rilevato» se NULL, No resta No, decisione mancante resta Da definire. Priorita al cluster contratto e fallback anagrafico solo UI legacy. Nessuna migration/backfill/scrittura DB, stato, punteggio o notifica cambiati. Logs SQL senza errori restituiti, advisor letti; nessuna modifica DB da confrontare.
+- Suite832/832/build verdi in nuova copia isolata, test API reali prima delle scritture, visibilita/fallback/cluster e Cloud NULL/No/Si, DOM Node Fisso/Box verdi. Aggiornata aspettativa precedente che manteneva Reload nel Business. README/AGENTS/CLAUDE/databaseREADME aggiornati; nessun browser o pratica reale. Push richiesto17/11, verificare CI/deploy. Rilettura PDA separata se si vogliono recuperare i valori Cloud sconosciuti dei verificati; nessun backfill generale autorizzato da questa diagnosi.
+
 ## Correzione opzioni Upload Fisso —17/11, pubblicata
 
 - Foto del proprietario: FWA Indoor riconosciuto, tendina Opzione con solo Seleziona, avanti bloccato da «Seleziona una opzione». Causa riprodotta: syncFixedOffer cambia offerta senza change e senza rigenerare le opzioni dal pivot. Ora ogni effettivo cambio automatico (OCR, cluster, Professional Box) aggiorna la tendina; conserva solo selezioni ancora ammesse, nessuna scelta arbitraria o variazione catalogo/punti.

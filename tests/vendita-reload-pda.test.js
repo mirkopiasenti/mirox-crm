@@ -102,8 +102,11 @@ test('Reload: compilazione automatica, restore, cambio cluster, nuova PDA e altr
   assert.equal(ui.refs.reloadExchange.checked, true); assert.equal(ui.refs.reloadForever.checked, true);
   const draft = JSON.parse(JSON.stringify(ui.read())); ui.render(draft);
   assert.equal(ui.refs.reloadForever.checked, true);
-  ui.refs.cluster.value = 'Business'; ui.render(); assert.equal(ui.refs.reloadExchange.checked, true);
+  ui.refs.cluster.value = 'Business'; ui.render(); assert.equal(ui.refs.reloadExchange.checked, false);
+  assert.equal(ui.refs.reloadForever.checked, false);
+  ui.render(draft);assert.equal(ui.refs.reloadExchange.checked,false);assert.equal(ui.refs.reloadForever.checked,false);
   assert.equal(normalizeContractInput({ ...draft, categoria_id: 'cat', offerta_id: 'offer' }, 0).reload_forever, true);
+  ui.refs.cluster.value = 'Consumer';
   ui.render({ reload_exchange: false, reload_forever: true });
   assert.equal(ui.refs.reloadExchange.checked, false); assert.equal(ui.refs.reloadForever.checked, true);
   ui.render({}); assert.equal(ui.refs.reloadForever.checked, false);
