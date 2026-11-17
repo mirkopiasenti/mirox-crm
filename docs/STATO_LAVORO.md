@@ -2,6 +2,12 @@
 
 Aggiornato:2026-11-17. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
+## Professional Cloud come Reload Forever —17/11, push in corso
+
+- Precisazione proprietario: identico checkbox Attivo e flusso Reload Forever nei Campi specifici categoria, non il campo testo readonly proposto prima (superato). Conferma ogni on/off, popup Mantieni attiva/Richiedi disattivazione, select/pulsante gestione con conferma. Binder comune parametrizzato Cloud/Forever; annulla/chiudi/doppio clic/risposte obsolete non mutano la scelta, change prematuri non marcano dirty/bozza.
+- Scope Mobile/Fisso Business. Payload generale salva coppia Cloud con le API/validazioni esistenti; NULL storico resta Non rilevato se non modificato, Verificati disabilitati come Reload e senza popup automatici. Collegato anche il binder Forever al dettaglio editabile per la stessa logica. Nessuna migration/backfill/scrittura DB reale, punteggio/stato o notifica modificati durante lo sviluppo.
+- Suite837/837test/build in copia isolata verdi. Test checkbox Cloud Si/No/gestione/annulla/NULL/stale/doppio/readonly e payload, DOM Node del dettaglio completo con popup e raccolta payload effettivi verdi (shim checked solo QA per Linkedom). README/AGENTS/CLAUDE/databaseREADME aggiornati; nessun browser o pratica reale. Push richiesto17/11: verificare CI, deploy e controlli Cloud nel dettaglio online.
+
 ## Opzioni Mobile Business —17/11, pubblicate
 
 - Caso segnalato su cliente Business gia verificato: anagrafica/contratti correttamente Business, Reload entrambe false, Cloud storico in parte NULL. Causa UI: Reload visibili dalla sola categoria e Cloud NULL omesso dal riepilogo. Il recupero13/11 riguardava solo26Mobile In attesa; i verificati non erano nel perimetro. Nessuna attivazione dimostrata dalla sola partita IVA.

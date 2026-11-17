@@ -1776,3 +1776,5 @@ Nuove regole Consumer/Business, Professional Box manuale, quattro dati precompil
 ### Opzioni Mobile Business — rettifica17/11/2026 pubblicata
 
 Reload Exchange/Forever escluse Business da scope condiviso UI/API; Professional Cloud Mobile/Fisso Business sempre visibile anche se NULL («Non rilevato», nessun No inventato). Priorita cluster contratto, fallback anagrafico solo UI legacy. Nessun backfill dei verificati: il recupero Mobile13/11 riguardava solo26In attesa. Fonte aggiornata AGENTS.md, sezione Separazione Reload / Professional Cloud; pubblicata con `569908f`, CI Linux/Windows e HTTP verdi, esito nel promemoria.
+
+Rettifica locale17/11, precisazione proprietario: nel dettaglio Verifica Professional Cloud deve usare lo stesso checkbox e flusso di Reload Forever (conferma, gestione, annulla, salvataggio generale), con binder condiviso in vendita-pda-ui. Nei Verificati controlli disabilitati come Reload; NULL storico conservato. La proposta locale di soli campi testo e superata.837test/build e DOM dettaglio completo verdi; push richiesto17/11, dettagli in AGENTS/STATO_LAVORO.

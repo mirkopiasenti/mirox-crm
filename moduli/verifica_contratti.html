@@ -1010,6 +1010,23 @@ function apriPopupDettaglio(c, opts) {
             ${opzioniConvergenzaFisso}
           </select>
         </div>
+        <div class="det-field" id="vc_field_professional_cloud">
+          <label>Professional Cloud</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:9px 0;">
+            <input type="checkbox" id="vc_professional_cloud" data-cloud-value="${c.professional_cloud === true ? 'true' : c.professional_cloud === false ? 'false' : ''}" ${c.professional_cloud === true ? 'checked' : ''} ${disabled} style="width:18px;height:18px;accent-color:#FF6600;cursor:pointer;">
+            <span style="font-size:13.5px;font-weight:500;">Attivo</span>
+          </label>
+          <p class="hint" data-cloud-unknown ${c.professional_cloud == null ? '' : 'hidden'}>Non rilevato</p>
+          <div id="vc_field_professional_cloud_gestione" ${c.professional_cloud === true ? '' : 'hidden'}>
+            <label for="vc_professional_cloud_gestione">Gestione Professional Cloud</label>
+            <select id="vc_professional_cloud_gestione" ${disabled}>
+              <option value="">Non indicata</option>
+              ${window.MiroxPda.CLOUD_ACTIONS.map(value => `<option value="${escapeHtml(value)}" ${c.professional_cloud_gestione === value ? 'selected' : ''}>${escapeHtml(value)}</option>`).join('')}
+            </select>
+            <button type="button" id="vc_professional_cloud_choose" class="mx-btn mx-btn-secondary" ${disabled}>Scegli gestione</button>
+            <p class="hint">La richiesta di disattivazione deve essere eseguita sul portale WindTre.</p>
+          </div>
+        </div>
         <div class="det-field" id="vc_field_reload_exchange">
           <label>Reload Exchange</label>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:9px 0;">
@@ -1144,6 +1161,18 @@ function apriPopupDettaglio(c, opts) {
   // Applica regole di visibilità in base a categoria + bind dei listener
   applyVisibilityRules();
   if (!isReadOnly) {
+    const optionContext = () => [c.id, c.updated_at, _categoriaNomeSelezionato(), document.getElementById('vc_offerta_id').value, getContrattoCluster(c)].join('|');
+    const optionChanged = () => { pdaOtherFieldsDirty = true; applyVisibilityRules(); };
+    window.MiroxPdaUI.bindProfessionalCloud(document.getElementById('vc_field_professional_cloud'), {
+      flag: document.getElementById('vc_professional_cloud'), action: document.getElementById('vc_professional_cloud_gestione'),
+      management: document.getElementById('vc_field_professional_cloud_gestione'), chooseButton: document.getElementById('vc_professional_cloud_choose'),
+      context: optionContext, onChange: optionChanged
+    });
+    window.MiroxPdaUI.bindReloadForever(document.getElementById('vc_field_reload_forever'), {
+      flag: document.getElementById('vc_reload_forever'), action: document.getElementById('vc_reload_forever_gestione'),
+      management: document.getElementById('vc_field_reload_forever_gestione'), chooseButton: document.getElementById('vc_reload_forever_choose'),
+      context: optionContext, onChange: optionChanged
+    });
     // Su cambio categoria → ripopola offerta + opzione + reload + ricalcola visibilità
     document.getElementById('vc_categoria_id').addEventListener('change', () => {
       repopulateOfferte();
@@ -1298,11 +1327,17 @@ function applyVisibilityRules() {
   _show('vc_field_ex_fornitore', isEnergia);
   _show('vc_field_prezzo_fisso', isFisso);
   _show('vc_field_convergenza', isFisso);
-  const showReload = window.MiroxPda.reloadScope(cat, getContrattoCluster(window.__currentVerificaContratto || {}));
+  const currentContract = window.__currentVerificaContratto || {};
+  const cluster = getContrattoCluster(currentContract);
+  const showCloud = window.MiroxPda.cloudScope(cat, cluster);
+  _show('vc_field_professional_cloud', showCloud);
+  const cloudFlag = document.getElementById('vc_professional_cloud');
+  _show('vc_field_professional_cloud_gestione', showCloud && (cloudFlag ? cloudFlag.checked : currentContract.professional_cloud === true));
+  const showReload = window.MiroxPda.reloadScope(cat, cluster);
   _show('vc_field_reload_exchange', showReload);
   _show('vc_field_reload_forever', showReload);
   // Mostra/nascondi tutta la sezione extra se non c'è nulla da mostrare
-  const extraVisible = isEnergia || isFisso || isMobile || isCustomerBase;
+  const extraVisible = isEnergia || isFisso || showReload || showCloud;
   _show('vc_section_extra', extraVisible);
 }
 
@@ -1586,6 +1621,9 @@ function leggiPayloadDalPopup() {
   ).toLowerCase().includes('fisso');
   const catText = (document.querySelector('#vc_categoria_id option:checked')?.textContent || '').toLowerCase();
   const showRX = window.MiroxPda.reloadScope(catText, getContrattoCluster(c));
+  const showCloud = window.MiroxPda.cloudScope(catText, getContrattoCluster(c));
+  const cloudFlag = get('vc_professional_cloud');
+  const cloudValue = cloudFlag ? cloudFlag.dataset.cloudValue === '' ? null : ck('vc_professional_cloud') : c.professional_cloud ?? null;
 
   // Data di upload (data_contratto) + operatore che ha inserito la pratica.
   // Il campo datetime-local è in ora locale (Europe/Rome): lo convertiamo in ISO
@@ -1658,6 +1696,8 @@ function leggiPayloadDalPopup() {
     reload_exchange: showRX ? ck('vc_reload_exchange') : false,
     reload_forever: showRX ? ck('vc_reload_forever') : false,
     reload_forever_gestione: showRX && ck('vc_reload_forever') ? v('vc_reload_forever_gestione') || null : null,
+    professional_cloud: showCloud ? cloudValue : null,
+    professional_cloud_gestione: showCloud && cloudValue === true ? (cloudFlag ? v('vc_professional_cloud_gestione') || null : c.professional_cloud_gestione ?? null) : null,
     // Codice Rivenditore (migration 050): fallback su Legnago se assente/invalido
     codice_rivenditore: (['9001415852','9000822241'].includes(v('vc_codice_rivenditore'))
       ? v('vc_codice_rivenditore')

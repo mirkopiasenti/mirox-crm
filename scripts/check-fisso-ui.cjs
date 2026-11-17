@@ -93,5 +93,48 @@ function setup(cluster='Business'){
   category='Mobile';vm.runInContext('applyVisibilityRules();',ctx);
   assert.equal(root.hidden,true);assert.equal(window.document.getElementById('vc_field_offerta').hidden,false);
  }
- console.log('DOM Fisso: Si/No, suffisso, annullamento, doppio click, risposta obsoleta, restore/catalogo/opzioni OCR-Box, FWA Indoor Business e cambio categoria verificati');
+ // Dettaglio completo Mobile Business: binding reale, popup Cloud e payload generale.
+ {
+  const {window}=parseHTML('<html><body></body></html>'),document=window.document,dialogs=[],questions=[];
+  // Linkedom non implementa la proprieta checked dei checkbox nativi.
+  Object.defineProperty(window.HTMLInputElement.prototype,'checked',{configurable:true,get(){return this.hasAttribute('checked');},set(value){this.toggleAttribute('checked',Boolean(value));}});
+  window.MiroxPda=require('../js/vendita-pda-core');window.MiroxFisso=F;
+  window.MiroxSafe={escapeHtml:v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')};
+  window.MiroxSegnalazioneMobileCore={isMobile:()=>false};
+  window.MiroxContrattoNoteUI={mount:()=>({isSaving:()=>false,dispose(){}})};
+  window.MiroxUI={confirm(text){return new Promise(resolve=>questions.push({text,resolve}));},_build(options){
+   const modal=document.createElement('div');modal.innerHTML='<div data-body>'+options.bodyHtml+'</div><footer>'+options.footerHtml+'</footer>';document.body.append(modal);
+   const result={modal,body:modal.querySelector('[data-body]'),foot:modal.querySelector('footer'),close(){modal.remove();options.onClose?.();}};
+   dialogs.push(result);return result;
+  }};
+  vm.runInNewContext(fs.readFileSync('js/vendita-pda-ui.js','utf8'),{window,Event:window.Event});
+  const source=fs.readFileSync('moduli/verifica_contratti.html','utf8');
+  const slice=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
+  const ctx={window,document,renderCodiciCliente:()=>'',toLocalDatetimeInput:()=>'',fmtDateTime:()=>'',renderStatoContratto:()=>'',
+   escapeHtml:window.MiroxSafe.escapeHtml,bottoneEliminaContrattoHtml:()=>'',getProfiloCorrenteVC:async()=>null,gestisciVenditaContratto(){},
+   collegaCambioStato(){},renderAllegatiPopup(){},syncFixedSection(){},_categoriaNomeSelezionato:()=> 'Mobile',_offertaNomeSelezionata:()=>'',
+   _isCat:(a,b)=>a.toLowerCase()===b.toLowerCase(),_show(id,visible){const el=document.getElementById(id);if(el)el.style.display=visible?'':'none';}};
+  vm.createContext(ctx);vm.runInContext(slice('function getContrattoCluster(', '// Converte un ISO')
+   +slice('function apriPopupDettaglio(', '// VISIBILITÀ DINAMICA DEI CAMPI')
+   +slice('function applyVisibilityRules()', '// Ripopola la tendina Offerte')
+   +slice('function leggiPayloadDalPopup()', '// CONFERMA VERIFICA')+';this.open=apriPopupDettaglio;this.read=leggiPayloadDalPopup;',ctx);
+  const row={id:'fixture',cluster_cliente:'Business',categoria_snapshot:'Mobile',categoria_id:'cat',offerta_id:'offer',professional_cloud:false};
+  const opts={categorie:[{id:'cat',nome:'Mobile'}],offerte:[{id:'offer',nome_offerta:'Professional Full'}],opzioni:[],offerteOpzioni:[],reload:[],allegati:[],profili:[],isReadOnly:false};
+  ctx.open(row,opts);const main=dialogs[0],flag=main.body.querySelector('#vc_professional_cloud');
+  assert.equal(flag.disabled,false);assert.equal(document.getElementById('vc_field_professional_cloud').style.display,'');
+  assert.equal(document.getElementById('vc_field_reload_forever').style.display,'none');
+  flag.checked=true;flag.dispatchEvent(new window.Event('change',{bubbles:true}));assert.equal(flag.checked,false);
+  questions.shift().resolve(true);await new Promise(resolve=>setImmediate(resolve));
+  dialogs[1].foot.querySelector('[data-cloud-stop]').click();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(flag.checked,true);assert.equal(document.getElementById('vc_professional_cloud_gestione').value,'Richiedi disattivazione');
+  assert.equal(document.getElementById('vc_field_professional_cloud_gestione').style.display,'');
+  const payload=ctx.read().contratto;assert.equal(payload.professional_cloud,true);assert.equal(payload.professional_cloud_gestione,'Richiedi disattivazione');
+  flag.checked=false;flag.dispatchEvent(new window.Event('change',{bubbles:true}));questions.shift().resolve(false);
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(flag.checked,true);main.close();
+  ctx.open({...row,professional_cloud:null},opts);assert.equal(document.getElementById('vc_professional_cloud').indeterminate,true);
+  assert.equal(ctx.read().contratto.professional_cloud,null);window.__currentVerificaModal.close();
+  const count=dialogs.length;ctx.open({...row,professional_cloud:true,professional_cloud_gestione:'Mantieni attiva'},{...opts,isReadOnly:true});
+  assert.equal(document.getElementById('vc_professional_cloud').disabled,true);assert.equal(dialogs.length,count+1);window.__currentVerificaModal.close();
+ }
+ console.log('DOM Fisso/Cloud: Si/No, suffisso, annulla, risposte obsolete, restore/catalogo/opzioni OCR-Box, FWA Indoor Business, dettaglio Cloud completo/popup/payload/NULL/readonly verificati');
 })().catch(error=>{console.error(error);process.exitCode=1;});

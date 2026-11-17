@@ -59,6 +59,27 @@ test('storico Business: Cloud sconosciuto e visibile come Non rilevato, distinto
   assert.match(api.summary({...row,cluster_cliente:null},{category,cluster:'Business'}),/Non rilevato/);
  }
 });
+test('Verificati Business: Professional Cloud e gestione compaiono nei Campi specifici categoria del dettaglio completo',()=>{
+ const source=fs.readFileSync(path.join(__dirname,'../moduli/verifica_contratti.html'),'utf8');
+ const a=source.indexOf('function apriPopupDettaglio('),b=source.indexOf('  // Footer azioni:',a);
+ const {api}=fixture();
+ const ctx={window:{MiroxPda:Pda,MiroxPdaUI:api,MiroxFisso:{isFixed:()=>false},MiroxSegnalazioneMobileCore:{isMobile:()=>false}},
+  getContrattoCluster:c=>c.cluster_cliente || c.anagrafica?.cluster || '',renderCodiciCliente:()=>'',toLocalDatetimeInput:()=>'',fmtDateTime:()=>'',
+  escapeHtml:v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')};
+ vm.createContext(ctx);vm.runInContext(source.slice(a,b)+'return bodyHtml;};this.render=apriPopupDettaglio;',ctx);
+ const opts={categorie:[],offerte:[],opzioni:[],offerteOpzioni:[],reload:[],allegati:[],profili:[],isReadOnly:true};
+ for(const [value,label] of [[null,'Non rilevato'],[false,'No'],[true,'Sì']]){
+  const html=ctx.render({categoria_snapshot:'Mobile',cluster_cliente:'Business',stato_controllo:'controllato',professional_cloud:value,professional_cloud_gestione:value?'Richiedi disattivazione':null},opts);
+  const section=html.slice(html.indexOf('id="vc_section_extra"'),html.indexOf('<h4>Allegati pratica</h4>'));
+  assert.match(section,/id="vc_field_professional_cloud"/);
+  assert.ok(section.includes('data-cloud-value="'+(value==null?'':String(value))+'"'));
+  assert.match(section,/type="checkbox" id="vc_professional_cloud"[^>]*disabled/);
+  assert.equal(/id="vc_professional_cloud"[^>]*\schecked\s/.test(section),value===true);
+  assert.match(section,/id="vc_professional_cloud_gestione" disabled/);
+  if(value)assert.match(section,/value="Richiedi disattivazione" selected/);
+  else if(value==null)assert.match(section,/data-cloud-unknown >Non rilevato/);
+ }
+});
 test('Verifica: Reload nascoste nel Business anche nei verificati e con fallback legacy; cluster del contratto prioritario',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../moduli/verifica_contratti.html'),'utf8');
  const a=source.indexOf('function applyVisibilityRules()'),b=source.indexOf('// Ripopola la tendina Offerte',a);
@@ -75,11 +96,19 @@ test('Verifica: Reload nascoste nel Business anche nei verificati e con fallback
   [{cluster_cliente:'Consumer',anagrafica:{cluster:'Business'}},true],
   [{cluster_cliente:'Turista'},true]
  ]){
-  window.__currentVerificaContratto=row;vm.runInContext('applyVisibilityRules()',ctx);
+  window.__currentVerificaContratto=row;fields.vc_professional_cloud={checked:row.professional_cloud===true};vm.runInContext('applyVisibilityRules()',ctx);
   assert.equal(shown.vc_field_reload_exchange,visible);assert.equal(shown.vc_field_reload_forever,visible);
+  assert.equal(shown.vc_field_professional_cloud,!visible);
+  assert.equal(shown.vc_field_professional_cloud_gestione,false);
  }
+ window.__currentVerificaContratto={cluster_cliente:'Business',professional_cloud:true};
+ fields.vc_professional_cloud.checked=true;
+ vm.runInContext('applyVisibilityRules()',ctx);assert.equal(shown.vc_field_professional_cloud_gestione,true);
  category='Fisso';vm.runInContext('applyVisibilityRules()',ctx);
  assert.equal(shown.vc_field_reload_exchange,false);assert.equal(shown.vc_field_reload_forever,false);
+ assert.equal(shown.vc_field_professional_cloud,true);
+ category='Customer Base';vm.runInContext('applyVisibilityRules()',ctx);
+ assert.equal(shown.vc_field_professional_cloud,false);assert.equal(shown.vc_section_extra,false);
 });
 test('Si automatico apre una sola scelta dedicata; chiudere non inventa una decisione',async()=>{
  const ui=fixture('true');assert.equal(ui.dialogs.length,1);assert.equal(ui.action.value,'');

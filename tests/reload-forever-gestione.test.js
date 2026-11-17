@@ -19,9 +19,10 @@ function element(value = '') {
     async emit(type) { await Promise.all([...listeners.get(type) || []].map(fn => fn({type, stopPropagation(){}}))); }
   };
 }
-function fixture(active = false, actionValue = '') {
+function fixture(active = false, actionValue = '', option = 'Reload Forever') {
   const root = element(), flag = element(), action = element(actionValue), management = element(), chooseButton = element();
-  flag.checked = active;
+  flag.checked = active === true;
+  if(option==='Professional Cloud')flag.dataset.cloudValue=active==null?'':String(active);
   let stamp = 'initial', saves = 0;
   const questions = [], modals = [];
   const window = {MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda: Pda, MiroxSafe: {escapeHtml: v => String(v)}, MiroxUI: {
@@ -34,13 +35,71 @@ function fixture(active = false, actionValue = '') {
   }};
   vm.runInNewContext(uiSource, {window, Event});
   const options = {flag, action, management, chooseButton, context: () => stamp, onChange() {saves++;}};
-  const bind = () => window.MiroxPdaUI.bindReloadForever(root, options);
+  const bind = () => window.MiroxPdaUI[option==='Professional Cloud'?'bindProfessionalCloud':'bindReloadForever'](root, options);
   return {root, flag, action, management, chooseButton, window, options, questions, modals, bind,
     setStamp(value) {stamp = value;}, get saves() {return saves;},
     answer(value) {questions.shift().resolve(value);},
-    async choose(value) {const modal = modals.shift(); assert.ok(modal); if (value == null) modal.close(); else await modal.buttons[value === 'Mantieni attiva' ? '[data-reload-keep]' : '[data-reload-stop]'].emit('click'); await tick();}
+    async choose(value) {const modal = modals.shift(); assert.ok(modal); if (value == null) modal.close(); else await modal.buttons[option==='Professional Cloud'?(value==='Mantieni attiva'?'[data-cloud-keep]':'[data-cloud-stop]'):(value === 'Mantieni attiva' ? '[data-reload-keep]' : '[data-reload-stop]')].emit('click'); await tick();}
   };
 }
+
+test('Professional Cloud checkbox: stesso flusso Forever, conferma e gestione prima di applicare la scelta',async()=>{
+ for(const previous of [false,true])for(const accepted of [false,true]){
+  const ui=fixture(previous,previous?'Mantieni attiva':'','Professional Cloud');ui.bind();
+  ui.flag.checked=!previous;const run=ui.flag.emit('change');
+  assert.equal(ui.flag.checked,previous);assert.equal(ui.flag.dataset.cloudValue,String(previous));
+  assert.match(ui.questions[0].text,/spunta "Professional Cloud"/);ui.answer(accepted);await tick();
+  if(accepted&&!previous){
+   assert.equal(ui.flag.checked,false);assert.equal(ui.saves,0);
+   assert.equal(ui.modals[0].opts.title,'Gestione Professional Cloud');await ui.choose('Richiedi disattivazione');
+  }
+  await run;assert.equal(ui.flag.checked,accepted?!previous:previous);
+  assert.equal(ui.flag.dataset.cloudValue,String(accepted?!previous:previous));
+  assert.equal(ui.action.value,accepted?(previous?'':'Richiedi disattivazione'):(previous?'Mantieni attiva':''));
+  assert.equal(ui.saves,accepted?1:0);
+ }
+});
+test('Professional Cloud storico sconosciuto: nessun No implicito, annulla e chiudi conservano NULL',async()=>{
+ for(const [confirm,decision] of [[false,null],[true,null],[true,'Mantieni attiva']]){
+  const ui=fixture(null,'','Professional Cloud');ui.bind();
+  assert.equal(ui.flag.indeterminate,true);assert.equal(ui.flag.dataset.cloudValue,'');assert.equal(ui.saves,0);
+  ui.flag.checked=true;const run=ui.flag.emit('change');ui.answer(confirm);await tick();
+  if(confirm)await ui.choose(decision);await run;
+  assert.equal(ui.flag.checked,Boolean(confirm&&decision));assert.equal(ui.flag.indeterminate,!Boolean(confirm&&decision));
+  assert.equal(ui.flag.dataset.cloudValue,confirm&&decision?'true':'');assert.equal(ui.saves,confirm&&decision?1:0);
+ }
+});
+test('Professional Cloud checkbox: gestione confermata, doppio clic, risposta obsoleta e readonly',async()=>{
+ const ui=fixture(true,'Mantieni attiva','Professional Cloud');ui.bind();
+ ui.action.value='Richiedi disattivazione';let run=ui.action.emit('change');
+ assert.equal(ui.action.value,'Mantieni attiva');assert.match(ui.questions[0].text,/gestione Professional Cloud/);ui.answer(false);await run;
+ assert.equal(ui.action.value,'Mantieni attiva');
+ ui.action.value='Richiedi disattivazione';run=ui.action.emit('change');ui.answer(true);await run;
+ assert.equal(ui.action.value,'Richiedi disattivazione');assert.equal(ui.saves,1);
+ ui.flag.checked=false;run=ui.flag.emit('change');ui.flag.checked=false;await ui.flag.emit('change');
+ assert.equal(ui.questions.length,1);ui.setStamp('altro-contratto');ui.answer(true);await run;
+ assert.equal(ui.flag.checked,true);assert.equal(ui.saves,1);
+ const ro=fixture(true,'','Professional Cloud');ro.flag.disabled=true;ro.action.disabled=true;ro.bind();
+ assert.equal(ro.modals.length,0);ro.flag.checked=false;await ro.flag.emit('change');
+ assert.equal(ro.questions.length,0);assert.equal(ro.flag.checked,true);
+});
+
+test('Professional Cloud nel payload generale: NULL intatto, presenza/gestione persistite e scope Business',()=>{
+ const source=fs.readFileSync(path.join(__dirname,'../moduli/verifica_contratti.html'),'utf8');
+ const a=source.indexOf('function leggiPayloadDalPopup()'),b=source.indexOf('// CONFERMA VERIFICA',a);
+ const fields={vc_categoria_id:{value:'cat'},vc_professional_cloud:{checked:false,dataset:{cloudValue:''}},vc_professional_cloud_gestione:{value:''}};
+ const ctx={window:{MiroxPda:Pda,__currentVerificaContratto:{cluster_cliente:'Business'}},getContrattoCluster:c=>c.cluster_cliente,
+  document:{getElementById:id=>fields[id],querySelector:()=>({textContent:'Mobile'})}};
+ vm.createContext(ctx);vm.runInContext(source.slice(a,b)+';this.read=leggiPayloadDalPopup;',ctx);
+ for(const value of [null,false,true]){
+  fields.vc_professional_cloud.checked=value===true;fields.vc_professional_cloud.dataset.cloudValue=value==null?'':String(value);
+  fields.vc_professional_cloud_gestione.value=value?'Richiedi disattivazione':'';
+  const out=ctx.read().contratto;assert.equal(out.professional_cloud,value);assert.equal(out.professional_cloud_gestione,value?'Richiedi disattivazione':null);
+  Pda.validateCloud(out,'Mobile','Business');assert.equal(out.reload_forever,false);
+ }
+ ctx.window.__currentVerificaContratto.cluster_cliente='Consumer';
+ const out=ctx.read().contratto;assert.equal(out.professional_cloud,null);assert.equal(out.professional_cloud_gestione,null);
+});
 
 test('Reload Forever: nuovo upload richiede decisione, storico nullable e scope escluso Business', () => {
   for (const category of ['Mobile', 'Customer Base']) {

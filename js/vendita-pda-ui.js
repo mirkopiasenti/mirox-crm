@@ -153,51 +153,65 @@
       modal.foot.querySelector('[data-reload-stop]').addEventListener('click', () => finish(Pda.CLOUD_ACTIONS[1]));
     });
   }
-  const reloadBindings = new WeakMap();
-  function bindReloadForever(root, options) {
-    reloadBindings.get(root)?.cleanup();
+  const flagBindings = new WeakMap();
+  function bindFlagOption(root, options) {
+    flagBindings.get(root)?.cleanup();
     const { flag, action, management, chooseButton } = options;
     if (!flag || !action || !management || !chooseButton) return;
+    const { label, chooseAction } = options;
+    const unknown = options.nullable ? root.querySelector?.('[data-cloud-unknown]') : null;
     let previous = flag.checked, previousAction = previous ? action.value : '', pending = false;
     action.value = previousAction;
     const listeners = [];
     const on = (element, type, listener) => { element.addEventListener(type, listener); listeners.push(() => element.removeEventListener(type, listener)); };
     const binding = { cleanup() { listeners.forEach(remove => remove()); } };
-    reloadBindings.set(root, binding);
+    flagBindings.set(root, binding);
     const context = () => options.context ? options.context() : '';
-    const valid = stamp => reloadBindings.get(root) === binding && root.isConnected !== false && context() === stamp;
-    const show = () => { management.hidden = !flag.checked; };
+    const valid = stamp => flagBindings.get(root) === binding && root.isConnected !== false && context() === stamp;
+    const show = () => {
+      management.hidden = !flag.checked;
+      if (options.nullable) {
+        flag.indeterminate = flag.dataset.cloudValue === '';
+        if (unknown) unknown.hidden = flag.dataset.cloudValue !== '';
+      }
+    };
     const changed = () => { show(); options.onChange?.(); action.dispatchEvent(new Event('change', { bubbles: true })); };
     const lock = async run => {
-      if (pending) { flag.checked = previous; action.value = previousAction; return; }
+      if (pending) { flag.checked = previous; action.value = previousAction; show(); return; }
       pending = true;
       const stamp = context();
       try { await run(() => valid(stamp)); } finally { pending = false; }
     };
     on(flag, 'input', event => event.stopPropagation());
     on(action, 'input', event => event.stopPropagation());
-    on(flag, 'change', async () => {
+    on(flag, 'change', async event => {
+      event.stopPropagation();
       const selected = flag.checked;
       flag.checked = previous;
-      if (selected === previous) return;
+      show();
+      if (flag.disabled || action.disabled || (selected === previous && !(options.nullable && flag.dataset.cloudValue === ''))) return;
       await lock(async current => {
-        const ok = await window.MiroxUI.confirm('Vuoi ' + (selected ? 'attivare' : 'disattivare') + ' la spunta "Reload Forever" per questo contratto?',
-          { title: 'Conferma modifica Reload Forever', okText: 'Conferma modifica', cancelText: 'Annulla' });
+        const ok = await window.MiroxUI.confirm('Vuoi ' + (selected ? 'attivare' : 'disattivare') + ' la spunta "' + label + '" per questo contratto?',
+          { title: 'Conferma modifica ' + label, okText: 'Conferma modifica', cancelText: 'Annulla' });
         if (!ok || !current()) return;
-        const decision = selected ? await chooseReloadForeverAction() : '';
+        const decision = selected ? await chooseAction() : '';
         if (!current() || (selected && !decision)) return;
         previous = selected; previousAction = decision;
-        flag.checked = previous; flag.dataset.reloadConfirmed = String(previous); action.value = previousAction; changed();
+        flag.checked = previous;
+        if (options.nullable) flag.dataset.cloudValue = String(previous);
+        else flag.dataset.reloadConfirmed = String(previous);
+        action.value = previousAction; changed();
       });
     });
-    on(action, 'change', async () => {
+    on(action, 'change', async event => {
+      event.stopPropagation();
       const selected = action.value;
       action.value = previousAction;
       if (selected === previousAction) return;
       await lock(async current => {
-        if (!previous || !Pda.CLOUD_ACTIONS.includes(selected)) return;
+        if (flag.disabled || action.disabled || !previous || !Pda.CLOUD_ACTIONS.includes(selected)) return;
         if (previousAction) {
-          const ok = await window.MiroxUI.confirm('Vuoi cambiare la gestione Reload Forever da "' + previousAction + '" a "' + selected + '"?',
+          const ok = await window.MiroxUI.confirm('Vuoi cambiare la gestione ' + label + ' da "' + previousAction + '" a "' + selected + '"?',
             { title: 'Conferma modifica gestione', okText: 'Conferma modifica', cancelText: 'Mantieni scelta attuale' });
           if (!ok || !current()) return;
         }
@@ -207,10 +221,10 @@
     });
     const choose = () => lock(async current => {
       if (!previous || flag.disabled || action.disabled) return;
-      const decision = await chooseReloadForeverAction();
+      const decision = await chooseAction();
       if (!decision || !current() || decision === previousAction) return;
       if (previousAction) {
-        const ok = await window.MiroxUI.confirm('Vuoi cambiare la gestione Reload Forever da "' + previousAction + '" a "' + decision + '"?',
+        const ok = await window.MiroxUI.confirm('Vuoi cambiare la gestione ' + label + ' da "' + previousAction + '" a "' + decision + '"?',
           { title: 'Conferma modifica gestione', okText: 'Conferma modifica', cancelText: 'Mantieni scelta attuale' });
         if (!ok || !current()) return;
       }
@@ -219,6 +233,12 @@
     on(chooseButton, 'click', choose);
     show();
     if (previous && !previousAction) void choose();
+  }
+  function bindReloadForever(root, options) {
+    return bindFlagOption(root, { ...options, label: 'Reload Forever', chooseAction: chooseReloadForeverAction });
+  }
+  function bindProfessionalCloud(root, options) {
+    return bindFlagOption(root, { ...options, label: 'Professional Cloud', chooseAction: chooseCloudAction, nullable: true });
   }
 
   function formHtml(data = {}, category, options = {}) {
@@ -304,5 +324,5 @@
       });
     });
   }
-  window.MiroxPdaUI = { api, checkCode, duplicateNotice, askCode, askCustomerCode, askCost, askContact, formHtml, bindForm, bindCloudForm, chooseCloudAction, chooseReloadForeverAction, bindReloadForever, readForm, summary, edit };
+  window.MiroxPdaUI = { api, checkCode, duplicateNotice, askCode, askCustomerCode, askCost, askContact, formHtml, bindForm, bindCloudForm, chooseCloudAction, chooseReloadForeverAction, bindReloadForever, bindProfessionalCloud, readForm, summary, edit };
 })();
