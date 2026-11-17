@@ -2,11 +2,11 @@
 
 Aggiornato:2026-11-17. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Professional Cloud come Reload Forever —17/11, push in corso
+## Professional Cloud come Reload Forever —17/11, pubblicata
 
 - Precisazione proprietario: identico checkbox Attivo e flusso Reload Forever nei Campi specifici categoria, non il campo testo readonly proposto prima (superato). Conferma ogni on/off, popup Mantieni attiva/Richiedi disattivazione, select/pulsante gestione con conferma. Binder comune parametrizzato Cloud/Forever; annulla/chiudi/doppio clic/risposte obsolete non mutano la scelta, change prematuri non marcano dirty/bozza.
 - Scope Mobile/Fisso Business. Payload generale salva coppia Cloud con le API/validazioni esistenti; NULL storico resta Non rilevato se non modificato, Verificati disabilitati come Reload e senza popup automatici. Collegato anche il binder Forever al dettaglio editabile per la stessa logica. Nessuna migration/backfill/scrittura DB reale, punteggio/stato o notifica modificati durante lo sviluppo.
-- Suite837/837test/build in copia isolata verdi. Test checkbox Cloud Si/No/gestione/annulla/NULL/stale/doppio/readonly e payload, DOM Node del dettaglio completo con popup e raccolta payload effettivi verdi (shim checked solo QA per Linkedom). README/AGENTS/CLAUDE/databaseREADME aggiornati; nessun browser o pratica reale. Push richiesto17/11: verificare CI, deploy e controlli Cloud nel dettaglio online.
+- Suite837/837test/build in copia isolata verdi. Test checkbox Cloud Si/No/gestione/annulla/NULL/stale/doppio/readonly e payload, DOM Node del dettaglio completo con popup e raccolta payload effettivi verdi (shim checked solo QA per Linkedom). README/AGENTS/CLAUDE/databaseREADME aggiornati; nessun browser o pratica reale. Pubblicato17/11 con `f9a8ec1`: CI44184096630 LinuxNode22/Windows verde,837test; Netlify6afccc4d7196604269750ff4 online. HTTP12asset/HTML/script/stili/PrettyURL e3API401 verificati. Prossimo: ricaricare Verifica Contratti; nessun rilascio funzionale pendente.
 
 ## Opzioni Mobile Business —17/11, pubblicate
 
