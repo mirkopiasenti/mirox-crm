@@ -33,6 +33,7 @@ function loadCommonJs(relativePath, stubs = {}) {
       if (id === './_lib/pda-business-identity') return require('../netlify/functions/_lib/pda-business-identity');
       if (id === './_lib/pda-contract') return require('../netlify/functions/_lib/pda-contract');
       if (id === './_lib/contract-notes') return require('../netlify/functions/_lib/contract-notes');
+      if (id === '../../js/fisso-core') return require('../js/fisso-core');
       if (id === '../../js/customer-base-device') return require('../js/customer-base-device');
       if (id === '../../js/mirox-permissions-core') return require('../js/mirox-permissions-core');
       if (id === './_lib/page-permissions') return require('../netlify/functions/_lib/page-permissions');

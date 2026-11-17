@@ -1,4 +1,5 @@
 'use strict';
+const Fixed = require('../../../js/fisso-core');
 const crypto = require('node:crypto');
 const Core = require('../../../js/verifica-contratti-core');
 const Docs = require('./verifica-documenti');
@@ -69,6 +70,10 @@ function categoryErrors(c) {
     if (c.tipo_acquisto === 'Finanziamento' && !['Findomestic', 'Compass'].includes(c.finanziaria)) fail('Completa la finanziaria del dispositivo.');
   }
   if (c.smartphone_reload === true && !['Mantenere attivo', 'Disattivazione cliente'].includes(c.smartphone_reload_modalita)) fail('Indica se Smartphone Reload deve rimanere attivo o essere disattivata dal cliente.');
+  if (cat === 'FISSO') {
+    try { Fixed.validate(c,'Fisso',c.cluster_cliente,{required:true,allowRetired:Fixed.base(c.tecnologia_fisso)==='FWA Voce'}); } catch(error) { fail(error.message); }
+    if (!c.codice_contratto) fail('Codice contratto Fisso obbligatorio.');
+  }
   if (cat === 'FISSO' && (!['Nuova Attivazione', 'Portabilita'].includes(c.tipo_attivazione) || !c.convergenza || c.prezzo_fisso === null || c.prezzo_fisso === undefined)) fail('Completa tipo attivazione, prezzo e convergenza del Fisso.');
   if (cat === 'ALLARMI' && !['Finanziamento', 'Anticipo'].includes(c.modalita_pagamento)) fail('Completa la modalità di pagamento Allarmi.');
   if (cat === 'ASSICURAZIONI' && (!['RID', 'Carta di Credito', 'Carta di Debito'].includes(c.modalita_pagamento_assicurazione) || !['Mensile', 'Annuale'].includes(c.ricorrenza_assicurazione))) fail('Completa pagamento e ricorrenza dell’assicurazione.');

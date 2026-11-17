@@ -175,7 +175,7 @@ function pdaWizardFixture({ reload = {}, completed = false, duplicate = false, m
   const response={...mobile,...reload,cellulare:'3359999999',codice_contratto:'NEW',cf_piva:differentClient?'VRDLGI80A01H501U':null,codice_rivenditore:'9000822241',codice_cliente:customerCode};
   if(incomplete)response.numero_telefono=null;
   if(missingCode)response.codice_contratto=null;
-  const ctx={runtimeState,refs,window:{MiroxPda:Pda,MiroxPdaUI:{
+  const ctx={runtimeState,refs,window:{MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda,MiroxPdaUI:{
     async askCode(){calls.push('ask-code');return 'MANUAL';},
     async askCustomerCode(){calls.push('ask-customer-code');if(staleCustomer)runtimeState.pdaRevision++;return cancelCustomer?null:'P0001234567';},
     async askContact(){calls.push('ask-contact');return '3351234567';},
@@ -302,7 +302,7 @@ test('editor non permette di annullare un salvataggio mentre la richiesta e in c
   const http=new Promise(resolve=>{resolveHttp=resolve;});
   const modal={body:{querySelectorAll(){return fields;},querySelector(){return null;}},
     foot:{querySelector(selector){return selector.includes('cancel')?cancel:save;}},close(){closed=true;options.onClose();}};
-  const window={MiroxPda:Pda,MiroxSafe:{escapeHtml:v=>v,isUuid:()=>true},MiroxApi:{fetch:()=>http},
+  const window={MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda,MiroxSafe:{escapeHtml:v=>v,isUuid:()=>true},MiroxApi:{fetch:()=>http},
     MiroxUI:{_build(opts){options=opts;return modal;}}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../js/vendita-pda-ui.js'),'utf8'),{window});
   const result=window.MiroxPdaUI.edit({id,categoria_snapshot:'Fisso',codice_contratto:'OLD'});
@@ -362,7 +362,7 @@ test('AI incompleta si ferma prima dello staging e non apre campi manuali in aut
 });
 
 function pdaUiFixture(){
-  const window={MiroxPda:Pda,MiroxSafe:{escapeHtml:v=>String(v).replace(/</g,'&lt;').replace(/"/g,'&quot;')}};
+  const window={MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda,MiroxSafe:{escapeHtml:v=>String(v).replace(/</g,'&lt;').replace(/"/g,'&quot;')}};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../js/vendita-pda-ui.js'),'utf8'),{window});
   return window.MiroxPdaUI;
 }
@@ -411,7 +411,7 @@ test('lettura AI/manuale e valori nascosti sopravvivono al restore e al reset de
   const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
   const a=source.indexOf(' function renderPdaFields(data)'),b=source.indexOf(' async function checkPendingCode()',a);
   const root={dataset:{},addEventListener(){}};let last;
-  const ctx={refs:{},document:{getElementById:()=>root},getCategoriaName:()=> 'Mobile',queueDraftSave(){},window:{MiroxPda:Pda,
+  const ctx={refs:{},document:{getElementById:()=>root},getCategoriaName:()=> 'Mobile',queueDraftSave(){},window:{MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda,
     MiroxPdaUI:{formHtml(data,cat,options){last={data,options};return 'form';},bindForm(){},readForm(){return last.data;}}}};
   vm.runInNewContext(source.slice(a,b)+';this.render=renderPdaFields;this.read=readPdaFields;',ctx);
   ctx.render({...mobile,pda_lettura:'ai'});assert.equal(last.options.reading,'ai');assert.equal(ctx.read().costo_offerta_mensile,9.99);
@@ -426,7 +426,7 @@ test('payload server conserva i valori PDA nascosti senza inviare metadati UI',(
   const item={...Pda.validate({...mobile,portabilita:true,numero_telefono:'3491234567',numero_mnp:'3491234567',numero_provvisorio:'3931234567',operatore_provenienza:'Vodafone'},'Mobile'),
     codice_cliente:'P0001234567',pda_lettura:'ai',pda_dispositivo_auto:false,pda_dispositivo_manuale:true,pda_tipo_attivazione_auto:'Portabilita',pda_tipo_attivazione_manuale:true,categoria_nome:'Mobile',categoria_id:'cat',offerta_id:'offer',flags:{},files:{},codice_rivenditore:'9000822241'};
   const state={cart:{contratti:[item]}},cliente={cf_piva:'RSSMRA80A01H501U'};
-  const ctx={window:{MiroxPda:Pda,MiroxIdentitaCore:require('../js/identita-upload-core'),MiroxIdentitaUpload:{get:()=>({token:'fixture',result:{cittadinanza:'ue'}})}},state,getClienteFormData:()=>cliente,validateClienteData(){},
+  const ctx={window:{MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda,MiroxIdentitaCore:require('../js/identita-upload-core'),MiroxIdentitaUpload:{get:()=>({token:'fixture',result:{cittadinanza:'ue'}})}},state,getClienteFormData:()=>cliente,validateClienteData(){},
     praticaFiles:{documento_identita:[{}]},runtimeState:{},refs:{originePratica:{value:'spontaneo'},operatoreId:{value:'operator'}},
     CODICI_RIVENDITORE:['9001415852'],CODICE_RIVENDITORE_DEFAULT:'9001415852'};
   vm.runInNewContext(source.slice(a,b)+';this.payload=buildInvioPayload;',ctx);

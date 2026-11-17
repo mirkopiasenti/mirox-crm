@@ -241,6 +241,8 @@ body > .container { max-width: 1540px !important; width: 100%; }
 <script src="../js/auth.js"></script>
 <script src="../js/mirox-ui.js"></script>
 <script src="../js/mirox-api.js"></script>
+<script src="../js/fisso-core.js"></script>
+<script src="../js/fisso-ui.js"></script>
 <script src="../js/vendita-pda-core.js"></script>
 <script src="../js/vendita-pda-ui.js"></script>
 <script src="../js/segnalazione-mobile-core.js"></script>
@@ -536,6 +538,7 @@ async function caricaContratti(statoControllo) {
         dispositivo_associato, imei, fascia_prezzo, tipo_acquisto, finanziaria, kolme,
         smartphone_reload, smartphone_reload_modalita,
         pod_pdr, numero_contratto_energia, ex_fornitore, assicurazione_impianti, prezzo_fisso, convergenza, reload_exchange, reload_forever, reload_forever_gestione,
+        tecnologia_fisso, professional_box, codice_cliente_fisso, codice_pos_fisso,
         codice_contratto, costo_offerta_mensile, portabilita, numero_telefono, numero_provvisorio, numero_mnp, operatore_provenienza, professional_cloud, professional_cloud_gestione,
         codice_rivenditore,
         punteggio_offerta, punteggio_opzione, punteggio_extra, punteggio_totale,
@@ -665,7 +668,7 @@ function renderListaContratti(stateKey) {
   const rows = items.map(c => {
     const ana = c.anagrafica || {};
     const operatoreNome = (c.operatore && c.operatore.nome) || '-';
-    const offertaTxt = c.nome_offerta_snapshot || '-';
+    const offertaTxt = c.tecnologia_fisso || c.nome_offerta_snapshot || '-';
     const categoriaTxt = c.categoria_snapshot || '-';
     const cluster = getContrattoCluster(c) || '-';
     // Solo per contratti Fisso mostro sotto l'offerta un chip con la convergenza scelta,
@@ -841,6 +844,7 @@ function apriPopupDettaglio(c, opts) {
     </div>`;
   const bodyHtml = `${statoHtml}${pdaHtml}
     <div class="det-section" data-contract-notes></div>
+    ${window.MiroxFisso.isFixed(c.categoria_snapshot) ? '<div class="det-section" data-verifica-fixed><h4>Dati Fisso</h4>'+window.MiroxFissoUI.form(c,c.cluster_cliente,{disabled:isReadOnly})+'</div>' : ''}
     ${window.MiroxSegnalazioneMobileCore.isMobile(c.categoria_snapshot) && window.MiroxPermissionsUI?.allowedPath('/moduli/verifica_contratti.html') ? '<div class="det-section"><button type="button" class="mx-btn mx-btn-primary" data-apri-segnalazione-mobile>Apri segnalazione</button></div>' : ''}
     <div class="det-section">
       <h4>Dati cliente <small style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;font-size:11px;">(modifiche su tabella anagrafica condivisa)</small></h4>
@@ -1090,12 +1094,6 @@ function apriPopupDettaglio(c, opts) {
   const m = window.MiroxUI._build({ title: titolo, bodyHtml, footerHtml, large: true,
     canClose: () => !noteController?.isSaving(), onClose: () => noteController?.dispose() });
   let pdaOtherFieldsDirty = false;
-  window.MiroxPdaUI.bindReloadForever(m.body, {
-    flag: m.body.querySelector('#vc_reload_forever'), action: m.body.querySelector('#vc_reload_forever_gestione'),
-    management: m.body.querySelector('#vc_field_reload_forever_gestione'), chooseButton: m.body.querySelector('#vc_reload_forever_choose'),
-    context: () => [c.id, c.updated_at, m.body.querySelector('#vc_categoria_id')?.value, m.body.querySelector('#vc_offerta_id')?.value].join('|'),
-    onChange: () => { pdaOtherFieldsDirty = true; }
-  });
   m.body.addEventListener('input', e => { if (!e?.target?.closest?.('[data-contract-notes]')) pdaOtherFieldsDirty = true; });
   m.body.addEventListener('change', e => { if (!e?.target?.closest?.('[data-contract-notes]')) pdaOtherFieldsDirty = true; });
   m.body.querySelector('[data-apri-segnalazione-mobile]')?.addEventListener('click', async () => {
@@ -1205,7 +1203,32 @@ function _offertaNomeSelezionata() {
   return opt ? (opt.textContent || '').trim() : '';
 }
 
+function syncFixedSection() {
+  const c=window.__currentVerificaContratto || {};
+  const isFisso=_isCat(_categoriaNomeSelezionato(),'Fisso');
+  let root=document.querySelector('[data-verifica-fixed]');
+  if(isFisso && !root) {
+    const notes=document.querySelector('[data-contract-notes]');
+    root=document.createElement('div');root.className='det-section';root.dataset.verificaFixed='';
+    root.innerHTML='<h4>Dati Fisso</h4>'+window.MiroxFissoUI.form(c,c.cluster_cliente);
+    notes.after(root);
+  }
+  if(root) {
+    root.hidden=!isFisso;
+    if(isFisso) window.MiroxFissoUI.bind(root,{context:()=>[c.id,c.updated_at,_categoriaNomeSelezionato()].join('|'),onFixedChange:data=>{
+      const offer=window.MiroxFisso.findOffer((window.__currentVerificaCataloghi||{}).offerte||[],data.tecnologia_fisso,data.professional_box,c.cluster_cliente);
+      if(offer && data.tecnologia_fisso!==c.tecnologia_fisso) {
+        document.getElementById('vc_offerta_id').value=offer.id;
+        repopulateOpzioni();
+      }
+      applyVisibilityRules();
+    }});
+  }
+  document.getElementById('vc_field_offerta').hidden=isFisso;
+}
+
 function applyVisibilityRules() {
+  syncFixedSection();
   const cat = _categoriaNomeSelezionato();
   const isFisso = _isCat(cat, 'Fisso');
   const isEnergia = _isCat(cat, 'Energia');
@@ -1214,7 +1237,9 @@ function applyVisibilityRules() {
   const isAllarmi = _isCat(cat, 'Allarmi');
   // Fisso FWA Indoor: device sempre associato (modem) ma Kolme + Smartphone Reload non rilevanti
   const offertaNome = _offertaNomeSelezionata().toLowerCase();
-  const isFwaIndoor = isFisso && offertaNome.includes('fwa') && offertaNome.includes('indoor');
+  const fixedRoot=document.querySelector('[data-verifica-fixed]');
+  const fixedBase=fixedRoot ? window.MiroxFisso.base(window.MiroxFissoUI.read(fixedRoot).tecnologia_fisso) : '';
+  const isFwaIndoor = isFisso && (fixedBase==='FWA Indoor' || (offertaNome.includes('fwa') && offertaNome.includes('indoor')));
 
   // Categoria/Offerta sempre visibili
   // Opzione: visibile solo se ci sono opzioni disponibili in tendina
@@ -1243,7 +1268,7 @@ function applyVisibilityRules() {
   _show('vc_section_device', deviceVisible);
   // Sotto-campi visibili solo se dispositivo_associato = true
   const dispVal = (document.getElementById('vc_dispositivo_associato') || {}).value || '';
-  const hasDevice = deviceVisible && dispVal === 'true';
+  const hasDevice = deviceVisible && (isFwaIndoor || dispVal === 'true');
   _show('vc_field_imei', hasDevice);
   _show('vc_field_fascia', hasDevice);
   _show('vc_field_tipo_acq', hasDevice);
@@ -1598,6 +1623,7 @@ function leggiPayloadDalPopup() {
   const opzSel = newOpzioneId ? (cataloghi.opzioni || []).find(o => o.id === newOpzioneId) : null;
 
   const contratto = {
+    ...(isFisso ? window.MiroxFisso.validate(window.MiroxFissoUI.read(document.querySelector('[data-verifica-fixed]')), 'Fisso', c.cluster_cliente, {required:true,allowRetired:window.MiroxFisso.base(c.tecnologia_fisso)==='FWA Voce'}) : {}),
     data_contratto: dataContrattoIso,
     operatore_id: v('vc_operatore_id') || null,
     categoria_id: v('vc_categoria_id') || null,

@@ -33,7 +33,7 @@ function fixture(value='false',actionValue=''){
  root.querySelector=s=>s.includes('"professional_cloud"')?cloud:s.includes('"professional_cloud_gestione"')?action:s==='[data-cloud-management]'?management:s==='[data-cloud-choose]'?button:null;
  root.querySelectorAll=()=>[cloud,action];
  const source=fs.readFileSync(path.join(__dirname,'../js/vendita-pda-ui.js'),'utf8');
- const window={MiroxPda:Pda,MiroxSafe:{escapeHtml:v=>String(v).replace(/</g,'&lt;')},MiroxUI:{confirm(message){return new Promise(resolve=>confirmations.push({message,resolve}));},_build(options){
+ const window={MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda,MiroxSafe:{escapeHtml:v=>String(v).replace(/</g,'&lt;')},MiroxUI:{confirm(message){return new Promise(resolve=>confirmations.push({message,resolve}));},_build(options){
  const callbacks={};const modal={options,foot:{querySelector:s=>({addEventListener(type,fn){callbacks[s]=fn;}})},close(){options.onClose();},choose(key){callbacks[key]();}};dialogs.push(modal);return modal;
  }}};
  vm.runInNewContext(source,{window,Event:class{constructor(type,options){this.type=type;this.bubbles=options?.bubbles;}},setTimeout});
@@ -87,7 +87,7 @@ test('No a Si confermato salva presenza e decisione insieme',async()=>{
 });
 test('restore e nuova PDA: coppia Cloud preservata, cambio cluster la rimuove',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8'),a=source.indexOf(' function renderPdaFields(data)'),b=source.indexOf(' async function checkPendingCode()',a),root={dataset:{},addEventListener(){}};let data;
- const refs={cluster:{value:'Business'}},ctx={refs,document:{getElementById:()=>root},getCategoriaName:()=> 'Mobile',queueDraftSave(){},window:{MiroxPda:Pda,MiroxPdaUI:{formHtml(v){data=v;return '';},bindForm(){},readForm(){return data;}}}};
+ const refs={cluster:{value:'Business'}},ctx={refs,document:{getElementById:()=>root},getCategoriaName:()=> 'Mobile',queueDraftSave(){},window:{MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda,MiroxPdaUI:{formHtml(v){data=v;return '';},bindForm(){},readForm(){return data;}}}};
  vm.runInNewContext(source.slice(a,b)+';this.render=renderPdaFields;this.read=readPdaFields;',ctx);
  ctx.render({...mobile,professional_cloud:true,professional_cloud_gestione:'Richiedi disattivazione'});const draft=ctx.read();ctx.render(draft);assert.equal(ctx.read().professional_cloud_gestione,'Richiedi disattivazione');
  refs.cluster.value='Consumer';ctx.render();assert.equal(ctx.read().professional_cloud,null);assert.equal(ctx.read().professional_cloud_gestione,null);assert.equal(ctx.read().codice_contratto,'C001');
@@ -96,7 +96,7 @@ test('restore e nuova PDA: coppia Cloud preservata, cambio cluster la rimuove',(
 test('payload wizard e normalizzazione create conservano Cloud e gestione',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8'),a=source.indexOf(' function buildInvioPayload()'),b=source.indexOf(' async function inviaPratica()',a);
  const item={...mobile,professional_cloud:true,professional_cloud_gestione:'Mantieni attiva',codice_cliente:'P0001',categoria_nome:'Mobile',categoria_id:'cat',offerta_id:'offer',flags:{},files:{}};
- const ctx={window:{MiroxPda:Pda,MiroxIdentitaCore:require('../js/identita-upload-core'),MiroxIdentitaUpload:{get:()=>({token:'fixture',result:{cittadinanza:'ue'}})}},state:{cart:{contratti:[item]}},getClienteFormData:()=>({cluster:'Business'}),validateClienteData(){},praticaFiles:{documento_identita:[{}]},runtimeState:{},refs:{originePratica:{value:'spontaneo'},operatoreId:{value:'operator'}},CODICE_RIVENDITORE_DEFAULT:'9001415852'};
+ const ctx={window:{MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda,MiroxIdentitaCore:require('../js/identita-upload-core'),MiroxIdentitaUpload:{get:()=>({token:'fixture',result:{cittadinanza:'ue'}})}},state:{cart:{contratti:[item]}},getClienteFormData:()=>({cluster:'Business'}),validateClienteData(){},praticaFiles:{documento_identita:[{}]},runtimeState:{},refs:{originePratica:{value:'spontaneo'},operatoreId:{value:'operator'}},CODICE_RIVENDITORE_DEFAULT:'9001415852'};
  vm.runInNewContext(source.slice(a,b)+';this.payload=buildInvioPayload;',ctx);const dto=ctx.payload().contratti[0];
  assert.equal(dto.professional_cloud,true);assert.equal(dto.professional_cloud_gestione,'Mantieni attiva');
  const normalized=require('../netlify/functions/crea-vendita-pratica-carrello')._test.normalizeContractInput(dto,0);assert.equal(normalized.professional_cloud,true);assert.equal(normalized.professional_cloud_gestione,'Mantieni attiva');
@@ -138,7 +138,7 @@ test('Fisso Business: validazione conserva Cloud e gestione, azzera soltanto i d
 test('Fisso nel payload create conserva la coppia Cloud senza trasformarla in dati Mobile',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8'),a=source.indexOf(' function buildInvioPayload()'),b=source.indexOf(' async function inviaPratica()',a);
  const item={codice_contratto:'F001',professional_cloud:true,professional_cloud_gestione:'Mantieni attiva',codice_cliente:'P0001',categoria_nome:'Fisso',categoria_id:'cat',offerta_id:'offer',flags:{},files:{}};
- const ctx={window:{MiroxPda:Pda,MiroxIdentitaCore:require('../js/identita-upload-core'),MiroxIdentitaUpload:{get:()=>({token:'fixture',result:{cittadinanza:'ue'}})}},state:{cart:{contratti:[item]}},getClienteFormData:()=>({cluster:'Business'}),validateClienteData(){},praticaFiles:{documento_identita:[{}]},runtimeState:{},refs:{originePratica:{value:'spontaneo'},operatoreId:{value:'operator'}},CODICE_RIVENDITORE_DEFAULT:'9001415852'};
+ const ctx={window:{MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda,MiroxIdentitaCore:require('../js/identita-upload-core'),MiroxIdentitaUpload:{get:()=>({token:'fixture',result:{cittadinanza:'ue'}})}},state:{cart:{contratti:[item]}},getClienteFormData:()=>({cluster:'Business'}),validateClienteData(){},praticaFiles:{documento_identita:[{}]},runtimeState:{},refs:{originePratica:{value:'spontaneo'},operatoreId:{value:'operator'}},CODICE_RIVENDITORE_DEFAULT:'9001415852'};
  vm.runInNewContext(source.slice(a,b)+';this.payload=buildInvioPayload;',ctx);const dto=ctx.payload().contratti[0];assert.equal(dto.professional_cloud,true);assert.equal(dto.professional_cloud_gestione,'Mantieni attiva');assert.equal(dto.numero_telefono,null);
  const normalized=require('../netlify/functions/crea-vendita-pratica-carrello')._test.normalizeContractInput(dto,0);assert.equal(normalized.professional_cloud,true);assert.equal(normalized.professional_cloud_gestione,'Mantieni attiva');
 });

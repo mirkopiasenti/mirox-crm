@@ -228,6 +228,7 @@
     let html = options.wizard && options.reading === 'ai'
       ? '<input type="hidden" data-pda-field="codice_contratto" value="' + esc(data.codice_contratto) + '">'
       : input('codice_contratto', 'Codice contratto *', 'maxlength="80"');
+    if (String(category).toLowerCase() === 'fisso' && options.wizard) html += window.MiroxFissoUI.form(data, options.cluster || data.cluster_cliente, options);
     if (String(category).toLowerCase() !== 'mobile') return html + (Pda.cloudScope(category, options.cluster || data.cluster_cliente) ? cloudFormHtml(data, options.wizard === true) : '');
     html += options.wizard
       ? '<input type="hidden" data-pda-field="costo_offerta_mensile" value="' + esc(data.costo_offerta_mensile) + '">'
@@ -244,6 +245,7 @@
     return html;
   }
   function bindForm(root, options = {}) {
+    window.MiroxFissoUI?.bind(root, options);
     bindCloudForm(root, options);
     const port = root.querySelector('[data-pda-field="portabilita"]');
     if (!port) return;
@@ -258,7 +260,7 @@
     const out = {};
     root.querySelectorAll('[data-pda-field]').forEach(el => { out[el.dataset.pdaField] = el.value; });
     if (out.portabilita === 'true') out.numero_mnp = out.numero_telefono;
-    return out;
+    return { ...out, ...window.MiroxFissoUI?.read(root) };
   }
   function summary(data = {}, options = {}) {
     const rows = options.wizard && data.pda_lettura === 'ai' ? [] : [['Codice contratto', data.codice_contratto]];

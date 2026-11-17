@@ -37,7 +37,7 @@ test('render opzioni preseleziona ma conserva correzioni e selezione vuota espli
   const a=source.indexOf(' function renderOpzioni('),b=source.indexOf(' function renderReload(',a);
   const root={dataset:{pdaOptionManual:'false'}},refs={opzione:{value:''},offerta:{value:'offer'}};
   let data={portabilita:true,operatore_provenienza:'Iliad'},category='Mobile',rows=options;
-  const ctx={refs,state:{opzioni:options},window:{MiroxPda:Pda},document:{getElementById:()=>root},getCategoriaName:()=>category,isCategory:(a,b)=>a===b,
+  const ctx={refs,state:{opzioni:options},window:{MiroxFisso:require('../js/fisso-core'),MiroxPda:Pda},document:{getElementById:()=>root},getCategoriaName:()=>category,isCategory:(a,b)=>a===b,
     filteredOpzioni:()=>rows,readPdaFields:()=>data,optionHtml:(id,label)=>id+label};
   vm.runInNewContext(source.slice(a,b)+';this.render=renderOpzioni;this.suggest=maybeSelectMobileOption;',ctx);
   ctx.render();assert.equal(refs.opzione.value,'promo');
@@ -54,7 +54,7 @@ test('override Mobile si ripristina, vecchie scelte si conservano e un nuovo PDA
   const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
   const a=source.indexOf(' function renderPdaFields(data)'),b=source.indexOf(' async function checkPendingCode()',a);
   const root={dataset:{},addEventListener(){}};
-  const ctx={refs:{},document:{getElementById:()=>root},getCategoriaName:()=> 'Mobile',queueDraftSave(){},window:{MiroxPda:Pda,
+  const ctx={refs:{},document:{getElementById:()=>root},getCategoriaName:()=> 'Mobile',queueDraftSave(){},window:{MiroxFisso:require('../js/fisso-core'),MiroxPda:Pda,
     MiroxPdaUI:{formHtml:()=>'',bindForm(){},readForm:()=>({})}}};
   vm.runInNewContext(source.slice(a,b)+';this.render=renderPdaFields;this.read=readPdaFields;',ctx);
   ctx.render({pda_lettura:'ai',pda_opzione_manuale:true,opzione_id:'standard'});

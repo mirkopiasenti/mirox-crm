@@ -1,3 +1,4 @@
+const Fixed = require('../../js/fisso-core');
 const Pda = require('./_lib/pda-contract');
 const { requireAuth: requireBaseAuth, getAdminClient } = require('./_lib/require-auth');
 const ContractNotes = require('./_lib/contract-notes');
@@ -12,6 +13,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 const MANUAL_REVIEW_STATES = new Set(['da_verificare', 'da_confermare']);
 const CONTRACT_FIELDS = new Set([
   ...Pda.FIELDS,
+  ...Fixed.FIELDS,
   'data_contratto',
   'operatore_id',
   'categoria_id',
@@ -228,6 +230,7 @@ async function updateContract({ supabase, auth, body }) {
     .select(`
       id, anagrafica_id, pratica_id, stato_controllo, updated_at,
       categoria_id, categoria_snapshot, offerta_id, opzione_id, reload_id, reload_forever, reload_forever_gestione, assicurazione_impianti,
+      tecnologia_fisso, professional_box, codice_cliente_fisso, codice_pos_fisso,
       ricorrenza_assicurazione, codice_contratto, costo_offerta_mensile, portabilita,
       numero_telefono, numero_provvisorio, numero_mnp, operatore_provenienza, cluster_cliente, professional_cloud, professional_cloud_gestione,
       punteggio_gara_offerta, punteggio_gara_opzione,
@@ -266,6 +269,18 @@ async function updateContract({ supabase, auth, body }) {
         patch.reload_forever = false;
         patch.reload_forever_gestione = null;
       }
+      if (Fixed.isFixed(finalCategory)) {
+        const fixed = Fixed.validate({...current,...patch}, finalCategory, current.cluster_cliente, {required:mode==='verify' || current.tecnologia_fisso!=null,allowRetired:current.tecnologia_fisso===patch.tecnologia_fisso && Fixed.base(current.tecnologia_fisso)==='FWA Voce'});
+        Object.assign(patch,fixed);
+        if (mode==='verify' && !Pda.code(patch.codice_contratto || current.codice_contratto)) throw new Error('Codice contratto obbligatorio');
+        if (fixed.tecnologia_fisso && ((current.tecnologia_fisso && fixed.tecnologia_fisso!==current.tecnologia_fisso) || (current.professional_box!==null && current.professional_box!==undefined && fixed.professional_box!==current.professional_box) || (patch.offerta_id && patch.offerta_id!==current.offerta_id))) {
+          const {data:offers,error:offerError}=await supabase.from('vendita_offerte').select('id,nome_offerta,cluster_cliente').eq('categoria_id',patch.categoria_id || current.categoria_id).eq('attiva',true);
+          if(offerError) throw offerError;
+          const selected=Fixed.findOffer(offers || [],fixed.tecnologia_fisso,fixed.professional_box,current.cluster_cliente);
+          if(!selected) throw new Error('Configurazione offerta Fisso non valida');
+          patch.offerta_id=selected.id;
+        }
+      } else if (Fixed.isFixed(current.categoria_snapshot)) { Object.assign(patch,Object.fromEntries(Fixed.FIELDS.map(k=>[k,null]))); }
       const requireReload = current.reload_forever !== true || current.reload_forever_gestione != null || patch.reload_forever_gestione != null;
       Object.assign(patch, Pda.validateReloadForever({ ...current, ...patch }, finalCategory, { required: requireReload }));
       const pdaPatch = Pda.validate({ ...current, ...patch }, finalCategory,

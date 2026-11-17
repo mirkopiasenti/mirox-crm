@@ -24,7 +24,7 @@ function fixture(active = false, actionValue = '') {
   flag.checked = active;
   let stamp = 'initial', saves = 0;
   const questions = [], modals = [];
-  const window = {MiroxPda: Pda, MiroxSafe: {escapeHtml: v => String(v)}, MiroxUI: {
+  const window = {MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda: Pda, MiroxSafe: {escapeHtml: v => String(v)}, MiroxUI: {
     confirm(text) { return new Promise(resolve => questions.push({text, resolve})); },
     _build(opts) {
       const buttons = {};
@@ -189,7 +189,7 @@ test('Verifica Contratti: dettaglio rende la scelta e payload preserva entrambe 
   const a=source.indexOf('        <div class="det-field" id="vc_field_reload_forever">'),b=source.indexOf('\n    <div class="det-section">',a);
   const start=source.indexOf('function leggiPayloadDalPopup()'),end=source.indexOf('// CONFERMA VERIFICA',start);
   for(const decision of [...Pda.CLOUD_ACTIONS,null]){
-    const ctx={c:{reload_forever:true,reload_forever_gestione:decision},disabled:'disabled',window:{MiroxPda:Pda},escapeHtml:v=>String(v)};
+    const ctx={c:{reload_forever:true,reload_forever_gestione:decision},disabled:'disabled',window:{MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda},escapeHtml:v=>String(v)};
     vm.runInNewContext('this.html=`'+source.slice(a,b)+'`;',ctx);
     assert.match(ctx.html,/Gestione Reload Forever/);assert.match(ctx.html,/vc_reload_forever_gestione" disabled/);
     if(decision)assert.ok(ctx.html.includes('value="'+decision+'" selected'));

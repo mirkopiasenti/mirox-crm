@@ -1768,3 +1768,7 @@ Netlify6ae593db85cb755b0859a322 verificato via HTTP/asset/API401; collaudo/email
 attive preservate, nessun nuovo dato cliente o invio di prova.
 Fonte AGENTS e docs/IDENTITA_RECUPERO_MANUALE_2026-10-30.md.
 Correzione31/10/2026 reinserimenti Fisso: Avanzamento Mensile include il nuovo Fisso finalizzato secondo stato/tecnologia; Day by Day conserva solo l’originale nel giorno iniziale. Invio, KO origine e flag `reinserimento_fisso_finalizzato` atomici tramite migration `20261031122329_reinserimenti_fisso.sql` (applicata production come20261031123549). Gare e altre categorie conservate. Pubblicata31/10: f9b6476, CI41201937570 e Netlify6ae5e106dec3fe1281bcb3f2 verificati. Dettagli in AGENTS/databaseREADME e promemoria; backfill3flag senza invalidare verifiche o notifiche, dati/CC invariati.
+
+### Flusso Fisso17/11/2026
+
+Nuove regole Consumer/Business, Professional Box manuale, quattro dati precompilati nella sola Verifica e Controllo Fissi solo riepilogo/esiti: fonte aggiornata AGENTS.md, sezione Nuovo flusso Fisso. Dettaglio separato dal catalogo per conservare punti/Day; storico con script separato e stati invariati. Non usare file comuni o 2,5 per distinguere la rete, non dedurre Fritz dalla PDA. Push richiesto17/11, esito in docs/STATO_LAVORO.md.

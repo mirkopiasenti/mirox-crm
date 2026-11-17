@@ -1,6 +1,7 @@
 'use strict';
 
 const Pda = require('../../../js/vendita-pda-core');
+const Fixed = require('../../../js/fisso-core');
 const MAX_PAGES = 60;
 const MAX_ITEMS = 100000;
 
@@ -39,7 +40,7 @@ function fixedActivationFields(text) {
 
 function customerCodeFields(text) {
   // Etichetta esplicita, mai Codice Contratto/POS. La riga puo' contenere anche altri campi.
-  const matches = Array.from(text.matchAll(/\bCodice\s+Cliente\s*:[ \t]*([^\n]*)/gi));
+  const matches = Array.from(text.matchAll(/\bCodice[ \t]+Cliente[ \t]*:?[ \t]*([^\n]*)/gi));
   if (!matches.length || matches.every(m => !m[1].trim())) return {};
   const values = matches.map(m => {
     const raw = m[1].split(/\b(?:Codice|Numero|Data|Pagina|Offerta)\b/i)[0].trim();
@@ -93,7 +94,9 @@ function sectionFields(text, completeText = true) {
     if (/\uFFFD|\uFFFF/.test(match[1])) return undefined;
     return completeText && /\bCosto\s+attivazione|Confermo\s+di\s+aver/i.test(block) ? false : undefined;
   })];
-  const fixed = { ...fixedActivationFields(normalized), ...customerCodeFields(normalized), ...reload };
+  const contractCodes=Array.from(normalized.matchAll(/\b(?:Numero|Codice)[ \t]+Contratto[ \t]*:?[ \t]*([A-Z0-9][A-Z0-9/ -]{0,79})/gi),m=>Pda.code(m[1].split(/\s{2,}|\b(?:Per|Data|Offerta)\b/i)[0]));
+  const contractField=contractCodes.length ? {codice_contratto:contractCodes.every(v=>v&&v===contractCodes[0])?contractCodes[0]:null}:{};
+  const fixed = { ...contractField, ...fixedActivationFields(normalized), ...customerCodeFields(normalized), ...fixedTechnologyFields(normalized,completeText), ...reload };
   if (cloudValues.some(v => v !== undefined)) {
     if (cloudValues.every(v => v !== undefined && v === cloudValues[0])) fixed.professional_cloud = cloudValues[0];
     else fixed.professional_cloud = null;
@@ -115,6 +118,22 @@ function sectionFields(text, completeText = true) {
     value => value.split(/\b(?:Data\s+preferita|Seriale\s+SIM|Firma\s*:)/i)[0].trim().slice(0, 100) || null);
   if (operator.found) out.operatore_provenienza = operator.value;
   return out;
+}
+
+function fixedTechnologyFields(text, complete = true) {
+  // Solo il nome nel riquadro Offerta della proposta, non pubblicita o condizioni.
+  const headers=Array.from(String(text).matchAll(/Linea\s+telefonica\s+su\s+cui\s+attivare\s+il\s+servizio[^\n]*Offerta\s*\(\s*\*\s*\)/gi));
+  const names=headers.flatMap(h=> {
+    const block=text.slice(h.index+h[0].length,h.index+h[0].length+700).split(/\n[^\n]*(?:Opzioni\s+aggiuntive|Dettaglio\s+dell)/i)[0];
+    return Array.from(block.matchAll(/\b(Internet\s+(?:100|200)(?:\s+Professional)?|Voce\s+Casa|Super\s+Fibra(?:\s+Professional)?(?:\s+su\s+Aree\s+Bianche|\s+2[,.]5\s+Giga)?|Super\s+Internet\s+(?:Casa|Professional)\s+5G)\b/gi),m=>m[1].replace(/\s+/g,' '));
+  });
+  if(!names.length) return {};
+  const unique=[...new Set(names.map(n=>n.toLowerCase()))];
+  if(unique.length!==1) return {offerta_fisso_pda:null,tecnologia_fisso:null};
+  const modem=/Modulo\s+di\s+Cessione\s+del\s+credito[\s\S]*?SERIALE\s+MODEM\s*:?\s*\d{8,25}\b/i.test(text);
+  const amount=/Modulo\s+di\s+Cessione\s+del\s+credito[\s\S]*?cede\s+(?:l['’])?importo\s+di\s+\d+(?:[.,]\d{1,2})?\s*euro/i.test(text);
+  const credit=modem?(amount?true:null):complete?false:null;
+  return {offerta_fisso_pda:names[0],cessione_credito_modem:credit,tecnologia_fisso:Fixed.recognize(names[0],credit)};
 }
 
 function imageBody(operators, OPS) {
@@ -166,11 +185,12 @@ async function readPdfData(buffer, { inspectImages = true } = {}) {
     }
     // Su un PDF ibrido/scansione l'assenza del titolo MNP nel testo non ne prova l'assenza visiva.
     const completeText = pages.every(items => items.reduce((n, item) => n + item.str.trim().length, 0) >= 100);
-    return { fields: sectionFields(layoutText(pages), completeText), pages: pages.map(items => layoutText([items])), completeText, hasRasterBody };
+    const fields=sectionFields(layoutText(pages), completeText && !hasRasterBody);
+    return { fields, pages: pages.map(items => layoutText([items])), completeText, hasRasterBody };
   } finally {
     if (pdf) await pdf.loadingTask.destroy();
   }
 }
 async function readPdfFields(buffer) { return (await readPdfData(buffer, { inspectImages: false })).fields; }
 
-module.exports = { layoutText, sectionFields, fixedActivationFields, customerCodeFields, readPdfData, readPdfFields };
+module.exports = { layoutText, sectionFields, fixedActivationFields, fixedTechnologyFields, customerCodeFields, readPdfData, readPdfFields };

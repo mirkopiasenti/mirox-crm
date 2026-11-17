@@ -216,6 +216,8 @@ body {
 <script src="../js/auth.js"></script>
 <script src="../js/mirox-ui.js"></script>
 <script src="../js/mirox-api.js"></script>
+<script src="../js/fisso-core.js"></script>
+<script src="../js/fisso-ui.js"></script>
 <script src="../js/vendita-pda-core.js"></script>
 <script src="../js/vendita-pda-ui.js"></script>
 
@@ -237,15 +239,12 @@ window.__profiloPromise = Auth.richiediAuth().then(profilo => {
 </div>
 
 <!-- Tab bar -->
-<div class="nav-tabs">
-<button type="button" class="nav-tab active" data-tab="da-completare" onclick="switchTabCF('da-completare', this)">Da Completare <span id="cntDaCompletare" class="tab-counter zero" style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:11px;background:#EEF3F8;color:#697386;font-size:11px;font-weight:700;padding:0 7px;margin-left:6px;">0</span></button>
-<button type="button" class="nav-tab" data-tab="elenco" onclick="switchTabCF('elenco', this)">Elenco Contratti</button>
-</div>
+<div class="nav-tabs"><button type="button" class="nav-tab active">Riepilogo contratti</button></div>
 
 <div class="container">
 
 <!-- Statistiche live (solo tab Elenco) -->
-<div id="statsRow" class="stats-row" style="display:none;">
+<div id="statsRow" class="stats-row">
   <div class="stat-card attivi">
     <div class="stat-label">In Attivazione</div>
     <div class="stat-value" id="statInAttivazione">0</div>
@@ -263,20 +262,8 @@ window.__profiloPromise = Auth.richiediAuth().then(profilo => {
   </div>
 </div>
 
-<!-- Filtri tab Da Completare -->
-<div id="filtersRowDa" class="filters-card">
-  <div>
-    <label>Cerca</label>
-    <input type="text" id="searchCF" placeholder="Ragione sociale, CF/PIVA, operatore, cod. cliente...">
-  </div>
-  <div>
-    <label>&nbsp;</label>
-    <button type="button" class="btn-mini" onclick="loadAll()">Aggiorna</button>
-  </div>
-</div>
-
 <!-- Filtri tab Elenco -->
-<div id="filtersRowElenco" class="filters-card elenco" style="display:none;">
+<div id="filtersRowElenco" class="filters-card elenco">
   <div>
     <label>Cerca <span style="font-weight:500;color:var(--text-light);text-transform:none;letter-spacing:0;">(ignora i filtri)</span></label>
     <input type="text" id="searchElenco" placeholder="Ragione sociale, CF/PIVA, operatore...">
@@ -306,7 +293,7 @@ window.__profiloPromise = Auth.richiediAuth().then(profilo => {
     <label>Stato</label>
     <select id="filtroStato">
       <option value="">Tutti</option>
-      <option value="In Attivazione" selected>In Attivazione</option>
+      <option value="In Attivazione" selected>In Attivazione</option><option value="Da completare">Da completare (storico)</option>
       <option value="Attivo">Attivo</option>
       <option value="KO">KO</option>
     </select>
@@ -328,14 +315,14 @@ window.__profiloPromise = Auth.richiediAuth().then(profilo => {
 <script>
 const sb = db;
 const STATI = ['Da completare','In Attivazione','Attivo','KO'];
-const STATI_ELENCO = ['In Attivazione','Attivo','KO'];
+const STATI_ELENCO = ['Da completare','In Attivazione','Attivo','KO'];
 const TECNOLOGIE = ['FTTC','FWA OUT','FWA IN','FWA VOCE','FTTH_OF','FTTH_FWCOP'];
 const COD_POS = ['9001415852','9000822241'];
 const MESI_IT = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
 
 const CFState = {
   righe: [],
-  tabAttiva: 'da-completare', // 'da-completare' | 'elenco'
+  tabAttiva: 'elenco', // 'da-completare' | 'elenco'
   searchDa: '',     // ricerca tab Da Completare
   searchElenco: '', // ricerca tab Elenco (quando valorizzata, disattiva i filtri)
   filtroCluster: '',
@@ -377,28 +364,6 @@ function setCount(id, n) {
   }
 }
 
-function switchTabCF(tabKey, btn) {
-  CFState.tabAttiva = tabKey;
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  const isElenco = tabKey === 'elenco';
-  document.getElementById('statsRow').style.display = isElenco ? 'grid' : 'none';
-  document.getElementById('filtersRowElenco').style.display = isElenco ? 'grid' : 'none';
-  document.getElementById('filtersRowDa').style.display = isElenco ? 'none' : 'grid';
-  if (isElenco) {
-    // Default: filtro stato "In Attivazione" ogni volta che si apre la tab
-    CFState.filtroCluster = '';
-    CFState.filtroTecnologia = '';
-    CFState.filtroStato = 'In Attivazione';
-    CFState.searchElenco = '';
-    document.getElementById('filtroCluster').value = '';
-    document.getElementById('filtroTecnologia').value = '';
-    document.getElementById('filtroStato').value = 'In Attivazione';
-    document.getElementById('searchElenco').value = '';
-    document.getElementById('filtersRowElenco').classList.remove('disabled-by-search');
-  }
-  render();
-}
 
 async function loadAll() {
   const wrap = document.getElementById('listaContratti');
@@ -418,13 +383,14 @@ async function loadAll() {
         contratto:contratto_id (
           id, categoria_id, offerta_id, opzione_id, operatore_id,
           categoria_snapshot, nome_offerta_snapshot, nome_opzione_snapshot,
+          tecnologia_fisso, professional_box, codice_cliente_fisso, codice_pos_fisso,
           apri_chiudi, intestatario, convergenza, prezzo_fisso, tipo_attivazione, codice_contratto,
           data_contratto, created_at, updated_at
         )
       `)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    const righe = data || [];
+    const righe = (data || []).map(r => ({...r, tecnologiaVisualizzata:r.contratto?.tecnologia_fisso || r.tecnologia}));
 
     const profIds = new Set();
     righe.forEach(r => {
@@ -441,6 +407,9 @@ async function loadAll() {
         CFState.profiliMap = new Map(profili.map(p => [p.id, p]));
       }
     }
+    const techs=[...new Set(righe.map(r=>r.tecnologiaVisualizzata).filter(Boolean))].sort();
+    document.getElementById('filtroTecnologia').innerHTML='<option value="">Tutte</option>'+techs.map(v=>'<option value="'+escapeHtml(v)+'">'+escapeHtml(v)+'</option>').join('');
+    document.getElementById('filtroTecnologia').value=CFState.filtroTecnologia;
     CFState.righe = righe;
     aggiornaContatori();
     render();
@@ -497,7 +466,7 @@ function matchSearch(r, q) {
   const ana = r.anagrafica || {};
   const haystack = [
     ana.ragione_sociale, ana.cf_piva, ana.cluster, ana.cellulare, ana.email,
-    r.codice_cliente, r.cod_contratto, r.numero_fisso, r.tecnologia,
+    r.codice_cliente, r.cod_contratto, r.numero_fisso, r.tecnologiaVisualizzata,
     operatoreNome(r)
   ].filter(Boolean).join(' ').toLowerCase();
   return haystack.includes(q);
@@ -517,47 +486,7 @@ function attivazioneLabelHtml(r) {
   return '<span style="color:var(--text-light);">—</span>';
 }
 
-function render() {
-  const wrap = document.getElementById('listaContratti');
-  if (CFState.tabAttiva === 'da-completare') {
-    renderDaCompletare(wrap);
-  } else {
-    renderElenco(wrap);
-  }
-}
-
-function renderDaCompletare(wrap) {
-  const q = (CFState.searchDa || '').toLowerCase().trim();
-  const lista = CFState.righe.filter(r => r.stato === 'Da completare' && matchSearch(r, q));
-  if (lista.length === 0) {
-    wrap.innerHTML = `<div class="empty-state"><div class="empty-icon"></div><h3>Nessuna pratica</h3><p>Non ci sono pratiche con stato "Da completare".</p></div>`;
-    return;
-  }
-  const headers = `
-    <th>Data Inserimento</th>
-    <th>Ragione Sociale</th>
-    <th>CF / P.IVA</th>
-    <th>Operatore</th>
-    <th>Stato</th>
-    <th>Tecnologia</th>
-    <th style="text-align:right;">Azioni</th>`;
-  const rows = lista.map(r => {
-    const ana = r.anagrafica || {};
-    return `<tr>
-      <td>${fmtDate(dataInserimento(r))}</td>
-      <td class="cell-cliente">${escapeHtml(ana.ragione_sociale || '-')}</td>
-      <td>${escapeHtml(ana.cf_piva || '-')}</td>
-      <td>${escapeHtml(operatoreNome(r))}</td>
-      <td><span class="stato-pill ${statoSlug(r.stato)}">${escapeHtml(r.stato)}</span></td>
-      <td>${escapeHtml(r.tecnologia || '—')}</td>
-      <td style="text-align:right;white-space:nowrap;">
-        <button type="button" class="btn-mini btn-primary" onclick="openDettaglio('${r.id}')">Dettagli</button>
-        <a class="btn-mini" href="verifica_contratti.html?contratto_id=${encodeURIComponent(r.contratto_id)}">Vai alla pratica</a>
-      </td>
-    </tr>`;
-  }).join('');
-  wrap.innerHTML = `<table class="contracts-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
-}
+function render() { renderElenco(document.getElementById('listaContratti')); }
 
 function renderElenco(wrap) {
   const q = (CFState.searchElenco || '').toLowerCase().trim();
@@ -567,7 +496,7 @@ function renderElenco(wrap) {
     lista = lista.filter(r => matchSearch(r, q));
   } else {
     if (CFState.filtroCluster)     lista = lista.filter(r => (r.anagrafica && r.anagrafica.cluster) === CFState.filtroCluster);
-    if (CFState.filtroTecnologia)  lista = lista.filter(r => r.tecnologia === CFState.filtroTecnologia);
+    if (CFState.filtroTecnologia)  lista = lista.filter(r => r.tecnologiaVisualizzata === CFState.filtroTecnologia);
     if (CFState.filtroStato)       lista = lista.filter(r => r.stato === CFState.filtroStato);
   }
   if (lista.length === 0) {
@@ -594,7 +523,7 @@ function renderElenco(wrap) {
       <td>${escapeHtml(ana.cf_piva || '-')}</td>
       <td>${escapeHtml(operatoreNome(r))}</td>
       <td><span class="stato-pill ${statoSlug(r.stato)}">${escapeHtml(r.stato)}</span></td>
-      <td>${escapeHtml(r.tecnologia || '—')}</td>
+      <td>${escapeHtml(r.tecnologiaVisualizzata || '—')}</td>
       <td style="text-align:right;white-space:nowrap;">
         <button type="button" class="btn-mini btn-primary" onclick="openDettaglio('${r.id}')">Dettagli</button>
         <a class="btn-mini" href="verifica_contratti.html?contratto_id=${encodeURIComponent(r.contratto_id)}">Vai alla pratica</a>
@@ -622,7 +551,7 @@ async function openDettaglio(id) {
   if (stato === 'Da completare') {
     statoOptions = `<option value="Da completare" selected>Da completare</option>`;
   } else if (stato === 'In Attivazione') {
-    statoOptions = `<option value="In Attivazione" selected>In Attivazione</option>
+    statoOptions = `<option value="In Attivazione" selected>In Attivazione</option><option value="Da completare">Da completare (storico)</option>
                     <option value="Attivo">Attivo</option>
                     <option value="KO">KO</option>`;
   } else { // Attivo o KO -> sola lettura
@@ -663,7 +592,7 @@ async function openDettaglio(id) {
         </div>
         <div class="det-field">
           <label>Cod. Cliente ${stato === 'Da completare' ? '<span class="required">*</span>' : ''}</label>
-          <input type="text" id="cfCodiceCliente" value="${escapeHtml(r.codice_cliente || '')}" placeholder="Codice cliente">
+          <input type="text" id="cfCodiceCliente" value="${escapeHtml(c.codice_cliente_fisso || r.codice_cliente || '')}" readonly>
         </div>
         <div class="det-field">
           <label>Recapito</label>
@@ -693,26 +622,20 @@ async function openDettaglio(id) {
         </div>
         <div class="det-field">
           <label>Cod. Contratto ${stato === 'Da completare' ? '<span class="required">*</span>' : ''}</label>
-          <input type="text" id="cfCodContratto" value="${escapeHtml(c.codice_contratto || r.cod_contratto || '')}" placeholder="Codice contratto" ${c.codice_contratto ? 'readonly' : ''}>
-          ${c.codice_contratto ? '<button type="button" class="mx-btn mx-btn-secondary" data-edit-pda>Modifica codice PDA</button>' : ''}
+          <input type="text" id="cfCodContratto" value="${escapeHtml(c.codice_contratto || r.cod_contratto || '')}" placeholder="Codice contratto" readonly>
+          <small>Modificabile in Verifica Contratti</small>
         </div>
         <div class="det-field">
           <label>Cod. POS ${stato === 'Da completare' ? '<span class="required">*</span>' : ''}</label>
-          <select id="cfCodPos">
-            <option value="">Seleziona...</option>
-            ${COD_POS.map(v => `<option value="${v}" ${r.cod_pos === v ? 'selected' : ''}>${v}</option>`).join('')}
-          </select>
+          <input id="cfCodPos" value="9001415852" readonly>
         </div>
         <div class="det-field">
           <label>Tecnologia ${stato === 'Da completare' ? '<span class="required">*</span>' : ''}</label>
-          <select id="cfTecnologia">
-            <option value="">Seleziona...</option>
-            ${TECNOLOGIE.map(v => `<option value="${v}" ${r.tecnologia === v ? 'selected' : ''}>${v}</option>`).join('')}
-          </select>
+          <input id="cfTecnologia" value="${escapeHtml(c.tecnologia_fisso || r.tecnologia || '')}" readonly>
         </div>
         <div class="det-field">
           <label>Offerta</label>
-          <div class="field-readonly-value">${escapeHtml(c.nome_offerta_snapshot || '-')}</div>
+          <div class="field-readonly-value">${escapeHtml(c.tecnologia_fisso || c.nome_offerta_snapshot || '-')}</div>
         </div>
       </div>
     </div>
@@ -756,18 +679,7 @@ async function openDettaglio(id) {
 
   // Footer dinamico in base allo stato
   let footer = '';
-  if (stato === 'Da completare') {
-    footer = `
-      <div class="foot-actions" style="width:100%;">
-        <div class="left">
-          <button type="button" class="btn-action btn-action-secondary" data-mx-close>Chiudi</button>
-        </div>
-        <div class="right">
-          <button type="button" class="btn-action btn-action-secondary" onclick="salvaCampi()">Salva modifiche</button>
-          <button type="button" class="btn-action btn-action-success" onclick="confermaCompilazione()">Compilazione Completata</button>
-        </div>
-      </div>`;
-  } else if (stato === 'In Attivazione') {
+  if (stato === 'In Attivazione') {
     footer = `
       <div class="foot-actions" style="width:100%;">
         <div class="left">
@@ -841,10 +753,6 @@ function renderChatArea(chatRaw) {
 // ============================================================
 function getValori() {
   return {
-    codice_cliente: document.getElementById('cfCodiceCliente').value.trim() || null,
-    tecnologia: document.getElementById('cfTecnologia').value || null,
-    cod_contratto: document.getElementById('cfCodContratto').value.trim() || null,
-    cod_pos: document.getElementById('cfCodPos').value || null,
     numero_fisso: document.getElementById('cfNumeroFisso').value.trim() || null,
     attivazione_prevista: document.getElementById('cfAttivazionePrevista').value || null,
     data_attivazione: document.getElementById('cfDataAttivazione').value || null
@@ -869,42 +777,6 @@ async function salvaCampi() {
   }
 }
 
-async function confermaCompilazione() {
-  const v = getValori();
-  // Validazione: campi obbligatori = Cod. Cliente, Tecnologia, Cod. Contratto, Cod. POS
-  const mancanti = [];
-  if (!v.codice_cliente) mancanti.push('Cod. Cliente');
-  if (!v.tecnologia) mancanti.push('Tecnologia');
-  if (!v.cod_contratto) mancanti.push('Cod. Contratto');
-  if (!v.cod_pos) mancanti.push('Cod. POS');
-  if (mancanti.length) {
-    await MiroxUI.alert(`Compila i campi obbligatori prima di procedere:<br><br><strong>${mancanti.join(', ')}</strong>`, { type: 'warning', html: true });
-    return;
-  }
-  const ok = await MiroxUI.confirm(
-    'Confermi che hai completato la compilazione?<br>La pratica passerà allo stato <strong>"In Attivazione"</strong>.',
-    { okText: 'Sì, conferma', cancelText: 'Annulla', html: true, title: 'Compilazione Completata' }
-  );
-  if (!ok) return;
-
-  const profId = (window.__profilo && window.__profilo.id) || null;
-  try {
-    const { error } = await sb.from('post_vendita_controllo_fissi').update({
-      ...v,
-      stato: 'In Attivazione',
-      compilazione_completata_at: new Date().toISOString(),
-      compilazione_completata_da: profId,
-      stato_cambiato_at: new Date().toISOString(),
-      stato_cambiato_da: profId
-    }).eq('id', CFState.editingId);
-    if (error) throw error;
-    MiroxUI.toast('Pratica passata a "In Attivazione"', 'success');
-    if (CFState._modalClose) CFState._modalClose();
-    await loadAll();
-  } catch (e) {
-    MiroxUI.toast('Errore: ' + e.message, 'error');
-  }
-}
 
 async function onStatoChange(nuovoStato) {
   const r = CFState.righe.find(x => x.id === CFState.editingId);
@@ -1118,12 +990,6 @@ async function aggiungiNota() {
 // ============================================================
 // SEARCH + FILTRI
 // ============================================================
-// Tab Da Completare: search semplice
-document.getElementById('searchCF').addEventListener('input', e => {
-  CFState.searchDa = e.target.value;
-  render();
-});
-
 // Tab Elenco: search che DISATTIVA i filtri (reset visivo + logico)
 document.getElementById('searchElenco').addEventListener('input', e => {
   const txt = e.target.value;

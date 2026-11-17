@@ -1,3 +1,4 @@
+const Fixed = require('../../js/fisso-core');
 const Pda = require('../../js/vendita-pda-core');
 /**
  * OCR PDA — estrazione campi anagrafici da PDF contratto via Claude API
@@ -156,6 +157,9 @@ professional_cloud: boolean nullable. Per Mobile leggi SOLO la riga Opzioni/serv
 reload_exchange e reload_forever: due boolean nullable indipendenti, solo Mobile/Customer Base. Leggi SOLO Opzioni/servizi nel riquadro DATI DELLA SIM WINDTRE della Proposta di contratto. "Reload exChange" (anche in "Pack 5G Reload exChange") -> reload_exchange=true; "Reload Forever" (anche "Reload Forever Basic") -> reload_forever=true, senza distinzione maiuscole e con eventuali a capo. Per ciascuno: lista completa e leggibile senza quella opzione -> false; lista assente, troncata, illeggibile o sezioni contrattuali discordanti -> null. Non usare prevalidazione, condizioni generali, pubblicita o casella SMARTPHONE RELOAD SI/NO: smartphone_reload e' un dato separato. Per Fisso e altre categorie restituisci entrambi null.
 
 === CODICE CLIENTE WINDTRE ===
+offerta_fisso_pda: solo Fisso, trascrivi esattamente il nome nel riquadro Offerta (*) della PROPOSTA DI CONTRATTO: Internet 100/200 (anche Professional), Super Internet Casa 5G, Super Internet Professional 5G, Voce Casa, Super Fibra (anche Professional, 2,5 Giga, su Aree Bianche). Non scegliere la rete fisica e non dedurre Professional Box.
+cessione_credito_modem: solo Fisso, true SOLO se esiste un modulo di Cessione del credito con SERIALE MODEM e importo compilati riferiti al modem di questo contratto. Un generico richiamo a modem/antenna o un modulo vuoto NON bastano. false solo dopo esame completo di tutte le pagine senza quel modulo; pagine mancanti/illeggibili/discordanti -> null. Serve per distinguere FWA Indoor da Outdoor, non Fritz Box.
+
 codice_cliente: SOLO il valore vicino all'etichetta "Codice Cliente:" nella PDA Mobile, Fisso o Customer Base. Identifica il cliente, non il contratto. Conserva lettere, punti e zeri iniziali come stringa (es. "P2234324", "235345", "1.2343245", "123.131243"); elimina solo gli spazi di impaginazione (es. "P 0001234567" -> "P0001234567"). Mai Codice Contratto, Numero Contratto, Codice POS o telefono. Se assente, illeggibile o discordante -> null.
 
 === TIPO ATTIVAZIONE FISSO ===
@@ -184,9 +188,9 @@ const EXPECTED_KEYS = [
   'smartphone_reload',
   // Codice Rivenditore (migration 050): '9001415852' (Legnago) o '9000822241' (Cerea), null altrimenti
   'codice_rivenditore', 'codice_contratto', 'costo_offerta_mensile',
-  'numero_sim', 'portabilita', 'numero_mnp', 'operatore_provenienza', 'tipo_attivazione_fisso', 'codice_cliente', 'professional_cloud', 'reload_exchange', 'reload_forever'
+  'numero_sim', 'portabilita', 'numero_mnp', 'operatore_provenienza', 'tipo_attivazione_fisso', 'codice_cliente', 'professional_cloud', 'reload_exchange', 'reload_forever', 'offerta_fisso_pda', 'cessione_credito_modem'
 ];
-const BOOLEAN_KEYS = new Set(['dispositivo_presente', 'smartphone_reload', 'portabilita', 'professional_cloud', 'reload_exchange', 'reload_forever']);
+const BOOLEAN_KEYS = new Set(['dispositivo_presente', 'smartphone_reload', 'portabilita', 'professional_cloud', 'reload_exchange', 'reload_forever', 'cessione_credito_modem']);
 const CODICI_RIVENDITORE_ALLOWED = new Set(['9001415852', '9000822241']);
 
 function emptyResult() {
@@ -246,6 +250,7 @@ function normalizeResult(raw) {
   const fixedType = String(out.tipo_attivazione_fisso || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
   out.codice_cliente = Pda.customerCode(raw.codice_cliente);
   out.tipo_attivazione_fisso = fixedType === 'nuova attivazione' ? 'Nuova Attivazione' : fixedType === 'portabilita' ? 'Portabilita' : null;
+  out.tecnologia_fisso = Fixed.recognize(out.offerta_fisso_pda, out.cessione_credito_modem);
   return out;
 }
 
@@ -306,6 +311,7 @@ function mergePdfResult(parsed, pdfFields) {
   for (const key of ['reload_exchange', 'reload_forever']) {
     if (pdfFields[key] === false && normalizeResult(parsed)[key] !== false) merged[key] = null;
   }
+  if (pdfFields.cessione_credito_modem === false && normalizeResult(parsed).cessione_credito_modem !== false) merged.cessione_credito_modem = null;
   return normalizeResult(merged);
 }
 

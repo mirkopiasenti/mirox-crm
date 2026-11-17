@@ -40,7 +40,7 @@ test('etichetta cliente distinta da contratto/POS; assenza, discordanza e ripeti
 test('PDF testuale: codice cliente letto anche senza sezioni SIM e senza confonderlo con codice contratto',async()=>{
  const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica),page=pdf.addPage();
  page.drawText('Codice Cliente: 001.2343245 Codice Contratto: C99999',{x:30,y:700,size:10,font});
- const data=await readPdfFields(await pdf.save());assert.equal(data.codice_cliente,'001.2343245');assert.equal(data.codice_contratto,undefined);
+ const data=await readPdfFields(await pdf.save());assert.equal(data.codice_cliente,'001.2343245');assert.equal(data.codice_contratto,'C99999');
 });
 test('append idempotente: piu codici, nessuna sostituzione o update e nessuna scrittura per lista vuota',async()=>{
  const stored=new Set(['P00001']);let calls=0;
@@ -76,7 +76,7 @@ test('codici anagrafici invalidi bloccano prima di qualsiasi scrittura',async()=
 test('codice cliente corrente sopravvive a correzione, restore e reset della stessa categoria',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8'),a=source.indexOf(' function renderPdaFields(data)'),b=source.indexOf(' async function checkPendingCode()',a);
  const root={dataset:{},addEventListener(){}},refs={codiceCliente:{value:''}};
- const ctx={refs,document:{getElementById:()=>root},getCategoriaName:()=> 'Fisso',queueDraftSave(){},window:{MiroxPda:Pda,MiroxPdaUI:{formHtml:()=>'',bindForm(){},readForm:()=>({})}}};
+ const ctx={refs,document:{getElementById:()=>root},getCategoriaName:()=> 'Fisso',queueDraftSave(){},window:{MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda,MiroxPdaUI:{formHtml:()=>'',bindForm(){},readForm:()=>({})}}};
  vm.runInNewContext(source.slice(a,b)+';this.render=renderPdaFields;this.read=readPdaFields;',ctx);
  ctx.render({codice_cliente:'P00001'});assert.equal(refs.codiceCliente.value,'P00001');
  refs.codiceCliente.value='001.2343245';ctx.render();const saved=ctx.read();assert.equal(saved.codice_cliente,'001.2343245');
@@ -97,7 +97,7 @@ test(`create: ${category} respinge codice cliente ${value===null?'mancante':'non
 test('serializer anagrafico conserva piu codici di PDA diverse senza sommare dati delle altre categorie',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8'),a=source.indexOf(' function getClienteFormData()'),b=source.indexOf(' function validateClienteData(',a);
  const refs={};for(const key of ['cfPiva','cluster','ragioneSociale','nomeReferente','cellulare','email','provincia','comune','via','civico'])refs[key]={value:''};
- const ctx={refs,window:{MiroxPda:Pda},state:{cart:{contratti:[{categoria_nome:'Mobile',codice_cliente:'P00001'},{categoria_nome:'Fisso',codice_cliente:'P00002'},{categoria_nome:'Energia',codice_cliente:'P00099'}]}},normalizeCfPiva:v=>v,normalizeClusterValue:v=>v,isTuristaCluster:()=>false,getCategoriaName:()=> 'Customer Base',readPdaFields:()=>({codice_cliente:'P00001'})};
+ const ctx={refs,window:{MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda},state:{cart:{contratti:[{categoria_nome:'Mobile',codice_cliente:'P00001'},{categoria_nome:'Fisso',codice_cliente:'P00002'},{categoria_nome:'Energia',codice_cliente:'P00099'}]}},normalizeCfPiva:v=>v,normalizeClusterValue:v=>v,isTuristaCluster:()=>false,getCategoriaName:()=> 'Customer Base',readPdaFields:()=>({codice_cliente:'P00001'})};
  vm.runInNewContext(source.slice(a,b)+';this.read=getClienteFormData;',ctx);
  assert.deepEqual(Array.from(ctx.read().codici_cliente_windtre),['P00001','P00002']);
 });

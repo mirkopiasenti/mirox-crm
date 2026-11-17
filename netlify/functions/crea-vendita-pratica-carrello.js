@@ -1,3 +1,4 @@
+const Fixed = require('../../js/fisso-core');
 const Pda = require('./_lib/pda-contract');
 const Identity = require('./_lib/identita-upload');
 const BusinessIdentity = require('./_lib/pda-business-identity');
@@ -211,6 +212,7 @@ function normalizeContractInput(contract, index) {
 
   return {
     ...Pda.normalize(contract),
+    ...Fixed.normalize(contract),
     temp_id: tempId,
     categoria_id: categoriaId,
     offerta_id: offertaId,
@@ -467,6 +469,8 @@ function validateCategorySpecificRules({ contract, category, offer, index }) {
   validateCombination(contract,offer?.nome_offerta,category?.nome);
 
   if (categoryName === 'fisso') {
+    Object.assign(contract, Fixed.validate(contract, category.nome, contract.cluster_cliente || offer.cluster_cliente, {required:true}));
+    if (offer.nome_offerta !== Fixed.offerName(contract.tecnologia_fisso, contract.professional_box, offer.cluster_cliente)) throw new Error('Offerta non coerente con tecnologia e Professional Box');
     const tipoAttivazione = normalizeTextArrayValue(
       contract.tipo_attivazione,
       ['Nuova Attivazione', 'Portabilita', 'Portabilità'],
@@ -523,7 +527,8 @@ function validateCategorySpecificRules({ contract, category, offer, index }) {
     contract.ricorrenza_assicurazione = null;
   }
 
-  const deviceEnabledForOffer = parseBoolean(offer?.abilita_dispositivo, false) === true;
+  if (categoryName==='fisso' && Fixed.base(contract.tecnologia_fisso)==='FWA Indoor') contract.dispositivo_associato=true;
+  const deviceEnabledForOffer = parseBoolean(offer?.abilita_dispositivo, false) === true || (categoryName==='fisso' && Fixed.base(contract.tecnologia_fisso)==='FWA Indoor');
 
   if (!deviceEnabledForOffer) {
     if (contract.dispositivo_associato) {
@@ -550,7 +555,7 @@ function validateCategorySpecificRules({ contract, category, offer, index }) {
   // sul nome offerta. Per FWA Indoor: il device (modem) e' sempre associato,
   // ma tipo_acquisto + kolme + smartphone_reload non sono rilevanti.
   const offerName = String(offer?.nome_offerta || '').toLowerCase();
-  const isFwaIndoor = categoryName === 'fisso' && offerName.includes('fwa') && offerName.includes('indoor');
+  const isFwaIndoor = categoryName === 'fisso' && (Fixed.base(contract.tecnologia_fisso)==='FWA Indoor' || (offerName.includes('fwa') && offerName.includes('indoor')));
 
   if (!contract.imei || !/^\d{15}$/.test(contract.imei)) {
     throw new Error(`IMEI non valido per contratti[${index}]: richieste 15 cifre`);
@@ -1479,6 +1484,7 @@ exports.handler = async (event) => {
         pod_pdr: item.pod_pdr,
         assicurazione_impianti: item.assicurazione_impianti,
         ...Object.fromEntries(Pda.FIELDS.map(k => [k, item[k]])),
+        ...Object.fromEntries(Fixed.FIELDS.map(k => [k, item[k]])),
         numero_contratto_energia: item.numero_contratto_energia,
         prezzo_fisso: item.prezzo_fisso,
         reload_exchange: item.reload_exchange,

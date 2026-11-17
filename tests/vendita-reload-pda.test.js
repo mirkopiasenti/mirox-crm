@@ -67,7 +67,7 @@ function fixture(category = 'Mobile') {
   const runtimeState = { pdaRevision: 1, editingTempId: null };
   let resolve, questions = [], saves = 0;
   const ctx = { refs, runtimeState, document: { getElementById: () => root }, getCategoriaName: () => category,
-    isCategory: (a, b) => a === b, queueDraftSave() { saves++; }, window: { MiroxPda: Pda,
+    isCategory: (a, b) => a === b, queueDraftSave() { saves++; }, window: { MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda: Pda,
       MiroxPdaUI: { formHtml: () => '', bindForm() {}, readForm: () => ({}) },
       MiroxUI: { confirm(text, options) { questions.push({ text, options }); return new Promise(r => { resolve = r; }); } } } };
   const start = source.indexOf(' async function confirmReloadFlagChange('), end = source.indexOf(' function isOfferFlagEnabled(', start);
@@ -132,7 +132,7 @@ test('Reload: carrello, payload di invio e backend conservano i due valori indip
   for (const category of ['Mobile', 'Customer Base']) for (const exchange of [true, false]) for (const forever of [true, false]) {
     const item = { codice_contratto: 'TEST001', codice_cliente: 'P0001', categoria_nome: category, categoria_id: 'cat', offerta_id: 'offer',
       costo_offerta_mensile: 12.99, numero_telefono: '3331234567', numero_provvisorio: null, portabilita: false, reload_exchange: exchange, reload_forever: forever, reload_forever_gestione: forever ? 'Mantieni attiva' : null, flags: {}, files: {} };
-    const ctx = { window: { MiroxPda: Pda, MiroxIdentitaCore: require('../js/identita-upload-core'),
+    const ctx = { window: { MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda: Pda, MiroxIdentitaCore: require('../js/identita-upload-core'),
       MiroxIdentitaUpload: { get: () => ({ token: 'fixture', result: { cittadinanza: 'ue' } }) } },
       state: { cart: { contratti: [item] } }, getClienteFormData: () => ({ cluster: 'Consumer' }), validateClienteData() {},
       praticaFiles: { documento_identita: [{}] }, runtimeState: {}, refs: { originePratica: { value: 'spontaneo' }, operatoreId: { value: 'operator' } },

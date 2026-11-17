@@ -79,7 +79,7 @@ test('risposta tardiva non modifica un nuovo contratto e le altre categorie non 
 });
 
 function payload(items, cluster) {
-  const ctx = { window: { MiroxPda: Pda, MiroxIdentitaCore: require('../js/identita-upload-core'),
+  const ctx = { window: { MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda: Pda, MiroxIdentitaCore: require('../js/identita-upload-core'),
     MiroxIdentitaUpload: { get: () => ({ token: 'fixture', result: {} }) } },
     state: { cart: { contratti: items } }, getClienteFormData: () => ({ cluster }), validateClienteData() {},
     praticaFiles: { documento_identita: [{}] }, runtimeState: {},
