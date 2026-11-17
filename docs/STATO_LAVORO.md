@@ -2,10 +2,10 @@
 
 Aggiornato:2026-11-17. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Correzione opzioni Upload Fisso —17/11, push in corso
+## Correzione opzioni Upload Fisso —17/11, pubblicata
 
 - Foto del proprietario: FWA Indoor riconosciuto, tendina Opzione con solo Seleziona, avanti bloccato da «Seleziona una opzione». Causa riprodotta: syncFixedOffer cambia offerta senza change e senza rigenerare le opzioni dal pivot. Ora ogni effettivo cambio automatico (OCR, cluster, Professional Box) aggiorna la tendina; conserva solo selezioni ancora ammesse, nessuna scelta arbitraria o variazione catalogo/punti.
-- Test regressione fallito prima/verde dopo su tutte le tecnologie Consumer/Business e Box, cambio/azzeramento offerta e render ripetuti; DOM Node reale verifica primo OCR FWA Indoor e popup Box. Suite829/829 e build verdi in copia isolata; DOM Node reale verde. README/AGENTS aggiornati. Nessun DB/storico/browser o pratica reale; push richiesto17/11, CI e deploy da verificare nella sessione corrente.
+- Test regressione fallito prima/verde dopo su tutte le tecnologie Consumer/Business e Box, cambio/azzeramento offerta e render ripetuti; DOM Node reale verifica primo OCR FWA Indoor e popup Box. Suite829/829 e build verdi in copia isolata; DOM Node reale verde. README/AGENTS aggiornati. Nessun DB/storico/browser o pratica reale; Pubblicato17/11 con `7161506`: CI44117849495 LinuxNode22/Windows verde,829test; Netlify6afc76710f27189c6728439e online. HTTP12asset/HTML/script/stili/PrettyURL e3API401 verificati; nessun DB/storico modificato. Prossimo: ricaricare Upload Contratti e riprovare il FWA Indoor; nessun rilascio funzionale pendente.
 
 ## Nuovo flusso Fisso —17/11, pubblicato; DB e storico applicati
 
