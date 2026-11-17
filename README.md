@@ -1332,10 +1332,10 @@ Codiceff1737a pubblicato31/10: CI Linux611/611verde, deploy Netlify e asset/API
 verificati; modalita collaudo ed email collaudo attive preservate. Nessuna pratica
 cliente o email di prova avviata durante il rilascio.
 
-## Flusso Fisso pronto in locale (17/11/2026)
+## Flusso Fisso pubblicato (17/11/2026)
 
 Upload e Verifica Contratti condividono la tecnologia dettagliata riconosciuta dalla PDA: FTTC100/200, FWA Indoor/Outdoor (Voce soltanto Consumer), FTTH Aree Bianche/OF-FWCOP. Per ogni Fisso Business si chiede esplicitamente Professional Box (FRITZ!Box); la risposta Si aggiunge il suffisso alla tecnologia, conservato nelle viste e nel riepilogo. Codice cliente e contratto provengono dalla PDA; POS fisso9001415852. I quattro dati si controllano nella Verifica; Controllo Fissi conserva solo riepilogo, esiti e follow-up. Nuove conferme complete entrano direttamente In Attivazione. Punteggi di catalogo invariati, storico aggiornato separatamente con PDA/dati gia registrati senza spostare gli stati. Regole e limiti in AGENTS.md; migration e risultati in database/README.md e docs/STATO_LAVORO.md.
 
-Database gia aggiornato:406Fissi,393tecnologie riconosciute,6ProfessionalBox conservati e374codici contratto univoci recuperati. Punteggi/stati/dati estranei verificati invariati. Restano13tecnologie senza fonte sufficiente e8codici duplicati da chiarire; elenco privato disponibile.828test e build verdi; push UI/backend richiesto17/11, esito pubblicazione nel promemoria.
+Database gia aggiornato:406Fissi,393tecnologie riconosciute,6ProfessionalBox conservati e374codici contratto univoci recuperati. Punteggi/stati/dati estranei verificati invariati. Restano13tecnologie senza fonte sufficiente e8codici duplicati da chiarire; elenco privato disponibile.828test e build verdi. Pubblicato17/11 con `f723b79`: CI44058306234 LinuxNode22/Windows verde,828test; Netlify6afc21f116a31809fa4f3f3f online. Verificati via HTTP12asset, HTML/script/stili/PrettyURL e3API401 senza JWT.
 
 Nell'upload Fisso la tecnologia e mostrata in sola lettura dalla PDA: l'operatore non la sceglie. Per Business risponde soltanto Si/No al Professional Box; eventuali correzioni della tecnologia si fanno nella Verifica Contratti.

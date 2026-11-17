@@ -1771,4 +1771,4 @@ Correzione31/10/2026 reinserimenti Fisso: Avanzamento Mensile include il nuovo F
 
 ### Flusso Fisso17/11/2026
 
-Nuove regole Consumer/Business, Professional Box manuale, quattro dati precompilati nella sola Verifica e Controllo Fissi solo riepilogo/esiti: fonte aggiornata AGENTS.md, sezione Nuovo flusso Fisso. Dettaglio separato dal catalogo per conservare punti/Day; storico con script separato e stati invariati. Non usare file comuni o 2,5 per distinguere la rete, non dedurre Fritz dalla PDA. Push richiesto17/11, esito in docs/STATO_LAVORO.md.
+Nuove regole Consumer/Business, Professional Box manuale, quattro dati precompilati nella sola Verifica e Controllo Fissi solo riepilogo/esiti: fonte aggiornata AGENTS.md, sezione Nuovo flusso Fisso. Dettaglio separato dal catalogo per conservare punti/Day; storico con script separato e stati invariati. Non usare file comuni o 2,5 per distinguere la rete, non dedurre Fritz dalla PDA. Pubblicato17/11 con `f723b79`, CI Linux/Windows e verifica HTTP verdi; dettagli in docs/STATO_LAVORO.md.
