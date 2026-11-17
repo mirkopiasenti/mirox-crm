@@ -43,17 +43,32 @@ function setup(cluster='Business'){
   const r=html.indexOf(' function readPdaFields('),s=html.indexOf(' async function checkPendingCode(',r);
   const f=html.indexOf(' function syncFixedOffer('),g=html.indexOf(' function renderDynamicSections(',f);
   root.id='pdaContractFields';
-  const refs={cluster:{value:'Business'},codiceCliente:{value:''},offerta:{value:''}};
-  const offers=['FTTC','FTTH - Fritz Box'].map((nome_offerta,i)=>({id:String(i),nome_offerta,cluster_cliente:'Business'}));
+  const optionSelect=window.document.createElement('select');root.after(optionSelect);
+  const refs={cluster:{value:'Business'},codiceCliente:{value:''},offerta:{value:''},opzione:optionSelect};
+  const offers=['FTTC','FTTH - Fritz Box','FWA - OUTDOOR','FWA - Fritz Box'].map((nome_offerta,i)=>({id:String(i),nome_offerta,cluster_cliente:'Business'}));
+  const state={opzioni:offers.map(o=>({id:o.id+'-option',nome_opzione:'Opzione '+o.id})),
+   offerte_opzioni:offers.map(o=>({offerta_id:o.id,opzione_id:o.id+'-option'}))};
+  const source=(start,end)=>html.slice(html.indexOf(start),html.indexOf(end,html.indexOf(start)));
   const ctx={window,document:window.document,refs,runtimeState:{pdaRevision:1},getCategoriaName:()=> 'Fisso',
-   setReloadFlags(){},queueDraftSave(){},renderDynamicSections(){},renderOpzioni(){},isCategory:(a,b)=>a===b,filteredOfferte:()=>offers};
-  vm.createContext(ctx);vm.runInContext(html.slice(a,b)+html.slice(r,s)+html.slice(f,g)+';this.render=renderPdaFields;this.read=readPdaFields;this.sync=syncFixedOffer;',ctx);
+   state,setReloadFlags(){},queueDraftSave(){},renderDynamicSections(){},maybeSelectMobileOption(){},
+   optionHtml:(id,label)=>`<option value="${id}">${label}</option>`,isCategory:(a,b)=>a===b,filteredOfferte:()=>offers};
+  vm.createContext(ctx);vm.runInContext(html.slice(a,b)+html.slice(r,s)+html.slice(f,g)
+   +source(' function getLinkedOpzioniIdsForOfferta(', ' function getLinkedReloadIdsForOfferta(')
+   +source(' function filteredOpzioni(', ' function filteredReload(')
+   +source(' function renderOpzioni(', ' function maybeSelectMobileOption(')
+   +';this.render=renderPdaFields;this.read=readPdaFields;this.sync=syncFixedOffer;',ctx);
   ctx.render({tecnologia_fisso:'FTTC 200',professional_box:false,codice_cliente_fisso:'P0001',codice_cliente:'P0001',codice_contratto:'001',pda_lettura:'ai'});
   ctx.sync();assert.equal(refs.offerta.value,'0');
+  assert.equal(optionSelect.options.length,2);optionSelect.value='0-option';
+  ctx.sync();assert.equal(optionSelect.value,'0-option');
   const saved=ctx.read();assert.equal(saved.tecnologia_fisso,'FTTC 200');assert.equal(saved.codice_contratto,'001');
   ctx.render(saved);assert.equal(ctx.read().tecnologia_fisso,'FTTC 200');
   const pending=x.ui.askBox(root);x.modal.foot.querySelector('[data-fixed-yes]').click();assert.equal(await pending,true);
   ctx.sync();assert.equal(refs.offerta.value,'1');assert.equal(ctx.read().tecnologia_fisso,'FTTC 200 - Professional Box');
+  assert.equal(optionSelect.options[1].value,'1-option');assert.equal(optionSelect.value,'');
+  ctx.render({tecnologia_fisso:'FWA Indoor',professional_box:false,codice_cliente_fisso:'P0001',codice_cliente:'P0001',codice_contratto:'001'});
+  ctx.sync();assert.equal(refs.offerta.value,'2');assert.equal(optionSelect.options[1].value,'2-option');
+  optionSelect.value='2-option';ctx.sync();assert.equal(optionSelect.value,'2-option');
   ctx.render({tecnologia_fisso:'FTTH OF-FWCOP',codice_cliente_fisso:'P0002',codice_cliente:'P0002',codice_contratto:'002'});
   assert.equal(ctx.read().professional_box,null);assert.equal(ctx.read().codice_contratto,'002');
  }
@@ -77,5 +92,5 @@ function setup(cluster='Business'){
   category='Mobile';vm.runInContext('applyVisibilityRules();',ctx);
   assert.equal(root.hidden,true);assert.equal(window.document.getElementById('vc_field_offerta').hidden,false);
  }
- console.log('DOM Fisso: Si/No, suffisso, annullamento, doppio click, risposta obsoleta, restore/catalogo, FWA Indoor Business e cambio categoria verificati');
+ console.log('DOM Fisso: Si/No, suffisso, annullamento, doppio click, risposta obsoleta, restore/catalogo/opzioni OCR-Box, FWA Indoor Business e cambio categoria verificati');
 })().catch(error=>{console.error(error);process.exitCode=1;});

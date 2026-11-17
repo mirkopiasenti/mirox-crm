@@ -3370,7 +3370,7 @@ Reload Forever
  delete root.dataset.pdaFixedActivationPending;
  setReloadFlags(data);
  root.innerHTML = window.MiroxPdaUI.formHtml({ ...window.MiroxPda.normalize(data || {}), ...window.MiroxFisso.normalize(data || {}) }, category, { wizard: true, reading: root.dataset.pdaReading, cluster });
- window.MiroxPdaUI.bindForm(root, { onFixedChange: () => { syncFixedOffer(); renderOpzioni({preserveCurrent:true}); renderDynamicSections(); queueDraftSave(); }, context: () => [runtimeState.pdaRevision, runtimeState.editingTempId, refs.offerta.value, refs.cluster.value, refs.cfPiva?.value || ''].join('|') });
+ window.MiroxPdaUI.bindForm(root, { onFixedChange: () => { syncFixedOffer(); renderDynamicSections(); queueDraftSave(); }, context: () => [runtimeState.pdaRevision, runtimeState.editingTempId, refs.offerta.value, refs.cluster.value, refs.cfPiva?.value || ''].join('|') });
  if (!root.dataset.autosaveBound) {
  const onPdaChange = () => { renderDynamicSections(); queueDraftSave(); };
  root.addEventListener('input', onPdaChange);
@@ -3561,7 +3561,13 @@ Reload Forever
  if (!isCategory(getCategoriaName(), 'Fisso')) return;
  const data = window.MiroxFissoUI.read(document.getElementById('pdaContractFields'));
  const offer = data.tecnologia_fisso ? window.MiroxFisso.findOffer(filteredOfferte(), data.tecnologia_fisso, data.professional_box, refs.cluster.value) : null;
- refs.offerta.value = offer?.id || '';
+ const nextId = offer?.id || '';
+ if (refs.offerta.value !== nextId) {
+ refs.offerta.value = nextId;
+ // La selezione automatica non emette change: aggiorna anche le opzioni
+ // alla prima lettura OCR e dopo Professional Box, come per la scelta manuale.
+ renderOpzioni({ preserveCurrent: true });
+ }
  }
  function renderDynamicSections() {
  renderPdaFields();

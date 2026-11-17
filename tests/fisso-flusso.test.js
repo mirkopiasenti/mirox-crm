@@ -2,6 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
+const vm=require('node:vm');
 const F=require('../js/fisso-core');
 const {fixedTechnologyFields,sectionFields,readPdfData}=require('../netlify/functions/_lib/pda-pdf-text');
 const {PDFDocument,StandardFonts}=require('pdf-lib');
@@ -64,6 +65,48 @@ test('catalogo: nuovi dettagli mantengono le offerte e i punteggi di famiglia e 
     assert.equal(F.findOffer(offers,technology,true,'Business').punteggio_gara,2.75);
     assert.ok(F.legacyTechnology(technology));
   }
+});
+test('upload: tecnologia OCR e Professional Box aggiornano le opzioni senza perdere scelte ancora valide',()=>{
+  const html=fs.readFileSync(require.resolve('../moduli/upload-contratti-vendita.html'),'utf8');
+  const source=(start,end)=>html.slice(html.indexOf(start),html.indexOf(end,html.indexOf(start)));
+  const offers=['FTTC','FTTH','FTTH - Fritz Box','FWA - OUTDOOR','FWA - INDOOR','FWA - VOCE','FWA - Fritz Box']
+    .flatMap((nome_offerta,i)=>['Consumer','Business'].map(cluster_cliente=>({id:cluster_cliente+i,nome_offerta,cluster_cliente})));
+  const refs={cluster:{value:'Consumer'},offerta:{value:''},opzione:{value:'',innerHTML:''}};
+  const options=[{id:'common',nome_opzione:'Nessuna opzione'},...offers.map(o=>({id:o.id+'-extra',nome_opzione:o.id+' extra'}))];
+  const state={opzioni:options,offerte_opzioni:offers.flatMap(o=>[{offerta_id:o.id,opzione_id:'common'},{offerta_id:o.id,opzione_id:o.id+'-extra'}])};
+  let fixed={tecnologia_fisso:'FWA Indoor',professional_box:false},category='Fisso';
+  const ctx={refs,state,window:{MiroxFisso:F,MiroxFissoUI:{read:()=>fixed}},document:{getElementById:()=>({dataset:{}})},
+    getCategoriaName:()=>category,isCategory:(a,b)=>a===b,filteredOfferte:()=>offers,
+    optionHtml:(id,label)=>`<option value="${id}">${label}</option>`,maybeSelectMobileOption(){}};
+  vm.createContext(ctx);
+  vm.runInContext(source(' function getLinkedOpzioniIdsForOfferta(', ' function getLinkedReloadIdsForOfferta(')
+    +source(' function filteredOpzioni(', ' function filteredReload(')
+    +source(' function renderOpzioni(', ' function maybeSelectMobileOption(')
+    +source(' function syncFixedOffer(', ' function renderDynamicSections('),ctx);
+  const sync=()=>vm.runInContext('syncFixedOffer()',ctx);
+  sync();
+  assert.equal(refs.offerta.value,'Consumer4');
+  assert.match(refs.opzione.innerHTML,/Consumer4-extra/); // regressione: prima conteneva solo Seleziona
+  for(const cluster of ['Consumer','Business']){
+    refs.cluster.value=cluster;
+    for(const technology of F.options(cluster))for(const box of cluster==='Business'?[false,true]:[false]){
+      fixed={tecnologia_fisso:technology,professional_box:box};
+      refs.opzione.value='common';sync();
+      const expected=F.findOffer(offers,technology,box,cluster);
+      assert.equal(refs.offerta.value,expected.id);
+      assert.ok(refs.opzione.innerHTML.includes(expected.id+'-extra'));
+      assert.equal(refs.opzione.value,'common');
+    }
+  }
+  refs.opzione.value=refs.offerta.value+'-extra';
+  fixed={tecnologia_fisso:'FTTC 100',professional_box:false};sync();
+  assert.equal(refs.opzione.value,''); // una scelta non compatibile va riselezionata
+  refs.opzione.value='Business0-extra';sync();
+  assert.equal(refs.opzione.value,'Business0-extra'); // render ripetuti conservano la scelta
+  fixed={};sync();assert.equal(refs.offerta.value,'');assert.equal(refs.opzione.value,'');
+  assert.doesNotMatch(refs.opzione.innerHTML,/-extra/);
+  category='Mobile';refs.offerta.value='mobile';refs.opzione.innerHTML='mobile-options';sync();
+  assert.equal(refs.offerta.value,'mobile');assert.equal(refs.opzione.innerHTML,'mobile-options');
 });
 test('Controllo Fissi mantiene solo riepilogo/esiti; quattro dati readonly, nessuna seconda compilazione',()=>{
   const html=fs.readFileSync(require.resolve('../moduli/controllo_fissi.html'),'utf8');

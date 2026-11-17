@@ -1339,3 +1339,5 @@ Upload e Verifica Contratti condividono la tecnologia dettagliata riconosciuta d
 Database gia aggiornato:406Fissi,393tecnologie riconosciute,6ProfessionalBox conservati e374codici contratto univoci recuperati. Punteggi/stati/dati estranei verificati invariati. Restano13tecnologie senza fonte sufficiente e8codici duplicati da chiarire; elenco privato disponibile.828test e build verdi. Pubblicato17/11 con `f723b79`: CI44058306234 LinuxNode22/Windows verde,828test; Netlify6afc21f116a31809fa4f3f3f online. Verificati via HTTP12asset, HTML/script/stili/PrettyURL e3API401 senza JWT.
 
 Nell'upload Fisso la tecnologia e mostrata in sola lettura dalla PDA: l'operatore non la sceglie. Per Business risponde soltanto Si/No al Professional Box; eventuali correzioni della tecnologia si fanno nella Verifica Contratti.
+
+Correzione17/11: aggiornamento immediato della tendina Opzione quando OCR o Professional Box cambiano automaticamente l’offerta Fisso. Conserva scelte ancora compatibili e rende disponibili le opzioni previste dal catalogo, evitando la tendina vuota con validazione obbligatoria. Punteggi e dati storici invariati; push richiesto17/11, esito nel promemoria.

@@ -2,6 +2,11 @@
 
 Aggiornato:2026-11-17. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
+## Correzione opzioni Upload Fisso —17/11, push in corso
+
+- Foto del proprietario: FWA Indoor riconosciuto, tendina Opzione con solo Seleziona, avanti bloccato da «Seleziona una opzione». Causa riprodotta: syncFixedOffer cambia offerta senza change e senza rigenerare le opzioni dal pivot. Ora ogni effettivo cambio automatico (OCR, cluster, Professional Box) aggiorna la tendina; conserva solo selezioni ancora ammesse, nessuna scelta arbitraria o variazione catalogo/punti.
+- Test regressione fallito prima/verde dopo su tutte le tecnologie Consumer/Business e Box, cambio/azzeramento offerta e render ripetuti; DOM Node reale verifica primo OCR FWA Indoor e popup Box. Suite829/829 e build verdi in copia isolata; DOM Node reale verde. README/AGENTS aggiornati. Nessun DB/storico/browser o pratica reale; push richiesto17/11, CI e deploy da verificare nella sessione corrente.
+
 ## Nuovo flusso Fisso —17/11, pubblicato; DB e storico applicati
 
 - Richiesta16–17/11: OCR Consumer7/Business6 tecnologie (Voce solo Consumer), FTTC100/200, FWA Indoor/Outdoor da cessione modem, FTTH Aree Bianche/OF-FWCOP dal nome; nessun file comuni o criterio2,5. Popup esplicito Professional Box per ogni Fisso Business, Si/No senza default e suffisso su qualunque tecnologia. Codice cliente/contratto da PDA e POS9001415852; quattro dati nella sola Verifica, Controllo Fissi solo riepilogo/esiti, nuovi verificati diretti In Attivazione. Stati/punteggi storici invariati.
