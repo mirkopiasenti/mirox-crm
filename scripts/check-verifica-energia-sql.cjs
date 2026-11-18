@@ -408,6 +408,100 @@ async function main() {
     assert.equal(await typeOf(pendente), 'Switch-In');
     await importTypes([{ numero: '0102', punto: fisso, cf: fiscale, tipo_pratica: 'Voltura' }]);
     assert.equal(await typeOf(pendente), null);
+
+    const [csvReady, csvMissing, csvAmbiguous, csvIncomplete, manualRed, csvLate, csvLg] =
+      Array.from({ length: 7 }, (_, i) => fixtureId(50 + i));
+    const sp = i => `0012345678910${i}`;
+    const newEnergy = (id, supply, number = null) => query(`INSERT INTO vendita_contratti
+      (id,anagrafica_id,pratica_id,categoria_snapshot,categoria_id,stato_controllo,cluster_cliente,pod_pdr,numero_contratto_energia)
+      VALUES($1,$2,$3,'Energia',$4,'da_controllare','Consumer',$5,$6)`, [id, cliente, inviato, fixtureId(20), supply, number]);
+    await newEnergy(csvReady, sp(1), '0999');
+    await newEnergy(csvMissing, sp(2));
+    await newEnergy(csvAmbiguous, sp(3));
+    await newEnergy(csvIncomplete, sp(4));
+    await newEnergy(manualRed, sp(5));
+    await newEnergy(csvLg, sp(7));
+    await setStatus('in_attesa_csv', null, null, null, csvReady);
+    await setStatus('da_verificare', null, null, 'Nota operatore conservata', manualRed);
+    await query(`INSERT INTO vendita_energia_verifiche(contratto_id,stato,motivo,motivo_fornitore)
+      VALUES($1,'da_verificare','fornitore_incerto','fornitore_incerto')`, [csvReady]);
+
+    await db.exec('RESET ROLE');
+    await load('20261118223152_energia_verifica_solo_csv.sql');
+    await db.exec('SET ROLE service_role');
+    assert.equal(await nextSupplier(), null);
+    assert.equal(await attempt({ contratto_id: csvReady, updated_at: await stamp(csvReady), contesto: {}, lease: fixtureId(65) }), null);
+    assert.equal(await phase(csvReady), 'in_attesa_csv');
+    const csvOnly = (content, hash = '8') => value('SELECT vendita_energia_importa_csv($1,$2,$3) AS v',
+      [hash.repeat(64), operatore, JSON.stringify(parse(content, { requirePracticeType: true }))]);
+    const currentTypeCsv = typeHeader + `;;0201;${sp(1)};Nuovo;;Switch-In\n`
+      + `${fiscale};;0203;${sp(3)};Nuovo;;Attivazione\n${fiscale};;0293;${sp(3)};Attivato;;Voltura\n`
+      + `${fiscale};;0204;${sp(4)};Attivato;;\n${fiscale};;0205;${sp(5)};Nuovo;;Voltura\n`
+      + `${fiscale};;0206;${sp(6)};Nuovo;;Attivazione\n${fiscale};;0207;${sp(7)};Attivato;;Switch con Voltura\n`;
+    const completedCsvImport = await csvOnly(currentTypeCsv);
+    assert.equal(completedCsvImport.in_attesa_verifica, 2);
+    assert.equal(completedCsvImport.da_verificare, 3);
+    assert.equal(await phase(csvReady), 'in_attesa_verifica');
+    assert.equal(await typeOf(csvReady), 'Switch-In');
+    assert.equal(await value(`SELECT numero_contratto_energia AS v FROM vendita_contratti WHERE id=$1`, [csvReady]), '0201');
+    assert.equal(await value(`SELECT ex_fornitore AS v FROM vendita_contratti WHERE id=$1`, [csvReady]), null);
+    assert.equal(await value(`SELECT count(*)::int AS v FROM vendita_stati_verifica_manuale WHERE contratto_id=$1`, [csvReady]), 0);
+    assert.equal(await value(`SELECT motivo AS v FROM vendita_stati_verifica_manuale WHERE contratto_id=$1`, [manualRed]), 'Nota operatore conservata');
+    assert.equal(await phase(csvMissing), 'da_verificare');
+    assert.match(await value('SELECT nota_csv AS v FROM vendita_energia_verifiche WHERE contratto_id=$1', [csvMissing]), /POD\/PDR.+non è presente/);
+    assert.equal(await typeOf(csvMissing), null);
+    assert.match(await value('SELECT nota_csv AS v FROM vendita_energia_verifiche WHERE contratto_id=$1', [csvAmbiguous]), /Più numeri/);
+    assert.match(await value('SELECT nota_csv AS v FROM vendita_energia_verifiche WHERE contratto_id=$1', [csvIncomplete]), /tipo pratica/);
+    assert.equal(await typeOf(storico), 'Switch con Voltura');
+    assert.deepEqual(await outcome(protetto), [{ stato: 'NON TROVATO', stato_origine: 'manuale', esito_manuale_bloccato: true }]);
+
+    await query(`INSERT INTO vendita_documenti (id,contratto_id,tipo_documento,storage_bucket,storage_path)
+      VALUES($1,$2,'copia_bolletta','contratti-vendita','test/nuova-bolletta.pdf')`, [fixtureId(66), csvLg]);
+    await query(`UPDATE vendita_contratti SET ex_fornitore='Manuale' WHERE id=$1`, [csvLg]);
+    assert.equal(await phase(csvLg), 'in_attesa_verifica');
+    await confirm(csvReady);
+    await confirm(csvLg);
+    assert.equal(await typeOf(csvReady), 'Switch-In');
+    assert.equal(await typeOf(csvLg), 'Switch con Voltura');
+    assert.deepEqual(await outcome(csvLg), [{ stato: 'Attivato', stato_origine: 'csv', esito_manuale_bloccato: false }]);
+
+    await newEnergy(csvLate, sp(6));
+    assert.equal(await typeOf(csvLate), null);
+    const duplicateCsvImport = await csvOnly(currentTypeCsv);
+    assert.equal(duplicateCsvImport.duplicato, true);
+    assert.equal(duplicateCsvImport.in_attesa_verifica, 1);
+    assert.equal(duplicateCsvImport.da_verificare, 0);
+    assert.equal(await typeOf(csvLate), 'Attivazione');
+    await query(`UPDATE vendita_contratti SET pod_pdr=$2 WHERE id=$1`, [csvMissing, sp(9)]);
+    assert.equal(await phase(csvMissing), 'in_attesa_csv');
+    assert.equal(await value('SELECT nota_csv AS v FROM vendita_energia_verifiche WHERE contratto_id=$1', [csvMissing]), null);
+
+    await db.exec("RESET ROLE; SET ROLE authenticated; SET test.verifica='true'");
+    assert.equal(await typeOf(csvReady), 'Switch-In');
+    await assert.rejects(query('SELECT tipo_pratica_csv FROM vendita_energia_verifiche'), { code: '42501' });
+    await db.exec("SET test.verifica='false'; SET test.lg='true'");
+    assert.equal(await typeOf(csvReady), 'Switch-In');
+    assert.deepEqual(await query('SELECT nota_csv FROM vendita_energia_verifiche'), []);
+
+    await db.exec('RESET ROLE; CREATE TABLE public.vendita_verifiche (contratto_id uuid PRIMARY KEY)');
+    const resetSQL = fs.readFileSync('database/ripristina_attesa_csv_energia.sql', 'utf8');
+    const resetBefore = await query('SELECT * FROM vendita_energia_verifiche ORDER BY contratto_id');
+    await db.exec(resetSQL);
+    assert.deepEqual(await query('SELECT * FROM vendita_energia_verifiche ORDER BY contratto_id'), resetBefore);
+    const hash = await value(`SELECT md5(jsonb_agg(jsonb_build_array(c.id,c.numero_contratto_energia,c.ex_fornitore,c.updated_at,to_jsonb(m))
+      ORDER BY c.id)::text) AS v FROM vendita_contratti c JOIN vendita_pratiche p ON p.id=c.pratica_id
+      LEFT JOIN vendita_stati_verifica_manuale m ON m.contratto_id=c.id
+      WHERE p.stato_pratica='inviata' AND c.stato_controllo='da_controllare'
+      AND mirox_private.energia_categoria(c.categoria_id,c.categoria_snapshot)`);
+    const committedReset = resetSQL.replace("SET LOCAL lock_timeout", `SET LOCAL mirox.energia_reset_applica = 'yes';
+SET LOCAL mirox.energia_reset_impronta = '${hash}';
+SET LOCAL lock_timeout`).replace(/ROLLBACK;\s*$/, 'COMMIT;');
+    await db.exec(committedReset);
+    assert.equal(await phase(csvLate), 'in_attesa_csv');
+    assert.equal(await typeOf(csvLate), null);
+    assert.equal(await value('SELECT numero_contratto_energia AS v FROM vendita_contratti WHERE id=$1', [csvLate]), null);
+    assert.equal(await typeOf(csvLg), 'Switch con Voltura');
+    assert.deepEqual(await outcome(csvLg), [{ stato: 'Attivato', stato_origine: 'csv', esito_manuale_bloccato: false }]);
     console.log('Verifica Energia SQL: migrazione, ACL, riscontro, esiti, concorrenza ottimistica e rollback verificati.');
   } finally {
     await db.close();

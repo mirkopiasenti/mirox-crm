@@ -315,7 +315,7 @@ async function updateContract({ supabase, auth, body }) {
         });
         if (error) throw error;
         if (!ready) return response(409, { success: false,
-          error: 'Ricarica la pratica. Serve il riscontro della bolletta e del CSV WindTre prima di confermare.' });
+          error: 'Ricarica la pratica. Serve il riscontro del CSV WindTre prima di confermare.' });
       } else if (mode === 'verify') {
         const cfg = await supabase.from('vendita_verifica_config').select('modalita').eq('id', true).maybeSingle();
         if (cfg.error && !['42P01', 'PGRST205'].includes(cfg.error.code)) throw cfg.error;
@@ -534,11 +534,6 @@ exports.handler = async (event) => {
     if (body.action === 'get_codici_cliente') return await getCustomerCodes({ supabase, body });
     if (body.action === 'get_note_contratto') return response(200, { success: true, ...await ContractNotes.list({ supabase, body }) });
     if (body.action === 'add_nota_contratto') return response(200, { success: true, ...await ContractNotes.add({ supabase, auth, body }) });
-    if (body.action === 'riscontro_energia') {
-      if (!isUuid(body.contratto_id)) return response(400, { success: false, error: 'Contratto non valido.' });
-      const result = await require('./_lib/energia-verifica').manual(supabase, body, auth.profilo?.id);
-      return response(200, { success: true, ...result });
-    }
     if (body.action === 'update_pda') return await updatePda({ supabase, auth, body });
     if (body.action === 'set_stato_verifica_manuale') return await setManualReviewStatus({ supabase, auth, body });
     if (body.action === 'update') {

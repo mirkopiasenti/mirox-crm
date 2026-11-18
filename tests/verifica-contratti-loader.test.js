@@ -176,8 +176,7 @@ for (const energy of [false, true]) test(`il popup ${energy ? 'Energia' : 'Mobil
   const contract = f.state.daVerificare[0];
   if (energy) {
     contract.categoria_snapshot = 'Energia';
-    contract.riscontro_energia = { stato: 'da_verificare', motivo_fornitore: 'fornitore_incerto' };
-    f.context.window.MiroxEnergiaCsv = { messages: { fornitore_incerto: 'Gestore da leggere' } };
+    contract.riscontro_energia = { stato: 'da_verificare', nota_csv: 'Il POD/PDR inserito non è presente nel CSV WindTre caricato.' };
     f.state.tabInAttesa = 'energia';
   }
   const control = () => {
@@ -208,7 +207,7 @@ for (const energy of [false, true]) test(`il popup ${energy ? 'Energia' : 'Mobil
   const save = controls['[data-vc-salva]'], error = controls['[data-vc-stato-errore]'];
   if (energy) {
     assert.match(popup.options.bodyHtml, /IN ATTESA CSV[\s\S]*IN ATTESA VERIFICA[\s\S]*DA VERIFICARE/);
-    assert.match(popup.options.bodyHtml, /Gestore da leggere/);
+    assert.equal(note.value, contract.riscontro_energia.nota_csv);
     assert.doesNotMatch(popup.options.bodyHtml, /da_confermare/);
   }
   let calls = 0, finish;
@@ -219,6 +218,7 @@ for (const energy of [false, true]) test(`il popup ${energy ? 'Energia' : 'Mobil
     assert.equal(payload.stato_atteso, null);
     return new Promise(resolve => { finish = resolve; });
   };
+  if (energy) note.value = '';
   await save.emit('click');
   assert.match(error.textContent, energy ? /motivazione/ : /Seleziona/);
   select.value = 'da_verificare'; await select.emit('change');

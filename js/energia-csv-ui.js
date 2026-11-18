@@ -3,21 +3,6 @@
   'use strict';
 
   const LIMIT = 4 * 1024 * 1024;
-  const messages = Object.freeze({
-    bolletta_assente: 'Allega la bolletta per identificare il gestore uscente.',
-    bolletta_illeggibile: 'La bolletta non è leggibile. Aprila e riscontra i dati a mano oppure sostituiscila.',
-    bolletta_ambigua: 'Il gestore uscente è ambiguo. Controlla le bollette della pratica.',
-    intestatario_diverso: 'L’intestatario letto sulla bolletta è diverso dal cliente della pratica.',
-    fornitore_incerto: 'Il gestore uscente non è stato riconosciuto. Controlla la bolletta.',
-    punto_incerto: 'Il POD/PDR inserito non è valido. Controllalo sulla bolletta.',
-    cliente_incompleto: 'Controlla il codice fiscale o la partita IVA in anagrafica.',
-    csv_assente: 'Carica il CSV WindTre per riscontrare il numero di contratto.',
-    csv_non_trovato: 'Il POD/PDR inserito non è presente nell’ultimo CSV caricato.',
-    csv_numero_diverso: 'Il numero contratto inserito non corrisponde alla proposta WindTre per questo cliente e POD/PDR.',
-    csv_fiscale_diverso: 'Il codice fiscale o la partita IVA per questa fornitura non coincide con i dati del CSV.',
-    csv_ambiguo: 'Il CSV contiene più proposte compatibili. Verifica l’export WindTre.',
-    errore_lettura: 'La lettura della bolletta ha avuto un errore. Puoi riscontrare i dati a mano.'
-  });
   async function upload(file) {
     if (file.size > LIMIT) throw new Error('Il CSV WindTre può contenere al massimo 4 MB.');
     const res = await MiroxApi.fetch('/.netlify/functions/gestisci-controllo-lg', {
@@ -26,27 +11,39 @@
     });
     const result = await res.json().catch(() => ({}));
     if (!res.ok || result.success !== true) throw new Error(result.error || 'Caricamento CSV non riuscito. Riprova.');
+    const counts = [result.in_attesa_verifica, result.da_verificare, result.aggiornati, result.protetti];
+    if (!counts.every(value => Number.isSafeInteger(value) && value >= 0)) {
+      throw new Error('Il server non ha confermato l’esito completo dell’import. Aggiorna la pagina e riprova.');
+    }
     return result;
   }
 
   async function run(file, refresh) {
-    const loader = MiroxUI.loading.show('Importazione del CSV WindTre', file.name);
+    const loader = MiroxUI.loading.show('Importazione del CSV WindTre in corso…', file.name);
     let result;
     try {
       result = await upload(file);
     } catch (e) {
-      loader.error('CSV non importato');
-      await MiroxUI.alert(e.message, { type: 'error' });
+      loader.hide();
+      await MiroxUI.alert(e.message, { title: 'Importazione CSV', type: 'error' });
       return false;
     }
-    loader.success('CSV disponibile');
-    const message = result.duplicato
-      ? 'Questo CSV è già disponibile nei due moduli. Le pratiche Energia in attesa vengono elaborate in coda.'
-      : `Controllo Luce e Gas. Esiti aggiornati: ${result.aggiornati}. Esiti manuali protetti: ${result.protetti}. Le pratiche in Verifica Contratti vengono elaborate in coda.`;
-    await MiroxUI.alert(message, { title: 'CSV WindTre', type: 'success' });
-    await refresh();
+    loader.setText('Aggiornamento della lista…');
+    let refreshed = false;
+    try {
+      refreshed = await refresh() !== false;
+    } catch {
+      refreshed = false;
+    } finally {
+      loader.hide();
+    }
+    const message = `Verifica Contratti. Numero e tipo pratica compilati: ${result.in_attesa_verifica}. Da verificare: ${result.da_verificare}.\n`
+      + `Controllo Luce e Gas. Esiti aggiornati: ${result.aggiornati}. Esiti manuali protetti: ${result.protetti}.`
+      + (refreshed ? '' : '\nPer vedere i dati salvati, ricarica l’elenco con Aggiorna.');
+    await MiroxUI.alert(message, { title: 'Importazione CSV completata',
+      type: refreshed && result.da_verificare === 0 ? 'success' : 'warning' });
     return true;
   }
 
-  root.MiroxEnergiaCsv = { run, messages };
+  root.MiroxEnergiaCsv = { run };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

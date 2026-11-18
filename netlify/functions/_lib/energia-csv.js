@@ -13,7 +13,7 @@ const tax = (value, business) => {
   return /^[A-Z0-9]{16}$/.test(normalized) ? normalized : '';
 };
 
-function parse(input, { onlyTypes = false } = {}) {
+function parse(input, { onlyTypes = false, requirePracticeType = false } = {}) {
   const { header, rows } = readCsv(input);
   const hasType = header.includes('TIPORICHIESTA');
   const points = header.flatMap((name, index) => POINT_HEADERS.has(name) ? [index] : []);
@@ -24,6 +24,7 @@ function parse(input, { onlyTypes = false } = {}) {
     throw new Error('Servono le colonne Proposta di Contratto, Codice Fiscale, Partita Iva e Stato.');
   }
   if (!onlyTypes && !points.length) throw new Error('Il CSV non contiene la colonna POD/PDR.');
+  if (requirePracticeType && !hasType) throw new Error('Il CSV non contiene la colonna Tipo Richiesta.');
   const columns = new Map(header.map((name, index) => [name, index]));
   const value = (row, name) => row[columns.get(name)]?.trim() || '';
   const sources = new Map();
@@ -34,7 +35,7 @@ function parse(input, { onlyTypes = false } = {}) {
     const state = value(row, 'STATO');
     const type = hasType ? value(row, 'TIPORICHIESTA').replace(/\s+/g, ' ') : '';
     const supply = [...new Set(points.map(i => code(row[i])).filter(v => v && v !== '-' && v !== '—'))];
-    if (!numero || (!cf && !piva)) continue;
+    if (!(requirePracticeType && supply.length) && (!numero || (!cf && !piva))) continue;
     if (onlyTypes && (numero.length > 80 || supply.length && !supply.some(isPoint))) continue;
     if (!onlyTypes && (numero.length > 80 || state.length > 100 || supply.some(p => !isPoint(p)))) {
       throw new Error(`Numero contratto, POD/PDR o stato non valido alla riga ${index + 2}.`);
@@ -66,7 +67,7 @@ function parse(input, { onlyTypes = false } = {}) {
 async function save(db, input, actor, { onlyTypes = false } = {}) {
   let rows;
   try {
-    rows = parse(input, { onlyTypes });
+    rows = parse(input, { onlyTypes, requirePracticeType: !onlyTypes });
   } catch (error) {
     error.statusCode = 400;
     throw error;

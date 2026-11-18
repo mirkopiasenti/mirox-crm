@@ -563,7 +563,7 @@ async function caricaContratti(statoControllo, { silent = false } = {}) {
         stato_controllo, controllato_da, controllato_at, note_controllo,
         data_contratto, created_at, updated_at,
         anagrafica:anagrafica_id ( id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, provincia, comune, via, civico )
-        , riscontro_energia:vendita_energia_verifiche(stato,motivo,motivo_fornitore,motivo_csv,punto_originale,csv_at)
+        , riscontro_energia:vendita_energia_verifiche(stato,nota_csv)
         , tipo_pratica_energia
         ${statoControllo === 'da_controllare' ? ', revisione:vendita_stati_verifica_manuale(stato,motivo,versione)' : ''}
       `)
@@ -601,11 +601,13 @@ async function caricaContratti(statoControllo, { silent = false } = {}) {
     }));
     VCState.caricamenti[stateKey] = 'loaded';
     renderListaContratti(stateKey);
+    return true;
   } catch (e) {
-    if (silent) return;
+    if (silent) return false;
     VCState.caricamenti[stateKey] = 'error';
     console.error('Errore caricamento contratti:', e);
     wrap.innerHTML = `<div class="empty-state"><div class="empty-icon"></div><h3>Errore caricamento</h3><p>${escapeHtml(e.message)}</p></div>`;
+    return false;
   }
 }
 
@@ -877,15 +879,12 @@ function apriPopupDettaglio(c, opts) {
   const energy = String(c.categoria_snapshot || categorie.find(category => category.id === c.categoria_id)?.nome || '').trim().toLowerCase() === 'energia';
   const energyProof = c.riscontro_energia?.stato === 'in_attesa_verifica';
   const energyReady = energy && energyProof && statoVisibileContratto(c) === 'in_attesa_verifica';
-  const energyReview = c.riscontro_energia || {};
   const statoHtml = isReadOnly ? '' : `
     <div class="det-section">
       <div class="vc-stato-toolbar">
         <button type="button" class="mx-btn mx-btn-primary vc-cambia-stato" data-vc-cambia-stato aria-haspopup="dialog">${energy ? 'Cambia esito' : 'Cambia stato'}</button>
         <div class="vc-stato-attuale">Stato attuale <span data-vc-stato-corrente aria-live="polite">${renderStatoContratto(c)}</span></div>
       </div>
-      ${energy && !energyProof && energyReview.motivo && (energyReview.motivo_fornitore || energyReview.motivo) !== 'bolletta_assente'
-        ? '<button type="button" class="mx-btn mx-btn-secondary" data-vc-riscontro-energia>Riscontro manuale</button>' : ''}
     </div>`;
   const bodyHtml = `${statoHtml}${pdaHtml}
     <div class="det-section" data-contract-notes></div>
@@ -1045,7 +1044,7 @@ function apriPopupDettaglio(c, opts) {
           <input type="text" id="vc_numero_contratto_energia" maxlength="80" value="${escapeHtml(c.numero_contratto_energia || '')}" ${energy ? '' : ro} placeholder="Compilato dal CSV WindTre">
         </div>
         <div class="det-field" id="vc_field_ex_fornitore">
-          <label for="vc_ex_fornitore">Ex Fornitore <span class="required">*</span> <small style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;">(obbligatorio per verificare)</small></label>
+          <label for="vc_ex_fornitore">Ex Fornitore</label>
           <input type="text" id="vc_ex_fornitore" maxlength="160" value="${escapeHtml(c.ex_fornitore || '')}" ${energy ? '' : ro} placeholder="Es. Enel Energia, Eni Plenitude...">
         </div>
         <div class="det-field" id="vc_field_prezzo_fisso">
@@ -1206,13 +1205,6 @@ function apriPopupDettaglio(c, opts) {
   // Bottone chiudi via attributo
   m.foot.querySelectorAll('[data-mx-close-popup]').forEach(b => b.addEventListener('click', () => m.close()));
   if (!isReadOnly) collegaCambioStato(m.body, c, m.foot.querySelector('[data-vc-conferma-verifica]'));
-  m.body.querySelector('[data-vc-riscontro-energia]')?.addEventListener('click', () => {
-    if (pdaOtherFieldsDirty) {
-      window.MiroxUI.toast('Salva le altre modifiche prima di riscontrare la bolletta.', 'warning');
-      return;
-    }
-    apriRiscontroEnergia(m, c);
-  });
   renderAllegatiPopup(c, allegati, isReadOnly);
 
   // Applica regole di visibilità in base a categoria + bind dei listener
@@ -1471,60 +1463,8 @@ async function gestisciVenditaContratto(payload) {
   return result;
 }
 
-function apriRiscontroEnergia(dettaglio, contratto) {
-  let busy = false;
-  const popup = window.MiroxUI._build({
-    title: 'Riscontra i dati dalla bolletta',
-    bodyHtml: `<p>Controlla il POD/PDR e il gestore uscente sulla bolletta. Correggi i dati se necessario.</p>
-      <div class="det-grid">
-        <div class="det-field"><label for="vcEnergiaPuntoManuale">POD/PDR</label><input id="vcEnergiaPuntoManuale" maxlength="32" autocomplete="off" value="${escapeHtml(contratto.pod_pdr || '')}"></div>
-        <div class="det-field"><label for="vcEnergiaGestoreManuale">Ex Fornitore</label><input id="vcEnergiaGestoreManuale" maxlength="160" autocomplete="off" value="${escapeHtml(contratto.ex_fornitore || '')}"></div>
-      </div>
-      <p><label><input type="checkbox" data-vc-bolletta-letta> Ho riscontrato sulla bolletta allegata i dati e l’intestatario della pratica.</label></p>
-      <p data-vc-energia-messaggio role="status"></p>`,
-    footerHtml: '<button type="button" class="mx-btn mx-btn-secondary" data-vc-energia-annulla>Annulla</button>'
-      + '<button type="button" class="mx-btn mx-btn-primary" data-vc-energia-riscontra>Salva e confronta con il CSV</button>',
-    canClose: () => !busy
-  });
-  const cancel = popup.foot.querySelector('[data-vc-energia-annulla]');
-  const submit = popup.foot.querySelector('[data-vc-energia-riscontra]');
-  const message = popup.body.querySelector('[data-vc-energia-messaggio]');
-  cancel.addEventListener('click', () => popup.close());
-  submit.addEventListener('click', async () => {
-    if (busy) return;
-    const punto = popup.body.querySelector('#vcEnergiaPuntoManuale').value.trim();
-    const gestore = popup.body.querySelector('#vcEnergiaGestoreManuale').value.trim();
-    const attestazione = popup.body.querySelector('[data-vc-bolletta-letta]').checked;
-    if (!punto || !gestore || !attestazione) {
-      message.textContent = 'Compila entrambi i campi e conferma di aver letto la bolletta.';
-      return;
-    }
-    busy = submit.disabled = cancel.disabled = true;
-    message.textContent = 'Riscontro in corso…';
-    let salvato = false;
-    try {
-      await gestisciVenditaContratto({
-        action: 'riscontro_energia', contratto_id: contratto.id, expected_updated_at: contratto.updated_at,
-        pod_pdr: punto, ex_fornitore: gestore, attestazione
-      });
-      salvato = true;
-    } catch (error) {
-      message.textContent = error.message;
-    } finally {
-      busy = submit.disabled = cancel.disabled = false;
-    }
-    if (!salvato) return;
-    popup.close();
-    dettaglio.close();
-    await caricaContratti('da_controllare');
-    await apriDettaglioContratto(contratto.id, 'daVerificare');
-  });
-}
-
 function noteAutomaticheEnergia(c) {
-  if (categoriaInAttesa(c) !== 'energia') return '';
-  const { motivo_csv, motivo_fornitore, motivo } = c.riscontro_energia || {};
-  return [...new Set([motivo_csv, motivo_fornitore, motivo].map(code => window.MiroxEnergiaCsv?.messages[code]).filter(Boolean))].join('\n');
+  return categoriaInAttesa(c) === 'energia' ? c.riscontro_energia?.nota_csv || '' : '';
 }
 
 function collegaCambioStato(body, c, conferma) {
@@ -1547,7 +1487,6 @@ function collegaCambioStato(body, c, conferma) {
           <option value="">${energy ? 'Seleziona un esito' : 'Seleziona uno stato'}</option>
           ${opzioni.map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
         </select>
-        ${motivoAutomatico ? `<div class="vc-motivo-testo"><strong>Riscontro automatico</strong><br>${escapeHtml(motivoAutomatico)}</div>` : ''}
         <div class="vc-stato-motivo" data-vc-motivo hidden>
           <label for="vc_motivo_stato">${energy ? 'Nota obbligatoria' : 'Motivazione obbligatoria'}</label>
           <textarea id="vc_motivo_stato" class="mx-input" rows="5" maxlength="2000"
@@ -1574,7 +1513,7 @@ function collegaCambioStato(body, c, conferma) {
     const salva = m.foot.querySelector('[data-vc-salva]');
     const annulla = m.foot.querySelector('[data-vc-annulla]');
     select.value = energy ? statoVisibileContratto(c) : c.revisione?.stato || '';
-    motivo.value = c.revisione?.motivo || '';
+    motivo.value = c.revisione?.motivo || motivoAutomatico;
     const aggiornaMotivo = () => {
       const richiesto = select.value === 'da_verificare';
       motivoWrap.hidden = !richiesto;
@@ -1851,25 +1790,18 @@ function leggiDatiEnergia() {
 // ============================================================
 async function confermaVerifica(id) {
   const { ana, contratto, isEnergia } = leggiPayloadDalPopup();
-  if (isEnergia && ['pod_pdr', 'numero_contratto_energia', 'ex_fornitore'].some(key =>
+  if (isEnergia && ['pod_pdr', 'numero_contratto_energia'].some(key =>
     contratto[key] !== (window.__currentVerificaContratto?.[key]?.trim() || null))) {
-    await window.MiroxUI.alert('Salva le modifiche Energia per avviare il nuovo riscontro, poi conferma la verifica.', { type: 'warning' });
+    await window.MiroxUI.alert('Salva le modifiche e carica il CSV WindTre prima di confermare.', { type: 'warning' });
     return;
   }
   if (isEnergia && statoVisibileContratto(window.__currentVerificaContratto) !== 'in_attesa_verifica') {
-    await window.MiroxUI.alert('Completa il riscontro con la bolletta e il CSV WindTre prima di confermare.', { type: 'warning' });
+    await window.MiroxUI.alert('Completa il riscontro con il CSV WindTre prima di confermare.', { type: 'warning' });
     return;
   }
-  // Validazione: numero contratto energia + ex_fornitore obbligatori per Energia
   if (isEnergia && !contratto.numero_contratto_energia) {
     await window.MiroxUI.alert('Per i contratti Energia è obbligatorio inserire il <strong>Numero Contratto Energia</strong> prima di poter confermare la verifica.', { type: 'warning', title: 'Campo obbligatorio', html: true });
     const inp = document.getElementById('vc_numero_contratto_energia');
-    if (inp) inp.focus();
-    return;
-  }
-  if (isEnergia && !contratto.ex_fornitore) {
-    await window.MiroxUI.alert('Per i contratti Energia è obbligatorio inserire l\'<strong>Ex Fornitore</strong> prima di poter confermare la verifica.', { type: 'warning', title: 'Campo obbligatorio', html: true });
-    const inp = document.getElementById('vc_ex_fornitore');
     if (inp) inp.focus();
     return;
   }
@@ -2130,15 +2062,6 @@ csvInputVC.addEventListener('change', async () => {
     csvButtonVC.disabled = false;
   }
 });
-
-window.setInterval?.(() => {
-  if (document.hidden || VCState.tabInAttesa !== 'energia'
-    || !document.getElementById('tab-da-verificare').classList.contains('active')
-    || VCState.caricamenti.daVerificare !== 'loaded' || window.__currentVerificaModal?.overlay.isConnected) return;
-  if (VCState.daVerificare.some(c => statoVisibileContratto(c) === 'in_attesa_csv')) {
-    void caricaContratti('da_controllare', { silent: true });
-  }
-}, 30000);
 
 // INIT
 (async () => {

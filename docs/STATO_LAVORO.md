@@ -2,11 +2,18 @@
 
 Aggiornato:2026-11-18. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Tipo pratica Energia da CSV WindTre —18/11, DB aggiornato e UI pronta al rilascio
+## Verifica Energia solo CSV e ripristino pendenti —18/11
+
+- **Carica CSV WindTre** in Verifica elabora subito le pratiche inviate **IN ATTESA CSV**. POD/PDR già registrato come chiave, proposta H e tipo K salvati insieme all’esito. Corrispondenza univoca → **IN ATTESA VERIFICA**. Punto assente, abbinamento ambiguo o dati incompleti → **DA VERIFICARE** con nota nel popup e nell’icona dell’esito. Ex Fornitore facoltativo. Allegati con controllo umano, aggiornamento L&G secondo regole preesistenti.
+- Migrazione `20261118223152_energia_verifica_solo_csv.sql`: ferma le RPC OCR legacy e fa ripartire i vecchi esiti automatici negativi al prossimo upload. Esiti manuali e prove già pronte conservati. Una correzione del punto o numero pendente richiede il CSV. La vecchia coda esce da cron, worker e dettaglio.
+- Popup con spinner fino alla risposta completa della transazione e al ricaricamento dell’elenco. OK finale con conteggi, errore per risposte incomplete. Build e 862/862 test in copia isolata, PGlite su migrazioni, ACL, ripristino/rollback e passaggio L&G. CSV originale verificato in locale (599 righe, 587 con punto).
+- Migrazione applicata/riletta in produzione come `20261118224831`. Dopo backup privato, `ripristina_attesa_csv_energia.sql` ha svuotato 45 numeri e 49 fornitori e riportato 53/53 in **IN ATTESA CSV**. Rilettura: zero residui e coda OCR ferma. Impronte dei dati fuori perimetro, POD/PDR, allegati, fonte, registro tipi ed esiti L&G conservate. Il titolare caricherà manualmente il nuovo CSV.
+
+## Tipo pratica Energia da CSV WindTre —18/11, pubblicata
 
 - Colonna `Tipo Richiesta` (K) nei due caricamenti e colonna ricercabile `Tipo pratica` in Energia in attesa, Verificati e Controllo Luce & Gas. Riscontro su cliente, proposta e punto; vincolo di univocità anche nel fallback legacy. I tipi delle proposte assenti dai successivi CSV restano disponibili.
 - Migrazioni `20261118215435_energia_tipo_pratica_csv.sql` e `20261118220930_energia_tipo_pratica_ricerca.sql`, applicate/rilette in produzione come `20261118220440` e `20261118221012`. Caricato il solo tipo dalle 599 righe fornite (645 chiavi di riscontro). Backfill transazionale verificato: 474/523 Energia, 429/468 Controllo L&G e 45/53 in attesa. 49 senza riscontro univoco. Impronte contratti, esiti L&G, esiti manuali, verifiche e fonte CSV identiche nel commit.
-- ACL/RLS e advisor verificati. PGlite, prove DOM delle due liste, build e suite 862/862 verdi. Lettura verificata con ruolo operatore; PostgreSQL 227 ms sui 1.000 verificati più recenti. Prossimo passo su richiesta esplicita: commit/push dell'app e collaudo visuale dopo il deploy.
+- ACL/RLS e advisor verificati. PGlite, prove DOM delle due liste, build e suite 862/862 verdi. Lettura verificata con ruolo operatore; PostgreSQL 227 ms sui 1.000 verificati più recenti. Pubblicato con `fcc415a`, CI 44409560894 verde Linux e Windows, Netlify `6afe23298c838bde1fac69e6`. Verificati script e stili via HTTP per entrambe le pagine, anche Pretty URL, e 401 sui due import senza JWT.
 
 ## Chiusura rilavorazioni da Black List —18/11
 

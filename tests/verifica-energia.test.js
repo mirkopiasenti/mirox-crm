@@ -8,7 +8,6 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const Csv = require('../netlify/functions/_lib/energia-csv');
 const Bill = require('../netlify/functions/_lib/energia-bolletta');
-const Review = require('../netlify/functions/_lib/energia-verifica');
 const { endpointPages } = require('../js/mirox-permissions-core');
 
 const fiscale = 'RSSMRA80A01H501U';
@@ -162,11 +161,10 @@ test('la seconda richiesta IA cerca in fondo e sulla seconda pagina, e respinge 
   assert.deepEqual(rendered, [1, 2]);
 });
 
-test('import condiviso da Verifica Contratti e riscontro manuale richiedono la sua ACL', () => {
+test('import condiviso e salvataggio Energia richiedono la ACL Verifica Contratti', () => {
   const event = action => ({ body: JSON.stringify({ action }) });
   assert.deepEqual(endpointPages('gestisci-controllo-lg', event('import_shared_csv')), ['verifica_contratti']);
   assert.deepEqual(endpointPages('gestisci-controllo-lg', event('set_manual_outcome')), ['controllo_lg']);
-  assert.deepEqual(endpointPages('gestisci-vendita-contratto', event('riscontro_energia')), ['verifica_contratti']);
   assert.deepEqual(endpointPages('gestisci-vendita-contratto', { body: JSON.stringify({ action: 'update', mode: 'save_energy' }) }), ['verifica_contratti']);
 });
 
@@ -230,49 +228,52 @@ test('il salvataggio Energia accetta un operatore con accesso, limita lo storico
   assert.equal(saved, null);
 });
 
-test('la coda invia solo gestore o esito di lettura e non rilegge una prova valida', async () => {
-  const jobs = [
-    { gestore: 'Enel Energia' },
-    { lettura_scaduta: true },
-    {},
-    {}
-  ];
-  const calls = [];
+test('il CSV di verifica richiede Tipo Richiesta e mantiene i POD/PDR anche senza dati fiscali o numero', async () => {
+  const csv = 'Proposta di Contratto;Codice Fiscale;Partita Iva;POD/PDR;Stato;Tipo Richiesta\n'
+    + `0007;;;${pdr};Nuovo;Switch-In\n;;;;Nuovo;Voltura\n;;;${pod};;Attivazione\n`;
+  let captured;
   const db = { async rpc(name, args) {
-    if (name === 'vendita_energia_prossimo_gestore') {
-      if (!jobs.length) return { data: null };
-      return { data: { contratto_id: 'fixture', lease: 'job', contesto: context, csv_id: 'file', ...jobs.shift() } };
-    }
-    assert.equal(name, 'vendita_energia_riscontra');
-    calls.push(args);
-    return { data: { stato: 'da_verificare' } };
-  }};
-  let reads = 0;
-  await Review.drain(db, async () => {
-    if (reads++ === 0) return { gestore: 'Argos', punto: 'IT001E87654321' };
-    throw new Error('lettura fixture');
-  });
-  assert.equal(reads, 2);
-  assert.deepEqual(calls.map(job => [job.p_punto, job.p_gestore, job.p_motivo]), [
-    [null, 'Enel Energia', null],
-    [null, null, 'errore_lettura'],
-    [null, 'Argos', null],
-    [null, null, 'errore_lettura']
-  ]);
-  assert.ok(calls.every(job => job.p_lease === 'job' && job.p_csv_id === 'file'));
+    assert.equal(name, 'vendita_energia_importa_csv');
+    captured = args.p_righe;
+    return { data: { in_attesa_verifica: 1, da_verificare: 1 } };
+  } };
+  const risultato = await Csv.save(db, csv, 'operatore');
+  assert.deepEqual(captured.map(r => [r.punto, r.numero, r.tipo_pratica]),
+    [[pdr, '0007', 'Switch-In'], [pod, '', 'Attivazione']]);
+  assert.equal(risultato.in_attesa_verifica, 1);
+  assert.equal(risultato.da_verificare, 1);
+  await assert.rejects(Csv.save(db, csv.replace('Tipo Richiesta', 'Tipologia richiesta'), 'operatore'),
+    { statusCode: 400, message: 'Il CSV non contiene la colonna Tipo Richiesta.' });
 });
 
-test('riscontro manuale richiede attestazione e revisione, passa al DB solo POD/PDR e gestore', async () => {
+test('il popup CSV resta in caricamento fino al risultato dell’import e all’aggiornamento della lista', async () => {
+  const script = fs.readFileSync(require.resolve('../js/energia-csv-ui'), 'utf8');
   const calls = [];
-  const db = { async rpc(name, payload) {
-    calls.push([name, payload]);
-    return { data: name === 'vendita_energia_contesto_manuale' ? context : { stato: 'in_attesa_verifica', motivo: null } };
-  }};
-  const input = { contratto_id: 'fixture', expected_updated_at: '2026-11-18T14:00:00Z', pod_pdr: pdr, ex_fornitore: 'Enel Energia', numero_contratto_energia: 'valore non autorizzato' };
-  await assert.rejects(Review.manual(db, input, 'operatore'), { statusCode: 400 });
-  assert.equal(calls.length, 0);
-  assert.equal((await Review.manual(db, { ...input, attestazione: true }, 'operatore')).stato, 'in_attesa_verifica');
-  assert.equal(calls[1][1].p_punto, pdr);
-  assert.equal(calls[1][1].p_autore, 'operatore');
-  assert.equal(calls[1][1].p_numero, undefined);
+  let completeImport, completeRefresh;
+  const context = {
+    MiroxApi: { fetch: () => new Promise(resolve => { completeImport = resolve; }) },
+    MiroxUI: {
+      loading: { show() { calls.push('loading'); return { setText: () => calls.push('refresh'), hide: () => calls.push('hide') }; } },
+      async alert(text, options) { calls.push([options.type, text]); }
+    }
+  };
+  vm.runInNewContext(script, context);
+  const file = { size: 8, name: 'test.csv', text: async () => 'dati CSV' };
+  const promise = context.MiroxEnergiaCsv.run(file, () => new Promise(resolve => { completeRefresh = resolve; }));
+  await new Promise(setImmediate);
+  assert.deepEqual(calls, ['loading']);
+  completeImport({ ok: true, json: async () => ({ success: true, in_attesa_verifica: 3, da_verificare: 1, aggiornati: 4, protetti: 2 }) });
+  await new Promise(setImmediate);
+  assert.deepEqual(calls, ['loading', 'refresh']);
+  completeRefresh(true);
+  assert.equal(await promise, true);
+  assert.equal(calls[2], 'hide');
+  assert.equal(calls[3][0], 'warning');
+  assert.match(calls[3][1], /Numero e tipo pratica compilati: 3.*Da verificare: 1/);
+
+  calls.length = 0;
+  context.MiroxApi.fetch = async () => ({ ok: true, json: async () => ({ success: true }) });
+  assert.equal(await context.MiroxEnergiaCsv.run(file, () => assert.fail('Risultato incompleto')), false);
+  assert.deepEqual(calls.slice(0, 2), ['loading', 'hide']);
+  assert.equal(calls[2][0], 'error');
 });

@@ -121,17 +121,13 @@ Nelle liste dei contratti in attesa il colore è applicato soltanto alle etichet
 
 In **Upload Contratti**, prima degli allegati, **Avanti** mostra in grande il POD/PDR inserito. L’operatore lo confronta con la bolletta e lo digita una seconda volta. Si prosegue quando i due codici coincidono. La pratica Energia inviata parte da **IN ATTESA CSV**.
 
-Il CRM legge dalla bolletta l’**Ex Fornitore**. Quando il testo PDF non basta, Claude Haiku 5.5 esamina ritagli ingranditi e raddrizzati di intestazione e piè di pagina, con al massimo due richieste per pratica e OCR locale di riserva. Il **Numero Contratto** viene dalla colonna H, *Proposta di Contratto*, abbinando il POD/PDR già inserito e il CF (Consumer) o la P.IVA (Business). Ogni dato riscontrato viene salvato anche se l’altro richiede un intervento.
+In **Verifica Contratti → Energia**, **Carica CSV WindTre** cerca nel file il POD/PDR già registrato. Una corrispondenza univoca compila **Numero Contratto** dalla colonna H (*Proposta di Contratto*) e **Tipo pratica** dalla colonna K (*Tipo Richiesta*). La pratica passa subito a **IN ATTESA VERIFICA** per il controllo manuale degli allegati. L’Ex Fornitore è facoltativo.
 
-Con entrambi i riscontri la pratica passa a **IN ATTESA VERIFICA** per il controllo degli allegati e la conferma finale. Un errore o un’ambiguità porta a **DA VERIFICARE**, con motivi nel dettaglio e possibilità di correggere POD/PDR ed Ex Fornitore tramite **Riscontro manuale**. Se manca ancora il primo CSV e il gestore è stato letto, la pratica attende il file in **IN ATTESA CSV**.
+Se il POD/PDR è assente, il risultato è **DA VERIFICARE** con la nota «Il POD/PDR inserito non è presente nel CSV WindTre caricato.» Una proposta ambigua o dati incompleti producono una nota specifica. La nota compare in **Cambia esito** ed è consultabile dall’icona accanto all’esito. Dopo una correzione del POD/PDR, salva la pratica e carica nuovamente il CSV. **Cambia esito** permette anche di richiedere un nuovo riscontro rimettendo la pratica in **IN ATTESA CSV**.
 
-Nel dettaglio Energia, **Cambia esito** consente di scegliere **IN ATTESA CSV**, **IN ATTESA VERIFICA** e **DA VERIFICARE**. L’esito manuale ha precedenza e **DA VERIFICARE** richiede una nota nel popup. L’icona accanto all’esito rosso apre la nota o il riscontro automatico. **Conferma verifica** richiede i dati riscontrati.
+Gli utenti con accesso a Verifica Contratti possono modificare **POD/PDR**, **Assicurazione impianti**, **Numero Contratto Energia** ed **Ex Fornitore**. Nella lista in attesa si usa **Salva modifica** e nei **Verificati** si usa **Salva dati Energia**. Il tipo viene acquisito dal CSV e si vede nella scheda Energia, nei Verificati e in Controllo Luce & Gas.
 
-Tutti gli utenti con accesso a Verifica Contratti possono modificare **POD/PDR**, **Assicurazione impianti**, **Numero Contratto Energia** ed **Ex Fornitore**. Nella lista in attesa si usa **Salva modifica**. Nei **Verificati**, **Salva dati Energia** aggiorna questi campi lasciando il contratto verificato. Per i contratti in attesa, un numero inserito a mano resta salvato e viene verificato sul CSV per cliente e POD/PDR. La modifica del solo campo assicurazione conserva il riscontro esistente.
-
-**Carica CSV WindTre** in Verifica Contratti aggiorna anche Controllo L&G e rispetta gli esiti manuali protetti. Un nuovo file valido sostituisce la fonte precedente. Se l’import fallisce, resta disponibile l’ultima fonte acquisita. Limite del caricamento condiviso 4 MiB.
-
-La colonna **Tipo pratica** compare nella scheda Energia in attesa, nei Verificati e in Controllo Luce & Gas. Entrambi i caricamenti leggono **Tipo Richiesta** (colonna K del CSV WindTre). Le due liste condividono il dato, ricercabile per testo. I tipi già acquisiti restano disponibili quando una proposta manca dalle estrazioni successive. Le pratiche senza un abbinamento univoco mostrano un trattino.
+Durante l’import il popup mostra il caricamento fino alla conferma del database e all’aggiornamento della lista. Il risultato finale con **OK** riporta quante pratiche hanno ricevuto numero e tipo e quante sono **DA VERIFICARE**. Lo stesso CSV aggiorna gli esiti di Controllo L&G secondo le regole post-vendita, inclusa la protezione degli esiti manuali. Limite del caricamento condiviso 4 MiB.
 
 ## Verifica automatica contratti — collaudo assistito
 
@@ -194,7 +190,7 @@ produce anche `dist/assets/monitor-release.json` e
 
 | Cartella / File | Cosa contiene |
 |---|---|
-| `js/energia-csv-ui.js` e `netlify/functions/_lib/energia-*.js` | Caricamento CSV nella scheda Energia, lettura bollette e riscontro con il CSV WindTre |
+| `js/energia-csv-ui.js` e `netlify/functions/_lib/energia-csv.js` | Caricamento CSV nella scheda Energia e riscontro durante l’import WindTre |
 | `index.html` | Login Supabase Auth |
 | `imposta-password.html` | Accetta inviti Auth, crea la sessione dal link e consente di scegliere la password senza comunicarla agli amministratori |
 | `dashboard.html` | Home con tabs Vendita / Post-Vendita + topbar con bottoni Applicazioni / Appuntamenti Oggi / Ticket / Call Center / **Admin** (visibile solo se `ruolo='admin'`) + badge ticket aperti. Nell'angolo inferiore destro una mascotte KONA AI Guardian di dimensioni ridotte con nuvoletta di chat compatta apre la raccolta di problemi o migliorie; il bottone Applicazioni apre un pannello espandibile sopra il saluto e collega a `Il mio planning`, `Compilatore disdette`, `Compilatore Subentri` e `Compilatore Malpractis` |
@@ -265,8 +261,8 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 | `cron-target-reports` | scheduled `*/5 * * * *` | cron Netlify | Report alle 19:45 italiane, calendario lavorativo, dedupe e risveglio coda Target |
 | `gestisci-verifica-automatica` | POST | authenticated; admin per collaudo/CSV/configurazione/notifiche | Stato del servizio, analisi assistita, riesame, data firma attestata, import CSV e modalità |
 | `verifica-identita-upload` (28/10) | POST multipart/JSON | JWT + permesso Upload Contratti | Legge identita, confronta anagrafica e firma ricevuta; conferma manuale tracciata |
-| `verifica-contratti-background` | POST background | HMAC con contesto dedicato + timestamp | Legge PDF e applica regole; commit atomico se attiva, sola valutazione se collaudo, outbox email. Il ramo Energia prepara i dati via lettura PDF/OCR locale e conserva la conferma finale umana |
-| `cron-verifica-contratti` | scheduled ogni minuto | cron Netlify | Risveglia la coda Energia e recupera collaudi e lavori del verificatore storico |
+| `verifica-contratti-background` | POST background | HMAC con contesto dedicato + timestamp | Flusso documentale storico delle altre categorie. Commit atomico in modalità attiva, sola valutazione in collaudo e outbox email |
+| `cron-verifica-contratti` | scheduled ogni minuto | cron Netlify | Recupera collaudi e lavori del verificatore storico |
 | `vendita-config` | GET | authenticated | Carica catalogo per il wizard contratti |
 | `gestisci-planning` | GET/POST | admin / dipendente proprietario | Configurazione, bozza, pubblicazione atomica e PDF; dipendenti limitati al proprio snapshot pubblicato, senza causali/codici/note |
 | `gestisci-disponibilita-cc` | GET | admin / permessi CC di prenotazione | Solo slot filtrati dalla presenza approvata di Matteo (regola14/11); profilo riletto, nessun documento Personale esposto; rilascio autorizzato04/11 |
@@ -864,7 +860,7 @@ Dettagli e regole complete in [`AGENTS.md`](AGENTS.md); [`CLAUDE.md`](CLAUDE.md)
 | `MIROX_DEPLOY_ENV` | sì nello staging | `staging`; su `main` il default e' `production` |
 | `MIROX_PUBLIC_SUPABASE_URL` | sì nello staging | URL pubblico del progetto Supabase staging, generato in `dist/js/config.js` |
 | `MIROX_PUBLIC_SUPABASE_ANON_KEY` | sì nello staging | Publishable/anon key staging; service role e secret key vengono rifiutate |
-| `ANTHROPIC_API_KEY` | sì | Chiave Claude API lato server per OCR PDA e lettura visiva del gestore nelle bollette Energia |
+| `ANTHROPIC_API_KEY` | sì | Chiave Claude API lato server per OCR PDA e letture documentali abilitate |
 | `SMTP_USER` | sì | Account Gmail mittente |
 | `SMTP_PASS` | sì | App Password Gmail |
 | `SMSHOSTING_API_KEY` | sì (per consensi OTP) | Username API Smshosting (vedi `docs/SMSHOSTING_SETUP.md`) |
@@ -1083,7 +1079,7 @@ su `main` dopo il merge. I deploy production restano attivi.
 
 ## Schedulazioni
 
-- `cron-verifica-contratti`: ogni **minuto**, primo turno **21:00 Europe/Rome** quotidiano, riesame dei sospesi e recupero notifiche. La coda Energia viene recuperata a ogni tick, indipendentemente dal turno serale. Il verificatore storico in modalità `collaudo` elabora soltanto prove richieste esplicitamente su singoli contratti.
+- `cron-verifica-contratti`: ogni **minuto**, primo turno **21:00 Europe/Rome** quotidiano, riesame dei sospesi e recupero notifiche. Il verificatore storico in modalità `collaudo` elabora soltanto prove richieste esplicitamente su singoli contratti.
 
 - **Backup Aruba attivo**: timer systemd sul VPS ogni ora al minuto 17 UTC; controllo completo sorgenti/byte archiviati alle 03:17 UTC. Monitor Healthchecks: periodo 1 ora, tolleranza 1 ora, avvisi email per errori e assenza; entrambe le condizioni collaudate. Nessuna env var o schedule Netlify aggiunta. Vedi [`docs/BACKUP_RIPRISTINO.md`](docs/BACKUP_RIPRISTINO.md).
 - **Verifiche backup**: timer VPS giornaliero 06:47 UTC; controllo checkpoint/lifecycle e restore DB isolato una volta per trimestre. Monitor separato 24h/tolleranza 12h. Prima prova: 100 tabelle/51.313 righe identiche. Progetto Supabase per collaudo CRM completo rinviato dall'utente; nessun nuovo costo. Copia TAR cifrata sul Mac verificata senza rete: 6.585 file/1,16 GB. Custodia su supporto scollegato da completare.
