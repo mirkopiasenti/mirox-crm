@@ -37,6 +37,47 @@ test('la bolletta individua un solo punto e distingue venditore, distributore e 
   assert.equal(Bill.parseText('Fornitore: Enel Energia\nPDR: O0123456789012', context, { ocr: true }).motivo, 'punto_incerto');
 });
 
+test('bolletta con più forniture: riscontra il servizio e il punto letto, anche con più POD', () => {
+  const otherPod = 'IT001E87654321';
+  const dual = [
+    'Accendi Energia Mercato Luce e Gas',
+    'POD di seguito, dati per l’energia elettrica',
+    pod,
+    'Punto di riconsegna (PDR) della fornitura',
+    pdr,
+    `Codice POD ${otherPod}`,
+    'Distributore: E-Distribuzione'
+  ].join('\n');
+  const seller = 'Accendi Luce & Gas';
+  assert.deepEqual(Bill.parseText(dual, { ...context, famiglia: 'gas' }), { punto: pdr, gestore: seller, ocr: false });
+  assert.deepEqual(Bill.parseText(dual, { ...context, famiglia: 'luce', punto_dichiarato: otherPod }), { punto: otherPod, gestore: seller, ocr: false });
+  assert.equal(Bill.parseText(dual, { ...context, famiglia: 'luce', punto_dichiarato: 'IT001E90807654' }).motivo, 'bolletta_ambigua');
+  assert.deepEqual(Bill.parseText(`Scrivi a Acea Energia SpA – Casella Postale\nPOD: ${pod}\nInformativa privacy per la transizione a Plenitude S.p.A.`, context),
+    { punto: pod, gestore: 'Acea Energia', ocr: false });
+  assert.equal(Bill.familyForOffer('Offerta Energia Gas'), 'gas');
+  assert.equal(Bill.familyForOffer('Luce e Gas'), null);
+});
+
+test('uno stesso allegato può essere letto una volta e riscontrato per due forniture distinte', async () => {
+  const bytes = Buffer.from('%PDF-test non reale');
+  const db = { storage: { from() { return { async download() { return { data: new Blob([bytes]) }; } }; } } };
+  const documents = [{ bucket: 'contratti-vendita', path: 'test/bolletta.pdf' }];
+  let reads = 0;
+  const deps = {
+    cache: new Map(),
+    openPdf: async () => ({ loadingTask: { destroy() {} } }),
+    extractPdf: async () => {
+      reads++;
+      return [`Accendi Energia Mercato Luce e Gas\nPOD: ${pod}\nPDR: ${pdr}`];
+    }
+  };
+  for (const [famiglia, punto] of [['luce', pod], ['gas', pdr]]) {
+    const result = await Bill.readBill(db, { ...context, documenti: documents, famiglia }, deps);
+    assert.equal(result.punto, punto);
+  }
+  assert.equal(reads, 1);
+});
+
 test('PDF con testo e PDF scansionato sono letti localmente', { timeout: 25_000 }, async () => {
   const direct = await PDFDocument.create();
   const page = direct.addPage([700, 400]), font = await direct.embedFont(StandardFonts.Helvetica);

@@ -18,7 +18,7 @@
 
 [functions."verifica-contratti-background"]
   external_node_modules = ["@supabase/supabase-js", "nodemailer", "unpdf", "@napi-rs/canvas", "tesseract.js"]
-  included_files = ["node_modules/tesseract.js/src/worker-script/node/**", "node_modules/**/tesseract-core-*.wasm", "node_modules/@tesseract.js-data/ita/package.json", "node_modules/@tesseract.js-data/ita/4.0.0_best_int/ita.traineddata.gz"]
+  included_files = ["node_modules/tesseract.js/src/worker-script/node/**", "node_modules/**/tesseract-core-*.wasm", "node_modules/@tesseract.js-data/ita/package.json", "node_modules/@tesseract.js-data/ita/4.0.0_best_int/ita.traineddata.gz", "node_modules/pdfjs-dist/package.json", "node_modules/pdfjs-dist/LICENSE", "node_modules/pdfjs-dist/legacy/build/pdf.mjs", "node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs", "node_modules/pdfjs-dist/wasm/**", "node_modules/pdfjs-dist/cmaps/**", "node_modules/pdfjs-dist/standard_fonts/**"]
 
 # Headers di sicurezza statici. La CSP e' generata in dist/_headers dalla build,
 # cosi' consente esclusivamente il progetto Supabase dell'ambiente corrente.

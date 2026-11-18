@@ -449,6 +449,10 @@ La migrazione popola **in_attesa_csv** per le sole Energia inviate e tecnicament
 
 Migrazione applicata e riletta in produzione il 18/11/2026 come `20261118150835`. Verificate 53 pratiche pendenti in **IN ATTESA CSV** e zero righe fuori perimetro. Le impronte dei contratti e degli esiti L&G preesistenti coincidono con quelle del preflight. Le tre nuove tabelle hanno RLS attiva e il registro CSV parte vuoto.
 
+La correzione `20261118152048_energia_csv_sostituzione_fonte.sql`, applicata in produzione come `20261118154050`, aggiunge `fonte_id` con FK all’indice privato e associa l’eventuale storico alla fonte corrente. Sotto lo stesso lock, l’import elimina soltanto le righe della versione sostituita. La protezione PostgREST contro le cancellazioni senza filtro resta attiva. L’RPC conserva firma e permessi. Primo import, sostituzione e retry verificati in transazione annullata.
+
+Lettura bollette aggiornata il 18/11. Il lettore può selezionare il punto per famiglia Luce/Gas e può usare il punto già digitato per disambiguare valori effettivamente osservati. `vendita_energia_riscontra` conserva il controllo esatto di fiscale, punto e proposta univoca. Dopo il rilascio della correzione OCR, riesaminare solo gli esiti di lettura già chiusi sul CSV corrente, limitando il reset della versione analizzata alle pratiche Energia ancora pendenti e senza un lease attivo.
+
 ## Stati manuali in Verifica Contratti
 
 Migrazione sorgente `20261111131639_vendita_note_stato_verifica.sql`, applicata in produzione l’11/11 come `20261111133257`. Aggiunge `motivo` e `versione` alla tabella degli stati manuali. Il vincolo motivo/stato è `NOT VALID` per conservare gli esiti preesistenti privi di nota e controlla subito inserimenti e modifiche. I nuovi Da verificare richiedono 1–2000 caratteri. Da confermare usa `NULL`. La RPC INVOKER a sette argomenti controlla versione del contratto e dell’esito, aggiorna stato e motivo atomicamente e gestisce i retry della stessa scrittura. La firma precedente restituisce un conflitto con invito a ricaricare. SELECT delle nuove colonne segue la RLS esistente. Approvazione e riapertura usano la pulizia già presente.
@@ -1022,6 +1026,7 @@ Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
 |---|---|
 | `20261110102143_vendita_stati_verifica_manuale.sql` | Stato operativo rosso/verde per le verifiche manuali, RLS, RPC service-only e pulizia all’uscita dallo stato tecnico `da_controllare` (In attesa) |
 | `20261118142349_verifica_energia_csv.sql` | Due stati operativi Energia, backfill pendenti, indice privato CSV, riscontro con guardie e import esiti L&G |
+| `20261118152048_energia_csv_sostituzione_fonte.sql` | Associa le righe alla fonte CSV e circoscrive la sostituzione all’ID di quella fonte |
 | `20261111131639_vendita_note_stato_verifica.sql` | Motivazione obbligatoria per i nuovi esiti Da verificare, versione ottimistica e RPC a sette argomenti. Applicata in produzione come `20261111133257` |
 | `001_create_vendita_upload_contratti.sql` | Tabelle base upload contratti vendita |
 | `002_cataloghi_opzioni_reload_e_associazioni_offerta.sql` | Opzioni, reload e link N:M con offerte |

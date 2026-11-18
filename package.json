@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Serverless functions per Mirox CRM (mirox-crm.it)",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.13.0"
   },
   "scripts": {
     "build": "node scripts/build-static.js",
@@ -21,6 +21,7 @@
     "fflate": "0.8.3",
     "nodemailer": "10.3.1",
     "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.4.299",
     "pdfkit": "0.15.2",
     "qrcode": "1.5.4",
     "tesseract.js": "7.0.0",

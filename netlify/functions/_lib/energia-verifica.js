@@ -33,12 +33,15 @@ async function manual(db, body, author) {
 
 async function drain(db, readBill, { budgetMs = 5 * 60_000, now = Date.now } = {}) {
   const start = now();
+  const cache = new Map();
   do {
     const claim = await rpc(db, 'vendita_energia_prossimo', { p_prendi: true });
     if (!claim) return;
     let result;
     try {
-      result = claim.contesto.fiscale ? await readBill(db, claim.contesto) : { motivo: 'cliente_incompleto' };
+      result = claim.contesto.fiscale
+        ? await readBill(db, claim.contesto, { contrattoId: claim.contratto_id, cache })
+        : { motivo: 'cliente_incompleto' };
     } catch {
       result = { motivo: 'errore_lettura' };
     }

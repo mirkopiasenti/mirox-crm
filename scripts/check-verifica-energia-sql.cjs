@@ -106,11 +106,27 @@ async function main() {
     await db.exec('RESET ROLE; SET ROLE service_role');
     await assert.rejects(confirm(pendente), { code: '40001' });
 
+    const hotfix = '20261118152048_energia_csv_sostituzione_fonte.sql';
+    const testUpgrade = process.argv.includes('--backfill-fonte');
+    if (!testUpgrade) {
+      await db.exec('RESET ROLE');
+      await load(hotfix);
+      await db.exec('SET ROLE service_role');
+    }
     let imported = await csv(source());
     assert.equal(imported.aggiornati, 1);
     assert.equal(imported.protetti, 1);
     assert.deepEqual(await outcome(storico), [{ stato: 'Attivato', stato_origine: 'csv', esito_manuale_bloccato: false }]);
     assert.deepEqual(await outcome(protetto), [{ stato: 'NON TROVATO', stato_origine: 'manuale', esito_manuale_bloccato: true }]);
+    if (testUpgrade) {
+      const previousRows = await query('SELECT numero, punto, stato FROM vendita_energia_csv_righe ORDER BY numero');
+      await db.exec('RESET ROLE');
+      await load(hotfix);
+      await db.exec('SET ROLE service_role');
+      assert.deepEqual(await query('SELECT numero, punto, stato FROM vendita_energia_csv_righe ORDER BY numero'), previousRows);
+    }
+    const firstSource = await value('SELECT id AS v FROM vendita_energia_csv', []);
+    assert.equal(await value('SELECT count(*)::integer AS v FROM vendita_energia_csv_righe WHERE fonte_id=$1', [firstSource]), 3);
     assert.equal((await csv(source())).duplicato, true);
     const stale = await next();
     assert.equal(stale.contratto_id, pendente);
@@ -122,6 +138,8 @@ async function main() {
     assert.equal(await attempt(stale), null);
 
     imported = await csv(source() + `${fiscale};;0010;${punto};Nuovo;\n`, 'b');
+    assert.equal(await value('SELECT count(*)::integer AS v FROM vendita_energia_csv_righe WHERE fonte_id=$1', [firstSource]), 0);
+    assert.equal(await value('SELECT count(*)::integer AS v FROM vendita_energia_csv_righe r JOIN vendita_energia_csv f ON f.id=r.fonte_id', []), 4);
     assert.equal((await attempt(await next())).motivo, 'csv_ambiguo');
     assert.equal(await phase(pendente), 'in_attesa_csv');
     assert.equal(await next(), null);
@@ -151,6 +169,7 @@ async function main() {
     await assert.rejects(value('SELECT vendita_energia_importa_csv($1,$2,$3) AS v',
       ['e'.repeat(64), operatore, JSON.stringify([{ numero: '100', punto: '', cf: fiscale, piva: '' }])]), { code: '22023' });
     assert.equal(await value('SELECT sha256 AS v FROM vendita_energia_csv', []), 'd'.repeat(64));
+    assert.equal(await value('SELECT count(*)::integer AS v FROM vendita_energia_csv_righe r JOIN vendita_energia_csv f ON f.id=r.fonte_id', []), 1);
 
     // Riesame manuale usa il medesimo confronto server contro il CSV e
     // richiede una revisione ancora corrente.

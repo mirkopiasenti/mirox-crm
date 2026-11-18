@@ -148,6 +148,22 @@ test('Energia proietta solo i due stati CSV e li filtra anche sulle pratiche pre
   assert.equal(f.context.applicaFiltri([waiting, ready], 'daVerificare')[0].id, waiting.id);
   assert.equal(f.context.applicaFiltri([waiting, ready], 'daVerificare').length, 1);
 });
+test('la scheda Energia rende visibili la coda e i riscontri incerti', () => {
+  const f = fixture();
+  const waiting = { categoria_snapshot: 'Energia', stato_controllo: 'da_controllare' };
+  f.state.daVerificare = [
+    { ...waiting, id: 'coda' },
+    { ...waiting, id: 'incerto', riscontro_energia: { stato: 'in_attesa_csv', motivo: 'punto_incerto' } },
+    { ...waiting, id: 'pronto', riscontro_energia: { stato: 'in_attesa_verifica' } }
+  ];
+  f.state.tabInAttesa = 'energia';
+  f.state.caricamenti.daVerificare = 'loaded';
+  f.context.window.MiroxEnergiaCsv = { labels: { punto_incerto: 'POD/PDR da riscontrare' } };
+  f.nodes.vcEnergiaAvanzamento = { textContent: '' };
+  f.context.renderListaContratti('daVerificare');
+  assert.equal(f.nodes.vcEnergiaAvanzamento.textContent, '1 da elaborare · 1 da riscontrare · 1 in attesa di verifica');
+  assert.match(f.nodes.listaDaVerificare.innerHTML, /POD\/PDR da riscontrare/);
+});
 test('il popup richiede la motivazione, conserva la bozza in errore e aggiorna lo stato solo dopo Salva', async () => {
   const f = fixture();
   await f.context.caricaContratti('da_controllare');
