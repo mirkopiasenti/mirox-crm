@@ -276,6 +276,40 @@ async function main() {
       { stato: 'in_attesa_verifica', motivo: null, motivo_csv: null, motivo_fornitore: null });
     assert.deepEqual(await fields(), fieldValues(altroPunto, '0018', 'Enel Energia'));
     assert.equal(await value('SELECT vendita_energia_pronta($1,$2,$3,$4) AS v', [pendente, altroPunto, '0018', 'Enel Energia']), true);
+
+    await db.exec('RESET ROLE');
+    await load('20261110102143_vendita_stati_verifica_manuale.sql');
+    await load('20261111131639_vendita_note_stato_verifica.sql');
+    await load('20261118200410_energia_ocr_ia_esiti_manuali.sql');
+    const setStatus = async (stato, previous = null, version = null, nota = null, id = pendente) =>
+      value('SELECT vendita_imposta_stato_verifica_manuale($1,$2,$3,$4,$5,$6,$7) AS v',
+        [id, stato, previous, await stamp(id), operatore, nota, version]);
+    const ready = () => value('SELECT vendita_energia_pronta($1,$2,$3,$4) AS v', [pendente, altroPunto, '0018', 'Enel Energia']);
+    await db.exec("SET ROLE authenticated; SET test.verifica='true'");
+    await assert.rejects(setStatus('in_attesa_csv'), { code: '42501' });
+    await db.exec('RESET ROLE; SET ROLE service_role');
+    assert.equal(await ready(), true);
+    assert.deepEqual(await setStatus('in_attesa_csv'), { stato: 'in_attesa_csv', motivo: null, versione: 1 });
+    assert.equal(await ready(), false);
+    await assert.rejects(confirm(pendente), { code: '40001' });
+    await assert.rejects(setStatus('da_verificare', 'in_attesa_csv', 1, '   '), { code: '22023' });
+    await assert.rejects(setStatus('da_confermare', 'in_attesa_csv', 1), { code: '22023' });
+    const red = { stato: 'da_verificare', motivo: 'Controllo richiesto', versione: 2 };
+    assert.deepEqual(await setStatus('da_verificare', 'in_attesa_csv', 1, '  Controllo richiesto  '), red);
+    assert.deepEqual(await setStatus('da_verificare', 'in_attesa_csv', 1, 'Controllo richiesto'), red);
+    assert.equal(await phase(pendente), 'in_attesa_verifica');
+    assert.equal(await ready(), false);
+    assert.deepEqual(await setStatus('in_attesa_verifica', 'da_verificare', 2),
+      { stato: 'in_attesa_verifica', motivo: null, versione: 3 });
+    assert.equal(await ready(), true);
+    await replaceBill('test/revisione-gestore.pdf');
+    assert.equal(await ready(), false);
+    await assert.rejects(confirm(pendente), { code: '40001' });
+
+    await query("UPDATE vendita_contratti SET stato_controllo='da_controllare' WHERE id=$1", [mobile]);
+    await assert.rejects(setStatus('in_attesa_csv', null, null, null, mobile), { code: '22023' });
+    assert.deepEqual(await setStatus('da_confermare', null, null, null, mobile),
+      { stato: 'da_confermare', motivo: null, versione: 1 });
     console.log('Verifica Energia SQL: migrazione, ACL, riscontro, esiti, concorrenza ottimistica e rollback verificati.');
   } finally {
     await db.close();

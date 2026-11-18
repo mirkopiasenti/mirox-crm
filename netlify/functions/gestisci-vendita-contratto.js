@@ -10,7 +10,7 @@ const {
 } = require('./_lib/score-integrity');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MANUAL_REVIEW_STATES = new Set(['da_verificare', 'da_confermare']);
+const MANUAL_REVIEW_STATES = new Set(['da_verificare', 'da_confermare', 'in_attesa_csv', 'in_attesa_verifica']);
 const CONTRACT_FIELDS = new Set([
   ...Pda.FIELDS,
   ...Fixed.FIELDS,

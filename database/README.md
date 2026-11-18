@@ -457,6 +457,8 @@ La correzione `20261118152048_energia_csv_sostituzione_fonte.sql`, applicata in 
 
 Applicare la migrazione prima del deploy. La firma di coda precedente restituisce NULL, i token in corso vengono invalidati e `vendita_energia_prossimo_gestore` prende in carico le pratiche usando lo stesso lock e lease. Le prove complete e gli esiti L&G storici restano validi. Il nuovo CSV riesamina le pratiche Energia incomplete, con riuso della prova del gestore sullo stesso documento. La sostituzione della bolletta impone una nuova lettura del gestore. Validata localmente con PGlite.
 
+`20261118200410_energia_ocr_ia_esiti_manuali.sql` estende l’archivio degli esiti manuali per Energia con **in_attesa_csv** e **in_attesa_verifica**. L’RPC esistente controlla categoria, versione e nota obbligatoria in **da_verificare**. Esito manuale separato dalla prova, che resta corrente e obbligatoria per confermare. Scelta manuale rossa o in attesa CSV blocca la conferma anche quando la preparazione automatica è completa. RLS e grant invariati. Al rilascio, dopo aver verificato il worker nuovo, si riaccodano le sole pratiche Energia inviate e pendenti con `motivo_fornitore` di lettura, gestore non riscontrato, esito automatico e lease assente o scaduto. L’operazione invalida la sola revisione del lavoro con il CSV già acquisito e conserva gli esiti manuali.
+
 ## Stati manuali in Verifica Contratti
 
 Migrazione sorgente `20261111131639_vendita_note_stato_verifica.sql`, applicata in produzione l’11/11 come `20261111133257`. Aggiunge `motivo` e `versione` alla tabella degli stati manuali. Il vincolo motivo/stato è `NOT VALID` per conservare gli esiti preesistenti privi di nota e controlla subito inserimenti e modifiche. I nuovi Da verificare richiedono 1–2000 caratteri. Da confermare usa `NULL`. La RPC INVOKER a sette argomenti controlla versione del contratto e dell’esito, aggiorna stato e motivo atomicamente e gestisce i retry della stessa scrittura. La firma precedente restituisce un conflitto con invito a ricaricare. SELECT delle nuove colonne segue la RLS esistente. Approvazione e riapertura usano la pulizia già presente.
@@ -1033,6 +1035,7 @@ Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
 | `20261118152048_energia_csv_sostituzione_fonte.sql` | Associa le righe alla fonte CSV e circoscrive la sostituzione all’ID di quella fonte |
 | `20261118170605_energia_priorita_riscontri.sql` | Dà precedenza alle prime letture Energia e fa rispettare il lease attivo anche dal controllo di disponibilità |
 | `20261118190202_energia_conferma_punto_gestore.sql` | Salva separatamente gestore e proposta, aggiunge DA VERIFICARE e introduce la coda service-only per il nuovo lettore |
+| `20261118200410_energia_ocr_ia_esiti_manuali.sql` | Estende gli esiti manuali per Energia, con nota obbligatoria e conferma vincolata al riscontro |
 | `20261111131639_vendita_note_stato_verifica.sql` | Motivazione obbligatoria per i nuovi esiti Da verificare, versione ottimistica e RPC a sette argomenti. Applicata in produzione come `20261111133257` |
 | `001_create_vendita_upload_contratti.sql` | Tabelle base upload contratti vendita |
 | `002_cataloghi_opzioni_reload_e_associazioni_offerta.sql` | Opzioni, reload e link N:M con offerte |

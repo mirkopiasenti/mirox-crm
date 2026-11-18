@@ -639,6 +639,7 @@ function applicaFiltri(items, stateKey) {
 function statoVisibileContratto(c) {
   if (c.stato_controllo === 'controllato') return 'controllato';
   if (categoriaInAttesa(c) === 'energia') {
+    if (['in_attesa_csv', 'in_attesa_verifica', 'da_verificare'].includes(c.revisione?.stato)) return c.revisione.stato;
     return c.riscontro_energia?.stato || 'in_attesa_csv';
   }
   const stato = c.revisione?.stato;
@@ -711,8 +712,6 @@ function renderListaContratti(stateKey) {
     const convergenzaChip = isFisso && c.convergenza
       ? `<div class="cell-meta" style="margin-top:2px;color:#0f766e;font-weight:600;">Convergenza: ${escapeHtml(c.convergenza)}</div>`
       : '';
-    const energyReason = stateKey === 'daVerificare' && VCState.tabInAttesa === 'energia'
-      ? window.MiroxEnergiaCsv?.labels[c.riscontro_energia?.motivo] : '';
     return `
       <tr>
         <td><div class="cell-cliente">${escapeHtml(ana.ragione_sociale || '(senza nome)')}</div>
@@ -730,7 +729,7 @@ function renderListaContratti(stateKey) {
               <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/>
               <path d="M8 9h8M8 13h5"/>
             </svg></button>` : ''}
-        </div>${energyReason ? `<div class="cell-meta">${escapeHtml(energyReason)}</div>` : ''}</td>
+        </div></td>
         <td style="text-align:right;white-space:nowrap;">
           <button type="button" class="btn-mini btn-primary" onclick="apriDettaglioContratto('${escapeHtml(c.id)}', '${stateKey}')">Dettagli</button>
         </td>
@@ -872,26 +871,17 @@ function apriPopupDettaglio(c, opts) {
     ? '<div class="det-section"><h4>Dati PDA</h4>' + window.MiroxPdaUI.summary(c, {category:c.categoria_snapshot, cluster:getContrattoCluster(c)})
       + '<button type="button" class="mx-btn mx-btn-secondary" data-edit-pda>Modifica dati PDA</button></div>' : '';
   const energy = String(c.categoria_snapshot || categorie.find(category => category.id === c.categoria_id)?.nome || '').trim().toLowerCase() === 'energia';
-  const energyReady = energy && statoVisibileContratto(c) === 'in_attesa_verifica';
+  const energyProof = c.riscontro_energia?.stato === 'in_attesa_verifica';
+  const energyReady = energy && energyProof && statoVisibileContratto(c) === 'in_attesa_verifica';
   const energyReview = c.riscontro_energia || {};
-  const energyMessages = [...new Set([energyReview.motivo_csv, energyReview.motivo_fornitore, energyReview.motivo]
-    .map(reason => window.MiroxEnergiaCsv?.messages[reason]).filter(Boolean))];
-  const energyStatus = energyReady ? 'Numero contratto e gestore riscontrati. Controlla gli allegati e conferma.'
-    : 'In attesa del riscontro automatico.';
-  const statoHtml = isReadOnly ? '' : energy ? `
-    <div class="det-section">
-      <div class="vc-stato-attuale">Stato attuale ${renderStatoContratto(c)}</div>
-      ${(energyMessages.length ? energyMessages : [energyStatus]).map(message => `<p>${escapeHtml(message)}</p>`).join('')}
-      ${energyReview.csv_at ? `<p>CSV caricato il ${escapeHtml(fmtDateTime(energyReview.csv_at))}</p>` : ''}
-      ${energyReview.punto_originale ? `<p>POD/PDR corretto da <strong>${escapeHtml(energyReview.punto_originale)}</strong> a <strong>${escapeHtml(c.pod_pdr)}</strong>.</p>` : ''}
-      ${statoVisibileContratto(c) === 'da_verificare' && (energyReview.motivo_fornitore || energyReview.motivo) !== 'bolletta_assente'
-        ? '<button type="button" class="mx-btn mx-btn-secondary" data-vc-riscontro-energia>Riscontro manuale</button>' : ''}
-    </div>` : `
+  const statoHtml = isReadOnly ? '' : `
     <div class="det-section">
       <div class="vc-stato-toolbar">
-        <button type="button" class="mx-btn mx-btn-primary vc-cambia-stato" data-vc-cambia-stato aria-haspopup="dialog">Cambia stato</button>
+        <button type="button" class="mx-btn mx-btn-primary vc-cambia-stato" data-vc-cambia-stato aria-haspopup="dialog">${energy ? 'Cambia esito' : 'Cambia stato'}</button>
         <div class="vc-stato-attuale">Stato attuale <span data-vc-stato-corrente aria-live="polite">${renderStatoContratto(c)}</span></div>
       </div>
+      ${energy && !energyProof && energyReview.motivo && (energyReview.motivo_fornitore || energyReview.motivo) !== 'bolletta_assente'
+        ? '<button type="button" class="mx-btn mx-btn-secondary" data-vc-riscontro-energia>Riscontro manuale</button>' : ''}
     </div>`;
   const bodyHtml = `${statoHtml}${pdaHtml}
     <div class="det-section" data-contract-notes></div>
@@ -1153,7 +1143,7 @@ function apriPopupDettaglio(c, opts) {
          <div class="right">
            <button type="button" class="mx-btn mx-btn-secondary" data-mx-close-popup>Annulla</button>
            <button type="button" class="mx-btn mx-btn-secondary" onclick="salvaModifiche('${escapeHtml(c.id)}')">Salva modifica</button>
-           <button type="button" class="mx-btn mx-btn-primary" onclick="confermaVerifica('${escapeHtml(c.id)}')" ${energy && !energyReady ? 'disabled' : ''}>Conferma verifica</button>
+           <button type="button" class="mx-btn mx-btn-primary" data-vc-conferma-verifica onclick="confermaVerifica('${escapeHtml(c.id)}')" ${energy && !energyReady ? 'disabled' : ''}>Conferma verifica</button>
          </div>
        </div>`;
 
@@ -1206,7 +1196,7 @@ function apriPopupDettaglio(c, opts) {
   window.__currentVerificaCataloghi = { categorie, offerte, opzioni, offerteOpzioni, reload };
   // Bottone chiudi via attributo
   m.foot.querySelectorAll('[data-mx-close-popup]').forEach(b => b.addEventListener('click', () => m.close()));
-  if (!isReadOnly) collegaCambioStato(m.body, c);
+  if (!isReadOnly) collegaCambioStato(m.body, c, m.foot.querySelector('[data-vc-conferma-verifica]'));
   m.body.querySelector('[data-vc-riscontro-energia]')?.addEventListener('click', () => {
     if (pdaOtherFieldsDirty) {
       window.MiroxUI.toast('Salva le altre modifiche prima di riscontrare la bolletta.', 'warning');
@@ -1522,24 +1512,35 @@ function apriRiscontroEnergia(dettaglio, contratto) {
   });
 }
 
-function collegaCambioStato(body, c) {
+function noteAutomaticheEnergia(c) {
+  if (categoriaInAttesa(c) !== 'energia') return '';
+  const { motivo_csv, motivo_fornitore, motivo } = c.riscontro_energia || {};
+  return [...new Set([motivo_csv, motivo_fornitore, motivo].map(code => window.MiroxEnergiaCsv?.messages[code]).filter(Boolean))].join('\n');
+}
+
+function collegaCambioStato(body, c, conferma) {
   const toggle = body.querySelector('[data-vc-cambia-stato]');
   if (!toggle) return;
   const corrente = body.querySelector('[data-vc-stato-corrente]');
+  const energy = categoriaInAttesa(c) === 'energia';
+  const opzioni = energy
+    ? [['in_attesa_csv', 'IN ATTESA CSV'], ['in_attesa_verifica', 'IN ATTESA VERIFICA'], ['da_verificare', 'DA VERIFICARE']]
+    : [['da_verificare', 'Da verificare'], ['da_confermare', 'Da confermare']];
   toggle.addEventListener('click', () => {
     toggle.disabled = true;
     let saving = false;
+    const motivoAutomatico = noteAutomaticheEnergia(c);
     const m = window.MiroxUI._build({
-      title: 'Cambia stato',
+      title: energy ? 'Cambia esito' : 'Cambia stato',
       bodyHtml: `<div class="vc-stato-form">
-        <label for="vc_nuovo_stato">Nuovo stato</label>
+        <label for="vc_nuovo_stato">${energy ? 'Nuovo esito' : 'Nuovo stato'}</label>
         <select id="vc_nuovo_stato" class="mx-input">
-          <option value="">Seleziona uno stato</option>
-          <option value="da_verificare">Da verificare</option>
-          <option value="da_confermare">Da confermare</option>
+          <option value="">${energy ? 'Seleziona un esito' : 'Seleziona uno stato'}</option>
+          ${opzioni.map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
         </select>
+        ${motivoAutomatico ? `<div class="vc-motivo-testo"><strong>Riscontro automatico</strong><br>${escapeHtml(motivoAutomatico)}</div>` : ''}
         <div class="vc-stato-motivo" data-vc-motivo hidden>
-          <label for="vc_motivo_stato">Motivazione obbligatoria</label>
+          <label for="vc_motivo_stato">${energy ? 'Nota obbligatoria' : 'Motivazione obbligatoria'}</label>
           <textarea id="vc_motivo_stato" class="mx-input" rows="5" maxlength="2000"
             placeholder="Scrivi cosa occorre verificare" aria-describedby="vc_motivo_limite"></textarea>
           <small id="vc_motivo_limite">Massimo 2000 caratteri</small>
@@ -1563,7 +1564,7 @@ function collegaCambioStato(body, c) {
     const errore = m.body.querySelector('[data-vc-stato-errore]');
     const salva = m.foot.querySelector('[data-vc-salva]');
     const annulla = m.foot.querySelector('[data-vc-annulla]');
-    select.value = c.revisione?.stato || '';
+    select.value = energy ? statoVisibileContratto(c) : c.revisione?.stato || '';
     motivo.value = c.revisione?.motivo || '';
     const aggiornaMotivo = () => {
       const richiesto = select.value === 'da_verificare';
@@ -1580,7 +1581,7 @@ function collegaCambioStato(body, c) {
       const stato = select.value;
       const nota = stato === 'da_verificare' ? motivo.value.trim() : null;
       errore.textContent = '';
-      if (!['da_verificare', 'da_confermare'].includes(stato)) {
+      if (!opzioni.some(([value]) => value === stato)) {
         errore.textContent = 'Seleziona il nuovo stato.';
         select.focus();
         return;
@@ -1606,6 +1607,7 @@ function collegaCambioStato(body, c) {
         }
         c.revisione = { stato: result.stato, motivo: result.motivo, versione: result.versione };
         corrente.innerHTML = renderStatoContratto(c);
+        if (energy && conferma) conferma.disabled = stato !== 'in_attesa_verifica' || c.riscontro_energia?.stato !== 'in_attesa_verifica';
         renderListaContratti('daVerificare');
         saving = false;
         m.close();
@@ -1623,7 +1625,7 @@ function collegaCambioStato(body, c) {
 function leggiMotivoVerifica(id) {
   const contratto = VCState.daVerificare.find(c => c.id === id);
   if (!contratto || statoVisibileContratto(contratto) !== 'da_verificare') return;
-  const motivo = contratto.revisione?.motivo || 'Nessuna motivazione registrata per questo esito.';
+  const motivo = contratto.revisione?.motivo || noteAutomaticheEnergia(contratto) || 'Nessuna motivazione registrata per questo esito.';
   const m = window.MiroxUI._build({
     title: 'Motivazione di Da verificare',
     bodyHtml: `<div class="vc-motivo-testo">${escapeHtml(motivo)}</div>`,

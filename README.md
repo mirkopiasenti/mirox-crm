@@ -121,9 +121,11 @@ Nelle liste dei contratti in attesa il colore è applicato soltanto alle etichet
 
 In **Upload Contratti**, prima degli allegati, **Avanti** mostra in grande il POD/PDR inserito. L’operatore lo confronta con la bolletta e lo digita una seconda volta. Si prosegue quando i due codici coincidono. La pratica Energia inviata parte da **IN ATTESA CSV**.
 
-Il CRM legge dalla bolletta il solo **Ex Fornitore**. Il **Numero Contratto** viene dalla colonna H, *Proposta di Contratto*, abbinando il POD/PDR già inserito e il CF (Consumer) o la P.IVA (Business). Ogni dato riscontrato viene salvato anche se l’altro richiede un intervento.
+Il CRM legge dalla bolletta l’**Ex Fornitore**. Quando il testo PDF non basta, Claude Haiku 5.5 esamina ritagli ingranditi e raddrizzati di intestazione e piè di pagina, con al massimo due richieste per pratica e OCR locale di riserva. Il **Numero Contratto** viene dalla colonna H, *Proposta di Contratto*, abbinando il POD/PDR già inserito e il CF (Consumer) o la P.IVA (Business). Ogni dato riscontrato viene salvato anche se l’altro richiede un intervento.
 
 Con entrambi i riscontri la pratica passa a **IN ATTESA VERIFICA** per il controllo degli allegati e la conferma finale. Un errore o un’ambiguità porta a **DA VERIFICARE**, con motivi nel dettaglio e possibilità di correggere POD/PDR ed Ex Fornitore tramite **Riscontro manuale**. Se manca ancora il primo CSV e il gestore è stato letto, la pratica attende il file in **IN ATTESA CSV**.
+
+Nel dettaglio Energia, **Cambia esito** consente di scegliere **IN ATTESA CSV**, **IN ATTESA VERIFICA** e **DA VERIFICARE**. L’esito manuale ha precedenza e **DA VERIFICARE** richiede una nota nel popup. L’icona accanto all’esito rosso apre la nota o il riscontro automatico. **Conferma verifica** richiede i dati riscontrati.
 
 **Carica CSV WindTre** in Verifica Contratti aggiorna anche Controllo L&G e rispetta gli esiti manuali protetti. Un nuovo file valido sostituisce la fonte precedente. Se l’import fallisce, resta disponibile l’ultima fonte acquisita. Limite del caricamento condiviso 4 MiB.
 
@@ -858,7 +860,7 @@ Dettagli e regole complete in [`AGENTS.md`](AGENTS.md); [`CLAUDE.md`](CLAUDE.md)
 | `MIROX_DEPLOY_ENV` | sì nello staging | `staging`; su `main` il default e' `production` |
 | `MIROX_PUBLIC_SUPABASE_URL` | sì nello staging | URL pubblico del progetto Supabase staging, generato in `dist/js/config.js` |
 | `MIROX_PUBLIC_SUPABASE_ANON_KEY` | sì nello staging | Publishable/anon key staging; service role e secret key vengono rifiutate |
-| `ANTHROPIC_API_KEY` | sì | Chiave Claude API per la function `ocr-pda` (estrazione AI dati dal PDA) |
+| `ANTHROPIC_API_KEY` | sì | Chiave Claude API lato server per OCR PDA e lettura visiva del gestore nelle bollette Energia |
 | `SMTP_USER` | sì | Account Gmail mittente |
 | `SMTP_PASS` | sì | App Password Gmail |
 | `SMSHOSTING_API_KEY` | sì (per consensi OTP) | Username API Smshosting (vedi `docs/SMSHOSTING_SETUP.md`) |

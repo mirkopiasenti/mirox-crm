@@ -17,21 +17,6 @@
     csv_ambiguo: 'Il CSV contiene più proposte compatibili. Verifica l’export WindTre.',
     errore_lettura: 'La lettura della bolletta ha avuto un errore. Puoi riscontrare i dati a mano.'
   });
-  const labels = Object.freeze({
-    bolletta_assente: 'Bolletta mancante',
-    bolletta_illeggibile: 'Bolletta illeggibile',
-    bolletta_ambigua: 'Bolletta da riscontrare',
-    intestatario_diverso: 'Intestatario discordante',
-    fornitore_incerto: 'Gestore da riscontrare',
-    punto_incerto: 'POD/PDR da riscontrare',
-    cliente_incompleto: 'Dato fiscale incompleto',
-    csv_assente: 'CSV da caricare',
-    csv_non_trovato: 'Fornitura assente dal CSV',
-    csv_fiscale_diverso: 'Dato fiscale discordante nel CSV',
-    csv_ambiguo: 'Proposta da disambiguare',
-    errore_lettura: 'Errore di lettura della bolletta'
-  });
-
   async function upload(file) {
     if (file.size > LIMIT) throw new Error('Il CSV WindTre può contenere al massimo 4 MB.');
     const res = await MiroxApi.fetch('/.netlify/functions/gestisci-controllo-lg', {
@@ -62,5 +47,5 @@
     return true;
   }
 
-  root.MiroxEnergiaCsv = { run, messages, labels };
+  root.MiroxEnergiaCsv = { run, messages };
 })(typeof globalThis !== 'undefined' ? globalThis : window);

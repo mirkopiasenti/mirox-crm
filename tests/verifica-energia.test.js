@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { createCanvas } = require('@napi-rs/canvas');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { PDFDocument, StandardFonts } = require('pdf-lib');
 const Csv = require('../netlify/functions/_lib/energia-csv');
 const Bill = require('../netlify/functions/_lib/energia-bolletta');
@@ -73,6 +73,73 @@ test('il gestore viene letto localmente nel testo e nella prima pagina scansiona
   const render = (...args) => { rendered++; return require('unpdf').renderPageAsImage(...args); };
   assert.deepEqual(await Bill.fromBytes(Buffer.from(await scan.save()), context, { render }), { gestore: 'Enel Energia' });
   assert.equal(rendered, 1);
+});
+
+function visionReading(input) {
+  return { stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'leggi_gestore', input }] };
+}
+
+test('la richiesta IA contiene ritagli realmente orientati, senza PDF, e accetta il nome citato dal fornitore', { timeout: 25_000 }, async () => {
+  const upright = createCanvas(1000, 1400);
+  const ctx = upright.getContext('2d');
+  ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 1000, 1400);
+  ctx.fillStyle = 'black'; ctx.font = '46px sans-serif';
+  ctx.fillText('Fornitore: Enel Energia', 50, 140);
+  ctx.fillText('Informazioni del cliente', 300, 700);
+  const sideways = createCanvas(1400, 1000);
+  const rot = sideways.getContext('2d');
+  rot.fillStyle = 'white'; rot.fillRect(0, 0, 1400, 1000);
+  rot.translate(700, 500); rot.rotate(94 * Math.PI / 180); rot.drawImage(upright, -500, -700);
+  const iaClient = { messages: { async create(payload, options) {
+    assert.equal(options.maxRetries, 0);
+    assert.equal(payload.model, 'claude-haiku-5-5');
+    assert.equal(payload.max_tokens, 220);
+    assert.ok(payload.messages[0].content.every(block => ['image', 'text'].includes(block.type)));
+    const images = payload.messages[0].content.filter(block => block.type === 'image');
+    assert.equal(images.length, 4);
+    for (const { source } of images) {
+      assert.equal(source.media_type, 'image/jpeg');
+      const image = await loadImage(Buffer.from(source.data, 'base64'));
+      assert.ok(image.width <= 1450 && image.height <= 475);
+    }
+    const uprightHeader = Buffer.from(images[3].source.data, 'base64');
+    assert.deepEqual(await Bill.fromBytes(uprightHeader, context), { gestore: 'Enel Energia' });
+    return visionReading({ esito: 'letto', gestore: 'Enel Energia', citazione: 'Fornitore: Enel Energia', immagine: 4 });
+  } } };
+  assert.deepEqual(await Bill.fromBytes(sideways.toBuffer('image/png'), context, { iaClient }), { gestore: 'Enel Energia' });
+});
+
+test('la seconda richiesta IA cerca in fondo e sulla seconda pagina, e respinge citazioni incongruenti', async () => {
+  const scan = await PDFDocument.create();
+  const canvas = createCanvas(450, 600);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 450, 600);
+  ctx.fillStyle = 'black'; ctx.font = '36px sans-serif';
+  ctx.fillText('ARGOS', 50, 540);
+  const image = await scan.embedPng(canvas.toBuffer('image/png'));
+  for (let i = 0; i < 2; i++) scan.addPage([450, 600]).drawImage(image, { x: 0, y: 0, width: 450, height: 600 });
+  let calls = 0;
+  const iaClient = { messages: { async create(payload) {
+    const count = payload.messages[0].content.filter(block => block.type === 'image').length;
+    assert.equal(count, calls++ ? 8 : 4);
+    return visionReading(calls === 1
+      ? { esito: 'letto', gestore: 'Enel Energia', citazione: 'Distributore: Enel Energia', immagine: 1 }
+      : { esito: 'letto', gestore: 'Argos', citazione: 'Argos S.r.l.', immagine: 1 });
+  } } };
+  const bytes = Buffer.from(await scan.save());
+  assert.deepEqual(await Bill.fromBytes(bytes, context, { iaClient }), { gestore: 'Argos' });
+  assert.equal(calls, 2);
+  const rendered = [];
+  const render = (...args) => {
+    rendered.push(args[1]);
+    if (args[1] === 1) throw new Error('pagina di prova danneggiata');
+    return require('unpdf').renderPageAsImage(...args);
+  };
+  const client = { messages: { async create() {
+    return visionReading({ esito: 'letto', gestore: 'Argos', citazione: 'Argos S.r.l.', immagine: 1 });
+  } } };
+  assert.deepEqual(await Bill.fromBytes(bytes, context, { iaClient: client, render }), { gestore: 'Argos' });
+  assert.deepEqual(rendered, [1, 2]);
 });
 
 test('import condiviso da Verifica Contratti e riscontro manuale richiedono la sua ACL', () => {

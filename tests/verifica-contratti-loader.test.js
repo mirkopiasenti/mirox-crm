@@ -9,7 +9,7 @@ const stateSetup = page.slice(page.indexOf('const CATEGORIE_IN_ATTESA'), page.in
 const navigation = page.slice(page.indexOf('async function apriPraticaRichiesta()'), page.indexOf('async function caricaContratti('));
 const loader = page.slice(page.indexOf('async function caricaContratti('), page.indexOf('\nfunction applicaFiltri'));
 const renderer = page.slice(page.indexOf('function applicaFiltri('), page.indexOf('\nasync function caricaCategorie('));
-const statusEditor = page.slice(page.indexOf('function collegaCambioStato('), page.indexOf('\nasync function caricaNuovoAllegato('));
+const statusEditor = page.slice(page.indexOf('function noteAutomaticheEnergia('), page.indexOf('\nasync function caricaNuovoAllegato('));
 
 test('Verifica Contratti espone la conferma manuale e lascia scollegato il collaudo automatico', () => {
   assert.doesNotMatch(page, /vcAutomatico|MiroxVerificaAuto|verifica-contratti-automatica|gestisci-verifica-automatica/);
@@ -159,27 +159,33 @@ test('la scheda Energia rende visibili la coda e i riscontri incerti', () => {
   ];
   f.state.tabInAttesa = 'energia';
   f.state.caricamenti.daVerificare = 'loaded';
-  f.context.window.MiroxEnergiaCsv = { labels: { punto_incerto: 'POD/PDR da riscontrare' } };
   f.nodes.vcEnergiaAvanzamento = { textContent: '' };
   f.context.renderListaContratti('daVerificare');
   assert.equal(f.nodes.vcEnergiaAvanzamento.textContent, '1 in attesa CSV · 1 da verificare · 1 in attesa di verifica');
   assert.match(f.nodes.listaDaVerificare.innerHTML, /DA VERIFICARE/);
-  assert.match(f.nodes.listaDaVerificare.innerHTML, /POD\/PDR da riscontrare/);
+  assert.doesNotMatch(f.nodes.listaDaVerificare.innerHTML, /POD\/PDR da riscontrare/);
+  assert.match(f.nodes.listaDaVerificare.innerHTML, /leggiMotivoVerifica/);
   f.state.filtroEsitoDaVerificare = 'da_verificare';
   f.context.renderListaContratti('daVerificare');
   assert.match(f.nodes.listaDaVerificare.innerHTML, /Dettagli/);
   assert.doesNotMatch(f.nodes.listaDaVerificare.innerHTML, /IN ATTESA CSV|IN ATTESA VERIFICA/);
 });
-test('il popup richiede la motivazione, conserva la bozza in errore e aggiorna lo stato solo dopo Salva', async () => {
+for (const energy of [false, true]) test(`il popup ${energy ? 'Energia' : 'Mobile'} richiede una nota e aggiorna l’esito solo dopo Salva`, async () => {
   const f = fixture();
   await f.context.caricaContratti('da_controllare');
   const contract = f.state.daVerificare[0];
+  if (energy) {
+    contract.categoria_snapshot = 'Energia';
+    contract.riscontro_energia = { stato: 'da_verificare', motivo_fornitore: 'fornitore_incerto' };
+    f.context.window.MiroxEnergiaCsv = { messages: { fornitore_incerto: 'Gestore da leggere' } };
+    f.state.tabInAttesa = 'energia';
+  }
   const control = () => {
     const node = new Element();
     node.focus = () => {};
     return node;
   };
-  const toggle = control(), current = control();
+  const toggle = control(), current = control(), confirm = control();
   let popup, builds = 0;
   const controls = Object.fromEntries([
     '#vc_nuovo_stato', '[data-vc-motivo]', '#vc_motivo_stato', '[data-vc-stato-errore]',
@@ -194,12 +200,17 @@ test('il popup richiede la motivazione, conserva la bozza in errore e aggiorna l
     return popup;
   } };
   vm.runInContext(statusEditor, f.context);
-  f.context.collegaCambioStato({ querySelector: key => key === '[data-vc-cambia-stato]' ? toggle : current }, contract);
+  f.context.collegaCambioStato({ querySelector: key => key === '[data-vc-cambia-stato]' ? toggle : current }, contract, confirm);
   await toggle.emit('click');
   assert.equal(builds, 1);
   assert.equal(toggle.disabled, true);
   const select = controls['#vc_nuovo_stato'], note = controls['#vc_motivo_stato'];
   const save = controls['[data-vc-salva]'], error = controls['[data-vc-stato-errore]'];
+  if (energy) {
+    assert.match(popup.options.bodyHtml, /IN ATTESA CSV[\s\S]*IN ATTESA VERIFICA[\s\S]*DA VERIFICARE/);
+    assert.match(popup.options.bodyHtml, /Gestore da leggere/);
+    assert.doesNotMatch(popup.options.bodyHtml, /da_confermare/);
+  }
   let calls = 0, finish;
   f.context.gestisciVenditaContratto = payload => {
     calls++;
@@ -209,7 +220,7 @@ test('il popup richiede la motivazione, conserva la bozza in errore e aggiorna l
     return new Promise(resolve => { finish = resolve; });
   };
   await save.emit('click');
-  assert.match(error.textContent, /Seleziona/);
+  assert.match(error.textContent, energy ? /motivazione/ : /Seleziona/);
   select.value = 'da_verificare'; await select.emit('change');
   assert.equal(controls['[data-vc-motivo]'].hidden, false);
   assert.equal(note.required, true);
@@ -232,7 +243,8 @@ test('il popup richiede la motivazione, conserva la bozza in errore e aggiorna l
   assert.equal(contract.stato_controllo, 'da_controllare');
 
   await toggle.emit('click');
-  select.value = 'da_confermare'; await select.emit('change');
+  const nextState = energy ? 'in_attesa_verifica' : 'da_confermare';
+  select.value = nextState; await select.emit('change');
   assert.equal(controls['[data-vc-motivo]'].hidden, true);
   assert.equal(note.required, false);
   f.context.gestisciVenditaContratto = async payload => {
@@ -245,11 +257,12 @@ test('il popup richiede la motivazione, conserva la bozza in errore e aggiorna l
   assert.equal(note.value, 'Documento da integrare');
   assert.equal(contract.revisione.stato, 'da_verificare');
   assert.equal(popup.closed, false);
-  f.context.gestisciVenditaContratto = async () => ({ stato: 'da_confermare', motivo: null, versione: 2 });
+  f.context.gestisciVenditaContratto = async () => ({ stato: nextState, motivo: null, versione: 2 });
   await save.emit('click');
   assert.equal(popup.closed, true);
   assert.equal(toggle.disabled, false);
-  assert.match(current.innerHTML, /Da confermare/);
+  assert.match(current.innerHTML, energy ? /IN ATTESA VERIFICA/ : /Da confermare/);
+  if (energy) assert.equal(confirm.disabled, true);
   assert.doesNotMatch(f.nodes.listaDaVerificare.innerHTML, /leggiMotivoVerifica/);
 });
 test('l’API limita lo stato operativo e tratta i conflitti come 409', async () => {

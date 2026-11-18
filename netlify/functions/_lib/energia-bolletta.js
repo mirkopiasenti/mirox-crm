@@ -7,13 +7,14 @@ const { pathToFileURL } = require('node:url');
 const { renderPageAsImage } = require('unpdf');
 const { layoutText } = require('./pda-pdf-text');
 const { code, tax } = require('./energia-csv');
+const Vision = require('./energia-bolletta-ia');
 
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_PAGES = 30;
 const MAX_OCR_PAGES = 5;
 const MAX_CACHE = 8;
 const OCR_WIDTH = 2350;
-const MAX_REVIEW_MS = 35000;
+const MAX_REVIEW_MS = 50000;
 const requireInstalled = createRequire(__filename);
 const language = () => join(dirname(requireInstalled.resolve('@tesseract.js-data/ita/package.json')), '4.0.0_best_int');
 const KNOWN_SELLERS = /\b(Enel Energia|Eni Plenitude|Plenitude|Servizio Elettrico Nazionale|A2A Energia|Hera Comm|Iren Mercato|Edison Energia|E\.ON Energia|Engie Italia|Dolomiti Energia|Estra Energie|Sorgenia|Illumia|Octopus Energy|NeN|Alperia Smart Services|Acea Energia|AGSM AIM Energia|Wind Tre|WindTre|Argos|Accendi(?:\s+Luce\s*[&e]\s*Gas)?|Alleanza Luce\s*[&e]\s*Gas)\b/gi;
@@ -75,13 +76,14 @@ function mergeFacts(target, source) {
   for (const [name, value] of source.providers) target.providers.set(name, value);
   for (const value of source.taxes) target.taxes.add(value);
   target.readable ||= source.readable;
+  target.ambiguous ||= source.ambiguous;
   return target;
 }
 
 function selectSupplier(facts, context) {
   const taxes = new Set([...facts.taxes].map(value => tax(value, context.business)).filter(Boolean));
   if (context.fiscale && taxes.size && (taxes.size !== 1 || !taxes.has(context.fiscale))) return { motivo: 'intestatario_diverso' };
-  if (facts.providers.size > 1) return { motivo: 'bolletta_ambigua' };
+  if (facts.ambiguous || facts.providers.size > 1) return { motivo: 'bolletta_ambigua' };
   if (facts.providers.size === 1) return { gestore: [...facts.providers.values()][0] };
   return { motivo: facts.readable ? 'fornitore_incerto' : 'bolletta_illeggibile' };
 }
@@ -107,32 +109,40 @@ async function extractPdf(pdf) {
   const pages = [];
   let items = 0;
   for (let pageNo = 1; pageNo <= Math.min(pdf.numPages, MAX_PAGES); pageNo++) {
-    const page = await pdf.getPage(pageNo);
-    const content = await page.getTextContent();
-    items += content.items.length;
-    if (items > 60000) break;
-    const viewport = page.getViewport({ scale: 1 });
-    pages.push(layoutText([content.items.flatMap(item => {
-      if (!item.str || !item.transform) return [];
-      const [x, y] = viewport.convertToViewportPoint(item.transform[4], item.transform[5]);
-      return [{ str: item.str, x, y: -y }];
-    })]));
-    page.cleanup();
+    let page;
+    try {
+      page = await pdf.getPage(pageNo);
+      const content = await page.getTextContent();
+      items += content.items.length;
+      if (items > 60000) break;
+      const viewport = page.getViewport({ scale: 1 });
+      pages.push(layoutText([content.items.flatMap(item => {
+        if (!item.str || !item.transform) return [];
+        const [x, y] = viewport.convertToViewportPoint(item.transform[4], item.transform[5]);
+        return [{ str: item.str, x, y: -y }];
+      })]));
+    } catch {
+      pages.push('');
+    } finally { page?.cleanup(); }
   }
   return pages;
 }
 
-async function * renderScans(pdf, deps) {
-  const count = Math.min(pdf.numPages, MAX_OCR_PAGES);
-  for (let i = 0; i < count; i++) {
-    const page = await pdf.getPage(i + 1);
-    try {
-      const view = page.getViewport({ scale: 1 });
-      const width = Math.min(OCR_WIDTH, Math.sqrt(8_500_000 * view.width / view.height));
-      yield Buffer.from(await (deps.render || renderPageAsImage)(pdf, i + 1, {
-        canvasImport: () => import('@napi-rs/canvas'), width
-      }));
-    } finally { page.cleanup(); }
+async function renderScan(pdf, pageNo, deps) {
+  const page = await pdf.getPage(pageNo);
+  try {
+    const view = page.getViewport({ scale: 1 });
+    const width = Math.min(OCR_WIDTH, Math.sqrt(8_500_000 * view.width / view.height));
+    return Buffer.from(await (deps.render || renderPageAsImage)(pdf, pageNo, {
+      canvasImport: () => import('@napi-rs/canvas'), width
+    }));
+  } finally { page.cleanup(); }
+}
+
+async function * scanPages(count, render) {
+  for (let pageNo = 1; pageNo <= count; pageNo++) {
+    const image = await render(pageNo).catch(() => null);
+    if (image) yield image;
   }
 }
 
@@ -171,10 +181,36 @@ async function observeBytes(bytes, deps) {
   try {
     const pages = pdf ? await (deps.extractPdf || extractPdf)(pdf) : [];
     const facts = factsFromText(pages.join('\n\n'));
-    if (facts.providers.size) return facts;
-    const limitMs = deps.deadline === undefined ? MAX_REVIEW_MS : deps.deadline - Date.now();
+    if (facts.providers.size === 1) return facts;
+    const deadline = deps.deadline ?? Date.now() + MAX_REVIEW_MS;
+    const pageCount = pdf?.numPages ?? 1;
+    const rendered = new Map();
+    const render = async pageNo => {
+      if (!pdf) return bytes;
+      if (rendered.has(pageNo)) return rendered.get(pageNo);
+      const image = await renderScan(pdf, pageNo, deps);
+      if (pageNo <= 2) rendered.set(pageNo, image);
+      return image;
+    };
+    if (deps.iaClient) {
+      const evidence = await Vision.readSupplier({
+        client: deps.iaClient, budget: deps.iaBudget ?? { remaining: 2 }, deadline,
+        render, pageCount, multi: deps.multi
+      }).catch(() => null);
+      if (evidence?.ambiguous) return { ...facts, ambiguous: true, readable: true };
+      const gestore = supplier(evidence?.gestore);
+      if (gestore) {
+        const name = canonicalSeller(gestore);
+        facts.providers.clear();
+        facts.providers.set(name.toLowerCase().replace(/\W/g, ''), name);
+        facts.readable = true;
+        return facts;
+      }
+    }
+    if (facts.providers.size > 1) return facts;
+    const limitMs = deadline - Date.now();
     if (limitMs <= 0) throw new Error('timeout_ocr_energia');
-    return await (deps.ocr || readOcr)(pdf ? renderScans(pdf, deps) : [bytes], facts, limitMs);
+    return await (deps.ocr || readOcr)(scanPages(Math.min(pageCount, MAX_OCR_PAGES), render), facts, limitMs);
   } finally {
     if (pdf) await pdf.loadingTask.destroy();
   }
@@ -189,6 +225,8 @@ async function readBill(db, context, deps = {}) {
   const documents = context.documenti || [];
   if (!documents.length) return { motivo: 'bolletta_assente' };
   if (documents.length > 2) return { motivo: 'bolletta_ambigua' };
+  const iaClient = deps.iaClient === undefined ? Vision.createClient() : deps.iaClient;
+  const iaBudget = { remaining: 2 };
   const combined = factsFromText('');
   for (const doc of documents) {
     if (doc.bucket !== 'contratti-vendita' || !doc.path || doc.path.split('/').includes('..') || doc.size > MAX_BYTES) {
@@ -202,7 +240,7 @@ async function readBill(db, context, deps = {}) {
     if (doc.sha256 && hash !== doc.sha256) throw new Error('bolletta_impronta');
     let facts = deps.cache?.get(hash);
     if (!facts) {
-      facts = await observeBytes(bytes, { ...deps, deadline });
+      facts = await observeBytes(bytes, { ...deps, deadline, iaClient, iaBudget, multi: documents.length > 1 });
       if (deps.cache) {
         if (deps.cache.size >= MAX_CACHE) deps.cache.delete(deps.cache.keys().next().value);
         deps.cache.set(hash, facts);
