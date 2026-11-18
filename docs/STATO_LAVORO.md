@@ -2,11 +2,11 @@
 
 Aggiornato:2026-11-18. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Verifica Energia e CSV WindTre —18/11, pronta in locale
+## Verifica Energia e CSV WindTre —18/11, pubblicata
 
 - Energia pendenti inviate (nuove e pregresso) in IN ATTESA CSV. Bolletta PDF testuale/OCR italiano locale per POD/PDR e gestore, CSV Proposta di Contratto con corrispondenza fiscale+punto univoca. Riscontro atomico e correzione visibile, poi IN ATTESA VERIFICA e conferma allegati umana. Ambiguità/assenza segnalate, riscontro manuale tracciato quando la bolletta è incerta.
 - Caricamento condiviso da Verifica aggiorna gli esiti già presenti in Controllo L&G, rispettando i blocchi manuali. La conferma di una nuova pratica usa il CSV già disponibile. Import storico/report L&G conservati. Migrazione `20261118142349_verifica_energia_csv.sql`, ACL Verifica fresca e tabelle/RPC private. Suite 852/852 e build in copia isolata, SQL PGlite e pacchetto Netlify con OCR offline su PDF di prova verificati. README/AGENTS/CLAUDE/databaseREADME e guide ACL/storico aggiornati.
-- Migrazione e deploy in produzione ancora da eseguire su richiesta di pubblicazione. Dopo il rilascio verificare la riclassificazione dei pendenti e provare il primo CSV del negozio con un POD/PDR corretto dalla bolletta.
+- Supabase produzione `20261118150835`: 53/53 pendenti in IN ATTESA CSV e 0 righe fuori perimetro. Impronte di 2889 contratti e 468 controlli L&G identiche, registro CSV vuoto, ACL/RLS e advisor verificati. Pubblicato con `d50be67`, CI [44332193201](https://github.com/mirkopiasenti/mirox-crm/actions/runs/44332193201) verde Linux/Windows, Netlify `6afdbf7c40bdfac0d3b37f0b`. Verificati via HTTP le due pagine, tre asset, Pretty URL e due API 401 senza JWT. Prossimo collaudo con il primo CSV reale del negozio e una correzione POD/PDR da bolletta.
 
 ## Segnalazioni da Fisso —18/11, pubblicate
 

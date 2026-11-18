@@ -447,6 +447,8 @@ La migrazione popola **in_attesa_csv** per le sole Energia inviate e tecnicament
 
 `vendita_energia_importa_csv` serializza fonte e aggiornamenti L&G, rispetta `esito_manuale_bloccato` e registra la data del caricamento effettivo. Alla conferma della pratica il nuovo controllo post-vendita eredita l’esito già disponibile. Le verifiche SQL isolate si eseguono con `scripts/check-verifica-energia-sql.cjs` e PGlite.
 
+Migrazione applicata e riletta in produzione il 18/11/2026 come `20261118150835`. Verificate 53 pratiche pendenti in **IN ATTESA CSV** e zero righe fuori perimetro. Le impronte dei contratti e degli esiti L&G preesistenti coincidono con quelle del preflight. Le tre nuove tabelle hanno RLS attiva e il registro CSV parte vuoto.
+
 ## Stati manuali in Verifica Contratti
 
 Migrazione sorgente `20261111131639_vendita_note_stato_verifica.sql`, applicata in produzione l’11/11 come `20261111133257`. Aggiunge `motivo` e `versione` alla tabella degli stati manuali. Il vincolo motivo/stato è `NOT VALID` per conservare gli esiti preesistenti privi di nota e controlla subito inserimenti e modifiche. I nuovi Da verificare richiedono 1–2000 caratteri. Da confermare usa `NULL`. La RPC INVOKER a sette argomenti controlla versione del contratto e dell’esito, aggiorna stato e motivo atomicamente e gestisce i retry della stessa scrittura. La firma precedente restituisce un conflitto con invito a ricaricare. SELECT delle nuove colonne segue la RLS esistente. Approvazione e riapertura usano la pulizia già presente.
