@@ -1049,6 +1049,7 @@
 <script src="../js/config.js"></script>
 <script src="../js/auth.js"></script>
 <script src="../js/mirox-ui.js"></script>
+<script src="../js/energia-core.js"></script>
 <script src="../js/mirox-api.js"></script>
 <script src="../js/fisso-core.js"></script>
 <script src="../js/fisso-ui.js"></script>
@@ -3460,6 +3461,7 @@ Reload Forever
  refs.kolme.value = '';
  // POD/PDR (Energia), prezzo_fisso e convergenza (Fisso) non devono persistere fra un contratto e l'altro nello stesso carrello
  if (refs.podPdr) refs.podPdr.value = '';
+ runtimeState.puntoEnergiaConfermato = null;
  if (refs.numeroContrattoEnergia) {
  delete refs.numeroContrattoEnergia.dataset.prezzoFisso;
  delete refs.numeroContrattoEnergia.dataset.convergenza;
@@ -3600,7 +3602,7 @@ Reload Forever
  // POD/PDR: visibile e obbligatorio solo per Energia
  const isEnergia = isCategory(categoriaNome, 'Energia');
  refs.fieldPodPdr.classList.toggle('hidden', !isEnergia);
- if (!isEnergia) { refs.podPdr.value = ''; }
+ if (!isEnergia) { refs.podPdr.value = ''; runtimeState.puntoEnergiaConfermato = null; }
  // Reload Exchange + Reload Forever: visibili solo per Mobile o Customer Base
  // (allineati esteticamente sotto la dropdown Offerta nel container #fieldReloadFlags).
  const isMobile = isCategory(categoriaNome, 'Mobile');
@@ -3882,9 +3884,11 @@ Reload Forever
  throw new Error('Seleziona Modalita Pagamento');
  }
 
- // POD/PDR obbligatorio solo se categoria = Energia
- if (isCategory(categoriaNome, 'Energia') && !refs.podPdr.value.trim()) {
- throw new Error('Per i contratti Energia è obbligatorio inserire il POD/PDR del contatore');
+ const isEnergia = isCategory(categoriaNome, 'Energia');
+ const puntoEnergia = isEnergia ? window.MiroxEnergia.code(refs.podPdr.value) : null;
+ if (isEnergia && !window.MiroxEnergia.isPoint(puntoEnergia)) throw new Error('Inserisci il POD o il PDR completo riportato sulla bolletta.');
+ if (isEnergia && !skipFileValidation && puntoEnergia !== runtimeState.puntoEnergiaConfermato) {
+ throw new Error('Torna ai dati del contratto e conferma il POD/PDR prima di aggiungere gli allegati.');
  }
 
  // Campi obbligatori per Assicurazioni
@@ -4018,7 +4022,8 @@ Reload Forever
  //  - numero_contratto_energia: hidden, popolato a posteriori
  //  - prezzo_fisso: valorizzato dal popup quando categoria = Fisso (vedi btnStep2Next)
  //  - reload_exchange + reload_forever: solo per Mobile / Customer Base (migration 035)
- pod_pdr: isCategory(categoriaNome, 'Energia') ? (refs.podPdr.value.trim() || null) : null,
+ pod_pdr: puntoEnergia,
+ pod_pdr_conferma: isEnergia ? runtimeState.puntoEnergiaConfermato : null,
  assicurazione_impianti: isCategory(categoriaNome, 'Energia') ? runtimeState.assicurazioneImpianti : null,
  numero_contratto_energia: isCategory(categoriaNome, 'Energia')
    ? (refs.numeroContrattoEnergia.value.trim() || null)
@@ -4722,6 +4727,8 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
 
  function loadCartContractInForm(item) {
  runtimeState.assicurazioneImpianti = typeof item.assicurazione_impianti === 'boolean' ? item.assicurazione_impianti : null;
+ refs.podPdr.value = item.pod_pdr || '';
+ runtimeState.puntoEnergiaConfermato = window.MiroxEnergia.confirmedPoint(item.pod_pdr, item.pod_pdr_conferma);
  // Carichiamo un contratto gia' salvato in carrello: NON riapplicare OCR sopra
  // le scelte dell'operatore (anche se lastOcrData e' ancora in runtimeState).
  if (typeof runtimeState !== 'undefined') runtimeState.ocrDeviceApplied = true;
@@ -4914,6 +4921,9 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  });
  const contratti = state.cart.contratti.map((item, idx) => {
  const isEnergia = String(item.categoria_nome || item.categoria_snapshot || item.snapshot?.categoria || '').trim().toLowerCase() === 'energia';
+ if (isEnergia && !window.MiroxEnergia.confirmedPoint(item.pod_pdr, item.pod_pdr_conferma)) {
+ throw new Error(`Contratto ${idx + 1}: conferma il POD/PDR dalla bolletta. Modifica il contratto nel carrello.`);
+ }
  if (isEnergia && typeof item.assicurazione_impianti !== 'boolean') {
  throw new Error(`Contratto ${idx + 1}: indica se è stata attivata l'assicurazione impianti. Modifica il contratto nel carrello.`);
  }
@@ -4949,6 +4959,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  smartphone_reload_modalita: item.smartphone_reload_modalita || null,
  // Campi nuovi propagati al backend (buildInvioPayload)
  pod_pdr: item.pod_pdr || null,
+ pod_pdr_conferma: isEnergia ? item.pod_pdr_conferma : null,
  numero_contratto_energia: item.numero_contratto_energia || null,
  assicurazione_impianti: isEnergia ? item.assicurazione_impianti : null,
  prezzo_fisso: (item.prezzo_fisso !== null && item.prezzo_fisso !== undefined) ? item.prezzo_fisso : null,
@@ -5452,6 +5463,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  });
 
  refs.opzione.addEventListener('change', confirmMobileOptionChange);
+ refs.podPdr.addEventListener('input', () => { runtimeState.puntoEnergiaConfermato = null; });
  refs.reloadExchange.addEventListener('change', () => confirmReloadFlagChange(refs.reloadExchange, 'Reload Exchange'));
  refs.tipoAttivazione.addEventListener('change', confirmFixedActivationChange);
  refs.apriChiudi.addEventListener('change', renderDynamicSections);
@@ -5569,6 +5581,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  smartphone_reload_modalita: (refs.smartphoneReloadModalita && refs.smartphoneReloadModalita.value) || '',
  // Campi nuovi (draft autosave)
  pod_pdr: refs.podPdr ? (refs.podPdr.value || '') : '',
+ pod_pdr_conferma: runtimeState.puntoEnergiaConfermato || null,
  assicurazione_impianti: runtimeState.assicurazioneImpianti,
  numero_contratto_energia: refs.numeroContrattoEnergia ? (refs.numeroContrattoEnergia.value || '') : '',
  prezzo_fisso: (refs.numeroContrattoEnergia && refs.numeroContrattoEnergia.dataset.prezzoFisso) || '',
@@ -5704,6 +5717,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  if (refs.smartphoneReloadModalita) refs.smartphoneReloadModalita.value = contractForm.smartphone_reload_modalita || '';
  // Campi nuovi (restore)
  if (refs.podPdr) refs.podPdr.value = contractForm.pod_pdr || '';
+ runtimeState.puntoEnergiaConfermato = window.MiroxEnergia.confirmedPoint(contractForm.pod_pdr, contractForm.pod_pdr_conferma);
  runtimeState.assicurazioneImpianti = typeof contractForm.assicurazione_impianti === 'boolean' ? contractForm.assicurazione_impianti : null;
  if (refs.numeroContrattoEnergia) {
    refs.numeroContrattoEnergia.value = contractForm.numero_contratto_energia || '';
@@ -5805,6 +5819,9 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  const nextStep = Number(draft.ui?.step || 1);
  uiState.view = nextView;
  uiState.step = Number.isFinite(nextStep) ? Math.max(1, Math.min(5, nextStep)) : 1;
+ if (nextView === 'wizard' && uiState.step >= 4 && isCategory(getCategoriaName(), 'Energia') && !runtimeState.puntoEnergiaConfermato) {
+ uiState.step = 3;
+ }
 
  renderCarrello();
  updateStep3ActionsLabels();
@@ -6438,11 +6455,17 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  if (revision !== runtimeState.pdaRevision || category !== getCategoriaName()) return;
  syncFixedOffer();
  }
- collectContractDraft({}, { skipFileValidation: true });
+ const draft = collectContractDraft({}, { skipFileValidation: true });
  const categoriaNome = getCategoriaName();
  if (isCategory(categoriaNome, 'Energia')) {
+ runtimeState.puntoEnergiaConfermato = null;
+ const punto = await chiediConfermaPuntoEnergia(draft.pod_pdr);
+ if (punto === null || revision !== runtimeState.pdaRevision || category !== getCategoriaName()
+   || punto !== window.MiroxEnergia.code(refs.podPdr.value)) return;
+ runtimeState.puntoEnergiaConfermato = punto;
  const risposta = await chiediAssicurazioneImpianti();
- if (risposta === null || revision !== runtimeState.pdaRevision || category !== getCategoriaName()) return;
+ if (risposta === null || revision !== runtimeState.pdaRevision || category !== getCategoriaName()
+   || punto !== runtimeState.puntoEnergiaConfermato || punto !== window.MiroxEnergia.code(refs.podPdr.value)) return;
  runtimeState.assicurazioneImpianti = risposta;
  queueDraftSave();
  }
@@ -6476,6 +6499,42 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  showUserError(error.message, 'Verifica contratto');
  } finally { refs.btnContrattoNext.disabled = false; }
  });
+
+ function chiediConfermaPuntoEnergia(punto) {
+ const nome = punto.startsWith('IT') ? 'POD' : 'PDR';
+ return new Promise(resolve => {
+ const m = window.MiroxUI._build({
+ title: `Conferma il ${nome} dalla bolletta`,
+ bodyHtml: `<p>${nome} inserito</p>
+ <p><strong style="font: bold clamp(1.25rem, 5vw, 1.75rem) monospace;overflow-wrap:anywhere;user-select:none">${escapeHtml(punto)}</strong></p>
+ <p>Confrontalo con la bolletta e digita di nuovo il codice che leggi sul documento.</p>
+ <label for="confermaPuntoEnergia">Digita il ${nome} della bolletta</label>
+ <input id="confermaPuntoEnergia" type="text" maxlength="32" autocomplete="off" spellcheck="false" ${nome === 'PDR' ? 'inputmode="numeric"' : ''} aria-describedby="errorePuntoEnergia" class="mx-input">
+ <p id="errorePuntoEnergia" role="alert"></p>`,
+ footerHtml: '<button type="button" class="mx-btn mx-btn-secondary" data-punto-annulla>Torna ai dati</button>'
+   + '<button type="button" class="mx-btn mx-btn-primary" data-punto-conferma>Conferma</button>',
+ onClose: () => resolve(null)
+ });
+ const input = m.body.querySelector('#confermaPuntoEnergia');
+ const errore = m.body.querySelector('#errorePuntoEnergia');
+ const conferma = () => {
+ const riscontro = window.MiroxEnergia.confirmedPoint(punto, input.value);
+ if (!riscontro) {
+ errore.textContent = `I codici non coincidono. Controlla il ${nome} sulla bolletta e riprova.`;
+ input.setAttribute('aria-invalid', 'true');
+ input.focus();
+ return;
+ }
+ resolve(riscontro);
+ m.close();
+ };
+ input.addEventListener('input', () => { errore.textContent = ''; input.removeAttribute('aria-invalid'); });
+ input.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); conferma(); } });
+ m.foot.querySelector('[data-punto-annulla]').addEventListener('click', m.close);
+ m.foot.querySelector('[data-punto-conferma]').addEventListener('click', conferma);
+ input.focus();
+ });
+ }
 
  // Chiudere il popup non equivale a rispondere No.
  function chiediAssicurazioneImpianti() {

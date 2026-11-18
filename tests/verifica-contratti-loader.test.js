@@ -76,7 +76,8 @@ test('il filtro Esito seleziona le etichette in attesa e si combina con gli altr
   const select = value => change({ target: { value } });
   const visibleIds = () => [...f.nodes.listaDaVerificare.innerHTML.matchAll(/apriDettaglioContratto\('([^']+)'/g)].map(match => match[1]);
   for (const [id, label] of statuses) {
-    assert.ok(dropdown.includes(`<option value="${id}" data-vc-ordinary>${label}</option>`));
+    const visibility = id === 'da_verificare' ? '' : ' data-vc-ordinary';
+    assert.ok(dropdown.includes(`<option value="${id}"${visibility}>${label}</option>`));
     select(id);
     assert.deepEqual(visibleIds(), [id]);
     assert.ok(f.nodes.listaDaVerificare.innerHTML.includes(`>${label}</span>`));
@@ -153,7 +154,7 @@ test('la scheda Energia rende visibili la coda e i riscontri incerti', () => {
   const waiting = { categoria_snapshot: 'Energia', stato_controllo: 'da_controllare' };
   f.state.daVerificare = [
     { ...waiting, id: 'coda' },
-    { ...waiting, id: 'incerto', riscontro_energia: { stato: 'in_attesa_csv', motivo: 'punto_incerto' } },
+    { ...waiting, id: 'incerto', riscontro_energia: { stato: 'da_verificare', motivo: 'punto_incerto' } },
     { ...waiting, id: 'pronto', riscontro_energia: { stato: 'in_attesa_verifica' } }
   ];
   f.state.tabInAttesa = 'energia';
@@ -161,8 +162,13 @@ test('la scheda Energia rende visibili la coda e i riscontri incerti', () => {
   f.context.window.MiroxEnergiaCsv = { labels: { punto_incerto: 'POD/PDR da riscontrare' } };
   f.nodes.vcEnergiaAvanzamento = { textContent: '' };
   f.context.renderListaContratti('daVerificare');
-  assert.equal(f.nodes.vcEnergiaAvanzamento.textContent, '1 da elaborare · 1 da riscontrare · 1 in attesa di verifica');
+  assert.equal(f.nodes.vcEnergiaAvanzamento.textContent, '1 in attesa CSV · 1 da verificare · 1 in attesa di verifica');
+  assert.match(f.nodes.listaDaVerificare.innerHTML, /DA VERIFICARE/);
   assert.match(f.nodes.listaDaVerificare.innerHTML, /POD\/PDR da riscontrare/);
+  f.state.filtroEsitoDaVerificare = 'da_verificare';
+  f.context.renderListaContratti('daVerificare');
+  assert.match(f.nodes.listaDaVerificare.innerHTML, /Dettagli/);
+  assert.doesNotMatch(f.nodes.listaDaVerificare.innerHTML, /IN ATTESA CSV|IN ATTESA VERIFICA/);
 });
 test('il popup richiede la motivazione, conserva la bozza in errore e aggiorna lo stato solo dopo Salva', async () => {
   const f = fixture();

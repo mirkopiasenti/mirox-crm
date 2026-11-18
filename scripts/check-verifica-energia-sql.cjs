@@ -203,6 +203,79 @@ async function main() {
       { stato: 'in_attesa_verifica', motivo: null });
     assert.equal(await value('SELECT lettura_da AS v FROM vendita_energia_verifiche WHERE contratto_id=$1', [pendente]), operatore);
     assert.equal(await next(), null);
+
+    const previousProof = await query('SELECT * FROM vendita_energia_verifiche WHERE contratto_id=$1', [pendente]);
+    await db.exec('RESET ROLE');
+    await load('20261118190202_energia_conferma_punto_gestore.sql');
+    const nextSupplier = (claim = true) => value('SELECT vendita_energia_prossimo_gestore($1) AS v', [claim]);
+    const reject = (csvIssue = null, supplierIssue = null) => ({
+      stato: 'da_verificare', motivo: csvIssue || supplierIssue, motivo_csv: csvIssue, motivo_fornitore: supplierIssue
+    });
+    const fields = () => query('SELECT pod_pdr, numero_contratto_energia, ex_fornitore FROM vendita_contratti WHERE id=$1', [pendente]);
+    const fieldValues = (p, n, g) => [{ pod_pdr: p, numero_contratto_energia: n, ex_fornitore: g }];
+    const replaceBill = async path => {
+      await db.exec('RESET ROLE');
+      await query('UPDATE vendita_documenti SET storage_path=$2 WHERE id=$1', [doc, path]);
+      await db.exec('SET ROLE service_role');
+      assert.equal(await phase(pendente), 'in_attesa_csv');
+    };
+    await db.exec("SET ROLE authenticated; SET test.verifica='true'");
+    assert.deepEqual(await query('SELECT stato,motivo_csv,motivo_fornitore FROM vendita_energia_verifiche'),
+      [{ stato: 'in_attesa_verifica', motivo_csv: null, motivo_fornitore: null }]);
+    await assert.rejects(query('SELECT gestore_riscontrato FROM vendita_energia_verifiche'), { code: '42501' });
+    await assert.rejects(nextSupplier(false), { code: '42501' });
+    await db.exec('RESET ROLE; SET ROLE service_role');
+    const [preserved] = await query('SELECT * FROM vendita_energia_verifiche WHERE contratto_id=$1', [pendente]);
+    for (const [key, entry] of Object.entries(previousProof[0])) assert.deepEqual(preserved[key], entry);
+    assert.equal(await nextSupplier(false), null);
+
+    await db.exec('RESET ROLE; DELETE FROM vendita_energia_csv_righe; DELETE FROM vendita_energia_csv WHERE singleton');
+    await replaceBill('test/prima-senza-csv.pdf');
+    assert.equal(await next(), null);
+    const beforeCsv = await nextSupplier();
+    assert.equal(beforeCsv.csv_id, null);
+    assert.deepEqual(await attempt(beforeCsv, errato, 'Argos'),
+      { stato: 'in_attesa_csv', motivo: null, motivo_csv: null, motivo_fornitore: null });
+    assert.deepEqual(await fields(), fieldValues(punto, null, 'Argos'));
+    assert.equal(await nextSupplier(false), null);
+
+    await csv(header + `${fiscale};;0008;${errato};Attivato;\n`, '1');
+    const missed = await nextSupplier();
+    assert.equal(missed.gestore, 'Argos');
+    assert.deepEqual(await attempt(missed, null, missed.gestore), reject('csv_non_trovato'));
+    assert.deepEqual(await fields(), fieldValues(punto, null, 'Argos'));
+    assert.equal(await nextSupplier(false), null);
+
+    await csv(source() + `${fiscale};;0010;${punto};Nuovo;\n`, '2');
+    const ambiguous = await nextSupplier();
+    assert.equal(ambiguous.gestore, 'Argos');
+    assert.deepEqual(await attempt(ambiguous, null, ambiguous.gestore), reject('csv_ambiguo'));
+    assert.deepEqual(await fields(), fieldValues(punto, null, 'Argos'));
+
+    await csv(source(), '3');
+    const nowMatched = await nextSupplier();
+    assert.equal(nowMatched.gestore, 'Argos');
+    assert.deepEqual(await attempt(nowMatched, null, nowMatched.gestore),
+      { stato: 'in_attesa_verifica', motivo: null, motivo_csv: null, motivo_fornitore: null });
+    assert.deepEqual(await fields(), fieldValues(punto, '0007', 'Argos'));
+    await replaceBill('test/errore-lettura.pdf');
+    const failed = await nextSupplier();
+    assert.equal(failed.gestore, null);
+    assert.deepEqual(await attempt(failed, null, null, 'errore_lettura'), reject(null, 'errore_lettura'));
+    assert.deepEqual(await fields(), fieldValues(punto, '0007', null));
+    assert.equal(await nextSupplier(false), null);
+    await assert.rejects(confirm(pendente), { code: '40001' });
+
+    const altroPunto = '00123456789034';
+    await csv(header + `${fiscale};;0018;${altroPunto};Attivato;\n`, '4');
+    const both = await nextSupplier();
+    assert.deepEqual(await attempt(both, altroPunto, null, 'fornitore_incerto'), reject('csv_non_trovato', 'fornitore_incerto'));
+    assert.deepEqual(await fields(), fieldValues(punto, null, null));
+    const manual = { contratto_id: pendente, contesto: both.contesto, updated_at: await stamp(pendente), lease: null, csv_id: null };
+    assert.deepEqual(await attempt(manual, altroPunto, 'Enel Energia', null, operatore),
+      { stato: 'in_attesa_verifica', motivo: null, motivo_csv: null, motivo_fornitore: null });
+    assert.deepEqual(await fields(), fieldValues(altroPunto, '0018', 'Enel Energia'));
+    assert.equal(await value('SELECT vendita_energia_pronta($1,$2,$3,$4) AS v', [pendente, altroPunto, '0018', 'Enel Energia']), true);
     console.log('Verifica Energia SQL: migrazione, ACL, riscontro, esiti, concorrenza ottimistica e rollback verificati.');
   } finally {
     await db.close();

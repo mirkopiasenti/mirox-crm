@@ -5,6 +5,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const Pda = require('../js/vendita-pda-core');
+const Energia = require('../js/energia-core');
+const pdr = '00123456789012';
 const { normalizeContractInput, validateAssicurazioneImpianti } = require('../netlify/functions/crea-vendita-pratica-carrello')._test;
 const source = fs.readFileSync(path.join(__dirname, '../moduli/upload-contratti-vendita.html'), 'utf8');
 const isCategory = (a, b) => String(a).toLowerCase() === b.toLowerCase();
@@ -49,13 +51,14 @@ test('popup: Sì=true, No=false, chiusura senza risposta=null', async () => {
 });
 
 function nextFixture(category = 'Energia') {
-  const refs = { btnContrattoNext: { disabled: false, addEventListener(type, fn) { this.click = fn; } }, numeroContrattoEnergia: { dataset: {} } };
+  const refs = { btnContrattoNext: { disabled: false, addEventListener(type, fn) { this.click = fn; } }, numeroContrattoEnergia: { dataset: {} }, podPdr: { value: pdr } };
   let resolve, asks = 0, saves = 0;
-  const steps = [], ctx = { refs, runtimeState: { pdaRevision: 1, assicurazioneImpianti: null },
+  const steps = [], ctx = { refs, window: { MiroxEnergia: Energia }, runtimeState: { pdaRevision: 1, assicurazioneImpianti: null },
     getCategoriaName: () => category, isCategory, isCurrentCategoriaPda: () => false,
-    collectContractDraft() {}, chiediAssicurazioneImpianti() { asks++; return new Promise(r => { resolve = r; }); },
+    collectContractDraft: () => ({ pod_pdr: pdr }), chiediConfermaPuntoEnergia: () => pdr,
+    chiediAssicurazioneImpianti() { asks++; return new Promise(r => { resolve = r; }); },
     queueDraftSave() { saves++; }, goToStep: n => steps.push(n), showUserError: msg => assert.fail(msg) };
-  vm.runInNewContext(section(" refs.btnContrattoNext.addEventListener('click', async () => {", ' // Chiudere il popup'), ctx);
+  vm.runInNewContext(section(" refs.btnContrattoNext.addEventListener('click', async () => {", ' function chiediConfermaPuntoEnergia'), ctx);
   return { ctx, refs, steps, answer: v => resolve(v), asks: () => asks, saves: () => saves };
 }
 test('Avanti attende una scelta, blocca doppi click e conserva anche No', async () => {
@@ -72,14 +75,49 @@ test('Avanti attende una scelta, blocca doppi click e conserva anche No', async 
 });
 test('risposta tardiva non modifica un nuovo contratto e le altre categorie non aprono il popup', async () => {
   const f = nextFixture(), pending = f.refs.btnContrattoNext.click();
+  await Promise.resolve();
   f.ctx.runtimeState.pdaRevision++; f.answer(true); await pending;
   assert.equal(f.ctx.runtimeState.assicurazioneImpianti, null); assert.deepEqual(f.steps, []);
   const other = nextFixture('Allarmi'); await other.refs.btnContrattoNext.click();
   assert.equal(other.asks(), 0); assert.deepEqual(other.steps, [4]);
 });
 
+test('Avanti non apre gli allegati se il riscontro del POD/PDR viene annullato', async () => {
+  const f = nextFixture();
+  f.ctx.chiediConfermaPuntoEnergia = () => null;
+  await f.refs.btnContrattoNext.click();
+  assert.equal(f.ctx.runtimeState.puntoEnergiaConfermato, null);
+  assert.equal(f.asks(), 0);
+  assert.deepEqual(f.steps, []);
+});
+
+test('popup POD/PDR mostra il valore, respinge una differenza e accetta una nuova digitazione', async () => {
+  const buttons = new Map();
+  const input = { value: '', events: {}, addEventListener(type, cb) { this.events[type] = cb; }, focus() {},
+    setAttribute(key, value) { this[key] = value; }, removeAttribute(key) { delete this[key]; } };
+  const error = { textContent: '' };
+  const ctx = { escapeHtml: x => x, window: { MiroxEnergia: Energia, MiroxUI: { _build(options) {
+    assert.match(options.title, /PDR/);
+    assert.match(options.bodyHtml, new RegExp(pdr));
+    assert.match(options.bodyHtml, /Confrontalo con la bolletta/);
+    return { body: { querySelector: selector => selector === '#confermaPuntoEnergia' ? input : error },
+      foot: { querySelector: selector => ({ addEventListener: (_type, callback) => buttons.set(selector, callback) }) },
+      close() { options.onClose(); } };
+  } } } };
+  vm.runInNewContext(section(' function chiediConfermaPuntoEnergia', ' // Chiudere il popup'), ctx);
+  const pending = ctx.chiediConfermaPuntoEnergia(pdr);
+  input.value = '00123456789013';
+  buttons.get('[data-punto-conferma]')();
+  assert.match(error.textContent, /non coincidono/);
+  assert.equal(input['aria-invalid'], 'true');
+  input.value = '00 123456789012';
+  input.events.input();
+  input.events.keydown({ key: 'Enter', preventDefault() {} });
+  assert.equal(await pending, pdr);
+});
+
 function payload(items, cluster) {
-  const ctx = { window: { MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda: Pda, MiroxIdentitaCore: require('../js/identita-upload-core'),
+  const ctx = { window: { MiroxEnergia: Energia, MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda: Pda, MiroxIdentitaCore: require('../js/identita-upload-core'),
     MiroxIdentitaUpload: { get: () => ({ token: 'fixture', result: {} }) } },
     state: { cart: { contratti: items } }, getClienteFormData: () => ({ cluster }), validateClienteData() {},
     praticaFiles: { documento_identita: [{}] }, runtimeState: {},
@@ -88,7 +126,7 @@ function payload(items, cluster) {
   return ctx.buildInvioPayload();
 }
 const item = value => ({ temp_id: 'temp', categoria_nome: 'Energia', categoria_id: 'cat', offerta_id: 'offer',
-  assicurazione_impianti: value, flags: {}, files: {} });
+  assicurazione_impianti: value, pod_pdr: pdr, pod_pdr_conferma: pdr, flags: {}, files: {} });
 test('carrello misto e payload Consumer/Business preservano risposte opposte per singolo contratto', () => {
   for (const cluster of ['Consumer', 'Business']) {
     const dto = payload([item(true), item(false), { ...item(undefined), categoria_nome: 'Assicurazioni' }], cluster);
@@ -98,13 +136,15 @@ test('carrello misto e payload Consumer/Business preservano risposte opposte per
       assert.equal(normalized.assicurazione_impianti, raw.assicurazione_impianti);
     }
     assert.throws(() => payload([item(undefined)], cluster), /Modifica il contratto/);
+    assert.equal(dto.contratti[0].pod_pdr_conferma, pdr);
+    assert.throws(() => payload([{ ...item(false), pod_pdr_conferma: null }], cluster), /conferma il POD\/PDR/);
   }
 });
 
 test('bozza, riapertura carrello e nuovo contratto conservano No senza ereditarlo', () => {
   const field = () => ({ value: '', dataset: {}, classList: { add() {} } });
   const refs = new Proxy({}, { get(target, key) { return target[key] ||= field(); } });
-  const ctx = { refs, runtimeState: { assicurazioneImpianti: false }, readPdaFields: () => ({}),
+  const ctx = { refs, window: { MiroxEnergia: Energia }, runtimeState: { assicurazioneImpianti: false }, readPdaFields: () => ({}),
     renderPdaFields() {}, renderOfferte() {}, renderOpzioni() {}, renderReload() {}, renderDynamicSections() {},
     renderCategorieCards() {}, renderCategoriaActions() {}, clearInputFile() {}, updateUploadVisibility() {},
     CODICE_RIVENDITORE_DEFAULT: '9001415852' };
@@ -120,7 +160,9 @@ test('bozza, riapertura carrello e nuovo contratto conservano No senza ereditarl
     renderFirmaSelection() {}, updateStep3ActionsLabels() {} });
   vm.runInNewContext(section(' function loadCartContractInForm(item)', ' window.editCartContract ='), ctx);
   ctx.loadCartContractInForm(item(false)); assert.equal(ctx.runtimeState.assicurazioneImpianti, false);
+  assert.equal(ctx.getContractFormDraft().pod_pdr_conferma, pdr);
   ctx.resetContractFields(); assert.equal(ctx.runtimeState.assicurazioneImpianti, null);
+  assert.equal(ctx.runtimeState.puntoEnergiaConfermato, null);
 });
 
 test('handler respinge Energia senza risposta prima di scrivere pratica, anagrafica o file', async () => {
@@ -134,8 +176,11 @@ test('handler respinge Energia senza risposta prima di scrivere pratica, anagraf
       if (name === './_lib/require-auth') return { requireAuth: async () => ({ ok: true, profilo: { id: '11111111-1111-4111-8111-111111111111', ruolo: 'operatore' } }) };
       return nativeRequire(name);
     } });
-  const result = await module.exports.handler({ httpMethod: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+  const submit = contract => module.exports.handler({ httpMethod: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
     cliente: { cf_piva: 'RSSMRA80A01H501U', ragione_sociale: 'Test', cluster: 'Consumer', cellulare: '3331234567', email: 'test@example.invalid' },
-    contratti: [{ categoria_id: 'cat', offerta_id: 'offer' }] }) });
+    contratti: [{ categoria_id: 'cat', offerta_id: 'offer', ...contract }] }) });
+  const result = await submit({});
   assert.equal(result.statusCode, 400); assert.match(JSON.parse(result.body).error, /assicurazione impianti/);
+  const mismatch = await submit({ assicurazione_impianti: false, pod_pdr: pdr, pod_pdr_conferma: '00123456789013' });
+  assert.equal(mismatch.statusCode, 400); assert.match(JSON.parse(mismatch.body).error, /Conferma il POD\/PDR/);
 });

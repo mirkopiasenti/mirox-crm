@@ -2,12 +2,11 @@
 
 const { createHash } = require('node:crypto');
 const { readCsv } = require('./verifica-csv');
+const { code, isPoint } = require('../../../js/energia-core');
 
 const POINT_HEADERS = new Set(['POD', 'CODICEPOD', 'NUMEROPOD', 'PDR', 'CODICEPDR', 'NUMEROPDR',
   'PODPDR', 'PODOPDR', 'CODICEPODPDR', 'CODICEPODOPDR', 'PUNTODIFORNITURA', 'CODICEPUNTODIFORNITURA']);
 const PRIORITY = new Map(['Attivato', 'Nuovo', 'In attivazione', 'In lavorazione', 'Annullato', 'Rifiutato'].map((state, i) => [state, i + 1]));
-const code = value => String(value ?? '').replace(/\s+/g, '').toUpperCase();
-const isPoint = value => /^(?:IT\d{3}E[A-Z0-9]{8,10}|\d{14})$/.test(value);
 const tax = (value, business) => {
   const normalized = code(value);
   if (business) return /^\d{1,11}$/.test(normalized) ? normalized.padStart(11, '0') : '';

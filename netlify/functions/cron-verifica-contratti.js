@@ -11,7 +11,7 @@ async function handler(event = {}, deps = {}) {
     // La preparazione Energia è indipendente da orario, OCR a consumo e
     // modalità di approvazione della verifica automatica storica.
     try {
-      const energy = await db.rpc('vendita_energia_prossimo', { p_prendi: false });
+      const energy = await db.rpc('vendita_energia_prossimo_gestore', { p_prendi: false });
       if (energy.error && !['PGRST202', '42883'].includes(energy.error.code)) throw new Error('coda_energia');
       if (energy.data?.contratto_id) await (deps.nudge || Worker.nudge)({ energia: true });
     } catch {

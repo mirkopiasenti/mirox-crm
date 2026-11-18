@@ -171,6 +171,7 @@ function finalizeFixture({ identityIds, readError = false, check = null, fileDoc
         if (id === './_lib/pda-business-identity') return require('../netlify/functions/_lib/pda-business-identity');
       if (id === './_lib/pda-contract') return require('../netlify/functions/_lib/pda-contract');
       if (id === '../../js/fisso-core') return require('../js/fisso-core');
+      if (id === '../../js/energia-core') return require('../js/energia-core');
       if (id === '../../js/customer-base-device') return require('../js/customer-base-device');
       if (id === '@supabase/supabase-js') return { createClient: () => db };
       if (id === './_lib/require-auth') return { requireAuth: async () => ({ ok: true, user: { id: 'user' }, profilo: { ruolo: 'admin' } }) };

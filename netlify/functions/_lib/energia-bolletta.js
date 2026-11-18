@@ -6,20 +6,16 @@ const { dirname, join } = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { renderPageAsImage } = require('unpdf');
 const { layoutText } = require('./pda-pdf-text');
-const { code, isPoint, tax } = require('./energia-csv');
+const { code, tax } = require('./energia-csv');
 
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_PAGES = 30;
+const MAX_OCR_PAGES = 5;
 const MAX_CACHE = 8;
 const OCR_WIDTH = 2350;
-const MAX_REVIEW_MS = 78000;
+const MAX_REVIEW_MS = 35000;
 const requireInstalled = createRequire(__filename);
 const language = () => join(dirname(requireInstalled.resolve('@tesseract.js-data/ita/package.json')), '4.0.0_best_int');
-const POINT_LABEL = /\b(POD|PDR|punto di prelievo|punto di riconsegna)\b/i;
-const POD = /^IT\d{3}E[A-Z0-9]{8,10}$/;
-const PDR = /^\d{14}$/;
-const POD_TOKEN = /^[I1L]T[0-9ODIL]{3}E[A-Z0-9]{8,10}$/i;
-const PDR_TOKEN = /^[0-9OILDSB]{14}$/i;
 const KNOWN_SELLERS = /\b(Enel Energia|Eni Plenitude|Plenitude|Servizio Elettrico Nazionale|A2A Energia|Hera Comm|Iren Mercato|Edison Energia|E\.ON Energia|Engie Italia|Dolomiti Energia|Estra Energie|Sorgenia|Illumia|Octopus Energy|NeN|Alperia Smart Services|Acea Energia|AGSM AIM Energia|Wind Tre|WindTre|Argos|Accendi(?:\s+Luce\s*[&e]\s*Gas)?|Alleanza Luce\s*[&e]\s*Gas)\b/gi;
 const COMPANY_FORM = /^\s+S\s*\.?\s*(?:P\s*\.?\s*A|R\s*\.?\s*L)\b\.?/i;
 const SELLER_CONTEXT = /\b(?:scriv\w*|reclami|contatti|corrispondenza|posta)\b/i;
@@ -59,79 +55,39 @@ function sellers(line, next) {
   return found.map(canonicalSeller);
 }
 
-function pointLabel(line) {
-  const label = POINT_LABEL.exec(line);
-  if (!label) return null;
-  const pod = /^(?:pod|punto di prelievo)$/i.test(label[0]);
-  const tail = line.slice(label.index + label[0].length);
-  const composite = /^\s*\/\s*(?:POD|PDR)\b/i;
-  return { family: composite.test(tail) ? null : pod ? 'luce' : 'gas',
-    tail: tail.replace(composite, '').replace(/^\s*\([^)]{1,80}\)/, '').replace(/^[\s:=–—-]+/, '') };
-}
-
-function validFor(point, family) {
-  return isPoint(point) && (family === 'luce' ? POD.test(point) : family === 'gas' ? PDR.test(point) : true);
-}
-
-function valueAtStart(line, family) {
-  const value = line.trim().split(/\s{2,}|\s+[|;]/)[0];
-  const leading = /^(IT\d{3}E[A-Z0-9]{8,10}|\d{14})(?=$|[\s,;|).])/i.exec(value);
-  const normalized = code(leading?.[1] || value);
-  return validFor(normalized, family) ? normalized : null;
-}
-
-function factsFromText(text, additionalPoints = []) {
-  const lines = String(text || '').normalize('NFKC').split(/\r?\n/).map(line => line.trim());
-  const points = new Set(additionalPoints);
-  const providers = new Map();
-  const taxes = new Set();
+function factsFromText(text) {
+  const facts = { providers: new Map(), taxes: new Set(), readable: Boolean(text.trim()) };
+  const lines = text.normalize('NFKC').split(/\r?\n/).map(line => line.trim());
   for (const [index, line] of lines.entries()) {
     const next = lines[index + 1] || '';
-    const marker = pointLabel(line);
-    if (marker) {
-      const point = valueAtStart(marker.tail, marker.family) || valueAtStart(next, marker.family);
-      if (point) points.add(point);
-    }
-    for (const name of sellers(line, next)) providers.set(name.toLowerCase().replace(/\W/g, ''), name);
-
+    for (const name of sellers(line, next)) facts.providers.set(name.toLowerCase().replace(/\W/g, ''), name);
     // Il fiscale della testata del venditore è distinto da quello del cliente.
     const label = /^(?:(?:codice fiscale|c\.?\s*f\.?|partita iva|p\.?\s*iva)\s+(?:del(?:l['’])?\s*)?(?:cliente|intestatario)|(?:cliente|intestatario)\s*[-:]?\s*(?:codice fiscale|partita iva))\s*[:=–—-]?\s*(.*)$/i.exec(line);
     if (label) {
       const fiscal = (label[1] || next).trim().split(/\s+/)[0];
-      if (fiscal) taxes.add(fiscal);
+      if (fiscal) facts.taxes.add(fiscal);
     }
   }
-  return { points, podConfrontabili: new Set(), exactTokens: new Set(), providers, taxes };
+  return facts;
 }
 
-function declaredPodFromOcr(value) {
-  if (!POD_TOKEN.test(value)) return null;
-  // Si normalizzano solo il prefisso obbligatorio e le tre posizioni
-  // certamente numeriche. Serve a riscontrare il POD già digitato,
-  // mai a proporre una correzione del dato inserito.
-  return 'IT' + value.slice(2, 5).replace(/[OD]/g, '0').replace(/[IL]/g, '1') + value.slice(5);
+function mergeFacts(target, source) {
+  for (const [name, value] of source.providers) target.providers.set(name, value);
+  for (const value of source.taxes) target.taxes.add(value);
+  target.readable ||= source.readable;
+  return target;
 }
 
-function selectFacts(facts, context, ocr) {
+function selectSupplier(facts, context) {
   const taxes = new Set([...facts.taxes].map(value => tax(value, context.business)).filter(Boolean));
-  if (taxes.size && (taxes.size !== 1 || !taxes.has(context.fiscale))) return { motivo: 'intestatario_diverso' };
-  const candidates = [...facts.points].filter(point => validFor(point, context.famiglia));
-  const possible = new Set([...candidates, ...[...facts.podConfrontabili].filter(point => validFor(point, context.famiglia))]);
-  const declared = code(context.punto_dichiarato);
-  // Il valore può trovarsi in un blocco OCR distinto dall'etichetta.
-  // La lettura esatta del codice è sufficiente solo per confermarlo con il CSV.
-  if (context.dichiarato_csv_univoco && validFor(declared, context.famiglia) && facts.exactTokens.has(declared)) possible.add(declared);
-  // Il punto digitato disambigua solo se è effettivamente letto nell'allegato.
-  // Il database richiede comunque una sola proposta per il fiscale e quel punto.
-  const punto = possible.has(declared) ? declared : candidates.length === 1 && possible.size === 1 ? candidates[0] : null;
-  if (facts.providers.size > 1 || (!punto && possible.size > 1)) return { motivo: 'bolletta_ambigua' };
-  if (!punto) return { motivo: 'punto_incerto' };
-  if (facts.providers.size !== 1) return { motivo: 'fornitore_incerto' };
-  return { punto, gestore: [...facts.providers.values()][0], ocr };
+  if (context.fiscale && taxes.size && (taxes.size !== 1 || !taxes.has(context.fiscale))) return { motivo: 'intestatario_diverso' };
+  if (facts.providers.size > 1) return { motivo: 'bolletta_ambigua' };
+  if (facts.providers.size === 1) return { gestore: [...facts.providers.values()][0] };
+  return { motivo: facts.readable ? 'fornitore_incerto' : 'bolletta_illeggibile' };
 }
 
-function parseText(text, context, { ocr = false } = {}) {
-  return selectFacts(factsFromText(text), context, ocr);
+function parseText(text, context) {
+  return selectSupplier(factsFromText(text), context);
 }
 
 async function openPdf(bytes) {
@@ -147,14 +103,14 @@ async function openPdf(bytes) {
 }
 
 async function extractPdf(pdf) {
-  if (!pdf.numPages || pdf.numPages > MAX_PAGES) return null;
+  if (!pdf.numPages) return [];
   const pages = [];
   let items = 0;
-  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+  for (let pageNo = 1; pageNo <= Math.min(pdf.numPages, MAX_PAGES); pageNo++) {
     const page = await pdf.getPage(pageNo);
     const content = await page.getTextContent();
     items += content.items.length;
-    if (items > 60000) return null;
+    if (items > 60000) break;
     const viewport = page.getViewport({ scale: 1 });
     pages.push(layoutText([content.items.flatMap(item => {
       if (!item.str || !item.transform) return [];
@@ -166,69 +122,21 @@ async function extractPdf(pdf) {
   return pages;
 }
 
-function ocrTargets(lines) {
-  const tokens = [];
-  for (const line of lines) {
-    for (const word of line.words) {
-      const value = code(word.text).replace(/^[^A-Z0-9]+|[^A-Z0-9]+$/g, '');
-      const family = POD_TOKEN.test(value) ? 'luce' : PDR_TOKEN.test(value) ? 'gas' : null;
-      if (family) tokens.push({ line, value, family, bbox: word.bbox, confidence: word.confidence });
-    }
+async function * renderScans(pdf, deps) {
+  const count = Math.min(pdf.numPages, MAX_OCR_PAGES);
+  for (let i = 0; i < count; i++) {
+    const page = await pdf.getPage(i + 1);
+    try {
+      const view = page.getViewport({ scale: 1 });
+      const width = Math.min(OCR_WIDTH, Math.sqrt(8_500_000 * view.width / view.height));
+      yield Buffer.from(await (deps.render || renderPageAsImage)(pdf, i + 1, {
+        canvasImport: () => import('@napi-rs/canvas'), width
+      }));
+    } finally { page.cleanup(); }
   }
-  const targets = new Map();
-  for (const [index, line] of lines.entries()) {
-    const marker = pointLabel(line.text);
-    if (!marker) continue;
-    const next = lines[index + 1];
-    const nearby = next && next.bbox.y0 >= line.bbox.y0
-      && next.bbox.y0 - line.bbox.y1 <= Math.max(60, (line.bbox.y1 - line.bbox.y0) * 2);
-    const label = line.bbox;
-    const height = label.y1 - label.y0;
-    for (const token of tokens) {
-      if (marker.family && marker.family !== token.family) continue;
-      const { bbox: box } = token;
-      const beside = Math.abs(box.y0 - label.y0) <= height / 2 && box.x0 >= label.x1 && box.x0 - label.x1 <= 6 * height;
-      const below = box.y0 >= label.y1 - height / 3 && box.y0 - label.y1 <= 2 * height
-        && Math.abs(box.x0 - label.x0) <= 2 * height;
-      if (token.line !== line && !(nearby && token.line === next) && !beside && !below) continue;
-      targets.set([box.x0, box.y0, box.x1, box.y1].join('/'), token);
-    }
-  }
-  return { targets: [...targets.values()].slice(0, 6), tokens };
 }
 
-async function readCrops(worker, image, targets, { PSM }) {
-  const verified = [];
-  const { createCanvas, loadImage } = require('@napi-rs/canvas');
-  const source = await loadImage(image);
-  async function readCrop(bbox, family, pad) {
-    const x = Math.max(0, bbox.x0 - pad), y = Math.max(0, bbox.y0 - pad);
-    const w = Math.min(source.width - x, bbox.x1 + pad - x);
-    const h = Math.min(source.height - y, bbox.y1 + pad - y);
-    if (w <= 0 || h <= 0) return null;
-    const canvas = createCanvas(w * 3, h * 3);
-    canvas.getContext('2d').drawImage(source, x, y, w, h, 0, 0, w * 3, h * 3);
-    await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE,
-      tessedit_char_whitelist: family === 'gas' ? '0123456789' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' });
-    const { data } = await worker.recognize(canvas.toBuffer('image/png'));
-    const point = code(data.text);
-    return validFor(point, family) ? { point, confidence: data.confidence } : null;
-  }
-  for (const { bbox, family, value } of targets) {
-    const first = await readCrop(bbox, family, family === 'gas' ? 22 : 14);
-    if (first?.confidence >= 65) {
-      verified.push({ value, point: first.point, esatto: true });
-    } else if (family === 'luce' && first?.confidence >= 40) {
-      const second = await readCrop(bbox, family, 6);
-      if (second?.confidence >= 40 && second.point === first.point) {
-        verified.push({ value, point: first.point, esatto: false });
-      }
-    }
-  }
-  return verified;
-}
-
-async function readOcr(images, { limitMs = MAX_REVIEW_MS, onPartial } = {}) {
+async function readOcr(images, facts, limitMs) {
   const tesseract = require('tesseract.js');
   let worker, timer, expired = false;
   const timeout = new Promise((_, reject) => {
@@ -236,120 +144,44 @@ async function readOcr(images, { limitMs = MAX_REVIEW_MS, onPartial } = {}) {
   });
   const work = async () => {
     worker = await tesseract.createWorker('ita', tesseract.OEM.LSTM_ONLY, { langPath: language(), gzip: true, cacheMethod: 'none', errorHandler() {} });
-    if (expired) { await worker.terminate(); return { observations: [] }; }
-    const observations = [];
+    if (expired) { await worker.terminate(); return; }
     for await (const image of images) {
-      await worker.setParameters({ tessedit_pageseg_mode: tesseract.PSM.AUTO, tessedit_char_whitelist: '' });
       const { data } = await worker.recognize(image, {}, { text: true, blocks: true });
-      const lines = data.blocks?.flatMap(b => b.paragraphs.flatMap(p => p.lines)) || [];
-      const { targets, tokens } = ocrTargets(lines);
-      // Le righe buone restano utili anche se note, tabelle o loghi abbassano
-      // la confidenza media della pagina. Le righe scartate mantengono il salto.
-      const text = lines.length ? lines.map(line => line.confidence >= 70 ? line.text.trim() : '').join('\n') : '';
-      // Sul punto riletto in dettaglio vale la lettura localizzata. Il testo
-      // della stessa pagina resta a disposizione per gestore e intestazione.
-      const facts = factsFromText(text);
-      for (const { value, confidence } of tokens) {
-        if (confidence >= 85 && isPoint(value)) facts.exactTokens.add(value);
-      }
-      for (const { family, value } of targets) {
-        if (family !== 'luce') continue;
-        const confirmed = declaredPodFromOcr(value);
-        if (confirmed) facts.podConfrontabili.add(confirmed);
-      }
-      const partial = onPartial?.([...observations, { facts, leggibile: Boolean(text.trim()) }]);
-      if (partial) return { observations, partial };
-      const points = targets.length ? await readCrops(worker, image, targets, tesseract) : [];
-      for (const { value, point, esatto } of points) {
-        if (esatto) {
-          facts.points.delete(value);
-          facts.points.add(point);
-        } else {
-          facts.podConfrontabili.add(point);
-        }
-      }
-      observations.push({ facts, leggibile: Boolean(text.trim() || points.length) });
-      const focused = onPartial?.(observations);
-      if (focused) return { observations, partial: focused };
+      const lines = data.blocks?.flatMap(block => block.paragraphs.flatMap(paragraph => paragraph.lines)) || [];
+      const text = lines.map(line => line.confidence >= 70 ? line.text.trim() : '').join('\n');
+      mergeFacts(facts, factsFromText(text));
+      if (facts.providers.size) break;
     }
-    return { observations };
   };
   try {
-    return await Promise.race([work(), timeout]);
+    await Promise.race([work(), timeout]);
+    return facts;
   } finally {
     clearTimeout(timer);
-    if (worker) await worker.terminate();
-  }
-}
-
-function mergeFacts(direct, additional) {
-  for (const { facts } of additional) {
-    for (const point of facts.points) direct.points.add(point);
-    for (const point of facts.podConfrontabili) direct.podConfrontabili.add(point);
-    for (const point of facts.exactTokens) direct.exactTokens.add(point);
-    for (const [name, value] of facts.providers) direct.providers.set(name, value);
-    for (const value of facts.taxes) direct.taxes.add(value);
-  }
-  return direct;
-}
-
-function focusedMatch(direct, observations, scope) {
-  const declared = code(scope.punto_dichiarato);
-  // Punto e venditore devono essere riscontrati sulla stessa pagina o su
-  // pagine adiacenti. Le pagine già lette devono concordare con la prova.
-  const nearby = selectFacts(mergeFacts(factsFromText(''), observations.slice(-2)), scope, true);
-  if (nearby.punto !== declared) return null;
-  const known = selectFacts(mergeFacts(factsFromText(''), [{ facts: direct }, ...observations]), scope, true);
-  return known.punto === declared && known.gestore === nearby.gestore ? known : null;
-}
-
-async function * renderScans(pdf, pages, direct, deps) {
-  for (let index = 0; index < pages.length; index++) {
-    if (direct.points.size && direct.providers.size && pages[index].trim().length >= 40) continue;
-    const page = await pdf.getPage(index + 1);
-    const view = page.getViewport({ scale: 1 });
-    // Mantieni il testo leggibile senza allocare immagini enormi per scansioni oblunghe.
-    const width = Math.min(OCR_WIDTH, Math.sqrt(8_500_000 * view.width / view.height));
-    yield Buffer.from(await (deps.render || renderPageAsImage)(pdf, index + 1, {
-      canvasImport: () => import('@napi-rs/canvas'), width
-    }));
-    page.cleanup();
+    if (worker && !expired) await worker.terminate();
+    else if (worker) void worker.terminate().catch(() => {});
   }
 }
 
 async function observeBytes(bytes, deps) {
   const isPdf = bytes.subarray(0, 5).toString() === '%PDF-';
   const isImage = bytes[0] === 0xff && bytes[1] === 0xd8 || bytes.subarray(0, 8).toString('hex') === '89504e470d0a1a0a';
-  if (!isPdf && !isImage) return { motivo: 'bolletta_illeggibile' };
+  if (!isPdf && !isImage) return factsFromText('');
   const pdf = isPdf ? await (deps.openPdf || openPdf)(bytes) : null;
   try {
     const pages = pdf ? await (deps.extractPdf || extractPdf)(pdf) : [];
-    if (!pages) return { motivo: 'bolletta_illeggibile' };
-    const text = pages.join('\n\n');
-    const direct = factsFromText(text);
-    if (direct.points.size && direct.providers.size && pages.every(page => page.trim().length >= 40)) return { facts: direct, ocr: false };
+    const facts = factsFromText(pages.join('\n\n'));
+    if (facts.providers.size) return facts;
     const limitMs = deps.deadline === undefined ? MAX_REVIEW_MS : deps.deadline - Date.now();
     if (limitMs <= 0) throw new Error('timeout_ocr_energia');
-    const onPartial = deps.scope?.dichiarato_csv_univoco
-      ? partial => focusedMatch(direct, partial, deps.scope)
-      : undefined;
-    const { observations, partial } = await (deps.ocr || readOcr)(pdf ? renderScans(pdf, pages, direct, deps) : [bytes], { limitMs, onPartial });
-    if (partial) return { partial };
-    if (!text.trim() && !observations.some(page => page.leggibile)) return { motivo: 'bolletta_illeggibile' };
-    return { facts: mergeFacts(direct, observations), ocr: true };
+    return await (deps.ocr || readOcr)(pdf ? renderScans(pdf, deps) : [bytes], facts, limitMs);
   } finally {
     if (pdf) await pdf.loadingTask.destroy();
   }
 }
 
 async function fromBytes(bytes, context, deps = {}) {
-  const result = await observeBytes(bytes, { ...deps, scope: context });
-  return result.partial || (result.motivo ? result : selectFacts(result.facts, context, result.ocr));
-}
-
-function familyForOffer(value) {
-  const kinds = new Set((String(value || '').match(/\b(?:luce|gas)\b/gi) || []).map(kind => kind.toLowerCase()));
-  return kinds.size === 1 ? [...kinds][0] : null;
+  return selectSupplier(await observeBytes(bytes, deps), context);
 }
 
 async function readBill(db, context, deps = {}) {
@@ -357,20 +189,7 @@ async function readBill(db, context, deps = {}) {
   const documents = context.documenti || [];
   if (!documents.length) return { motivo: 'bolletta_assente' };
   if (documents.length > 2) return { motivo: 'bolletta_ambigua' };
-  let scope = context;
-  if (deps.contrattoId) {
-    const { data, error } = await db.from('vendita_contratti').select('pod_pdr,nome_offerta_snapshot').eq('id', deps.contrattoId).maybeSingle();
-    if (!data || error) throw new Error('bolletta_contesto');
-    scope = { ...context, famiglia: familyForOffer(data.nome_offerta_snapshot), punto_dichiarato: data.pod_pdr };
-    const declared = code(data.pod_pdr);
-    if (deps.csvId && validFor(declared, scope.famiglia)) {
-      const { data: proposals, error: csvError } = await db.from('vendita_energia_csv_righe').select('numero')
-        .eq('fonte_id', deps.csvId).eq('punto', declared).eq(context.business ? 'piva' : 'cf', context.fiscale);
-      if (csvError) throw new Error('bolletta_csv');
-      scope.dichiarato_csv_univoco = new Set((proposals || []).map(row => row.numero)).size === 1;
-    }
-  }
-  const results = [];
+  const combined = factsFromText('');
   for (const doc of documents) {
     if (doc.bucket !== 'contratti-vendita' || !doc.path || doc.path.split('/').includes('..') || doc.size > MAX_BYTES) {
       return { motivo: 'bolletta_illeggibile' };
@@ -381,22 +200,18 @@ async function readBill(db, context, deps = {}) {
     const bytes = Buffer.from(await data.arrayBuffer());
     const hash = createHash('sha256').update(bytes).digest('hex');
     if (doc.sha256 && hash !== doc.sha256) throw new Error('bolletta_impronta');
-    let observation = deps.cache?.get(hash);
-    if (!observation) {
-      observation = await observeBytes(bytes, { ...deps, scope, deadline });
-      if (deps.cache && !observation.partial) {
+    let facts = deps.cache?.get(hash);
+    if (!facts) {
+      facts = await observeBytes(bytes, { ...deps, deadline });
+      if (deps.cache) {
         if (deps.cache.size >= MAX_CACHE) deps.cache.delete(deps.cache.keys().next().value);
-        deps.cache.set(hash, observation);
+        deps.cache.set(hash, facts);
       }
     }
-    const result = observation.partial || (observation.motivo ? observation : selectFacts(observation.facts, scope, observation.ocr));
-    if (result.motivo) return result;
-    results.push(result);
+    if (!facts.readable) return { motivo: 'bolletta_illeggibile' };
+    mergeFacts(combined, facts);
   }
-  if (results.length === 2 && (results[0].punto !== results[1].punto || code(results[0].gestore) !== code(results[1].gestore))) {
-    return { motivo: 'bolletta_ambigua' };
-  }
-  return results[0];
+  return selectSupplier(combined, context);
 }
 
-module.exports = { parseText, fromBytes, readBill, readOcr, familyForOffer };
+module.exports = { parseText, fromBytes, readBill };

@@ -11,7 +11,7 @@ async function rpc(db, name, args) {
 function saveResult(db, { contratto_id, updated_at, contesto, lease, csv_id }, result, author = null) {
   return rpc(db, 'vendita_energia_riscontra', {
     p_id: contratto_id, p_updated: updated_at, p_contesto: contesto,
-    p_lease: lease || null, p_csv_id: csv_id || null, p_punto: result.punto || null,
+    p_lease: lease || null, p_csv_id: csv_id || null, p_punto: author ? result.punto : null,
     p_gestore: result.gestore || null, p_motivo: result.motivo || null, p_autore: author
   });
 }
@@ -35,15 +35,15 @@ async function drain(db, readBill, { budgetMs = 5 * 60_000, now = Date.now } = {
   const start = now();
   const cache = new Map();
   do {
-    const claim = await rpc(db, 'vendita_energia_prossimo', { p_prendi: true });
+    const claim = await rpc(db, 'vendita_energia_prossimo_gestore', { p_prendi: true });
     if (!claim) return;
     let result;
     try {
-      result = claim.contesto.fiscale
-        ? await readBill(db, claim.contesto, { contrattoId: claim.contratto_id, csvId: claim.csv_id, cache })
-        : { motivo: 'cliente_incompleto' };
+      result = claim.gestore ? { gestore: claim.gestore }
+        : claim.lettura_scaduta ? { motivo: 'errore_lettura' }
+        : await readBill(db, claim.contesto, { cache });
     } catch (error) {
-      const cause = ['timeout_ocr_energia', 'bolletta_download', 'bolletta_impronta', 'bolletta_contesto', 'bolletta_csv'].includes(error?.message)
+      const cause = ['timeout_ocr_energia', 'bolletta_download', 'bolletta_impronta'].includes(error?.message)
         ? error.message : 'decodifica_energia';
       console.warn('Verifica Energia, lettura sospesa', cause);
       result = { motivo: 'errore_lettura' };

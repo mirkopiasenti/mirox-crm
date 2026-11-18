@@ -119,17 +119,13 @@ Nelle liste dei contratti in attesa il colore è applicato soltanto alle etichet
 
 ## Verifica Energia con il CSV WindTre
 
-Le pratiche Energia inviate e ancora da verificare partono da **IN ATTESA CSV**, comprese quelle già in attesa al rilascio. Nella scheda Energia, **Carica CSV WindTre** usa lo stesso export di Controllo L&G e aggiorna anche gli esiti post-vendita abbinati, rispettando gli esiti manuali protetti.
+In **Upload Contratti**, prima degli allegati, **Avanti** mostra in grande il POD/PDR inserito. L’operatore lo confronta con la bolletta e lo digita una seconda volta. Si prosegue quando i due codici coincidono. La pratica Energia inviata parte da **IN ATTESA CSV**.
 
-Ogni nuovo CSV valido sostituisce l’indice della fonte precedente. Se l’import fallisce, resta disponibile l’ultima fonte acquisita.
+Il CRM legge dalla bolletta il solo **Ex Fornitore**. Il **Numero Contratto** viene dalla colonna H, *Proposta di Contratto*, abbinando il POD/PDR già inserito e il CF (Consumer) o la P.IVA (Business). Ogni dato riscontrato viene salvato anche se l’altro richiede un intervento.
 
-Il CRM legge POD/PDR ed Ex Fornitore dalla bolletta. Cerca per CF (Consumer) o P.IVA (Business) e punto di fornitura, e prende il Numero Contratto dall’intestazione *Proposta di Contratto*, colonna H nell’export corrente. Con una corrispondenza univoca salva i tre campi, mostra l’eventuale correzione del POD/PDR e passa a **IN ATTESA VERIFICA**. Un dato incerto o un abbinamento mancante lascia la pratica in attesa con il motivo nel dettaglio. Il riscontro manuale della bolletta, ove richiesto, passa attraverso lo stesso confronto con il CSV.
+Con entrambi i riscontri la pratica passa a **IN ATTESA VERIFICA** per il controllo degli allegati e la conferma finale. Un errore o un’ambiguità porta a **DA VERIFICARE**, con motivi nel dettaglio e possibilità di correggere POD/PDR ed Ex Fornitore tramite **Riscontro manuale**. Se manca ancora il primo CSV e il gestore è stato letto, la pratica attende il file in **IN ATTESA CSV**.
 
-La scheda Energia riepiloga i contratti da elaborare, da riscontrare e in attesa di verifica. I motivi dei riscontri sospesi sono visibili anche nella lista. Per i PDF scansionati la lettura locale usa PDF.js con i decoder JBIG2/CCITT e Tesseract. Un PDF può contenere più forniture. Il CRM considera il servizio della pratica e, in caso di più punti compatibili, il POD/PDR già inserito deve comparire nella bolletta.
-
-Se il POD/PDR già inserito ha una sola proposta per quel cliente nel CSV, lo scanner può terminare appena riscontra il codice e il fornitore sulla stessa pagina o su pagine adiacenti. Può leggere il codice anche quando l’impaginazione lo separa dall’etichetta. Per correggerlo serve la lettura completa e un riscontro legato all’etichetta. La coda dà precedenza alle pratiche ancora da leggere rispetto ai ritentativi.
-
-L’operatore controlla gli allegati e conferma. Il nuovo record in Controllo L&G riceve l’esito del CSV già caricato, quando disponibile. Il pulsante storico di Controllo L&G conserva il proprio import e report. Per aggiornare i due moduli con un solo file, caricalo in Verifica Contratti. Limite del caricamento condiviso 4 MiB.
+**Carica CSV WindTre** in Verifica Contratti aggiorna anche Controllo L&G e rispetta gli esiti manuali protetti. Un nuovo file valido sostituisce la fonte precedente. Se l’import fallisce, resta disponibile l’ultima fonte acquisita. Limite del caricamento condiviso 4 MiB.
 
 ## Verifica automatica contratti — collaudo assistito
 

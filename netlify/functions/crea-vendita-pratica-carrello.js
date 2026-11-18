@@ -1,4 +1,5 @@
 const Fixed = require('../../js/fisso-core');
+const { confirmedPoint } = require('../../js/energia-core');
 const Pda = require('./_lib/pda-contract');
 const Identity = require('./_lib/identita-upload');
 const BusinessIdentity = require('./_lib/pda-business-identity');
@@ -952,6 +953,12 @@ exports.handler = async (event) => {
       if (customerCode) customerCodes.push(customerCode);
       try { contract.assicurazione_impianti = validateAssicurazioneImpianti(contrattiRaw[i], category.nome); }
       catch (error) { error.statusCode = 400; throw error; }
+      if (String(category.nome).trim().toLowerCase() === 'energia') {
+        const raw = contrattiRaw[i];
+        contract.pod_pdr = confirmedPoint(raw.pod_pdr, raw.pod_pdr_conferma);
+        if (!contract.pod_pdr) throw Object.assign(new Error('Conferma il POD/PDR dalla bolletta prima di inviare il contratto Energia.'), { statusCode: 400 });
+        contract.numero_contratto_energia = null;
+      }
       if (contract.codice_contratto) {
         if (seenPdaCodes.has(contract.codice_contratto)) throw Pda.duplicateError();
         seenPdaCodes.add(contract.codice_contratto);

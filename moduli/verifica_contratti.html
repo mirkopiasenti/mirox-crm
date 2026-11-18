@@ -292,7 +292,7 @@ body > .container { max-width: 1540px !important; width: 100%; }
       <select id="filterEsitoDaVerificare">
         <option value="">Tutti gli esiti</option>
         <option value="da_controllare" data-vc-ordinary>In attesa</option>
-        <option value="da_verificare" data-vc-ordinary>Da verificare</option>
+        <option value="da_verificare">Da verificare</option>
         <option value="da_confermare" data-vc-ordinary>Da confermare</option>
         <option value="in_attesa_csv" data-vc-energy hidden disabled>IN ATTESA CSV</option>
         <option value="in_attesa_verifica" data-vc-energy hidden disabled>IN ATTESA VERIFICA</option>
@@ -563,7 +563,7 @@ async function caricaContratti(statoControllo, { silent = false } = {}) {
         stato_controllo, controllato_da, controllato_at, note_controllo,
         data_contratto, created_at, updated_at,
         anagrafica:anagrafica_id ( id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, provincia, comune, via, civico )
-        , riscontro_energia:vendita_energia_verifiche(stato,motivo,punto_originale,csv_at)
+        , riscontro_energia:vendita_energia_verifiche(stato,motivo,motivo_fornitore,motivo_csv,punto_originale,csv_at)
         ${statoControllo === 'da_controllare' ? ', revisione:vendita_stati_verifica_manuale(stato,motivo,versione)' : ''}
       `)
       .eq('stato_controllo', statoControllo)
@@ -639,7 +639,7 @@ function applicaFiltri(items, stateKey) {
 function statoVisibileContratto(c) {
   if (c.stato_controllo === 'controllato') return 'controllato';
   if (categoriaInAttesa(c) === 'energia') {
-    return c.riscontro_energia?.stato === 'in_attesa_verifica' ? 'in_attesa_verifica' : 'in_attesa_csv';
+    return c.riscontro_energia?.stato || 'in_attesa_csv';
   }
   const stato = c.revisione?.stato;
   return stato === 'da_verificare' || stato === 'da_confermare' ? stato : 'da_controllare';
@@ -650,7 +650,7 @@ function renderStatoContratto(c) {
     case 'controllato': return '<span class="stato-pill">Controllato</span>';
     case 'in_attesa_csv': return '<span class="stato-pill da_controllare">IN ATTESA CSV</span>';
     case 'in_attesa_verifica': return '<span class="stato-pill da_confermare">IN ATTESA VERIFICA</span>';
-    case 'da_verificare': return '<span class="stato-pill da_verificare">Da verificare</span>';
+    case 'da_verificare': return '<span class="stato-pill da_verificare">' + (categoriaInAttesa(c) === 'energia' ? 'DA VERIFICARE' : 'Da verificare') + '</span>';
     case 'da_confermare': return '<span class="stato-pill da_confermare">Da confermare</span>';
     default: return '<span class="stato-pill da_controllare">In attesa</span>';
   }
@@ -674,8 +674,8 @@ function renderListaContratti(stateKey) {
       const avanzamento = document.getElementById('vcEnergiaAvanzamento');
       if (avanzamento) {
         const pronti = contratti.filter(c => statoVisibileContratto(c) === 'in_attesa_verifica').length;
-        const incerti = contratti.filter(c => c.riscontro_energia?.motivo).length;
-        const riepilogo = `${contratti.length - pronti - incerti} da elaborare · ${incerti} da riscontrare · ${pronti} in attesa di verifica`;
+        const incerti = contratti.filter(c => statoVisibileContratto(c) === 'da_verificare').length;
+        const riepilogo = `${contratti.length - pronti - incerti} in attesa CSV · ${incerti} da verificare · ${pronti} in attesa di verifica`;
         if (avanzamento.textContent !== riepilogo) avanzamento.textContent = riepilogo;
       }
     }
@@ -874,17 +874,18 @@ function apriPopupDettaglio(c, opts) {
   const energy = String(c.categoria_snapshot || categorie.find(category => category.id === c.categoria_id)?.nome || '').trim().toLowerCase() === 'energia';
   const energyReady = energy && statoVisibileContratto(c) === 'in_attesa_verifica';
   const energyReview = c.riscontro_energia || {};
-  const energyMessage = window.MiroxEnergiaCsv?.messages[energyReview.motivo];
-  const energyStatus = energyReady ? 'POD/PDR, numero contratto e gestore riscontrati. Controlla gli allegati e conferma.'
-    : energyMessage || 'In attesa di riscontro con il CSV WindTre e la bolletta.';
+  const energyMessages = [...new Set([energyReview.motivo_csv, energyReview.motivo_fornitore, energyReview.motivo]
+    .map(reason => window.MiroxEnergiaCsv?.messages[reason]).filter(Boolean))];
+  const energyStatus = energyReady ? 'Numero contratto e gestore riscontrati. Controlla gli allegati e conferma.'
+    : 'In attesa del riscontro automatico.';
   const statoHtml = isReadOnly ? '' : energy ? `
     <div class="det-section">
       <div class="vc-stato-attuale">Stato attuale ${renderStatoContratto(c)}</div>
-      <p>${escapeHtml(energyStatus)}</p>
+      ${(energyMessages.length ? energyMessages : [energyStatus]).map(message => `<p>${escapeHtml(message)}</p>`).join('')}
       ${energyReview.csv_at ? `<p>CSV caricato il ${escapeHtml(fmtDateTime(energyReview.csv_at))}</p>` : ''}
-      ${energyReady && energyReview.punto_originale ? `<p>POD/PDR corretto da <strong>${escapeHtml(energyReview.punto_originale)}</strong> a <strong>${escapeHtml(c.pod_pdr)}</strong>.</p>` : ''}
-      ${!energyReady && energyMessage && !['bolletta_assente', 'intestatario_diverso', 'cliente_incompleto', 'csv_fiscale_diverso', 'csv_ambiguo'].includes(energyReview.motivo)
-        ? '<button type="button" class="mx-btn mx-btn-secondary" data-vc-riscontro-energia>Riscontra i dati dalla bolletta</button>' : ''}
+      ${energyReview.punto_originale ? `<p>POD/PDR corretto da <strong>${escapeHtml(energyReview.punto_originale)}</strong> a <strong>${escapeHtml(c.pod_pdr)}</strong>.</p>` : ''}
+      ${statoVisibileContratto(c) === 'da_verificare' && (energyReview.motivo_fornitore || energyReview.motivo) !== 'bolletta_assente'
+        ? '<button type="button" class="mx-btn mx-btn-secondary" data-vc-riscontro-energia>Riscontro manuale</button>' : ''}
     </div>` : `
     <div class="det-section">
       <div class="vc-stato-toolbar">
@@ -1475,15 +1476,15 @@ function apriRiscontroEnergia(dettaglio, contratto) {
   let busy = false;
   const popup = window.MiroxUI._build({
     title: 'Riscontra i dati dalla bolletta',
-    bodyHtml: `<p>Inserisci il POD/PDR e il nome del venditore uscente come riportati sulla bolletta allegata.</p>
+    bodyHtml: `<p>Controlla il POD/PDR e il gestore uscente sulla bolletta. Correggi i dati se necessario.</p>
       <div class="det-grid">
-        <div class="det-field"><label for="vcEnergiaPuntoManuale">POD/PDR</label><input id="vcEnergiaPuntoManuale" maxlength="32" autocomplete="off"></div>
-        <div class="det-field"><label for="vcEnergiaGestoreManuale">Ex Fornitore</label><input id="vcEnergiaGestoreManuale" maxlength="160" autocomplete="off"></div>
+        <div class="det-field"><label for="vcEnergiaPuntoManuale">POD/PDR</label><input id="vcEnergiaPuntoManuale" maxlength="32" autocomplete="off" value="${escapeHtml(contratto.pod_pdr || '')}"></div>
+        <div class="det-field"><label for="vcEnergiaGestoreManuale">Ex Fornitore</label><input id="vcEnergiaGestoreManuale" maxlength="160" autocomplete="off" value="${escapeHtml(contratto.ex_fornitore || '')}"></div>
       </div>
       <p><label><input type="checkbox" data-vc-bolletta-letta> Ho riscontrato sulla bolletta allegata i dati e l’intestatario della pratica.</label></p>
       <p data-vc-energia-messaggio role="status"></p>`,
     footerHtml: '<button type="button" class="mx-btn mx-btn-secondary" data-vc-energia-annulla>Annulla</button>'
-      + '<button type="button" class="mx-btn mx-btn-primary" data-vc-energia-riscontra>Riscontra con il CSV</button>',
+      + '<button type="button" class="mx-btn mx-btn-primary" data-vc-energia-riscontra>Salva e confronta con il CSV</button>',
     canClose: () => !busy
   });
   const cancel = popup.foot.querySelector('[data-vc-energia-annulla]');
@@ -1501,20 +1502,19 @@ function apriRiscontroEnergia(dettaglio, contratto) {
     }
     busy = submit.disabled = cancel.disabled = true;
     message.textContent = 'Riscontro in corso…';
-    let pronto = false;
+    let salvato = false;
     try {
-      const result = await gestisciVenditaContratto({
+      await gestisciVenditaContratto({
         action: 'riscontro_energia', contratto_id: contratto.id, expected_updated_at: contratto.updated_at,
         pod_pdr: punto, ex_fornitore: gestore, attestazione
       });
-      pronto = result.stato === 'in_attesa_verifica';
-      if (!pronto) message.textContent = window.MiroxEnergiaCsv.messages[result.motivo] || 'Il CSV non ha restituito una corrispondenza certa.';
+      salvato = true;
     } catch (error) {
       message.textContent = error.message;
     } finally {
       busy = submit.disabled = cancel.disabled = false;
     }
-    if (!pronto) return;
+    if (!salvato) return;
     popup.close();
     dettaglio.close();
     await caricaContratti('da_controllare');

@@ -451,9 +451,11 @@ Migrazione applicata e riletta in produzione il 18/11/2026 come `20261118150835`
 
 La correzione `20261118152048_energia_csv_sostituzione_fonte.sql`, applicata in produzione come `20261118154050`, aggiunge `fonte_id` con FK all’indice privato e associa l’eventuale storico alla fonte corrente. Sotto lo stesso lock, l’import elimina soltanto le righe della versione sostituita. La protezione PostgREST contro le cancellazioni senza filtro resta attiva. L’RPC conserva firma e permessi. Primo import, sostituzione e retry verificati in transazione annullata.
 
-Lettura bollette aggiornata il 18/11. Il lettore può selezionare il punto per famiglia Luce/Gas e può usare il punto già digitato per disambiguare valori effettivamente osservati. `vendita_energia_riscontra` conserva il controllo esatto di fiscale, punto e proposta univoca. Dopo il rilascio della correzione OCR, riesaminare solo gli esiti di lettura già chiusi sul CSV corrente, limitando il reset della versione analizzata alle pratiche Energia ancora pendenti e senza un lease attivo.
+`20261118170605_energia_priorita_riscontri.sql`, applicata il 18/11 come `20261118184507`, aggiornava la coda del precedente lettore a due dati.
 
-`20261118170605_energia_priorita_riscontri.sql` aggiorna `vendita_energia_prossimo` con la precedenza delle prime letture rispetto a ritentativi e lease scaduti. La verifica di disponibilità e la presa in carico si fermano se un lease è attivo. La presa in carico conserva il lock transazionale e la scadenza di tre minuti. Firma, privilegi, tabelle e prove già salvate restano invariati. Migrazione da applicare in produzione dopo il collaudo locale.
+`20261118190202_energia_conferma_punto_gestore.sql` estende `vendita_energia_verifiche` con la fase **da_verificare**, le cause separate e la prova riservata del gestore. `vendita_energia_riscontra` usa il POD/PDR già memorizzato per cercare la proposta nella versione CSV corrente, verifica CF/P.IVA e serializza l’assegnazione della stessa proposta allo stesso punto. Salva atomicamente ciascun dato riscontrato, anche in presenza di un errore dell’altro. Il percorso manuale con autore può correggere il POD/PDR. Lo stato **in_attesa_verifica** e il trigger di conferma richiedono ancora entrambe le prove. Il primo CSV assente permette di salvare il gestore e continuare ad attendere il file. Le cause sono leggibili con la stessa RLS; la prova e le RPC restano riservate al servizio.
+
+Applicare la migrazione prima del deploy. La firma di coda precedente restituisce NULL, i token in corso vengono invalidati e `vendita_energia_prossimo_gestore` prende in carico le pratiche usando lo stesso lock e lease. Le prove complete e gli esiti L&G storici restano validi. Il nuovo CSV riesamina le pratiche Energia incomplete, con riuso della prova del gestore sullo stesso documento. La sostituzione della bolletta impone una nuova lettura del gestore. Validata localmente con PGlite.
 
 ## Stati manuali in Verifica Contratti
 
@@ -1030,6 +1032,7 @@ Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
 | `20261118142349_verifica_energia_csv.sql` | Due stati operativi Energia, backfill pendenti, indice privato CSV, riscontro con guardie e import esiti L&G |
 | `20261118152048_energia_csv_sostituzione_fonte.sql` | Associa le righe alla fonte CSV e circoscrive la sostituzione all’ID di quella fonte |
 | `20261118170605_energia_priorita_riscontri.sql` | Dà precedenza alle prime letture Energia e fa rispettare il lease attivo anche dal controllo di disponibilità |
+| `20261118190202_energia_conferma_punto_gestore.sql` | Salva separatamente gestore e proposta, aggiunge DA VERIFICARE e introduce la coda service-only per il nuovo lettore |
 | `20261111131639_vendita_note_stato_verifica.sql` | Motivazione obbligatoria per i nuovi esiti Da verificare, versione ottimistica e RPC a sette argomenti. Applicata in produzione come `20261111133257` |
 | `001_create_vendita_upload_contratti.sql` | Tabelle base upload contratti vendita |
 | `002_cataloghi_opzioni_reload_e_associazioni_offerta.sql` | Opzioni, reload e link N:M con offerte |

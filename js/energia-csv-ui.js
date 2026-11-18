@@ -4,15 +4,15 @@
 
   const LIMIT = 4 * 1024 * 1024;
   const messages = Object.freeze({
-    bolletta_assente: 'Allega la bolletta per riscontrare il punto di fornitura.',
+    bolletta_assente: 'Allega la bolletta per identificare il gestore uscente.',
     bolletta_illeggibile: 'La bolletta non è leggibile. Aprila e riscontra i dati a mano oppure sostituiscila.',
-    bolletta_ambigua: 'Le bollette contengono più punti di fornitura o venditori. Individua i dati della pratica.',
+    bolletta_ambigua: 'Il gestore uscente è ambiguo. Controlla le bollette della pratica.',
     intestatario_diverso: 'L’intestatario letto sulla bolletta è diverso dal cliente della pratica.',
     fornitore_incerto: 'Il gestore uscente non è stato riconosciuto. Controlla la bolletta.',
-    punto_incerto: 'Il POD/PDR non è stato letto con certezza. Controlla la bolletta.',
+    punto_incerto: 'Il POD/PDR inserito non è valido. Controllalo sulla bolletta.',
     cliente_incompleto: 'Controlla il codice fiscale o la partita IVA in anagrafica.',
     csv_assente: 'Carica il CSV WindTre per riscontrare il numero di contratto.',
-    csv_non_trovato: 'La fornitura non è presente nell’ultimo CSV caricato.',
+    csv_non_trovato: 'Il POD/PDR inserito non è presente nell’ultimo CSV caricato.',
     csv_fiscale_diverso: 'Il codice fiscale o la partita IVA per questa fornitura non coincide con i dati del CSV.',
     csv_ambiguo: 'Il CSV contiene più proposte compatibili. Verifica l’export WindTre.',
     errore_lettura: 'La lettura della bolletta ha avuto un errore. Puoi riscontrare i dati a mano.'
