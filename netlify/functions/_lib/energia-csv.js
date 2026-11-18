@@ -3,6 +3,7 @@
 const { createHash } = require('node:crypto');
 const { readCsv } = require('./verifica-csv');
 const { code, isPoint } = require('../../../js/energia-core');
+const { date } = require('../../../js/verifica-contratti-core');
 
 const POINT_HEADERS = new Set(['POD', 'CODICEPOD', 'NUMEROPOD', 'PDR', 'CODICEPDR', 'NUMEROPDR',
   'PODPDR', 'PODOPDR', 'CODICEPODPDR', 'CODICEPODOPDR', 'PUNTODIFORNITURA', 'CODICEPUNTODIFORNITURA']);
@@ -27,6 +28,7 @@ function parse(input, { onlyTypes = false, requirePracticeType = false } = {}) {
   if (requirePracticeType && !hasType) throw new Error('Il CSV non contiene la colonna Tipo Richiesta.');
   const columns = new Map(header.map((name, index) => [name, index]));
   const value = (row, name) => row[columns.get(name)]?.trim() || '';
+  const dateHeader = ['DATAFIRMA', 'DATASOTTOSCRIZIONE', 'DATAFIRMACONTRATTO'].find(name => columns.has(name));
   const sources = new Map();
   for (const [index, row] of rows.entries()) {
     const numero = code(value(row, 'PROPOSTADICONTRATTO'));
@@ -34,6 +36,9 @@ function parse(input, { onlyTypes = false, requirePracticeType = false } = {}) {
     const piva = tax(value(row, 'PARTITAIVA'), true);
     const state = value(row, 'STATO');
     const type = hasType ? value(row, 'TIPORICHIESTA').replace(/\s+/g, ' ') : '';
+    const rawDate = requirePracticeType ? value(row, dateHeader) : '';
+    const italianDate = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(rawDate);
+    const signedOn = date(italianDate ? `${italianDate[3]}-${italianDate[2]}-${italianDate[1]}` : rawDate);
     const supply = [...new Set(points.map(i => code(row[i])).filter(v => v && v !== '-' && v !== '—'))];
     if (!(requirePracticeType && supply.length) && (!numero || (!cf && !piva))) continue;
     if (onlyTypes && (numero.length > 80 || supply.length && !supply.some(isPoint))) continue;
@@ -47,17 +52,24 @@ function parse(input, { onlyTypes = false, requirePracticeType = false } = {}) {
       const previous = sources.get(key);
       const types = previous?.types || new Set();
       if (type && type !== '-' && type !== '—') types.add(type);
+      const variants = previous?.variants || new Map();
+      if (requirePracticeType && punto) {
+        const variant = { data_firma: signedOn, stato: state || null,
+          tipo_pratica: type && type.length <= 100 && type !== '-' && type !== '—' ? type : null };
+        variants.set(JSON.stringify(variant), variant);
+      }
       const priority = PRIORITY.get(state) || (state ? 0 : -1);
       if (previous && previous.priority >= priority) continue;
-      sources.set(key, { priority, types, row: { numero, punto, cf, piva, stato: state || null,
+      sources.set(key, { priority, types, variants, row: { numero, punto, cf, piva, stato: state || null,
         causale: rejection('CAUSALESTATOPRATICA'), messaggio: rejection('MESSAGGIOESITODASAP'), annullamento: rejection('CAUSAANNULLAMENTO') } });
     }
   }
-  const result = Array.from(sources.values(), ({ row, types }) => {
+  const result = Array.from(sources.values(), ({ row, types, variants }) => {
     if (hasType) {
       const [type] = types;
       row.tipo_pratica = types.size === 1 && type.length <= 100 ? type : null;
     }
+    if (variants.size) row.varianti_verifica = [...variants.values()];
     return row;
   });
   if (!onlyTypes && !result.some(row => row.punto)) throw new Error('Il CSV non contiene punti di fornitura utilizzabili.');

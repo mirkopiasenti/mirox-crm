@@ -246,6 +246,23 @@ test('il CSV di verifica richiede Tipo Richiesta e mantiene i POD/PDR anche senz
     { statusCode: 400, message: 'Il CSV non contiene la colonna Tipo Richiesta.' });
 });
 
+test('il CSV conserva data, esito e tipo di ogni variante e mostra il tipo nel dettaglio', () => {
+  const header = 'Codice Fiscale;Partita Iva;Proposta di Contratto;Tipo Richiesta;Data Firma;POD/PDR;Stato\n';
+  const input = header + `${fiscale};;0007;Voltura;18/11/2026;${pdr};Annullato\n`
+    + `${fiscale};;0007;Switch-In;2026-11-19;${pdr};Nuovo\n`.repeat(2)
+    + `${fiscale};;0007;Attivazione;31/11/2026;${pdr};Nuovo\n`;
+  const [row] = Csv.parse(input, { requirePracticeType: true });
+  assert.equal(row.stato, 'Annullato');
+  assert.deepEqual(row.varianti_verifica, [
+    { data_firma: '2026-11-18', stato: 'Annullato', tipo_pratica: 'Voltura' },
+    { data_firma: '2026-11-19', stato: 'Nuovo', tipo_pratica: 'Switch-In' },
+    { data_firma: null, stato: 'Nuovo', tipo_pratica: 'Attivazione' }
+  ]);
+  const page = fs.readFileSync(require.resolve('../moduli/verifica_contratti.html'), 'utf8');
+  assert.match(page, /id="vc_tipo_pratica" value="\$\{escapeHtml\(c\.tipo_pratica_energia \|\| ''\)\}" readonly/);
+  assert.match(page, /_show\('vc_field_tipo_pratica', isEnergia\)/);
+});
+
 test('il popup CSV resta in caricamento fino al risultato dell’import e all’aggiornamento della lista', async () => {
   const script = fs.readFileSync(require.resolve('../js/energia-csv-ui'), 'utf8');
   const calls = [];

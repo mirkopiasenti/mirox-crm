@@ -455,6 +455,10 @@ La migrazione ferma i due percorsi OCR legacy, lascia disponibili per il prossim
 
 Applicata e riletta il 18/11 in produzione come `20261118224831`. L’intervento una tantum `ripristina_attesa_csv_energia.sql` è stato provato in rollback e poi applicato con l’impronta del salvataggio privato. Ha ripristinato 53 pratiche inviate pendenti in **IN ATTESA CSV**, svuotando 45 numeri e 49 ex fornitori. Le impronte di POD/PDR, altri campi contrattuali, allegati, 468 righe L&G, fonte, esiti e tipi storici coincidono. Il nuovo CSV viene caricato manualmente dal titolare.
 
+**Selezione dei duplicati del 19/11.** `20261118230401_energia_csv_screma_duplicati.sql` modifica il percorso sincrono Energia. Il parser trasmette le varianti per POD/PDR con data, tipo e stato originali, mantenendo l’aggregazione degli esiti L&G. `mirox_private.energia_scegli_proposta` service-only applica progressivamente il giorno di inserimento Mirox in Europe/Rome confrontato con la data della colonna M, il fiscale E o F per cluster, e l’esclusione `Annullato` in X. Ogni passaggio scatta con più righe. Se si arriva a zero o restano duplicati, salva una nota e **DA VERIFICARE**. La nuova importazione riprende anche gli esiti automatici da verificare, conservando gli override manuali. La coppia proposta–POD/PDR deve rimanere univoca tra le pratiche Mirox, anche nello stesso invio.
+
+Applicata il 19/11 e riletta come `20261118231007`. Su produzione verificati in sola lettura l’esclusione dell’annullato, il grant service-only, 42 tipi già disponibili e 10 esiti automatici pronti al riesame sul prossimo CSV.
+
 **Evoluzione delle migrazioni precedenti.**
 
 `20261118142349_verifica_energia_csv.sql` aggiunge tre tabelle RLS. `vendita_energia_csv` conserva impronta, versione, data e autore dell’ultima fonte valida. `vendita_energia_csv_righe` indicizza i campi normalizzati necessari. `vendita_energia_verifiche` conserva fase, motivo, correzione POD/PDR, revisione documentale, fonte e lease per ogni contratto. La sola ACL Verifica Contratti legge ID, fase, motivo, POD/PDR precedente e data CSV. Prove, righe CSV e RPC restano riservate al servizio.

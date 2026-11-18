@@ -52,7 +52,7 @@ async function main() {
         id uuid PRIMARY KEY, anagrafica_id uuid REFERENCES public.anagrafica,
         pratica_id uuid REFERENCES public.vendita_pratiche, categoria_snapshot text, categoria_id uuid REFERENCES public.vendita_categorie,
         stato_controllo text, cluster_cliente text, pod_pdr text, numero_contratto_energia text,
-        created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now(), updated_by uuid
+        data_contratto timestamptz, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now(), updated_by uuid
       );
       CREATE TABLE public.vendita_documenti (
         id uuid PRIMARY KEY, contratto_id uuid REFERENCES public.vendita_contratti,
@@ -502,6 +502,56 @@ SET LOCAL lock_timeout`).replace(/ROLLBACK;\s*$/, 'COMMIT;');
     assert.equal(await value('SELECT numero_contratto_energia AS v FROM vendita_contratti WHERE id=$1', [csvLate]), null);
     assert.equal(await typeOf(csvLg), 'Switch con Voltura');
     assert.deepEqual(await outcome(csvLg), [{ stato: 'Attivato', stato_origine: 'csv', esito_manuale_bloccato: false }]);
+
+    await load('20261118230401_energia_csv_screma_duplicati.sql');
+    await db.exec('SET ROLE service_role');
+    const [dateMatch, otherDate, taxMatch, statusMatch, unresolved, manuallyHeld] =
+      Array.from({ length: 6 }, (_, i) => fixtureId(80 + i));
+    const supplyFor = n => `0012345678920${n}`;
+    await newEnergy(dateMatch, supplyFor(1));
+    await newEnergy(otherDate, supplyFor(1));
+    await newEnergy(taxMatch, supplyFor(2));
+    await newEnergy(statusMatch, supplyFor(3));
+    await newEnergy(unresolved, supplyFor(4));
+    await newEnergy(manuallyHeld, supplyFor(5));
+    await query("UPDATE vendita_contratti SET data_contratto=$2 WHERE id=ANY($1::uuid[])",
+      [[dateMatch, taxMatch, statusMatch, unresolved, manuallyHeld], '2026-11-18T23:30:00Z']);
+    await query("UPDATE vendita_contratti SET data_contratto='2026-11-20T10:00:00Z' WHERE id=$1", [otherDate]);
+    await query("INSERT INTO anagrafica VALUES($1,'00123456789','Business')", [fixtureId(90)]);
+    await query("UPDATE vendita_contratti SET anagrafica_id=$2, cluster_cliente='Business' WHERE id=$1", [taxMatch, fixtureId(90)]);
+    await setStatus('da_verificare', null, null, 'Decisione operatore', manuallyHeld);
+    await query(`INSERT INTO vendita_energia_verifiche(contratto_id,stato,motivo,motivo_csv,nota_csv)
+      VALUES($1,'da_verificare','csv_ambiguo','csv_ambiguo','Vecchio risultato automatico')`, [statusMatch]);
+
+    const hDate = 'Codice Fiscale;Partita Iva;Proposta di Contratto;Tipo Richiesta;Data Firma;POD/PDR;Stato\n';
+    const csvRow = (cf, iva, pc, type, day, point, state) => `${cf};${iva};${pc};${type};${day};${point};${state}\n`;
+    await csvOnly(hDate
+      + csvRow('', '', '0501', 'Switch-In', '19/11/2026', supplyFor(1), 'Nuovo')
+      + csvRow(fiscale, '', '0502', 'Attivazione', '20/11/2026', supplyFor(1), 'Nuovo')
+      + csvRow('', '123456789', '0521', 'Voltura', '19/11/2026', supplyFor(2), 'Nuovo')
+      + csvRow(fiscale, '123456780', '0522', 'Attivazione', '19/11/2026', supplyFor(2), 'Nuovo')
+      + csvRow(fiscale, '', '0531', 'Switch con Voltura', '19/11/2026', supplyFor(3), 'Nuovo')
+      + csvRow(fiscale, '', '0531', 'Voltura', '19/11/2026', supplyFor(3), 'Annullato')
+      + csvRow(fiscale, '', '0541', 'Attivazione', '19/11/2026', supplyFor(4), 'Nuovo')
+      + csvRow(fiscale, '', '0542', 'Voltura', '19/11/2026', supplyFor(4), 'Attivato')
+      + csvRow(fiscale, '', '0551', 'Voltura', '19/11/2026', supplyFor(5), 'Attivato'), '9');
+    assert.equal(await typeOf(dateMatch), 'Switch-In');
+    assert.equal(await typeOf(otherDate), 'Attivazione');
+    assert.equal(await typeOf(taxMatch), 'Voltura');
+    assert.equal(await typeOf(statusMatch), 'Switch con Voltura');
+    assert.equal(await phase(statusMatch), 'in_attesa_verifica');
+    assert.equal(await phase(unresolved), 'da_verificare');
+    assert.match(await value('SELECT nota_csv AS v FROM vendita_energia_verifiche WHERE contratto_id=$1', [unresolved]), /Restano più righe/);
+    assert.equal(await value('SELECT motivo AS v FROM vendita_stati_verifica_manuale WHERE contratto_id=$1', [manuallyHeld]), 'Decisione operatore');
+    const heldCandidates = [
+      { numero: '001', tipo_pratica: 'Voltura', data_firma: '2026-11-19', cf: fiscale, stato: 'Annullato' },
+      { numero: '002', tipo_pratica: 'Attivazione', data_firma: '2026-11-19', cf: fiscale, stato: 'Annullato' }
+    ];
+    const reason = (day, identity) => value('SELECT nota AS v FROM mirox_private.energia_scegli_proposta($1,$2,$3,false)',
+      [JSON.stringify(heldCandidates), day, identity]);
+    assert.match(await reason('2026-11-20', fiscale), /Nessuna ha la Data Firma/);
+    assert.match(await reason('2026-11-19', 'BNCANN80A01H501U'), /stesso codice fiscale/);
+    assert.match(await reason('2026-11-19', fiscale), /tutte Annullato/);
     console.log('Verifica Energia SQL: migrazione, ACL, riscontro, esiti, concorrenza ottimistica e rollback verificati.');
   } finally {
     await db.close();

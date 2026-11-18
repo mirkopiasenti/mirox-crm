@@ -1043,6 +1043,10 @@ function apriPopupDettaglio(c, opts) {
           <label for="vc_numero_contratto_energia">Numero Contratto Energia <span class="required">*</span> <small style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;">(obbligatorio per verificare)</small></label>
           <input type="text" id="vc_numero_contratto_energia" maxlength="80" value="${escapeHtml(c.numero_contratto_energia || '')}" ${energy ? '' : ro} placeholder="Compilato dal CSV WindTre">
         </div>
+        <div class="det-field" id="vc_field_tipo_pratica">
+          <label for="vc_tipo_pratica">Tipo pratica</label>
+          <input type="text" id="vc_tipo_pratica" value="${escapeHtml(c.tipo_pratica_energia || '')}" readonly placeholder="Compilato dal CSV WindTre">
+        </div>
         <div class="det-field" id="vc_field_ex_fornitore">
           <label for="vc_ex_fornitore">Ex Fornitore</label>
           <input type="text" id="vc_ex_fornitore" maxlength="160" value="${escapeHtml(c.ex_fornitore || '')}" ${energy ? '' : ro} placeholder="Es. Enel Energia, Eni Plenitude...">
@@ -1373,6 +1377,7 @@ function applyVisibilityRules() {
   _show('vc_field_pod', isEnergia);
   _show('vc_field_assicurazione_impianti', isEnergia);
   _show('vc_field_num_contratto_energia', isEnergia);
+  _show('vc_field_tipo_pratica', isEnergia);
   _show('vc_field_ex_fornitore', isEnergia);
   _show('vc_field_prezzo_fisso', isFisso);
   _show('vc_field_convergenza', isFisso);

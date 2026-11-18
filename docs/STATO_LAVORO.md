@@ -1,6 +1,11 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-18. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+Aggiornato:2026-11-19. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
+
+## Tipo pratica nel dettaglio e duplicati Energia —19/11
+
+- Campo Tipo pratica in sola lettura nei Campi specifici categoria. In caso di più righe per POD/PDR, criteri progressivi M (Data Firma rispetto a giorno Data Inserimento Mirox, Europe/Rome), E/F (CF o P.IVA), X (esclusione Annullato). Zero o più righe finali → Da verificare con nota. Il prossimo CSV riprende i soli esiti automatici da verificare, con tutela degli override e della coppia proposta–POD/PDR.
+- Migrazione `20261118230401_energia_csv_screma_duplicati.sql` applicata e riletta produzione come `20261118231007`. Riletti 42 tipi disponibili e 10 esiti automatici riesaminabili. SQL PGlite, prova produzione in sola lettura, build e 863/863 test verdi. CSV originale conferma il tracciato M con 512 date. Il titolare eseguirà il caricamento dopo il deploy.
 
 ## Verifica Energia solo CSV e ripristino pendenti —18/11
 
