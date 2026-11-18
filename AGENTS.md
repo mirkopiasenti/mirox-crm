@@ -414,6 +414,12 @@ Modifiche a schema / RLS / RPC / trigger su queste tabelle hanno rischio di **ro
 
 → **chiedere conferma all'utente** prima di alterare qualsiasi tabella di questa lista.
 
+### Call Center — chiusura rilavorazioni per blacklist (18/11/2026)
+
+Un inserimento in Black List chiude nella stessa transazione i ricontatti standard e outbound, i non presentati da lavorare, i passaggi in attesa di Legnago/Cerea e i lead outbound ancora da lavorare. Il riscontro usa il CF/P.IVA senza distinzione di maiuscole e i collegamenti già registrati con anagrafica, chiamata o lead. Rimangono disponibili chiamate, note, esiti e presenze originali. Le prenotazioni confermate senza una rilavorazione aperta seguono il flusso ordinario. La rimozione dalla Black List non riapre le attività chiuse.
+
+La migration aggiunge un trigger privato al solo INSERT di `blacklist` e riconcilia una volta le attività ancora aperte dei clienti già in lista. La pagina Rilavorazione aggiorna le code e il badge al ritorno in primo piano, ricontrolla lo stato prima di aprire un'attività e conferma le presenze solo se la riga è ancora in coda. Applicazione su Supabase e push richiedono conferma esplicita.
+
 ---
 
 ## Architettura 3 layer

@@ -129,6 +129,7 @@ let ricontattiItems = [];
     if (tabParam) switchTab(tabParam);
     
     await caricaTutto();
+    window.addEventListener('focus', aggiornaRilavorazione);
 })();
 
 // Listener delegato per tutti i bottoni con data-azione.
@@ -166,9 +167,29 @@ function switchTab(tab) {
 async function caricaTutto() {
     document.getElementById('loading').classList.remove('hidden');
     document.getElementById('content').classList.add('hidden');
-    await Promise.all([caricaRicontatti(), caricaNonPresentati(), caricaPassaNegozio(), caricaCerea()]);
+    await caricaCodeRilavorazione();
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('content').classList.remove('hidden');
+}
+
+function caricaCodeRilavorazione() {
+    return Promise.all([caricaRicontatti(), caricaNonPresentati(), caricaPassaNegozio(), caricaCerea()]);
+}
+
+async function aggiornaRilavorazione() {
+    await Promise.all([caricaCodeRilavorazione(), Notifiche.refresh()]);
+}
+
+async function verificaAttivita({ data, error }) {
+    if (error) {
+        Utils.toast('Impossibile verificare l’attività: ' + error.message, 'danger');
+        return false;
+    }
+    if (data?.length) return true;
+
+    Utils.toast('Questa attività è già chiusa', 'info');
+    await aggiornaRilavorazione();
+    return false;
 }
 
 async function mostraNoteRilav(id, tipo) {
@@ -302,6 +323,10 @@ async function lavoraRicontatto(id) {
     const c = ricontattiItems.find(x => String(x.origine_id) === String(id));
     if (!c) return;
 
+    const aperta = await db.from('vw_rilavorazione_ricontatti_unificata').select('origine_id')
+        .eq('origine_id', id).eq('origine_tipo', c.origine_tipo).limit(1);
+    if (!await verificaAttivita(aperta)) return;
+
     if (c.origine_tipo === 'outbound_business') {
         if (!c.lead_id) {
             Utils.toast('Lead outbound non disponibile per questa riga', 'warning');
@@ -334,11 +359,14 @@ async function lavoraRicontatto(id) {
 // ========== TAB 2: NON PRESENTATI ==========
 let nonPresentatiItems = [];
 
+function soloNonPresentatiAperti(query) {
+    return query.eq('presentato', 'no')
+        .eq('non_presentato_stato', 'da_lavorare')
+        .eq('stato', 'confermato');
+}
+
 async function caricaNonPresentati() {
-    let query = db.from('appuntamenti').select('*, chiamata:chiamata_id(note, copertura)')
-        .eq('presentato','no')
-        .eq('non_presentato_stato','da_lavorare')
-        .eq('stato','confermato')
+    let query = soloNonPresentatiAperti(db.from('appuntamenti').select('*, chiamata:chiamata_id(note, copertura)'))
         .order('data_ora',{ascending:false});
 
     if (!Auth.isAdmin()) query = query.eq('fissato_da_operatore_id', Auth.getId());
@@ -395,10 +423,13 @@ function confermaPresenza(id) {
 async function eseguiConfermaPresenza() {
     const id = document.getElementById('confermaModalId').value;
     Utils.showLoading('Aggiornamento...');
-    await db.from('appuntamenti').update({presentato:'si', non_presentato_stato:'presentato', presentato_at: new Date().toISOString()}).eq('id',id);
+    const aggiornamento = await soloNonPresentatiAperti(db.from('appuntamenti').update({
+        presentato: 'si', non_presentato_stato: 'presentato', presentato_at: new Date().toISOString()
+    })).eq('id', id).select('id');
     Utils.hideLoading();
-    Utils.toast('Segnato come presentato — apparirà negli Esiti Appuntamenti','success');
-    Utils.closeModal('modalConfermaPresenza');
+    if (!aggiornamento.error) Utils.closeModal('modalConfermaPresenza');
+    if (!await verificaAttivita(aggiornamento)) return;
+    Utils.toast('Segnato come presentato. Apparirà negli Esiti Appuntamenti.', 'success');
     await caricaNonPresentati();
     Notifiche.refresh();
 }
@@ -406,6 +437,8 @@ async function eseguiConfermaPresenza() {
 async function lavoraNonPresentato(id) {
     const a = nonPresentatiItems.find(x => x.id === id);
     if (!a) return;
+    const aperta = await soloNonPresentatiAperti(db.from('appuntamenti').select('id')).eq('id', id);
+    if (!await verificaAttivita(aperta)) return;
     
     // Recupera copertura dalla chiamata joinata
     const copertura = (a.chiamata && a.chiamata.copertura) || '';
@@ -488,26 +521,13 @@ function filtroPassaNegozio() {
 async function passaggioPresentato(id) {
     const c = passaNegozioItems.find(x => x.id === id);
     if (!c) return;
-
-    Utils.showLoading('Registrazione...');
-
-    // Aggiorna solo la chiamata originale — nessun appuntamento finto
-    const { error } = await db.from('chiamate').update({
-        passaggio_stato: 'passato',
-        rilavorazione_stato: 'completato'
-    }).eq('id', id);
-
-    if (error) { Utils.hideLoading(); Utils.toast('Errore: '+error.message,'danger'); return; }
-
-    Utils.hideLoading();
-    Utils.toast('Segnato come presentato — apparirà negli Esiti','success');
-    await caricaPassaNegozio();
-    Notifiche.refresh();
+    await segnaPassaggioPresentato(id, 'passa_in_negozio', caricaPassaNegozio);
 }
 
 async function passaggioRicontatta(id) {
     const c = passaNegozioItems.find(x => x.id === id);
     if (!c) return;
+    if (!await verificaPassaggioAperto(id, 'passa_in_negozio')) return;
 
     // NON marca come completato qui — lo farà registra-chiamata dopo il salvataggio
     sessionStorage.setItem('mirox_ricontatta', JSON.stringify({
@@ -589,26 +609,32 @@ function filtroCerea() {
 async function cereaPresentato(id) {
     const c = cereaItems.find(x => x.id === id);
     if (!c) return;
+    await segnaPassaggioPresentato(id, 'passa_a_cerea', caricaCerea);
+}
 
+async function segnaPassaggioPresentato(id, esito, ricarica) {
     Utils.showLoading('Registrazione...');
-
-    // Aggiorna solo la chiamata originale — nessun appuntamento finto
-    const { error } = await db.from('chiamate').update({
+    const aggiornamento = await db.from('chiamate').update({
         passaggio_stato: 'passato',
         rilavorazione_stato: 'completato'
-    }).eq('id', id);
-
-    if (error) { Utils.hideLoading(); Utils.toast('Errore: '+error.message,'danger'); return; }
-
+    }).eq('id', id).eq('esito', esito).eq('passaggio_stato', 'in_attesa').select('id');
     Utils.hideLoading();
-    Utils.toast('Segnato come presentato — apparirà negli Esiti','success');
-    await caricaCerea();
+    if (!await verificaAttivita(aggiornamento)) return;
+    Utils.toast('Segnato come presentato. Apparirà negli Esiti.', 'success');
+    await ricarica();
     Notifiche.refresh();
+}
+
+async function verificaPassaggioAperto(id, esito) {
+    const aperta = await db.from('chiamate').select('id')
+        .eq('id', id).eq('esito', esito).eq('passaggio_stato', 'in_attesa');
+    return verificaAttivita(aperta);
 }
 
 async function cereaRicontatta(id) {
     const c = cereaItems.find(x => x.id === id);
     if (!c) return;
+    if (!await verificaPassaggioAperto(id, 'passa_a_cerea')) return;
 
     sessionStorage.setItem('mirox_ricontatta', JSON.stringify({
         cf_piva: c.cf_piva,

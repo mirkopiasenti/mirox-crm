@@ -1,5 +1,13 @@
 # /database/ — Migrazioni SQL storiche
 
+## Black List Call Center —18/11/2026, migration applicata
+
+`20261118214531_cc_chiudi_rilavorazioni_blacklist.sql` aggiunge un trigger AFTER INSERT su `blacklist` e due funzioni senza permesso di esecuzione per i client in `mirox_cc_privato`. Il trigger DEFINER applica la chiusura nella stessa transazione dell'inserimento autorizzato dalla RLS esistente. CF/P.IVA confrontato con trim e maiuscole, con collegamenti già memorizzati ad anagrafica, chiamate e lead. I numeri di telefono e i nomi non partecipano al riscontro.
+
+Le chiamate aperte passano a `completato`, i passaggi in sospeso a `chiuso`, i non presentati da lavorare a `lavorato`. I lead da lavorare passano a `chiuso`, il follow-up pendente viene rimosso e l'attività di sistema conserva lo stato precedente. Esiti, note, date originarie, presenza e stato dell'appuntamento vengono conservati. Il recupero iniziale usa la stessa funzione una volta sulle voci già presenti, senza duplicare attività di sistema al retry. Nessun cambio a colonne, RLS, RPC o procedure di prenotazione. Test SQL isolato con `node scripts/check-cc-blacklist-sql.cjs` e PGlite disponibile sul percorso dei moduli. La modifica alle tabelle condivise va applicata solo su conferma.
+
+Applicata e riletta in produzione con autorizzazione il 18/11 come `20261118215150`. Chiusi 1 ricontatto, 13 passaggi sospesi e 1 non presentato. Le 180 voci di blacklist e le impronte dei campi storici di chiamate e appuntamenti coincidono con il preflight. Trigger e privilegi verificati. Inserimento di prova come operatore autenticato con rollback, zero righe di prova rimaste. Advisor sicurezza invariato.
+
 ## Note contratto —16/11/2026, migration applicata
 
 `20261116163541_note_contratto.sql`, creata con CLI, applicata/riletta

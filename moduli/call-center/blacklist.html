@@ -39,6 +39,7 @@
             <button class="modal-close" onclick="Utils.closeModal('modalAggiungi')">&times;</button>
         </div>
         <div class="modal-body">
+            <p>Le attività di ricontatto aperte per questo cliente verranno chiuse automaticamente.</p>
             <div class="form-group"><label class="form-label">Ragione Sociale *</label><input type="text" id="blNome" placeholder="Ragione sociale o nome cliente" class="form-control"></div>
             <div class="form-row">
                 <div class="form-group"><label class="form-label">CF / P.IVA *</label><input type="text" id="blCf" class="form-control uppercase" maxlength="16"></div>
@@ -138,7 +139,7 @@ async function aggiungi() {
     Utils.closeModal('modalAggiungi');
     document.getElementById('blNome').value=''; document.getElementById('blCf').value='';
     document.getElementById('blCell').value=''; document.getElementById('blMotivo').value='';
-    await carica();
+    await Promise.all([carica(), Notifiche.refresh()]);
 }
 
 async function rimuovi(id) {

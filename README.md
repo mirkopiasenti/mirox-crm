@@ -913,6 +913,10 @@ A partire dal 2026-06-20 il progetto Call Center — fino a quel momento deploya
 
 La pagina di configurazione del CC (utenti, orari, blocchi, parametri) è stata spostata fuori dal modulo in [`admin-call-center-config.html`](admin-call-center-config.html) sotto il pannello Admin Mirox.
 
+### Black List e Rilavorazione
+
+Con la migrazione Black List, aggiungere un cliente chiude subito i ricontatti, i non presentati da lavorare e i passaggi in attesa di Legnago e Cerea. Si chiudono anche i lead outbound ancora da lavorare. Le attività spariscono dalle code e dai conteggi, mentre chiamate, note, presenze ed esiti restano nello storico. La prima applicazione chiude anche le attività pendenti dei clienti già in Black List. Rimuovere un cliente dalla lista lascia chiuse le attività archiviate.
+
 ### Adattamenti applicati nel port
 
 Le pagine sono state copiate **mantenendo la loro logica interna** (testata in produzione da mesi). Modifiche fatte solo:

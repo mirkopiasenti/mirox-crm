@@ -2,6 +2,11 @@
 
 Aggiornato:2026-11-18. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
+## Chiusura rilavorazioni da Black List —18/11
+
+- Chiusi nella stessa transazione dell'inserimento i ricontatti standard/outbound, i non presentati da lavorare, i passaggi sospesi Legnago/Cerea e i lead outbound ancora aperti. Riscontro CF/P.IVA o collegamenti persistiti. Storico, note, esiti e prenotazioni conservati. Rilavorazione rilegge le code al focus e ricontrolla le azioni su schede già aperte. README, AGENTS e database/README aggiornati.
+- Migration sorgente `20261118214531_cc_chiudi_rilavorazioni_blacklist.sql`, applicata su autorizzazione e riletta come `20261118215150`. Pregresso: chiusi 1 ricontatto, 13 passaggi e 1 non presentato, zero pendenti nel perimetro. Impronte delle 180 voci di blacklist e dei campi storici coincidenti. Privilegi e advisor verificati; inserimento autenticato sintetico con rollback riuscito. Build e 861/861 test in copia isolata, 11 prove UI e SQL PGlite verdi. Prossimo passo: verificare il deploy autorizzato.
+
 ## Verifica Energia e CSV WindTre —18/11, pubblicata
 
 - Energia pendenti inviate (nuove e pregresso) in IN ATTESA CSV. Bolletta PDF testuale/OCR italiano locale per POD/PDR e gestore, CSV Proposta di Contratto con corrispondenza fiscale+punto univoca. Riscontro atomico e correzione visibile, poi IN ATTESA VERIFICA e conferma allegati umana. Ambiguità/assenza segnalate, riscontro manuale tracciato quando la bolletta è incerta.
