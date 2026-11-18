@@ -78,6 +78,8 @@ Resta il collaudo fisico sul PC/TV del proprietario; nessuna programmazione push
 
 Estensione Mobile14/11: nel dettaglio Verifica Contratti il pulsante **Apri segnalazione** permette di scegliere Reload Forever, Professional Cloud o Altro. Note facoltative per le prime due, obbligatorie per Altro. Dopo Conferma e Sì, il popup resta aperto con caricamento; soltanto dopo la copia completa degli allegati conferma la creazione. La segnalazione entra in Da gestire; pagina e dettaglio del contratto restano aperti in Verifica Contratti per continuare a lavorare sulla pratica (rettifica14/11 pubblicata con `b3782b5`; CI43583316045 Linux/Windows806test e HTTP verificati). Le prime due scelte usano ASK - Normalizzazione, Altro usa Interna negozio. Cliente, recapiti, codici WindTre, riferimenti contratto e tutti gli allegati vengono recuperati dal contratto salvato. Richieste interrotte si riprendono senza duplicati. Rettifica16/11: per aprire dal contratto basta Verifica Contratti; la pagina Segnalazioni mantiene il proprio permesso separato, senza assegnazioni aggiuntive agli account; nessun invio ASK/email o disattivazione automatica. Migration `database/20261114090437_segnalazioni_mobile.sql` applicata/riletta20261114092756: registro privato/RPC, nessuna modifica alle tabelle o ai dati esistenti. Pubblicato14/11 con `8f14a4d` (rilascio `64b9f4b`): CI43580960766 Linux/Windows806test e Netlify6af82a7628daa9146dbdef1f verdi;8asset/HTML/PrettyURL e2API401 verificati.
 
+Estensione locale Fisso18/11: lo stesso pulsante e flusso sono disponibili anche per Fisso Consumer/Business, inclusi i Verificati, con sole Professional Cloud (ASK - Normalizzazione, note facoltative) e Altro (Interna negozio, note obbligatorie). Nessuna Reload nel Fisso. Cliente, codici, riferimento Contratto Fisso e tutti gli allegati dal contratto persistito; stessa conferma Si/No, caricamento, retry senza duplicati e permanenza sul dettaglio. Motivi e categoria controllati anche server-side. Endpoint/registro/RPC conservano i nomi mobile per compatibilita, senza nuove migration, ACL, invii o modifiche allo storico.845test/build e DOM Node verdi; nessuna pratica reale o scrittura production. Push richiesto18/11, esito nel promemoria.
+
 Da gestire distingue i tre percorsi e mostra la scelta nel riquadro giallo: ASK richiede solo numero ASK, note e allegati facoltativi; Salva porta al Riepilogo. Angel offre note/allegati e Confermo apertura Angel, con passaggio al Riepilogo Angel e conferma dedicata. Interna negozio mantiene la scelta Azione Eseguita e le regole precedenti. ASK e Angel restano in corso dopo l’apertura; errori mantengono il dettaglio per riprovare.
 
 Inserimento aggiornato12/11: Gestione pratica offre Angel, ASK e Interna negozio. Scegliendo ASK compare il tipo obbligatorio: Recesso, Comportamento Scorretto, Normalizzazione, Reclami su Fattura, Convergenza, Subentro, CS o Altro. Recesso e Comportamento Scorretto mostrano i rispettivi PDF gia disponibili. La scelta viene salvata ed e visibile nel dettaglio della segnalazione.
@@ -240,7 +242,7 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 
 | Function | Metodo | Auth | Scopo |
 |---|---|---|---|
-| `apri-segnalazione-mobile` | POST | JWT + Verifica Contratti | Recupera cliente/allegati dal contratto Mobile; copia Storage e inserimento atomico/idempotente in Da gestire |
+| `apri-segnalazione-mobile` | POST | JWT + Verifica Contratti | Recupera cliente/allegati dal contratto Mobile/Fisso; motivi per categoria, copia Storage e inserimento atomico/idempotente in Da gestire |
 | `target-telegram-webhook` | POST | secret Telegram + chat privata proprietario | Accoda testo/vocali nel bot dedicato Target; dedupe update e dialogo libero |
 | `target-worker-background` | POST background | HMAC + timestamp | Genera report/dialogo, memoria privata e consegna con checkpoint |
 | `cron-target-reports` | scheduled `*/5 * * * *` | cron Netlify | Report alle 19:45 italiane, calendario lavorativo, dedupe e risveglio coda Target |
@@ -914,7 +916,7 @@ Le pagine sono state copiate **mantenendo la loro logica interna** (testata in p
 
 ## Pannello Admin Mirox
 
-Dal16/11 il permesso Verifica Contratti comprende Apri segnalazione per i soli contratti Mobile. L’abilitazione Segnalazioni resta necessaria per accedere alla pagina e gestire le richieste; nessun interruttore, ruolo o accesso dell’account viene aggiunto automaticamente.
+Dal16/11 il permesso Verifica Contratti comprende Apri segnalazione dai contratti Mobile; estensione locale18/11 anche a Fisso. L’abilitazione Segnalazioni resta necessaria per accedere alla pagina e gestire le richieste; nessun interruttore, ruolo o accesso dell’account viene aggiunto automaticamente.
 
 Nuova voce Configurazioni → **Monitor negozio**, solo Admin: codici monouso,
 stato/ultimo contatto e revoca; endpoint admin con profilo riletto e RPC con

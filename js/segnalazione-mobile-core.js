@@ -4,8 +4,10 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
   const MOTIVI = ['Reload Forever', 'Professional Cloud', 'Altro'];
-  function validate(input) {
-    if (!input || !MOTIVI.includes(input.motivo)) throw new Error('Seleziona il motivo della segnalazione.');
+  const MOTIVI_FISSO = ['Professional Cloud', 'Altro'];
+  function motivi(category) { return isMobile(category) ? [...MOTIVI] : isFixed(category) ? [...MOTIVI_FISSO] : []; }
+  function validate(input, category = 'Mobile') {
+    if (!input || !motivi(category).includes(input.motivo)) throw new Error('Seleziona il motivo della segnalazione.');
     if (input.note != null && typeof input.note !== 'string') throw new Error('Note non valide.');
     const note = (input.note || '').trim();
     if (note.length > 4000) throw new Error('Le note possono contenere al massimo 4000 caratteri.');
@@ -17,5 +19,7 @@
       : { gestione_pratica: 'ASK', tipo_ask: 'Normalizzazione' };
   }
   function isMobile(category) { return String(category || '').trim().toLowerCase() === 'mobile'; }
-  return { MOTIVI, validate, gestione, isMobile };
+  function isFixed(category) { return String(category || '').trim().toLowerCase() === 'fisso'; }
+  function isSupported(category) { return isMobile(category) || isFixed(category); }
+  return { MOTIVI, MOTIVI_FISSO, motivi, validate, gestione, isMobile, isFixed, isSupported };
 });

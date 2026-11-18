@@ -16,7 +16,8 @@ async function source(client, id, expected) {
   const c = await read(client.from('vendita_contratti').select('id,pratica_id,anagrafica_id,categoria_id,categoria_snapshot,codice_contratto,numero_telefono,numero_mnp,numero_provvisorio,updated_at').eq('id', id).maybeSingle());
   if (!c) fail(404, 'Contratto non trovato.', true);
   const category = await read(client.from('vendita_categorie').select('nome').eq('id', c.categoria_id).single());
-  if (!Core.isMobile(category?.nome) || !Core.isMobile(c.categoria_snapshot)) fail(400, 'La segnalazione è disponibile solo per i contratti Mobile.', true);
+  if (!Core.isSupported(category?.nome) || !Core.isSupported(c.categoria_snapshot)
+    || Core.isFixed(category.nome) !== Core.isFixed(c.categoria_snapshot)) fail(400, 'La segnalazione è disponibile solo per i contratti Mobile e Fisso con categoria coerente.', true);
   if (!expected || c.updated_at !== expected) fail(409, 'Il contratto è cambiato. Riapri il dettaglio prima di procedere.', true);
   const [a, docs, codes] = await Promise.all([
     read(client.from('anagrafica').select('id,ragione_sociale,cf_piva,nome_referente,cellulare,email,provincia,comune,via,civico').eq('id', c.anagrafica_id).single()),
@@ -34,7 +35,7 @@ async function source(client, id, expected) {
 }
 function record(s, auth, choice) {
   const { c, a, codes } = s;
-  const lines = [choice.motivo, choice.note && `Note: ${choice.note}`, '', `Contratto Mobile: ${c.codice_contratto || c.id}`,
+  const lines = [choice.motivo, choice.note && `Note: ${choice.note}`, '', `Contratto ${Core.isFixed(c.categoria_snapshot) ? 'Fisso' : 'Mobile'}: ${c.codice_contratto || c.id}`,
     `Cliente: ${a.ragione_sociale}`, `CF/P.IVA: ${a.cf_piva}`, a.nome_referente && `Referente: ${a.nome_referente}`,
     a.cellulare && `Contatto: ${a.cellulare}`, a.email && `Email: ${a.email}`,
     [a.via, a.civico, a.comune, a.provincia].some(Boolean) && `Indirizzo: ${[a.via, a.civico, a.comune, a.provincia].filter(Boolean).join(' ')}`,
@@ -75,6 +76,8 @@ async function handle(event, deps = {}) {
     if (existing?.completata) return await completed(client, existing);
     if (existing?.lease_fino && new Date(existing.lease_fino).getTime() > Date.now()) fail(409, 'Creazione già in corso. Attendi qualche istante e premi Riprova.');
     const s = await source(client, contractId, body.expected_updated_at);
+    // Il browser non decide la categoria: le scelte Fisso escludono sempre Reload.
+    try { choice = Core.validate(body, s.c.categoria_snapshot); } catch (e) { fail(400, e.message, true); }
     const sourceHash = hash(s);
     lease = crypto.randomUUID();
     const result = await client.rpc('prepara_segnalazione_mobile', {

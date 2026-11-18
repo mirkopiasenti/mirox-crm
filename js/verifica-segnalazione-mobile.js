@@ -4,15 +4,16 @@
   const pending = new Map();
   const active = new Map();
   function open(contract, { autore } = {}) {
-    if (!Core.isMobile(contract.categoria_snapshot)) return null;
-    const key = `mirox-segnalazione-mobile:${autore}:${contract.id}`;
+    if (!Core.isSupported(contract.categoria_snapshot)) return null;
+    const category = contract.categoria_snapshot;
+    const key = `mirox-segnalazione-${Core.isFixed(category) ? 'fisso' : 'mobile'}:${autore}:${contract.id}`;
     if (active.has(key)) return active.get(key);
     const esc = root.MiroxSafe.escapeHtml;
     let cached = pending.get(key);
     if (!cached) {
       try {
         const saved = JSON.parse(root.sessionStorage.getItem(key) || 'null');
-        if (saved?.contratto_id === contract.id && saved.request_id && saved.expected_updated_at) { Core.validate(saved); cached = saved; }
+        if (saved?.contratto_id === contract.id && saved.request_id && saved.expected_updated_at) { Core.validate(saved, category); cached = saved; }
       } catch (_) { /* Memoria di pagina disponibile anche senza sessionStorage. */ }
     }
     let busy = false, closed = false;
@@ -25,7 +26,7 @@
       bodyHtml: `<p>Cliente: <strong>${esc(contract.anagrafica?.ragione_sociale || '')}</strong></p>
         <p>Verranno copiati i dati del cliente e tutti gli allegati del contratto.</p>
         <label for="mobileSegMotivo">Motivo</label>
-        <select id="mobileSegMotivo" class="mx-input"><option value="">Seleziona</option>${Core.MOTIVI.map(v => `<option>${esc(v)}</option>`).join('')}</select>
+        <select id="mobileSegMotivo" class="mx-input"><option value="">Seleziona</option>${Core.motivi(category).map(v => `<option>${esc(v)}</option>`).join('')}</select>
         <p data-mobile-gestione></p>
         <label for="mobileSegNote" data-mobile-note-label>Note (facoltative)</label>
         <textarea id="mobileSegNote" class="mx-input" rows="4" maxlength="4000"></textarea>
@@ -55,7 +56,7 @@
     submit.addEventListener('click', async () => {
       if (busy || closed) return;
       let choice;
-      try { choice = Core.validate({ motivo: select.value, note: notes.value }); }
+      try { choice = Core.validate({ motivo: select.value, note: notes.value }, category); }
       catch (e) { error.textContent = e.message; return; }
       busy = true; error.textContent = ''; render();
       try {

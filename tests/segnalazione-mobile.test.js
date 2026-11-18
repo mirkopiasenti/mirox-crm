@@ -11,11 +11,11 @@ const { authorizePages } = require('../netlify/functions/_lib/page-permissions')
 const id = n => `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const AUTHOR = id(1), CONTRACT = id(2), REQUEST = id(3), PRACTICE = id(4), CUSTOMER = id(5);
 const DATE = '2026-11-14T08:00:00+00:00';
-function fixture() {
+function fixture(category = 'Mobile') {
   const docs = [6, 7, 8].map((n, i) => ({ id: id(n), contratto_id: CONTRACT, pratica_id: PRACTICE, anagrafica_id: CUSTOMER,
     storage_bucket: 'contratti-vendita', storage_path: `pratica/contratto/${n}.pdf`, file_name: i < 2 ? 'documento.pdf' : 'PDA.pdf', file_size: 123, sha256: 'a'.repeat(64), uploaded_at: DATE }));
-  const tables = { vendita_contratti: [{ id: CONTRACT, pratica_id: PRACTICE, anagrafica_id: CUSTOMER, categoria_id: id(10), categoria_snapshot: 'Mobile', updated_at: DATE,
-    codice_contratto: '0001234', numero_telefono: '3201234567' }], vendita_categorie: [{ id: id(10), nome: 'Mobile' }],
+  const tables = { vendita_contratti: [{ id: CONTRACT, pratica_id: PRACTICE, anagrafica_id: CUSTOMER, categoria_id: id(10), categoria_snapshot: category, updated_at: DATE,
+    codice_contratto: '0001234', numero_telefono: '3201234567' }], vendita_categorie: [{ id: id(10), nome: category }],
     anagrafica: [{ id: CUSTOMER, ragione_sociale: 'Cliente sintetico', cf_piva: '12345678901', nome_referente: 'Referente sintetico', cellulare: '3331234567', email: 'test@example.invalid', comune: 'Comune', via: 'Via Prova', civico: '1' }],
     vendita_documenti: docs, anagrafica_codici_cliente_windtre: [{ anagrafica_id: CUSTOMER, codice_cliente: '1.00234' }], segnalazioni_mobile_richieste: [], segnalazioni: [],
     profili: [{ id: AUTHOR, nome: 'Autore login', ruolo: 'operatore', attivo: true }],
@@ -82,6 +82,39 @@ test('Mobile: note condizionali e mappatura delle tre scelte confermate dal prop
   assert.deepEqual(Core.gestione('Altro'), { gestione_pratica: 'Interna negozio', tipo_ask: null });
   for (const value of [{ motivo: 'No' }, { motivo: 'Altro', note: {} }, { motivo: 'Altro', note: 'x'.repeat(4001) }]) assert.throws(() => Core.validate(value));
   for (const category of ['Fisso', 'Customer Base', 'Energia', 'Mobile inventato', '']) assert.equal(Core.isMobile(category), false);
+});
+test('Fisso: sole Professional Cloud e Altro, mai Reload; note e gestione come Mobile',()=>{
+  assert.deepEqual(Core.motivi('Fisso'),['Professional Cloud','Altro']);
+  assert.deepEqual(Core.motivi('Mobile'),Core.MOTIVI);
+  assert.equal(Core.isSupported(' FISSO '),true);assert.equal(Core.isSupported('Energia'),false);
+  assert.deepEqual(Core.validate({motivo:'Professional Cloud',note:'  '},'Fisso'),{motivo:'Professional Cloud',note:''});
+  assert.throws(()=>Core.validate({motivo:'Altro'},'Fisso'),/Inserisci le note/);
+  for(const motivo of ['Reload Forever','Reload Basic','Reload Exchange'])assert.throws(()=>Core.validate({motivo},'Fisso'),/motivo/);
+});
+for(const motivo of ['Professional Cloud','Altro'])test(`Fisso: ${motivo} crea la segnalazione con dati, riferimento Fisso e tutti gli allegati`,async()=>{
+  const f=fixture('Fisso'),note=motivo==='Altro'?'Nota necessaria':'';
+  const result=await f.send({motivo,note});assert.equal(result.status,200);
+  const row=f.tables.segnalazioni[0];assert.equal(row.stato,'Da gestire');
+  assert.deepEqual({gestione_pratica:row.gestione_pratica,tipo_ask:row.tipo_ask},Core.gestione(motivo));
+  assert.ok(row.dettagli_segnalazione.includes('Contratto Fisso: 0001234'));
+  assert.ok(row.dettagli_segnalazione.includes(motivo));assert.ok(row.dettagli_segnalazione.includes('1.00234'));
+  if(note)assert.ok(row.dettagli_segnalazione.includes(note));
+  assert.equal(row.operatore,'Autore login');assert.equal(row.ragione_sociale,'Cliente sintetico');assert.equal(f.copies.size,3);
+  assert.equal(f.tables.mirox_permessi_utente[0].pagine.segnalazioni,false);
+});
+test('Fisso: categoria forgiata non abilita Reload e non prenota richieste o copie',async()=>{
+  const f=fixture('Fisso');const r=await f.send({motivo:'Reload Forever',categoria_snapshot:'Mobile'});
+  assert.equal(r.status,400);assert.equal(r.reset_request,true);assert.equal(f.copies.size,0);
+  assert.equal(f.tables.segnalazioni_mobile_richieste.length,0);assert.equal(f.calls.some(c=>c.rpc),false);
+  assert.equal((await f.send({motivo:'Altro',note:' '})).status,400);
+});
+test('Fisso: copia parziale e risposta persa recuperano la stessa richiesta senza duplicare segnalazioni',async()=>{
+  const f=fixture('Fisso');f.state.failCopy=2;
+  assert.equal((await f.send({motivo:'Professional Cloud'})).status,503);assert.equal(f.copies.size,1);assert.equal(f.tables.segnalazioni.length,0);
+  f.state.failCopy=0;f.state.loseReply=true;
+  assert.equal((await f.send({motivo:'Professional Cloud'})).status,503);assert.equal(f.tables.segnalazioni.length,1);
+  f.state.loseReply=false;assert.equal((await f.send({motivo:'Professional Cloud'})).status,200);
+  assert.equal(f.tables.segnalazioni.length,1);assert.equal(f.copies.size,3);
 });
 for (const motivo of Core.MOTIVI) test(`Mobile: ${motivo} crea Da gestire con autore login, dati e tutti i tre allegati senza collisioni di nome`, async () => {
   const f = fixture(), note = 'Note supplementari\nSeconda riga';
@@ -176,12 +209,13 @@ test('Mobile: pulsante visibile con sola Verifica e pagina Segnalazioni ancora v
     const allowedPath = path => Permissions.can(profile, pages, Permissions.pageForPath(path).key);
     const context = { window: { MiroxSegnalazioneMobileCore: Core, MiroxPermissionsUI: { allowedPath } }, c: { categoria_snapshot: 'Mobile' } };
     assert.equal(vm.runInNewContext(condition, context), pages.verifica_contratti === true);
+    context.c.categoria_snapshot = 'Fisso';assert.equal(vm.runInNewContext(condition, context),pages.verifica_contratti===true);
     if (pages.verifica_contratti) assert.equal(allowedPath('/moduli/segnalazioni.html'), false);
     context.c.categoria_snapshot = 'Customer Base'; assert.equal(vm.runInNewContext(condition, context), false);
   }
 });
 
-function uiFixture() {
+function uiFixture(category = 'Mobile') {
   class Element {
     constructor() { this.value = ''; this.disabled = false; this.hidden = true; this.textContent = ''; this.handlers = {}; }
     addEventListener(name, handler) { this.handlers[name] = handler; }
@@ -200,7 +234,7 @@ function uiFixture() {
     }, async confirm(msg, opts) { confirmations.push({msg,opts}); return state.confirm ? state.confirm() : state.yes; }, async alert(msg, opts) { alerts.push({msg,opts}); } }
   };
   vm.runInNewContext(fs.readFileSync(require.resolve('../js/verifica-segnalazione-mobile'), 'utf8'), { window: root });
-  const contract = { id: CONTRACT, updated_at: DATE, categoria_snapshot: 'Mobile', anagrafica: { ragione_sociale: '<Cliente>' } };
+  const contract = { id: CONTRACT, updated_at: DATE, categoria_snapshot: category, anagrafica: { ragione_sociale: '<Cliente>' } };
   const open = c => root.MiroxSegnalazioneMobile.open(c || contract, { autore: AUTHOR });
   const choose = (m, motivo, note = '') => { m.fields['#mobileSegMotivo'].value = motivo; m.fields['#mobileSegNote'].value = note; return m.fields['#mobileSegMotivo'].emit('change'); };
   const submit = m => m.fields['[data-mobile-submit]'].emit('click');
@@ -216,8 +250,27 @@ test('Mobile popup: solo Mobile, tre scelte, Altro richiede note; No conserva i 
   assert.equal(f.requests.length, 0); assert.equal(m.closed, false); assert.equal(m.fields['#mobileSegNote'].value, 'Nota facoltativa');
   assert.equal(f.confirmations[0].opts.okText, 'Sì'); assert.equal(f.confirmations[0].opts.cancelText, 'No');
 });
-test('Mobile popup: sì blocca i doppi clic e conferma il successo lasciando aperto il contratto senza navigazione', async () => {
-  const f = uiFixture();
+test('Fisso popup: due sole scelte, note condizionali, Reload respinta e No conserva i valori',async()=>{
+  const f=uiFixture('Fisso'),m=f.open();assert.match(m.opts.bodyHtml,/<option>Professional Cloud<\/option>/);assert.match(m.opts.bodyHtml,/<option>Altro<\/option>/);
+  assert.doesNotMatch(m.opts.bodyHtml,/Reload/);
+  await f.choose(m,'Reload Forever');await f.submit(m);assert.equal(f.confirmations.length,0);assert.equal(f.requests.length,0);
+  await f.choose(m,'Altro','  ');await f.submit(m);assert.equal(m.fields['#mobileSegNote'].required,true);assert.equal(f.confirmations.length,0);
+  await f.choose(m,'Professional Cloud','Nota facoltativa');assert.equal(m.fields['#mobileSegNote'].required,false);
+  f.state.yes=false;await f.submit(m);assert.equal(f.requests.length,0);assert.equal(m.closed,false);assert.equal(m.fields['#mobileSegNote'].value,'Nota facoltativa');
+});
+test('Fisso popup: cache separata dal Mobile, retry conserva UUID e note senza riproporre Reload',async()=>{
+  const f=uiFixture(),mobile=f.open();await f.choose(mobile,'Reload Forever','Nota Mobile');
+  f.state.network=async()=>{throw new Error('Rete interrotta');};await f.submit(mobile);mobile.close();
+  const fixed={id:CONTRACT,updated_at:DATE,categoria_snapshot:'Fisso',anagrafica:{ragione_sociale:'Cliente'}};
+  const first=f.open(fixed);assert.equal(first.fields['#mobileSegMotivo'].value,'');assert.doesNotMatch(first.opts.bodyHtml,/Reload/);
+  await f.choose(first,'Professional Cloud','Nota Fisso');await f.submit(first);first.close();
+  const retry=f.open(fixed);assert.equal(retry.fields['#mobileSegNote'].value,'Nota Fisso');
+  f.state.network=null;await f.submit(retry);
+  assert.equal(f.requests[1].body.request_id,f.requests[2].body.request_id);assert.notEqual(f.requests[0].body.request_id,f.requests[1].body.request_id);
+  assert.equal(f.memory.size,1);assert.equal([...f.memory.keys()][0].startsWith('mirox-segnalazione-mobile:'),true);
+});
+for (const category of ['Mobile','Fisso']) test(`${category} popup: sì blocca i doppi clic e conferma il successo lasciando aperto il contratto senza navigazione`, async () => {
+  const f = uiFixture(category);
   let openSignal;
   const parent = { closed: false, fields: { cliente: 'Cliente sintetico', telefono: '3331234567' }, body: {
     scrollTop: 180, querySelector() { return { addEventListener(_, handler) { openSignal = handler; } }; }
@@ -226,10 +279,10 @@ test('Mobile popup: sì blocca i doppi clic e conferma il successo lasciando ape
   const start = page.indexOf("  m.body.querySelector('[data-apri-segnalazione-mobile]')");
   const end = page.indexOf("  m.body.querySelector('[data-edit-pda]')", start);
   vm.runInNewContext(page.slice(start, end), { m: parent, window: f.root, pdaOtherFieldsDirty: false,
-    c: { id: CONTRACT, updated_at: DATE, categoria_snapshot: 'Mobile', anagrafica: { ragione_sociale: 'Cliente sintetico' } },
+    c: { id: CONTRACT, updated_at: DATE, categoria_snapshot: category, anagrafica: { ragione_sociale: 'Cliente sintetico' } },
     getProfiloCorrenteVC: async () => ({ id: AUTHOR }) });
   await openSignal();
-  const m = f.modals[0]; await f.choose(m, 'Reload Forever');
+  const m = f.modals[0]; await f.choose(m, category==='Fisso'?'Professional Cloud':'Reload Forever');
   let resolve; f.state.network = () => new Promise(r => { resolve = r; });
   const sending = f.submit(m); await new Promise(r => setImmediate(r));
   assert.equal(m.fields['[data-mobile-progress]'].hidden, false); assert.equal(m.fields['#mobileSegMotivo'].disabled, true);

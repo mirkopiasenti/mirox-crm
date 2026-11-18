@@ -22,6 +22,10 @@ precedenti identici per impronta. Advisor warning/errori invariati; solo INFO RL
 senza policy41vs40 atteso sul nuovo registro server-only. Nessuna nota reale creata.
 Prove private ignorate `.backup-private/release-note-contratto-20261116/`.
 
+## Segnalazioni da Fisso —18/11/2026, estensione applicativa locale
+
+Lo stesso registro `segnalazioni_mobile_richieste` e le RPC prepara/completa gia generiche supportano anche Fisso senza DDL. La Function esistente `apri-segnalazione-mobile` verifica categoria canonica e snapshot coerenti Mobile/Fisso; nel Fisso ammette soltanto Professional Cloud/Altro, senza fidarsi della categoria ricevuta. Stesse ACL fresche Verifica, copie server-side di tutti e soli gli allegati del contratto e finalizzazione atomica/idempotente. Hash/chiavi/retry Mobile precedenti conservati, cache browser Fisso separata. Nessuna query o scrittura production, backfill, schema/RLS/grant/RPC/sequenza o nuova tabella/bucket/Function da applicare. Push richiesto18/11, esito nel promemoria.
+
 ## Segnalazioni da Mobile —14/11/2026, migration applicata
 
 Pulizia test14/11 richiesta esplicitamente dal proprietario dopo collaudo manuale riuscito: eliminate625/626/627, le3richieste in `segnalazioni_mobile_richieste` e8copie in `segnalazioni-files` via API Storage. Guardie su ID/impronte e transazione, poi rilettura0record/0richieste/0file; altre606segnalazioni, contratti/documenti/anagrafiche, altri file e sequenza627 invariati per impronta. Originali conservati, nessuna migration/schema/RLS o modifica applicativa. Conferma MCP scaduta senza esecuzione; eseguito con psql/pooler/TLSverify-full. Prove private ignorate `.backup-private/elimina-segnalazioni-test-20261114/`.

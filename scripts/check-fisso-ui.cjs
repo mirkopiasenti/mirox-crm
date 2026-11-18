@@ -100,7 +100,7 @@ function setup(cluster='Business'){
   Object.defineProperty(window.HTMLInputElement.prototype,'checked',{configurable:true,get(){return this.hasAttribute('checked');},set(value){this.toggleAttribute('checked',Boolean(value));}});
   window.MiroxPda=require('../js/vendita-pda-core');window.MiroxFisso=F;
   window.MiroxSafe={escapeHtml:v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')};
-  window.MiroxSegnalazioneMobileCore={isMobile:()=>false};
+  window.MiroxSegnalazioneMobileCore={isSupported:()=>false};
   window.MiroxContrattoNoteUI={mount:()=>({isSaving:()=>false,dispose(){}})};
   window.MiroxUI={confirm(text){return new Promise(resolve=>questions.push({text,resolve}));},_build(options){
    const modal=document.createElement('div');modal.innerHTML='<div data-body>'+options.bodyHtml+'</div><footer>'+options.footerHtml+'</footer>';document.body.append(modal);

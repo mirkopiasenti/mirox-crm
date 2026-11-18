@@ -63,7 +63,7 @@ test('Verificati Business: Professional Cloud e gestione compaiono nei Campi spe
  const source=fs.readFileSync(path.join(__dirname,'../moduli/verifica_contratti.html'),'utf8');
  const a=source.indexOf('function apriPopupDettaglio('),b=source.indexOf('  // Footer azioni:',a);
  const {api}=fixture();
- const ctx={window:{MiroxPda:Pda,MiroxPdaUI:api,MiroxFisso:{isFixed:()=>false},MiroxSegnalazioneMobileCore:{isMobile:()=>false}},
+ const ctx={window:{MiroxPda:Pda,MiroxPdaUI:api,MiroxFisso:{isFixed:()=>false},MiroxSegnalazioneMobileCore:{isSupported:()=>false}},
   getContrattoCluster:c=>c.cluster_cliente || c.anagrafica?.cluster || '',renderCodiciCliente:()=>'',toLocalDatetimeInput:()=>'',fmtDateTime:()=>'',
   escapeHtml:v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')};
  vm.createContext(ctx);vm.runInContext(source.slice(a,b)+'return bodyHtml;};this.render=apriPopupDettaglio;',ctx);

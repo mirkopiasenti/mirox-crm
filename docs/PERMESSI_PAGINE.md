@@ -6,6 +6,8 @@ Verificati. Non basta Storico Cliente né Segnalazioni; nessun accesso nuovo agl
 account. Registro RLS/server-only SELECT/INSERT, senza grant browser o modifiche
 alle risorse condivise. Le note non cambiano lo stato di verifica del contratto.
 
+Estensione locale18/11: il pulsante è disponibile anche per contratti Fisso Consumer/Business e Verificati, con sole Professional Cloud/Altro. Identica ACL Verifica Contratti; pagina Segnalazioni ancora riservata. Nessuna nuova assegnazione, catalogo, endpoint, grant/RLS/RPC o schema.
+
 Rettifica16/11, confermata dal proprietario: `apri-segnalazione-mobile` richiede
 **solo Verifica Contratti**, con JWT e ACL fresche verificati da `requireAuth`
 e dalla mappa endpoint. Il pulsante è visibile nel dettaglio Mobile anche con
