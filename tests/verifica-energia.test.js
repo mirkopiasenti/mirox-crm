@@ -31,6 +31,24 @@ test('export WindTre: proposta in H come testo, PIVA normalizzata, punti separat
   assert.throws(() => Csv.parse('Proposta di Contratto;Codice Fiscale;Partita Iva;Stato\n07;' + fiscale + ';;Nuovo'), /POD\/PDR/);
 });
 
+test('tipo pratica dalla sola colonna Tipo Richiesta, anche con esiti da righe diverse', async () => {
+  const tipoHeader = 'Proposta di Contratto;Codice Fiscale;Partita Iva;POD/PDR;Stato;Tipo Richiesta;Tipologia richiesta\n';
+  const row = (numero, esito, tipo) => `${numero};${fiscale};;${pdr};${esito};${tipo};Valore da ignorare\n`;
+  const input = tipoHeader + row('0007', 'Nuovo', 'Switch  con Voltura') + row('0007', 'Rifiutato', '')
+    + row('0008', 'Nuovo', 'Switch-In') + row('0008', 'Rifiutato', 'Voltura');
+  assert.deepEqual(Csv.parse(input).map(r => [r.numero, r.stato, r.tipo_pratica]), [
+    ['0007', 'Rifiutato', 'Switch con Voltura'], ['0008', 'Rifiutato', null]
+  ]);
+  let rpc;
+  const db = { async rpc(name, args) { rpc = { name, rows: args.p_righe }; return { data: {} }; } };
+  const statoAssente = `Proposta di Contratto;Codice Fiscale;POD/PDR;Tipo Richiesta\n0009;${fiscale};${pdr};Attivazione\n`;
+  await Csv.save(db, statoAssente, null, { onlyTypes: true });
+  assert.equal(rpc.name, 'vendita_energia_importa_tipi');
+  assert.equal(rpc.rows[0].tipo_pratica, 'Attivazione');
+  assert.deepEqual(Csv.parse(statoAssente.replace('Tipo Richiesta', 'Tipologia richiesta'), { onlyTypes: true }), []);
+  assert.deepEqual(endpointPages('gestisci-controllo-lg', { body: '{"action":"import_tipo_pratica"}' }), ['controllo_lg']);
+});
+
 test('riconosce il venditore anche con più forniture e distingue distributore, intestatario e riferimenti di servizio', () => {
   assert.deepEqual(Bill.parseText(['Distributore: E-Distribuzione', ...billLines, `PDR: ${pdr}`, `POD: ${pod}`].join('\n'), context),
     { gestore: 'Enel Energia' });

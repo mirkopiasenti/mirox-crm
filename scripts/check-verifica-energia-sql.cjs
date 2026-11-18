@@ -41,7 +41,8 @@ async function main() {
       CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT NULL::uuid $$;
       CREATE SCHEMA mirox_private;
       CREATE FUNCTION mirox_private.can_pages(text[]) RETURNS boolean LANGUAGE sql AS $$
-        SELECT current_setting('test.verifica',true) = 'true' AND 'verifica_contratti' = ANY($1)
+        SELECT coalesce(current_setting('test.verifica',true) = 'true' AND 'verifica_contratti' = ANY($1), false)
+          OR coalesce(current_setting('test.lg',true) = 'true' AND 'controllo_lg' = ANY($1), false)
       $$;
       CREATE TABLE public.anagrafica (id uuid PRIMARY KEY, cf_piva text, cluster text);
       CREATE TABLE public.vendita_pratiche (id uuid PRIMARY KEY, stato_pratica text);
@@ -349,6 +350,64 @@ async function main() {
     assert.deepEqual(await fields(), fieldValues(altroPunto, '0100', 'Argos'));
     assert.deepEqual(await outcome(pendente), postSale);
     assert.equal(await nextSupplier(false), null);
+
+    await db.exec('RESET ROLE');
+    await load('20261118215435_energia_tipo_pratica_csv.sql');
+    await load('20261118220930_energia_tipo_pratica_ricerca.sql');
+    const importTypes = rows => value('SELECT vendita_energia_importa_tipi($1) AS v', [JSON.stringify(rows)]);
+    const typeOf = id => value('SELECT tipo_pratica_energia(c) AS v FROM vendita_contratti c WHERE id=$1', [id]);
+    const beforeTypes = () => query(`SELECT
+      (SELECT jsonb_agg(to_jsonb(c) ORDER BY id) FROM vendita_contratti c) AS contratti,
+      (SELECT jsonb_agg(to_jsonb(l) ORDER BY id) FROM post_vendita_controllo_lg l) AS lg,
+      (SELECT to_jsonb(f) FROM vendita_energia_csv f WHERE singleton) AS fonte`);
+    const snapshot = await beforeTypes();
+    const types = [
+      { numero: '0008', punto: errato, cf: fiscale, tipo_pratica: 'Switch-In' },
+      { numero: '0100', punto: altroPunto, cf: fiscale, tipo_pratica: 'Voltura' },
+      { numero: '0009', punto: fisso, cf: 'BNCANN80A01H501U', tipo_pratica: 'Attivazione' },
+      { numero: '0007', punto, cf: fiscale, tipo_pratica: 'Attivazione' }
+    ];
+    await db.exec('SET ROLE service_role');
+    assert.deepEqual(await importTypes(types), { tipi_aggiornati: 4 });
+    assert.deepEqual(await importTypes(types), { tipi_aggiornati: 0 });
+    assert.deepEqual(await beforeTypes(), snapshot);
+    assert.equal(await typeOf(storico), 'Switch-In');
+    assert.equal(await typeOf(pendente), 'Voltura');
+    assert.equal(await typeOf(protetto), null);
+    assert.equal(await typeOf(nonInviato), null);
+    assert.equal(await typeOf(mobile), null);
+
+    await db.exec("RESET ROLE; SET ROLE authenticated; SET test.verifica='false'");
+    assert.equal(await typeOf(storico), null);
+    await db.exec("SET test.verifica='true'");
+    assert.equal(await typeOf(storico), 'Switch-In');
+    await db.exec("SET test.verifica='false'; SET test.lg='true'");
+    assert.equal(await typeOf(storico), 'Switch-In');
+    await assert.rejects(query('SELECT * FROM mirox_private.energia_tipi_csv'), { code: '42501' });
+    await assert.rejects(importTypes(types), { code: '42501' });
+
+    await db.exec('RESET ROLE; SET ROLE service_role');
+    const typeHeader = header.trimEnd() + ';Tipo Richiesta\n';
+    const typeCsv = typeHeader + `${fiscale};;0008;${errato};Attivato;;Switch con Voltura\n`;
+    assert.equal((await csv(typeCsv, '6')).duplicato, true);
+    assert.equal(await typeOf(storico), 'Switch con Voltura');
+    assert.deepEqual(await beforeTypes(), snapshot);
+    await csv(typeHeader + `${fiscale};;0100;${altroPunto};Attivato;;Attivazione\n`, '7');
+    assert.equal(await typeOf(storico), 'Switch con Voltura');
+    assert.equal(await typeOf(pendente), 'Attivazione');
+    await query(`UPDATE vendita_contratti SET numero_contratto_energia=NULL WHERE id=$1`, [pendente]);
+    assert.equal(await typeOf(pendente), 'Attivazione');
+    await importTypes([{ numero: '0101', punto: altroPunto, cf: fiscale, tipo_pratica: 'Voltura' }]);
+    assert.equal(await typeOf(pendente), null);
+    await query(`UPDATE vendita_contratti SET numero_contratto_energia='0101' WHERE id=$1`, [pendente]);
+    assert.equal(await typeOf(pendente), 'Voltura');
+    await importTypes([{ numero: '0101', punto: altroPunto, cf: fiscale, tipo_pratica: null }]);
+    assert.equal(await typeOf(pendente), null);
+    await query(`UPDATE vendita_contratti SET numero_contratto_energia='0102' WHERE id=$1`, [pendente]);
+    await importTypes([{ numero: '0102', punto: '', cf: fiscale, tipo_pratica: 'Switch-In' }]);
+    assert.equal(await typeOf(pendente), 'Switch-In');
+    await importTypes([{ numero: '0102', punto: fisso, cf: fiscale, tipo_pratica: 'Voltura' }]);
+    assert.equal(await typeOf(pendente), null);
     console.log('Verifica Energia SQL: migrazione, ACL, riscontro, esiti, concorrenza ottimistica e rollback verificati.');
   } finally {
     await db.close();

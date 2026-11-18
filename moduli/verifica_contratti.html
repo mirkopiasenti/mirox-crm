@@ -564,6 +564,7 @@ async function caricaContratti(statoControllo, { silent = false } = {}) {
         data_contratto, created_at, updated_at,
         anagrafica:anagrafica_id ( id, cf_piva, cluster, ragione_sociale, nome_referente, cellulare, provincia, comune, via, civico )
         , riscontro_energia:vendita_energia_verifiche(stato,motivo,motivo_fornitore,motivo_csv,punto_originale,csv_at)
+        , tipo_pratica_energia
         ${statoControllo === 'da_controllare' ? ', revisione:vendita_stati_verifica_manuale(stato,motivo,versione)' : ''}
       `)
       .eq('stato_controllo', statoControllo)
@@ -629,7 +630,7 @@ function applicaFiltri(items, stateKey) {
     if (!q) return true;
     const haystack = [
       ana.ragione_sociale, ana.cf_piva, ana.nome_referente, ana.cellulare,
-      c.categoria_snapshot, c.nome_offerta_snapshot, c.nome_opzione_snapshot,
+      c.categoria_snapshot, c.nome_offerta_snapshot, c.nome_opzione_snapshot, c.tipo_pratica_energia,
       c.operatore && c.operatore.nome
     ].filter(Boolean).join(' ').toLowerCase();
     return haystack.includes(q);
@@ -684,6 +685,7 @@ function renderListaContratti(stateKey) {
     setCount('cntVerificati', contratti.length);
   }
   const items = applicaFiltri(contratti, stateKey);
+  const mostraTipoPratica = stateKey === 'verificati' || (stateKey === 'daVerificare' && VCState.tabInAttesa === 'energia');
 
   if (!items.length) {
     const tot = contratti.length;
@@ -722,6 +724,7 @@ function renderListaContratti(stateKey) {
         <td><span class="stato-pill ${escapeHtml(String(cluster).toLowerCase())}">${escapeHtml(cluster)}</span></td>
         <td>${escapeHtml(categoriaTxt)}</td>
         <td>${escapeHtml(offertaTxt)}${convergenzaChip}</td>
+        ${mostraTipoPratica ? `<td>${escapeHtml(c.tipo_pratica_energia || '—')}</td>` : ''}
         <td><div class="vc-stato-cella">${renderStatoContratto(c)}
           ${statoVisibileContratto(c) === 'da_verificare' ? `<button type="button" class="vc-leggi-motivo"
             onclick="leggiMotivoVerifica('${escapeHtml(c.id)}')" title="Leggi la motivazione" aria-label="Leggi la motivazione di Da verificare">
@@ -745,6 +748,7 @@ function renderListaContratti(stateKey) {
         <th>Cluster</th>
         <th>Categoria</th>
         <th>Offerta</th>
+        ${mostraTipoPratica ? '<th>Tipo pratica</th>' : ''}
         <th>Stato</th>
         <th style="text-align:right;">Azioni</th>
       </tr></thead>

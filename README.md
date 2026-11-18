@@ -131,6 +131,8 @@ Tutti gli utenti con accesso a Verifica Contratti possono modificare **POD/PDR**
 
 **Carica CSV WindTre** in Verifica Contratti aggiorna anche Controllo L&G e rispetta gli esiti manuali protetti. Un nuovo file valido sostituisce la fonte precedente. Se l’import fallisce, resta disponibile l’ultima fonte acquisita. Limite del caricamento condiviso 4 MiB.
 
+La colonna **Tipo pratica** compare nella scheda Energia in attesa, nei Verificati e in Controllo Luce & Gas. Entrambi i caricamenti leggono **Tipo Richiesta** (colonna K del CSV WindTre). Le due liste condividono il dato, ricercabile per testo. I tipi già acquisiti restano disponibili quando una proposta manca dalle estrazioni successive. Le pratiche senza un abbinamento univoco mostrano un trattino.
+
 ## Verifica automatica contratti — collaudo assistito
 
 Dal 10/11/2026 il pannello di collaudo è scollegato da **Verifica Contratti**. Il nuovo flusso Energia è descritto sopra. Le sezioni seguenti descrivono il servizio storico e il suo backend.

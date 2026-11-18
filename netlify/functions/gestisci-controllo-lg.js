@@ -21,7 +21,7 @@ const MANUAL_STATUSES = new Set([
   'NON TROVATO'
 ]);
 const ADMIN_ACTIONS = new Set(['set_manual_outcome', 'unlock_manual_outcome']);
-const AUTHENTICATED_ACTIONS = new Set(['csv_update_batch', 'import_shared_csv', ...ADMIN_ACTIONS]);
+const AUTHENTICATED_ACTIONS = new Set(['csv_update_batch', 'import_shared_csv', 'import_tipo_pratica', ...ADMIN_ACTIONS]);
 const CSV_BATCH_SIZE = 50;
 
 function response(statusCode, payload) {
@@ -260,10 +260,12 @@ exports.handler = async (event) => {
     if (action === 'unlock_manual_outcome') {
       return await unlockManualOutcome({ supabase, auth, body });
     }
-    if (action === 'import_shared_csv') {
+    if (action === 'import_shared_csv' || action === 'import_tipo_pratica') {
       const profileId = authenticatedProfileId(auth);
       if (!profileId) return response(403, { success: false, error: 'Profilo non valido.' });
-      const result = await require('./_lib/energia-csv').save(supabase, body.csv, profileId);
+      const result = await require('./_lib/energia-csv').save(supabase, body.csv, profileId, {
+        onlyTypes: action === 'import_tipo_pratica'
+      });
       return response(200, { success: true, ...result });
     }
     return await updateCsvBatch({ supabase, auth, body });

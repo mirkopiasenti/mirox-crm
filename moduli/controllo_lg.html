@@ -404,7 +404,7 @@ async function loadAll() {
         contratto:contratto_id (
           id, categoria_id, operatore_id, data_contratto, created_at,
           pod_pdr, numero_contratto_energia, ex_fornitore,
-          categoria_snapshot, nome_offerta_snapshot
+          categoria_snapshot, nome_offerta_snapshot, tipo_pratica_energia
         )
       `)
       .order('created_at', { ascending: false });
@@ -546,7 +546,7 @@ function matchSearch(r, q) {
   const c = r.contratto || {};
   const haystack = [
     ana.ragione_sociale, ana.cf_piva, ana.cluster, ana.cellulare, ana.email,
-    c.numero_contratto_energia, c.pod_pdr, c.ex_fornitore,
+    c.numero_contratto_energia, c.pod_pdr, c.ex_fornitore, c.tipo_pratica_energia,
     r.stato, r.stato_origine, r.esito_manuale_note,
     operatoreNome(r), profiloNome(r.esito_manuale_da)
   ].filter(Boolean).join(' ').toLowerCase();
@@ -601,6 +601,7 @@ function render() {
     <th>Ragione Sociale</th>
     <th>CF / P.IVA</th>
     <th>Numero Contratto</th>
+    <th>Tipo pratica</th>
     <th>POD / PDR</th>
     <th>Ex Fornitore</th>
     <th>Contatto</th>
@@ -632,6 +633,7 @@ function render() {
       <td class="cell-cliente">${escapeHtml(ana.ragione_sociale || '-')}</td>
       <td class="cell-mono">${escapeHtml(ana.cf_piva || '-')}</td>
       <td class="cell-mono">${escapeHtml(c.numero_contratto_energia || '—')}</td>
+      <td>${escapeHtml(c.tipo_pratica_energia || '—')}</td>
       <td class="cell-mono">${escapeHtml(c.pod_pdr || '—')}</td>
       <td class="cell-fornitore">${escapeHtml(c.ex_fornitore || '—')}</td>
       <td class="cell-mono">${escapeHtml(ana.cellulare || '—')}</td>
@@ -985,6 +987,23 @@ function chunk(arr, size) {
   return out;
 }
 
+async function importaTipiPratica(righe, tipoHeader, pointHeaders) {
+  const fields = [...new Set([CSV_HEADERS.propostaContratto, CSV_HEADERS.codiceFiscale,
+    CSV_HEADERS.partitaIva, tipoHeader, ...Object.values(pointHeaders).filter(Boolean)])];
+  const perProposta = new Map();
+  for (const row of righe) {
+    const numero = String(row[CSV_HEADERS.propostaContratto] || '').replace(/\s+/g, '').toUpperCase();
+    if (!numero || numero.length > 80) continue;
+    if (!perProposta.has(numero)) perProposta.set(numero, []);
+    perProposta.get(numero).push(fields.map(field => row[field] || ''));
+  }
+  // Le righe della stessa proposta viaggiano insieme per rilevare tipi discordanti.
+  for (const batch of chunk([...perProposta.values()], 500)) {
+    const csv = Papa.unparse({ fields, data: batch.flat() }, { delimiter: ';' });
+    await callGestisciControlloLg({ action: 'import_tipo_pratica', csv });
+  }
+}
+
 const MAX_FILE_SIZE_MB = 20;
 const UPDATE_BATCH_SIZE = 50;
 
@@ -1053,6 +1072,11 @@ async function processaCsv(file) {
     }
     const pointHeaders = resolveCsvPointHeaders(headersTrovati);
     const hasPointHeaders = !!(pointHeaders.combined || pointHeaders.pod || pointHeaders.pdr);
+    const tipoHeader = headersTrovati.find(h => normHeaderCsv(h) === 'TIPORICHIESTA');
+    if (tipoHeader) {
+      loader.setText('Aggiornamento del tipo pratica...');
+      await importaTipiPratica(righe, tipoHeader, pointHeaders);
+    }
 
     // Aggrega solo i duplicati reali: stessa PC + stesso POD/PDR.
     // PC uguali con punti diversi restano righe indipendenti.

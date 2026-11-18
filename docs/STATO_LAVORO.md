@@ -2,6 +2,12 @@
 
 Aggiornato:2026-11-18. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
+## Tipo pratica Energia da CSV WindTre —18/11, DB aggiornato e UI pronta al rilascio
+
+- Colonna `Tipo Richiesta` (K) nei due caricamenti e colonna ricercabile `Tipo pratica` in Energia in attesa, Verificati e Controllo Luce & Gas. Riscontro su cliente, proposta e punto; vincolo di univocità anche nel fallback legacy. I tipi delle proposte assenti dai successivi CSV restano disponibili.
+- Migrazioni `20261118215435_energia_tipo_pratica_csv.sql` e `20261118220930_energia_tipo_pratica_ricerca.sql`, applicate/rilette in produzione come `20261118220440` e `20261118221012`. Caricato il solo tipo dalle 599 righe fornite (645 chiavi di riscontro). Backfill transazionale verificato: 474/523 Energia, 429/468 Controllo L&G e 45/53 in attesa. 49 senza riscontro univoco. Impronte contratti, esiti L&G, esiti manuali, verifiche e fonte CSV identiche nel commit.
+- ACL/RLS e advisor verificati. PGlite, prove DOM delle due liste, build e suite 862/862 verdi. Lettura verificata con ruolo operatore; PostgreSQL 227 ms sui 1.000 verificati più recenti. Prossimo passo su richiesta esplicita: commit/push dell'app e collaudo visuale dopo il deploy.
+
 ## Chiusura rilavorazioni da Black List —18/11
 
 - Chiusi nella stessa transazione dell'inserimento i ricontatti standard/outbound, i non presentati da lavorare, i passaggi sospesi Legnago/Cerea e i lead outbound ancora aperti. Riscontro CF/P.IVA o collegamenti persistiti. Storico, note, esiti e prenotazioni conservati. Rilavorazione rilegge le code al focus e ricontrolla le azioni su schede già aperte. README, AGENTS e database/README aggiornati.
