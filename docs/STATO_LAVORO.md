@@ -2,11 +2,11 @@
 
 Aggiornato:2026-11-18. Promemoria di ripresa, non autorizza ulteriori push o attivazioni.
 
-## Segnalazioni da Fisso —18/11, push in corso
+## Segnalazioni da Fisso —18/11, pubblicate
 
 - Apri segnalazione esteso a Fisso Consumer/Business anche Verificati, con sole Professional Cloud e Altro (nessuna Reload). Stesse note facoltative Cloud/obbligatorie Altro, ASK-Normalizzazione/Interna negozio, conferma Si/No, spinner/blocco doppi clic/chiusura, copia di tutti e soli gli allegati del contratto, successo e permanenza sul dettaglio. Sola ACL Verifica fresca; pagina Segnalazioni riservata come prima.
 - Core/widget/endpoint/registro/RPC mobile riusati per compatibilita, nessun DDL. Categoria canonica e snapshot coerenti e motivo validati server-side; testo Contratto Fisso nelle note. Retry/hash Mobile conservati e cache Fisso separata; nessun invio ASK/email/disattivazione o modifica contratti. Nessuna interrogazione/scrittura production, nuova dipendenza runtime/env/cron o pratica reale.
-- Suite845/845test/build in nuova copia isolata verdi; nuove prove Fisso API/dati/allegati/retry/categoria forgiata/Reload vietata/ACL, popup note/No/caricamento e permanenza sulla pratica, cache separata. DOM Node popup Fisso e Fisso/Cloud esistente verdi; aggiornati solo mock di categoria nei test Cloud/QA. README/AGENTS/CLAUDE/databaseREADME/Permessi aggiornati. Push richiesto18/11: verificare CI e deploy; nessuna migration o configurazione dati da applicare.
+- Suite845/845test/build in nuova copia isolata verdi; nuove prove Fisso API/dati/allegati/retry/categoria forgiata/Reload vietata/ACL, popup note/No/caricamento e permanenza sulla pratica, cache separata. DOM Node popup Fisso e Fisso/Cloud esistente verdi; aggiornati solo mock di categoria nei test Cloud/QA. README/AGENTS/CLAUDE/databaseREADME/Permessi aggiornati. Pubblicato18/11 con `9f23b10`: CI44278001931 LinuxNode22/Windows verde,845test; Netlify6afd725beb82b62cc8e43052 online. HTTP14asset/HTML/script/stili/PrettyURL e4API401 verificati. Prossimo: ricaricare Verifica Contratti e aprire un dettaglio Fisso; nessuna migration, configurazione dati o rilascio funzionale pendente.
 
 Operazione dati17/11 su richiesta: un solo Fisso riportato da etichetta manuale Da verificare a In attesa, rimuovendo esclusivamente l'override atteso/versione1. Contratto gia da_controllare; riga completa/updated_at/punti/stato controllo e tutte le altre etichette identici con guardie transazionali. Rilettura indipendente conferma0override. Nessun codice/schema/deploy; prove private `.backup-private/reset-fisso-power-hall-20261117/`. Prossimo: ricaricare In Attesa - Fisso.
 

@@ -22,9 +22,9 @@ precedenti identici per impronta. Advisor warning/errori invariati; solo INFO RL
 senza policy41vs40 atteso sul nuovo registro server-only. Nessuna nota reale creata.
 Prove private ignorate `.backup-private/release-note-contratto-20261116/`.
 
-## Segnalazioni da Fisso —18/11/2026, estensione applicativa locale
+## Segnalazioni da Fisso —18/11/2026, estensione applicativa pubblicata
 
-Lo stesso registro `segnalazioni_mobile_richieste` e le RPC prepara/completa gia generiche supportano anche Fisso senza DDL. La Function esistente `apri-segnalazione-mobile` verifica categoria canonica e snapshot coerenti Mobile/Fisso; nel Fisso ammette soltanto Professional Cloud/Altro, senza fidarsi della categoria ricevuta. Stesse ACL fresche Verifica, copie server-side di tutti e soli gli allegati del contratto e finalizzazione atomica/idempotente. Hash/chiavi/retry Mobile precedenti conservati, cache browser Fisso separata. Nessuna query o scrittura production, backfill, schema/RLS/grant/RPC/sequenza o nuova tabella/bucket/Function da applicare. Push richiesto18/11, esito nel promemoria.
+Lo stesso registro `segnalazioni_mobile_richieste` e le RPC prepara/completa gia generiche supportano anche Fisso senza DDL. La Function esistente `apri-segnalazione-mobile` verifica categoria canonica e snapshot coerenti Mobile/Fisso; nel Fisso ammette soltanto Professional Cloud/Altro, senza fidarsi della categoria ricevuta. Stesse ACL fresche Verifica, copie server-side di tutti e soli gli allegati del contratto e finalizzazione atomica/idempotente. Hash/chiavi/retry Mobile precedenti conservati, cache browser Fisso separata. Nessuna query o scrittura production, backfill, schema/RLS/grant/RPC/sequenza o nuova tabella/bucket/Function da applicare. Pubblicato18/11 con `9f23b10`: CI44278001931 LinuxNode22/Windows verde,845test; Netlify6afd725beb82b62cc8e43052 online. HTTP14asset/HTML/script/stili/PrettyURL e4API401 verificati.
 
 ## Segnalazioni da Mobile —14/11/2026, migration applicata
 
