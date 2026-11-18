@@ -6,6 +6,12 @@ async function handler(event, deps = {}) {
   if (event.httpMethod !== 'POST' || body.length > 500 || !Worker.verify(body, event.headers?.['x-mirox-verifica'] || event.headers?.['X-Mirox-Verifica'])) return { statusCode: 403 };
   const payload = JSON.parse(body), db = deps.db || getAdminClient();
   if (!db || !Worker.production()) return { statusCode: 503 };
+  if (payload.energia === true) {
+    const { drain } = require('./_lib/energia-verifica');
+    const { readBill } = require('./_lib/energia-bolletta');
+    await drain(db, deps.readBill || readBill);
+    return { statusCode: 200 };
+  }
   const cfg = await Worker.config(db);
   if (cfg.modalita === 'spenta') return { statusCode: 200 };
   if (payload.notifications === true) {

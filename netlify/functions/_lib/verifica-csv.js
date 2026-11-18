@@ -1,7 +1,7 @@
 'use strict';
 const { compact, norm } = require('../../../js/verifica-contratti-core');
 const MAX_BYTES = 4 * 1024 * 1024;
-function parseCsv(input) {
+function readCsv(input) {
   if (typeof input !== 'string' || Buffer.byteLength(input) > MAX_BYTES) throw new Error('CSV troppo grande (massimo 4 MB).');
   const rows = []; let row = [], cell = '', quoted = false, closed = false;
   const src = input.replace(/^\uFEFF/, '');
@@ -20,6 +20,14 @@ function parseCsv(input) {
   if (rows.length < 2) throw new Error('Il CSV non contiene righe.');
   const header = rows.shift().map(v => norm(v).replace(/[^A-Z0-9]/g, ''));
   if (new Set(header).size !== header.length) throw new Error('Colonne duplicate nel CSV.');
+  for (const [index, values] of rows.entries()) {
+    if (values.length !== header.length) throw new Error(`Numero colonne non valido alla riga ${index + 2}.`);
+  }
+  return { header, rows };
+}
+
+function parseCsv(input) {
+  const { header, rows } = readCsv(input);
   const idx = aliases => header.findIndex(h => aliases.includes(h));
   const pc = idx(['PROPOSTADICONTRATTO']), cf = idx(['CODICEFISCALE']), iva = idx(['PARTITAIVA']);
   const point = idx(['PODPDR', 'PODOPDR', 'CODICEPODPDR', 'CODICEPODOPDR', 'PUNTODIFORNITURA', 'CODICEPUNTODIFORNITURA']);
@@ -29,7 +37,6 @@ function parseCsv(input) {
   const normalized = [];
   for (let n = 0; n < rows.length; n++) {
     const r = rows[n];
-    if (r.length !== header.length) throw new Error(`Numero colonne non valido alla riga ${n + 2}.`);
     const numero = compact(r[pc]);
     const rawIva = compact(r[iva]);
     if (rawIva && !/^\d{1,11}$/.test(rawIva)) throw new Error(`Partita IVA non valida alla riga ${n + 2}.`);
@@ -51,4 +58,4 @@ function parseCsv(input) {
   if (!normalized.length) throw new Error('Nessuna riga utilizzabile: controlla CF/P.IVA, numero contratto e POD/PDR.');
   return normalized;
 }
-module.exports = { parseCsv, MAX_BYTES };
+module.exports = { parseCsv, readCsv, MAX_BYTES };

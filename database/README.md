@@ -439,6 +439,14 @@ Il filtro della dashboard applica le stesse ACL agli URL pubblicati con o senza
 `.html`. Le scorciatoie CC usano `profili.pagine_accessibili` e il Planning usa
 il collegamento account/dipendente già verificato dall'API. Correzione frontend.
 
+## Verifica Energia e import WindTre condiviso
+
+`20261118142349_verifica_energia_csv.sql` aggiunge tre tabelle RLS. `vendita_energia_csv` conserva impronta, versione, data e autore dell’ultima fonte valida. `vendita_energia_csv_righe` indicizza i campi normalizzati necessari. `vendita_energia_verifiche` conserva fase, motivo, correzione POD/PDR, revisione documentale, fonte e lease per ogni contratto. La sola ACL Verifica Contratti legge ID, fase, motivo, POD/PDR precedente e data CSV. Prove, righe CSV e RPC restano riservate al servizio.
+
+La migrazione popola **in_attesa_csv** per le sole Energia inviate e tecnicamente `da_controllare`, compresi gli snapshot legacy risolti per categoria. La UI applica lo stesso stato alle nuove pratiche. `vendita_energia_riscontra` verifica revisione, versione CSV, cliente e allegati e salva i tre dati Energia e **in_attesa_verifica** nella stessa transazione. Il passaggio finale a `controllato` richiede la prova ancora valida. La sostituzione della bolletta invalida il riscontro. L’assegnazione della medesima PC alla medesima fornitura è protetta tra pratiche concorrenti.
+
+`vendita_energia_importa_csv` serializza fonte e aggiornamenti L&G, rispetta `esito_manuale_bloccato` e registra la data del caricamento effettivo. Alla conferma della pratica il nuovo controllo post-vendita eredita l’esito già disponibile. Le verifiche SQL isolate si eseguono con `scripts/check-verifica-energia-sql.cjs` e PGlite.
+
 ## Stati manuali in Verifica Contratti
 
 Migrazione sorgente `20261111131639_vendita_note_stato_verifica.sql`, applicata in produzione l’11/11 come `20261111133257`. Aggiunge `motivo` e `versione` alla tabella degli stati manuali. Il vincolo motivo/stato è `NOT VALID` per conservare gli esiti preesistenti privi di nota e controlla subito inserimenti e modifiche. I nuovi Da verificare richiedono 1–2000 caratteri. Da confermare usa `NULL`. La RPC INVOKER a sette argomenti controlla versione del contratto e dell’esito, aggiorna stato e motivo atomicamente e gestisce i retry della stessa scrittura. La firma precedente restituisce un conflitto con invito a ricaricare. SELECT delle nuove colonne segue la RLS esistente. Approvazione e riapertura usano la pulizia già presente.
@@ -1011,6 +1019,7 @@ Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
 | File | Cosa introduce |
 |---|---|
 | `20261110102143_vendita_stati_verifica_manuale.sql` | Stato operativo rosso/verde per le verifiche manuali, RLS, RPC service-only e pulizia all’uscita dallo stato tecnico `da_controllare` (In attesa) |
+| `20261118142349_verifica_energia_csv.sql` | Due stati operativi Energia, backfill pendenti, indice privato CSV, riscontro con guardie e import esiti L&G |
 | `20261111131639_vendita_note_stato_verifica.sql` | Motivazione obbligatoria per i nuovi esiti Da verificare, versione ottimistica e RPC a sette argomenti. Applicata in produzione come `20261111133257` |
 | `001_create_vendita_upload_contratti.sql` | Tabelle base upload contratti vendita |
 | `002_cataloghi_opzioni_reload_e_associazioni_offerta.sql` | Opzioni, reload e link N:M con offerte |

@@ -82,6 +82,7 @@ function categoryErrors(c) {
 }
 async function analyze(db, id, deps = {}) {
   const snapshot = await Docs.loadSnapshot(db, id);
+  if (deps.skipEnergy && snapshot.contract.categoria_snapshot === 'Energia') return { energia: true };
   const csv = checked(await db.from('vendita_verifica_csv').select('id,righe,created_at').order('created_at', { ascending: false }).order('id').limit(1).maybeSingle());
   const review = checked(await db.from('vendita_verifiche').select('data_firma,primo_turno_at').eq('contratto_id', id).maybeSingle());
   const read = await (deps.readDocuments || Docs.readDocuments)(db, snapshot, deps);
@@ -104,7 +105,12 @@ async function processOne(db, { id = null, test = false } = {}, deps = {}) {
   const claim = checked(await db.rpc('vendita_verifica_claim', { p_id: id, p_test: test }))?.[0];
   if (!claim) return { skipped: true };
   try {
-    const analysis = await (deps.analyze || analyze)(db, claim.contratto_id, { ...deps, forceRead: test });
+    const analysis = await (deps.analyze || analyze)(db, claim.contratto_id, { ...deps, forceRead: test, skipEnergy: true });
+    if (analysis.energia) {
+      checked(await db.from('vendita_verifiche').update({ stato_job: 'fermo', lock_token: null, lock_until: null, errore_codice: null })
+        .eq('contratto_id', claim.contratto_id).eq('lock_token', claim.lock_token));
+      return { energia: true };
+    }
     const latest = await Docs.loadSnapshot(db, claim.contratto_id);
     const csv = checked(await db.from('vendita_verifica_csv').select('id').order('created_at', { ascending: false }).order('id').limit(1).maybeSingle());
     if (Docs.fingerprint(latest) !== analysis.fingerprint || (latest.contract.categoria_snapshot === 'Energia' && (csv?.id || null) !== analysis.csvId)) {

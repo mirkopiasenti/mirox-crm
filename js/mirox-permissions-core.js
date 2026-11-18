@@ -98,7 +98,7 @@
       'upload-consenso-cartaceo': ['upload_contratti'], 'genera-pdf-consenso-cartaceo': ['upload_contratti'],
       'garantisci-anagrafica': ['upload_contratti'], 'search-anagrafica': ['upload_contratti'],
       'check-consenso-privacy': privacy,
-      'gestisci-controllo-lg': ['controllo_lg'], 'gestisci-controllo-fissi': ['controllo_fissi'],
+      'gestisci-controllo-lg': body.action === 'import_shared_csv' ? ['verifica_contratti'] : ['controllo_lg'], 'gestisci-controllo-fissi': ['controllo_fissi'],
       'gestisci-verifica-automatica': ['verifica_contratti'],
       'gestisci-anagrafiche': ['anagrafiche'],
       'gestisci-disdette': ['compilatore_disdette'], 'gestisci-subentri': ['compilatore_subentri'],
@@ -106,7 +106,7 @@
       'apri-segnalazione-mobile': ['verifica_contratti'], // Apertura dal contratto; gestione riservata all'ACL Segnalazioni.
       'elimina-vendita-contratto': ['verifica_contratti'],
       'upload-documento-modulo': [...new Set(Object.values(buckets).flatMap(b => b.write))],
-      'gestisci-vendita-contratto': ['set_stato_verifica_manuale', 'get_codici_cliente', 'get_note_contratto', 'add_nota_contratto'].includes(body.action) ? ['verifica_contratti']
+      'gestisci-vendita-contratto': ['set_stato_verifica_manuale', 'get_codici_cliente', 'get_note_contratto', 'add_nota_contratto', 'riscontro_energia'].includes(body.action) ? ['verifica_contratti']
         : body.action === 'check_codice' ? ['upload_contratti', ...editors] : editors,
       'gestisci-operazioni-post-vendita': [body.action === 'mark_apri_chiudi_ko' ? 'apri_chiudi' : 'gestione_rimborsi'],
       'mirox-send-email': ({ ordine_smartphone_nuovo: ['ordini_smartphone'], segnalazione_assegnata: ['segnalazioni'] })[body.template] || []

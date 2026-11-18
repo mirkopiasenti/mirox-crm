@@ -37,7 +37,7 @@ test('cron in collaudo recupera la prova richiesta senza avviare backlog o notif
   const tables = [], dispatches = [];
   const db = { from(table) { tables.push(table); const q = { select() { return q; }, eq() { return q; }, in() { return q; }, lte() { return q; }, lt() { return q; }, or() { return q; },
     async single() { return { data: { modalita: 'collaudo' } }; }, async limit() { return { data: [{ contratto_id: ID }] }; } }; return q; },
-    async rpc() { assert.fail('Nessun avvio del backlog automatico in collaudo'); } };
+    async rpc(name) { assert.equal(name, 'vendita_energia_prossimo'); return { data: null }; } };
   const res = await cron({}, { db, nudge: async p => dispatches.push(p) });
   assert.equal(res.statusCode, 200); assert.deepEqual(dispatches, [{ id: ID, test: true }]);
   assert.ok(!tables.includes('vendita_verifica_notifiche'));
@@ -45,14 +45,14 @@ test('cron in collaudo recupera la prova richiesta senza avviare backlog o notif
 
 test('cron con email collaudo abilitate accoda e sveglia soltanto il worker delle mail', async () => {
   const dispatches = [], calls = [];
-  const db = { async rpc(name) { calls.push(name); assert.equal(name, 'vendita_verifica_accoda_email_collaudo'); return { data: null }; }, from(table) {
+  const db = { async rpc(name) { calls.push(name); return { data: null }; }, from(table) {
     let state;
     const q = { select() { return q; }, eq(key,value) { if(key==='stato')state=value;return q; },in(){return q;},lte(){return q;},lt(){return q;},or(){return q;},
       async single(){return {data:{modalita:'collaudo',email_collaudo:true}};},
       async limit(){return {data:table==='vendita_verifica_notifiche'&&state==='in_coda'?[{id:ID}]:[]};} };return q;
   } };
   const response=await cron({}, {db,nudge:async payload=>dispatches.push(payload)});
-  assert.equal(response.statusCode,200);assert.deepEqual(calls,['vendita_verifica_accoda_email_collaudo']);
+  assert.equal(response.statusCode,200);assert.deepEqual(calls,['vendita_energia_prossimo','vendita_verifica_accoda_email_collaudo']);
   assert.deepEqual(dispatches,[{notifications:true}]);
 });
 

@@ -8,6 +8,15 @@ async function handler(event = {}, deps = {}) {
   const db = deps.db || getAdminClient();
   try {
     if (!db) throw new Error('database');
+    // La preparazione Energia è indipendente da orario, OCR a consumo e
+    // modalità di approvazione della verifica automatica storica.
+    try {
+      const energy = await db.rpc('vendita_energia_prossimo', { p_prendi: false });
+      if (energy.error && !['PGRST202', '42883'].includes(energy.error.code)) throw new Error('coda_energia');
+      if (energy.data?.contratto_id) await (deps.nudge || Worker.nudge)({ energia: true });
+    } catch {
+      console.warn('Verifica Energia: recupero coda rinviato.');
+    }
     const cfg = await Worker.config(db);
     if (cfg.modalita === 'spenta') return { statusCode: 200, body: '{"skipped":true}' };
     const previews = checked(await db.from('vendita_verifiche').select('contratto_id').eq('modalita_job', 'collaudo').in('stato_job', ['in_coda', 'errore', 'in_corso'])

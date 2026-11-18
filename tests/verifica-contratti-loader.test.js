@@ -13,7 +13,7 @@ const statusEditor = page.slice(page.indexOf('function collegaCambioStato('), pa
 
 test('Verifica Contratti espone la conferma manuale e lascia scollegato il collaudo automatico', () => {
   assert.doesNotMatch(page, /vcAutomatico|MiroxVerificaAuto|verifica-contratti-automatica|gestisci-verifica-automatica/);
-  assert.match(page, /onclick="confermaVerifica\([^"]+\)">Conferma verifica<\/button>/);
+  assert.match(page, /onclick="confermaVerifica\([^"]+\)"[^>]*>Conferma verifica<\/button>/);
   assert.match(page, /data-tab="mobile"[^>]*>In Attesa - Mobile /);
 });
 
@@ -76,7 +76,7 @@ test('il filtro Esito seleziona le etichette in attesa e si combina con gli altr
   const select = value => change({ target: { value } });
   const visibleIds = () => [...f.nodes.listaDaVerificare.innerHTML.matchAll(/apriDettaglioContratto\('([^']+)'/g)].map(match => match[1]);
   for (const [id, label] of statuses) {
-    assert.ok(dropdown.includes(`<option value="${id}">${label}</option>`));
+    assert.ok(dropdown.includes(`<option value="${id}" data-vc-ordinary>${label}</option>`));
     select(id);
     assert.deepEqual(visibleIds(), [id]);
     assert.ok(f.nodes.listaDaVerificare.innerHTML.includes(`>${label}</span>`));
@@ -108,6 +108,8 @@ test('le sei schede hanno contratti e contatori distinti e il deep-link selezion
   f.state.caricamenti.daVerificare = f.state.caricamenti.verificati = 'loaded';
   f.nodes['tab-da-verificare'] = new Element();
   f.nodes['tab-verificati'] = new Element();
+  f.nodes.vcCsvEnergia = new Element();
+  f.nodes.filterEsitoDaVerificare = { value: '', querySelectorAll: () => [] };
   const buttons = Object.fromEntries([...categories.map(([id]) => id), 'verificati'].map(id => [id, new Element('button')]));
   f.context.document.querySelectorAll = () => Object.values(buttons);
   f.context.document.querySelector = selector => buttons[selector.match(/data-tab="([^"]+)"/)[1]];
@@ -126,12 +128,25 @@ test('le sei schede hanno contratti e contatori distinti e il deep-link selezion
     assert.equal(buttons.energia.getAttribute('aria-pressed'), 'true');
   };
   await f.context.apriPraticaRichiesta();
+  assert.equal(f.nodes.vcCsvEnergia.hidden, false);
   f.context.switchTabVC('verificati', buttons.verificati);
   f.context.renderListaContratti('verificati');
   assert.equal(buttons.energia.getAttribute('aria-pressed'), 'false');
   assert.equal(f.nodes['tab-da-verificare'].classList.contains('active'), false);
   assert.equal(f.nodes['tab-verificati'].classList.contains('active'), true);
   assert.match(f.nodes.listaVerificati.innerHTML, /apriDettaglioContratto\('chiuso', 'verificati'\)/);
+});
+test('Energia proietta solo i due stati CSV e li filtra anche sulle pratiche preesistenti', () => {
+  const f = fixture();
+  const waiting = { id: 'pendente', categoria_snapshot: 'Energia', stato_controllo: 'da_controllare', revisione: { stato: 'da_confermare' } };
+  const ready = { ...waiting, id: 'pronto', riscontro_energia: { stato: 'in_attesa_verifica' } };
+  assert.equal(f.context.statoVisibileContratto(waiting), 'in_attesa_csv');
+  assert.equal(f.context.statoVisibileContratto(ready), 'in_attesa_verifica');
+  assert.equal(f.context.statoVisibileContratto({ ...ready, stato_controllo: 'controllato' }), 'controllato');
+  assert.equal(f.context.statoVisibileContratto({ ...ready, categoria_snapshot: 'Fisso' }), 'da_confermare');
+  f.state.filtroEsitoDaVerificare = 'in_attesa_csv';
+  assert.equal(f.context.applicaFiltri([waiting, ready], 'daVerificare')[0].id, waiting.id);
+  assert.equal(f.context.applicaFiltri([waiting, ready], 'daVerificare').length, 1);
 });
 test('il popup richiede la motivazione, conserva la bozza in errore e aggiorna lo stato solo dopo Salva', async () => {
   const f = fixture();

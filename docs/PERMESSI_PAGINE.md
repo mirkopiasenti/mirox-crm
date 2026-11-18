@@ -1,5 +1,7 @@
 # Permessi pagine Mirox
 
+Verifica Energia del 18/11. `import_shared_csv` su `gestisci-controllo-lg` e `riscontro_energia` su `gestisci-vendita-contratto` richiedono la sola ACL Verifica Contratti fresca. L’import condiviso restituisce conteggi aggregati. La lettura dello stato operativo Energia via RLS espone solo ID, fase, motivo, POD/PDR precedente e data del CSV. Righe sorgente, prove e RPC sono riservate al servizio. Il percorso storico di Controllo L&G conserva la propria ACL.
+
 Note contratto16/11, pubblicate: `get_note_contratto` e `add_nota_contratto` su
 `gestisci-vendita-contratto` richiedono Verifica Contratti fresca, anche sui
 Verificati. Non basta Storico Cliente né Segnalazioni; nessun accesso nuovo agli

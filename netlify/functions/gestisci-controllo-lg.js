@@ -21,7 +21,7 @@ const MANUAL_STATUSES = new Set([
   'NON TROVATO'
 ]);
 const ADMIN_ACTIONS = new Set(['set_manual_outcome', 'unlock_manual_outcome']);
-const AUTHENTICATED_ACTIONS = new Set(['csv_update_batch', ...ADMIN_ACTIONS]);
+const AUTHENTICATED_ACTIONS = new Set(['csv_update_batch', 'import_shared_csv', ...ADMIN_ACTIONS]);
 const CSV_BATCH_SIZE = 50;
 
 function response(statusCode, payload) {
@@ -260,10 +260,16 @@ exports.handler = async (event) => {
     if (action === 'unlock_manual_outcome') {
       return await unlockManualOutcome({ supabase, auth, body });
     }
+    if (action === 'import_shared_csv') {
+      const profileId = authenticatedProfileId(auth);
+      if (!profileId) return response(403, { success: false, error: 'Profilo non valido.' });
+      const result = await require('./_lib/energia-csv').save(supabase, body.csv, profileId);
+      return response(200, { success: true, ...result });
+    }
     return await updateCsvBatch({ supabase, auth, body });
   } catch (error) {
-    console.error('gestisci-controllo-lg:', error);
-    return response(500, {
+    if (!error.statusCode) console.error('gestisci-controllo-lg: operazione non riuscita');
+    return response(error.statusCode || 500, {
       success: false,
       error: error?.message || 'Errore interno durante la gestione Controllo L&G'
     });

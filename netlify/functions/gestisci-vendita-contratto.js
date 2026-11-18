@@ -219,12 +219,6 @@ async function updateContract({ supabase, auth, body }) {
     return response(400, { success: false, error: 'Modalità aggiornamento non valida' });
   }
 
-  if (mode === 'verify') {
-    const cfg = await supabase.from('vendita_verifica_config').select('modalita').eq('id', true).maybeSingle();
-    if (cfg.error && !['42P01', 'PGRST205'].includes(cfg.error.code)) throw cfg.error;
-    if (cfg.data?.modalita === 'attiva') return response(409, { success: false, error: 'La conferma è gestita dalla verifica automatica. Salva le correzioni per avviare il riesame.' });
-  }
-
   const { data: current, error: loadError } = await supabase
     .from('vendita_contratti')
     .select(`
@@ -255,9 +249,23 @@ async function updateContract({ supabase, auth, body }) {
   } else {
     patch = pickAllowed(body.contratto, CONTRACT_FIELDS);
     try {
-      const finalCategory = patch.categoria_id && patch.categoria_id !== current.categoria_id
-        ? (await loadCatalogRow(supabase, 'vendita_categorie', patch.categoria_id, 'id, nome')).nome
+      const finalCategory = (patch.categoria_id && patch.categoria_id !== current.categoria_id) || !current.categoria_snapshot?.trim()
+        ? (await loadCatalogRow(supabase, 'vendita_categorie', patch.categoria_id || current.categoria_id, 'id, nome'))?.nome
         : current.categoria_snapshot;
+      if (mode === 'verify' && finalCategory === 'Energia') {
+        const { data: ready, error } = await supabase.rpc('vendita_energia_pronta', {
+          p_id: current.id, p_punto: patch.pod_pdr ?? null, p_numero: patch.numero_contratto_energia ?? null,
+          p_gestore: patch.ex_fornitore ?? null
+        });
+        if (error) throw error;
+        if (!ready) return response(409, { success: false,
+          error: 'Ricarica la pratica. Serve il riscontro della bolletta e del CSV WindTre prima di confermare.' });
+      } else if (mode === 'verify') {
+        const cfg = await supabase.from('vendita_verifica_config').select('modalita').eq('id', true).maybeSingle();
+        if (cfg.error && !['42P01', 'PGRST205'].includes(cfg.error.code)) throw cfg.error;
+        if (cfg.data?.modalita === 'attiva') return response(409, { success: false,
+          error: 'La conferma è gestita dalla verifica automatica. Salva le correzioni per avviare il riesame.' });
+      }
       if (finalCategory !== current.categoria_snapshot && !Pda.cloudScope(finalCategory, current.cluster_cliente)) {
         patch.professional_cloud = null;
         patch.professional_cloud_gestione = null;
@@ -470,6 +478,11 @@ exports.handler = async (event) => {
     if (body.action === 'get_codici_cliente') return await getCustomerCodes({ supabase, body });
     if (body.action === 'get_note_contratto') return response(200, { success: true, ...await ContractNotes.list({ supabase, body }) });
     if (body.action === 'add_nota_contratto') return response(200, { success: true, ...await ContractNotes.add({ supabase, auth, body }) });
+    if (body.action === 'riscontro_energia') {
+      if (!isUuid(body.contratto_id)) return response(400, { success: false, error: 'Contratto non valido.' });
+      const result = await require('./_lib/energia-verifica').manual(supabase, body, auth.profilo?.id);
+      return response(200, { success: true, ...result });
+    }
     if (body.action === 'update_pda') return await updatePda({ supabase, auth, body });
     if (body.action === 'set_stato_verifica_manuale') return await setManualReviewStatus({ supabase, auth, body });
     if (body.action === 'update') {
@@ -481,7 +494,7 @@ exports.handler = async (event) => {
     return response(400, { success: false, error: 'Action non valida' });
   } catch (error) {
     if (Pda.isDuplicateViolation(error)) error = Pda.duplicateError();
-    return response(error.statusCode || 500, {
+    return response(error.statusCode || (error.code === '40001' ? 409 : 500), {
       error_code: error.error_code || null,
       duplicate: error.duplicate || null,
       success: false,

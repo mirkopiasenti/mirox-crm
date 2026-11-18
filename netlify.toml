@@ -16,6 +16,10 @@
   # unpdf: conserva il modulo ESM PDF.js importato dinamicamente e import.meta.url.
   external_node_modules = ["@supabase/supabase-js", "nodemailer", "pdfkit", "@resvg/resvg-js", "unpdf", "@napi-rs/canvas", "zxing-wasm"]
 
+[functions."verifica-contratti-background"]
+  external_node_modules = ["@supabase/supabase-js", "nodemailer", "unpdf", "@napi-rs/canvas", "tesseract.js"]
+  included_files = ["node_modules/tesseract.js/src/worker-script/node/**", "node_modules/**/tesseract-core-*.wasm", "node_modules/@tesseract.js-data/ita/package.json", "node_modules/@tesseract.js-data/ita/4.0.0_best_int/ita.traineddata.gz"]
+
 # Headers di sicurezza statici. La CSP e' generata in dist/_headers dalla build,
 # cosi' consente esclusivamente il progetto Supabase dell'ambiente corrente.
 [[headers]]

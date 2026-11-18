@@ -16,12 +16,14 @@
     "@napi-rs/canvas": "1.0.13",
     "@resvg/resvg-js": "2.6.2",
     "@supabase/supabase-js": "2.110.8",
+    "@tesseract.js-data/ita": "1.0.0",
     "busboy": "1.6.0",
     "fflate": "0.8.3",
     "nodemailer": "10.3.1",
     "pdf-lib": "1.17.1",
     "pdfkit": "0.15.2",
     "qrcode": "1.5.4",
+    "tesseract.js": "7.0.0",
     "unpdf": "1.9.1",
     "zxing-wasm": "3.1.6"
   }
