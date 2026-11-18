@@ -453,6 +453,8 @@ La correzione `20261118152048_energia_csv_sostituzione_fonte.sql`, applicata in 
 
 Lettura bollette aggiornata il 18/11. Il lettore può selezionare il punto per famiglia Luce/Gas e può usare il punto già digitato per disambiguare valori effettivamente osservati. `vendita_energia_riscontra` conserva il controllo esatto di fiscale, punto e proposta univoca. Dopo il rilascio della correzione OCR, riesaminare solo gli esiti di lettura già chiusi sul CSV corrente, limitando il reset della versione analizzata alle pratiche Energia ancora pendenti e senza un lease attivo.
 
+`20261118170605_energia_priorita_riscontri.sql` aggiorna `vendita_energia_prossimo` con la precedenza delle prime letture rispetto a ritentativi e lease scaduti. La verifica di disponibilità e la presa in carico si fermano se un lease è attivo. La presa in carico conserva il lock transazionale e la scadenza di tre minuti. Firma, privilegi, tabelle e prove già salvate restano invariati. Migrazione da applicare in produzione dopo il collaudo locale.
+
 ## Stati manuali in Verifica Contratti
 
 Migrazione sorgente `20261111131639_vendita_note_stato_verifica.sql`, applicata in produzione l’11/11 come `20261111133257`. Aggiunge `motivo` e `versione` alla tabella degli stati manuali. Il vincolo motivo/stato è `NOT VALID` per conservare gli esiti preesistenti privi di nota e controlla subito inserimenti e modifiche. I nuovi Da verificare richiedono 1–2000 caratteri. Da confermare usa `NULL`. La RPC INVOKER a sette argomenti controlla versione del contratto e dell’esito, aggiorna stato e motivo atomicamente e gestisce i retry della stessa scrittura. La firma precedente restituisce un conflitto con invito a ricaricare. SELECT delle nuove colonne segue la RLS esistente. Approvazione e riapertura usano la pulizia già presente.
@@ -1027,6 +1029,7 @@ Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
 | `20261110102143_vendita_stati_verifica_manuale.sql` | Stato operativo rosso/verde per le verifiche manuali, RLS, RPC service-only e pulizia all’uscita dallo stato tecnico `da_controllare` (In attesa) |
 | `20261118142349_verifica_energia_csv.sql` | Due stati operativi Energia, backfill pendenti, indice privato CSV, riscontro con guardie e import esiti L&G |
 | `20261118152048_energia_csv_sostituzione_fonte.sql` | Associa le righe alla fonte CSV e circoscrive la sostituzione all’ID di quella fonte |
+| `20261118170605_energia_priorita_riscontri.sql` | Dà precedenza alle prime letture Energia e fa rispettare il lease attivo anche dal controllo di disponibilità |
 | `20261111131639_vendita_note_stato_verifica.sql` | Motivazione obbligatoria per i nuovi esiti Da verificare, versione ottimistica e RPC a sette argomenti. Applicata in produzione come `20261111133257` |
 | `001_create_vendita_upload_contratti.sql` | Tabelle base upload contratti vendita |
 | `002_cataloghi_opzioni_reload_e_associazioni_offerta.sql` | Opzioni, reload e link N:M con offerte |

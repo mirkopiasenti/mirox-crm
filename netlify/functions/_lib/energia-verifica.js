@@ -40,9 +40,12 @@ async function drain(db, readBill, { budgetMs = 5 * 60_000, now = Date.now } = {
     let result;
     try {
       result = claim.contesto.fiscale
-        ? await readBill(db, claim.contesto, { contrattoId: claim.contratto_id, cache })
+        ? await readBill(db, claim.contesto, { contrattoId: claim.contratto_id, csvId: claim.csv_id, cache })
         : { motivo: 'cliente_incompleto' };
-    } catch {
+    } catch (error) {
+      const cause = ['timeout_ocr_energia', 'bolletta_download', 'bolletta_impronta', 'bolletta_contesto', 'bolletta_csv'].includes(error?.message)
+        ? error.message : 'decodifica_energia';
+      console.warn('Verifica Energia, lettura sospesa', cause);
       result = { motivo: 'errore_lettura' };
     }
     await saveResult(db, claim, result);

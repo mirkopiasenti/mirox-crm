@@ -127,6 +127,8 @@ Il CRM legge POD/PDR ed Ex Fornitore dalla bolletta. Cerca per CF (Consumer) o P
 
 La scheda Energia riepiloga i contratti da elaborare, da riscontrare e in attesa di verifica. I motivi dei riscontri sospesi sono visibili anche nella lista. Per i PDF scansionati la lettura locale usa PDF.js con i decoder JBIG2/CCITT e Tesseract. Un PDF può contenere più forniture. Il CRM considera il servizio della pratica e, in caso di più punti compatibili, il POD/PDR già inserito deve comparire nella bolletta.
 
+Se il POD/PDR già inserito ha una sola proposta per quel cliente nel CSV, lo scanner può terminare appena riscontra il codice e il fornitore sulla stessa pagina o su pagine adiacenti. Può leggere il codice anche quando l’impaginazione lo separa dall’etichetta. Per correggerlo serve la lettura completa e un riscontro legato all’etichetta. La coda dà precedenza alle pratiche ancora da leggere rispetto ai ritentativi.
+
 L’operatore controlla gli allegati e conferma. Il nuovo record in Controllo L&G riceve l’esito del CSV già caricato, quando disponibile. Il pulsante storico di Controllo L&G conserva il proprio import e report. Per aggiornare i due moduli con un solo file, caricalo in Verifica Contratti. Limite del caricamento condiviso 4 MiB.
 
 ## Verifica automatica contratti — collaudo assistito

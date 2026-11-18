@@ -128,6 +128,29 @@ async function main() {
     const firstSource = await value('SELECT id AS v FROM vendita_energia_csv', []);
     assert.equal(await value('SELECT count(*)::integer AS v FROM vendita_energia_csv_righe WHERE fonte_id=$1', [firstSource]), 3);
     assert.equal((await csv(source())).duplicato, true);
+
+    await db.exec('RESET ROLE');
+    await load('20261118170605_energia_priorita_riscontri.sql');
+    await db.exec('BEGIN; SET LOCAL ROLE service_role');
+    const nuova = fixtureId(41);
+    await query(`INSERT INTO vendita_contratti (id,anagrafica_id,pratica_id,categoria_id,stato_controllo,cluster_cliente,pod_pdr,created_at)
+      SELECT $2,anagrafica_id,pratica_id,categoria_id,stato_controllo,cluster_cliente,pod_pdr,created_at + interval '1 day'
+      FROM vendita_contratti WHERE id=$1`, [pendente, nuova]);
+    for (const [lease, retry, versione] of [["now() - interval '1 minute'", 'NULL', null], ['NULL', "now() - interval '1 minute'", firstSource]]) {
+      await query(`UPDATE vendita_energia_verifiche SET contesto=vendita_energia_contesto_manuale($1), csv_id=$2,
+        motivo='errore_lettura', riprova_at=${retry},
+        lease=CASE WHEN ${lease} IS NULL THEN NULL ELSE gen_random_uuid() END, lease_until=${lease} WHERE contratto_id=$1`,
+      [pendente, versione]);
+      assert.deepEqual(await next(false), { contratto_id: nuova });
+      assert.equal((await next()).contratto_id, nuova);
+      assert.equal(await next(false), null);
+      assert.equal(await next(), null);
+      await query('UPDATE vendita_energia_verifiche SET lease=NULL,lease_until=NULL,contesto=vendita_energia_contesto_manuale($1),csv_id=$2 WHERE contratto_id=$1',
+        [nuova, firstSource]);
+      assert.deepEqual(await next(false), { contratto_id: pendente });
+      await query('UPDATE vendita_energia_verifiche SET contesto=NULL,csv_id=NULL WHERE contratto_id=$1', [nuova]);
+    }
+    await db.exec('ROLLBACK; SET ROLE service_role');
     const stale = await next();
     assert.equal(stale.contratto_id, pendente);
     assert.equal(stale.contesto.documenti[0].path, 'test/bolletta.pdf');

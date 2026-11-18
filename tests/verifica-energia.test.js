@@ -94,6 +94,70 @@ test('PDF con testo e PDF scansionato sono letti localmente', { timeout: 25_000 
   assert.deepEqual(await Bill.fromBytes(Buffer.from(await scan.save()), context), { punto: pdr, gestore: 'Enel Energia', ocr: true });
 });
 
+test('la lettura mirata termina sulla prova documentale e usa solo le proposte della fonte del lavoro', { timeout: 25_000 }, async () => {
+  const scan = await PDFDocument.create();
+  for (const lines of [['Fornitore: Enel Energia'], [`PDR: ${pdr}`, `Codice fiscale cliente: ${fiscale}`]]) {
+    const canvas = createCanvas(1500, 350);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 1500, 350);
+    ctx.fillStyle = 'black'; ctx.font = '44px sans-serif';
+    lines.forEach((line, i) => ctx.fillText(line, 55, 80 + i * 70));
+    const image = await scan.embedPng(canvas.toBuffer('image/png'));
+    scan.addPage([750, 175]).drawImage(image, { x: 0, y: 0, width: 750, height: 175 });
+  }
+  scan.addPage([750, 175]);
+  const bytes = Buffer.from(await scan.save());
+  const expected = { punto: pdr, gestore: 'Enel Energia', ocr: true };
+
+  for (const [declared, proposals, expectReadAll] of [
+    [pdr, [{ numero: '0007' }], false],
+    [pdr, [{ numero: '0007' }, { numero: '0012' }], true],
+    ['00123456789013', [{ numero: '0008' }], true]
+  ]) {
+    const filters = [];
+    const db = {
+      from(table) {
+        if (table === 'vendita_contratti') return { select: () => ({ eq: () => ({
+          maybeSingle: async () => ({ data: { pod_pdr: declared, nome_offerta_snapshot: 'Offerta Gas' } })
+        }) }) };
+        assert.equal(table, 'vendita_energia_csv_righe');
+        const query = {
+          eq(key, val) { filters.push([key, val]); return this; },
+          then(resolve) { return Promise.resolve({ data: proposals }).then(resolve); }
+        };
+        return { select: () => query };
+      },
+      storage: { from: () => ({ download: async () => ({ data: new Blob([bytes]) }) }) }
+    };
+    const cache = new Map();
+    let pages = 0;
+    const { renderPageAsImage } = require('unpdf');
+    const result = await Bill.readBill(db, { ...context, documenti: [{ bucket: 'contratti-vendita', path: 'test/bolletta.pdf' }] }, {
+      contrattoId: 'contratto', csvId: 'versione-corrente', cache,
+      render(...args) { pages++; return renderPageAsImage(...args); }
+    });
+    assert.deepEqual(result, expected);
+    assert.deepEqual(filters, [['fonte_id', 'versione-corrente'], ['punto', declared], ['cf', fiscale]]);
+    assert.equal(pages, expectReadAll ? 3 : 2);
+    assert.equal(cache.size, expectReadAll ? 1 : 0);
+  }
+});
+
+test('un punto letto in una colonna separata può solo confermare un abbinamento già provato nel CSV', { timeout: 25_000 }, async () => {
+  const canvas = createCanvas(1600, 700);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 1600, 700);
+  ctx.fillStyle = 'black'; ctx.font = '48px sans-serif';
+  ctx.fillText('Fornitore: Enel Energia', 45, 90);
+  ctx.fillText('Dati della fornitura', 45, 185);
+  ctx.fillText(pdr, 920, 460);
+  const image = canvas.toBuffer('image/png');
+  const proven = { ...context, famiglia: 'gas', punto_dichiarato: pdr, dichiarato_csv_univoco: true };
+  assert.deepEqual(await Bill.fromBytes(image, proven), { punto: pdr, gestore: 'Enel Energia', ocr: true });
+  assert.equal((await Bill.fromBytes(image, { ...proven, dichiarato_csv_univoco: false })).motivo, 'punto_incerto');
+  assert.equal((await Bill.fromBytes(image, { ...proven, punto_dichiarato: '00123456789013' })).motivo, 'punto_incerto');
+});
+
 test('import condiviso da Verifica Contratti e riscontro manuale richiedono la sua ACL', () => {
   const event = action => ({ body: JSON.stringify({ action }) });
   assert.deepEqual(endpointPages('gestisci-controllo-lg', event('import_shared_csv')), ['verifica_contratti']);
@@ -110,7 +174,12 @@ test('la coda usa prove server-side, non approva contratti e registra un tentati
     }
     return { data: { stato: 'in_attesa_csv', motivo: 'errore_lettura' } };
   }};
-  await Review.drain(db, async () => { throw new Error('lettura fixture'); });
+  let csvId;
+  await Review.drain(db, async (_db, _context, options) => {
+    csvId = options.csvId;
+    throw new Error('lettura fixture');
+  });
+  assert.equal(csvId, 'file');
   assert.deepEqual(calls.map(([name]) => name), ['vendita_energia_prossimo', 'vendita_energia_riscontra', 'vendita_energia_prossimo']);
   assert.equal(calls[1][1].p_punto, null);
   assert.equal(calls[1][1].p_motivo, 'errore_lettura');
