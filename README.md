@@ -127,6 +127,8 @@ Con entrambi i riscontri la pratica passa a **IN ATTESA VERIFICA** per il contro
 
 Nel dettaglio Energia, **Cambia esito** consente di scegliere **IN ATTESA CSV**, **IN ATTESA VERIFICA** e **DA VERIFICARE**. L’esito manuale ha precedenza e **DA VERIFICARE** richiede una nota nel popup. L’icona accanto all’esito rosso apre la nota o il riscontro automatico. **Conferma verifica** richiede i dati riscontrati.
 
+Tutti gli utenti con accesso a Verifica Contratti possono modificare **POD/PDR**, **Assicurazione impianti**, **Numero Contratto Energia** ed **Ex Fornitore**. Nella lista in attesa si usa **Salva modifica**. Nei **Verificati**, **Salva dati Energia** aggiorna questi campi lasciando il contratto verificato. Per i contratti in attesa, un numero inserito a mano resta salvato e viene verificato sul CSV per cliente e POD/PDR. La modifica del solo campo assicurazione conserva il riscontro esistente.
+
 **Carica CSV WindTre** in Verifica Contratti aggiorna anche Controllo L&G e rispetta gli esiti manuali protetti. Un nuovo file valido sostituisce la fonte precedente. Se l’import fallisce, resta disponibile l’ultima fonte acquisita. Limite del caricamento condiviso 4 MiB.
 
 ## Verifica automatica contratti — collaudo assistito

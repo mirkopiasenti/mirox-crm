@@ -4,6 +4,8 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { PDFDocument, StandardFonts } = require('pdf-lib');
+const fs = require('node:fs');
+const vm = require('node:vm');
 const Csv = require('../netlify/functions/_lib/energia-csv');
 const Bill = require('../netlify/functions/_lib/energia-bolletta');
 const Review = require('../netlify/functions/_lib/energia-verifica');
@@ -147,6 +149,67 @@ test('import condiviso da Verifica Contratti e riscontro manuale richiedono la s
   assert.deepEqual(endpointPages('gestisci-controllo-lg', event('import_shared_csv')), ['verifica_contratti']);
   assert.deepEqual(endpointPages('gestisci-controllo-lg', event('set_manual_outcome')), ['controllo_lg']);
   assert.deepEqual(endpointPages('gestisci-vendita-contratto', event('riscontro_energia')), ['verifica_contratti']);
+  assert.deepEqual(endpointPages('gestisci-vendita-contratto', { body: JSON.stringify({ action: 'update', mode: 'save_energy' }) }), ['verifica_contratti']);
+});
+
+test('i quattro campi Energia sono modificabili anche nei Verificati e No arriva come booleano', () => {
+  const page = fs.readFileSync(require.resolve('../moduli/verifica_contratti.html'), 'utf8');
+  const a = page.indexOf('function leggiDatiEnergia()');
+  const b = page.indexOf('// CONFERMA VERIFICA', a);
+  const inputs = { vc_pod_pdr: pdr, vc_numero_contratto_energia: '0018', vc_ex_fornitore: 'Argos', vc_assicurazione_impianti: 'false' };
+  const fixture = { document: { getElementById: id => ({ value: inputs[id] }) } };
+  vm.runInNewContext(page.slice(a, b), fixture);
+  assert.deepEqual({ ...fixture.leggiDatiEnergia() },
+    { pod_pdr: pdr, numero_contratto_energia: '0018', ex_fornitore: 'Argos', assicurazione_impianti: false });
+  assert.match(page, /Salva dati Energia/);
+  assert.match(page, /<select id="vc_assicurazione_impianti"/);
+  for (const field of ['pod_pdr', 'numero_contratto_energia', 'ex_fornitore']) {
+    const input = page.match(new RegExp(`<input[^\n]+id="vc_${field}"[^\n]+`))[0];
+    assert.doesNotMatch(input, /readonly/);
+  }
+});
+
+test('il salvataggio Energia accetta un operatore con accesso, limita lo storico ai quattro campi e verifica la versione', async () => {
+  const { updateContract } = require('../netlify/functions/gestisci-vendita-contratto')._test;
+  const id = '00000000-0000-4000-8000-000000000017';
+  const scoreFields = ['punteggio_gara_offerta', 'punteggio_gara_opzione', 'punteggio_extra_gara_offerta', 'punteggio_extra_gara_opzione',
+    'punteggio_gara_totale', 'punteggio_extra_gara_totale', 'punteggio_offerta', 'punteggio_opzione', 'punteggio_extra', 'punteggio_totale'];
+  let current = { id, categoria_snapshot: 'Energia', stato_controllo: 'controllato', cluster_cliente: 'Consumer',
+    updated_at: '2026-11-18T22:00:00Z', ...Object.fromEntries(scoreFields.map(field => [field, 0])) };
+  let saved, canVerify = true;
+  const supabase = { from(table) {
+    if (table === 'profili') return { select() { return this; }, eq() { return this; },
+      async single() { return { data: { id, ruolo: 'operatore', attivo: true } }; } };
+    if (table === 'mirox_permessi_utente') return { select() { return this; }, eq() { return this; },
+      async maybeSingle() { return { data: { pagine: { verifica_contratti: canVerify } } }; } };
+    assert.equal(table, 'vendita_contratti');
+    let patch;
+    return { select() { return this; }, eq() { return this; },
+      update(fields) { saved = patch = fields; return this; },
+      async maybeSingle() { return { data: { ...current, ...patch } }; } };
+  } };
+  const auth = { ok: true, user: { id }, profilo: { ruolo: 'operatore' } };
+  const body = { contratto_id: id, expected_updated_at: current.updated_at, mode: 'save_energy',
+    anagrafica: { ragione_sociale: 'Non salvare' },
+    contratto: { pod_pdr: '00 123456789012', numero_contratto_energia: '0018', ex_fornitore: ' Argos ',
+      assicurazione_impianti: false, categoria_id: 'estranea' } };
+  assert.equal((await updateContract({ supabase, auth, body })).statusCode, 200);
+  assert.deepEqual(saved, { pod_pdr: pdr, numero_contratto_energia: '0018', ex_fornitore: 'Argos', assicurazione_impianti: false, updated_by: id });
+  saved = null;
+  assert.equal((await updateContract({ supabase, auth, body: { ...body, expected_updated_at: '2020-01-01' } })).statusCode, 409);
+  await assert.rejects(updateContract({ supabase, auth, body: { ...body, contratto: { pod_pdr: '111' } } }), { statusCode: 400 });
+  current = { ...current, categoria_snapshot: 'Mobile' };
+  assert.equal((await updateContract({ supabase, auth, body })).statusCode, 400);
+  assert.equal(saved, null);
+  current = { ...current, categoria_snapshot: 'Energia', stato_controllo: 'da_controllare' };
+  const pending = { ...body, mode: 'save', contratto: { assicurazione_impianti: true }, anagrafica: {} };
+  assert.equal((await updateContract({ supabase, auth, body: pending })).statusCode, 200);
+  assert.equal(saved.assicurazione_impianti, true);
+  assert.equal(saved.stato_controllo, undefined);
+  saved = null;
+  canVerify = false;
+  assert.equal((await updateContract({ supabase, auth, body: pending })).statusCode, 403);
+  assert.equal(saved, null);
 });
 
 test('la coda invia solo gestore o esito di lettura e non rilegge una prova valida', async () => {

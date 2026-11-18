@@ -1,6 +1,7 @@
 const Fixed = require('../../js/fisso-core');
 const Pda = require('./_lib/pda-contract');
 const { requireAuth: requireBaseAuth, getAdminClient } = require('./_lib/require-auth');
+const { authorizePages } = require('./_lib/page-permissions');
 const ContractNotes = require('./_lib/contract-notes');
 const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'gestisci-vendita-contratto' });
 const {
@@ -11,6 +12,8 @@ const {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MANUAL_REVIEW_STATES = new Set(['da_verificare', 'da_confermare', 'in_attesa_csv', 'in_attesa_verifica']);
+const { code: energyCode, isPoint } = require('../../js/energia-core');
+const ENERGY_FIELDS = ['pod_pdr', 'assicurazione_impianti', 'numero_contratto_energia', 'ex_fornitore'];
 const CONTRACT_FIELDS = new Set([
   ...Pda.FIELDS,
   ...Fixed.FIELDS,
@@ -209,13 +212,43 @@ async function setManualReviewStatus({ supabase, auth, body }) {
   return response(200, { success: true, ...data });
 }
 
+function energyFieldChanges(input, current) {
+  const changes = {};
+  const invalid = message => Object.assign(new Error(message), { statusCode: 400 });
+  for (const field of ENERGY_FIELDS) {
+    if (!Object.hasOwn(input ?? {}, field)) continue;
+    const raw = input[field];
+    if (raw === (current[field] ?? null)) continue;
+    if (typeof raw === 'string' && typeof current[field] === 'string' && raw.trim() === current[field].trim()) continue;
+    if (field === 'assicurazione_impianti') {
+      if (raw !== null && typeof raw !== 'boolean') throw invalid('Assicurazione impianti non valida.');
+      changes[field] = raw;
+      continue;
+    }
+    if (raw !== null && typeof raw !== 'string') throw invalid('Dato Energia non valido.');
+    const text = raw?.trim() || null;
+    const value = field === 'ex_fornitore' || !text ? text : energyCode(text);
+    if (value !== null) {
+      if (field === 'pod_pdr' && !isPoint(value)) throw invalid('POD/PDR non valido.');
+      if (field === 'numero_contratto_energia' && (value.length > 80 || /[\x00-\x1f\x7f]/.test(value))) {
+        throw invalid('Numero contratto Energia non valido.');
+      }
+      if (field === 'ex_fornitore' && (value.length < 2 || value.length > 160 || /[\x00-\x1f\x7f]/.test(value))) {
+        throw invalid('Ex Fornitore non valido.');
+      }
+    }
+    if (value !== (current[field] ?? null)) changes[field] = value;
+  }
+  return changes;
+}
+
 async function updateContract({ supabase, auth, body }) {
   const contrattoId = body.contratto_id;
   const mode = body.mode;
   if (!isUuid(contrattoId)) {
     return response(400, { success: false, error: 'contratto_id non valido' });
   }
-  if (!['save', 'verify', 'reopen'].includes(mode)) {
+  if (!['save', 'save_energy', 'verify', 'reopen'].includes(mode)) {
     return response(400, { success: false, error: 'Modalità aggiornamento non valida' });
   }
 
@@ -224,6 +257,7 @@ async function updateContract({ supabase, auth, body }) {
     .select(`
       id, anagrafica_id, pratica_id, stato_controllo, updated_at,
       categoria_id, categoria_snapshot, offerta_id, opzione_id, reload_id, reload_exchange, reload_forever, reload_forever_gestione, assicurazione_impianti,
+      pod_pdr, numero_contratto_energia, ex_fornitore,
       tecnologia_fisso, professional_box, codice_cliente_fisso, codice_pos_fisso,
       ricorrenza_assicurazione, codice_contratto, costo_offerta_mensile, portabilita,
       numero_telefono, numero_provvisorio, numero_mnp, operatore_provenienza, cluster_cliente, professional_cloud, professional_cloud_gestione,
@@ -240,7 +274,17 @@ async function updateContract({ supabase, auth, body }) {
 
   let patch = {};
   let snapshotPatch = {};
-  if (mode === 'reopen') {
+  if (mode === 'save_energy') {
+    const category = current.categoria_snapshot?.trim()
+      || (await loadCatalogRow(supabase, 'vendita_categorie', current.categoria_id, 'id, nome'))?.nome;
+    if (category?.trim().toLowerCase() !== 'energia' || current.stato_controllo !== 'controllato') {
+      return response(400, { success: false, error: 'Il contratto verificato non è Energia.' });
+    }
+    if (!body.expected_updated_at) return response(409, { success: false, error: 'Riapri il dettaglio prima di salvare.' });
+    patch = energyFieldChanges(body.contratto, current);
+    if (!Object.keys(patch).length) return response(200, { success: true, contratto: current });
+    if (typeof patch.assicurazione_impianti === 'boolean' && current.categoria_snapshot !== 'Energia') patch.categoria_snapshot = 'Energia';
+  } else if (mode === 'reopen') {
     patch = {
       stato_controllo: 'da_controllare',
       controllato_da: null,
@@ -252,10 +296,22 @@ async function updateContract({ supabase, auth, body }) {
       const finalCategory = (patch.categoria_id && patch.categoria_id !== current.categoria_id) || !current.categoria_snapshot?.trim()
         ? (await loadCatalogRow(supabase, 'vendita_categorie', patch.categoria_id || current.categoria_id, 'id, nome'))?.nome
         : current.categoria_snapshot;
-      if (mode === 'verify' && finalCategory === 'Energia') {
+      const energy = finalCategory?.trim().toLowerCase() === 'energia';
+      if (energy) {
+        const changes = energyFieldChanges(body.contratto, current);
+        if (Object.keys(changes).length) {
+          const access = await authorizePages(supabase, auth, ['verifica_contratti']);
+          if (!access.ok) return response(access.status, { success: false, error: access.error });
+        }
+        for (const field of ENERGY_FIELDS) delete patch[field];
+        Object.assign(patch, changes);
+        if (typeof patch.assicurazione_impianti === 'boolean' && current.categoria_snapshot !== 'Energia') patch.categoria_snapshot = 'Energia';
+      }
+      if (mode === 'verify' && energy) {
+        const fields = { ...current, ...patch };
         const { data: ready, error } = await supabase.rpc('vendita_energia_pronta', {
-          p_id: current.id, p_punto: patch.pod_pdr ?? null, p_numero: patch.numero_contratto_energia ?? null,
-          p_gestore: patch.ex_fornitore ?? null
+          p_id: current.id, p_punto: fields.pod_pdr ?? null, p_numero: fields.numero_contratto_energia ?? null,
+          p_gestore: fields.ex_fornitore ?? null
         });
         if (error) throw error;
         if (!ready) return response(409, { success: false,
@@ -270,7 +326,7 @@ async function updateContract({ supabase, auth, body }) {
         patch.professional_cloud = null;
         patch.professional_cloud_gestione = null;
       }
-      if (finalCategory !== 'Energia' && current.assicurazione_impianti != null) {
+      if (!energy && current.assicurazione_impianti != null) {
         patch.assicurazione_impianti = null;
       }
       if (finalCategory !== current.categoria_snapshot && !Pda.reloadScope(finalCategory, current.cluster_cliente)) {
@@ -329,7 +385,7 @@ async function updateContract({ supabase, auth, body }) {
     return response(400, { success: false, error: 'Data contratto non valida' });
   }
 
-  const anagraficaPatch = mode === 'reopen'
+  const anagraficaPatch = mode === 'reopen' || mode === 'save_energy'
     ? {}
     : pickAllowed(body.anagrafica, ANAGRAFICA_FIELDS);
   if (Object.keys(anagraficaPatch).length) {
@@ -505,6 +561,7 @@ exports.handler = async (event) => {
 
 exports._test = {
   getCustomerCodes,
+  updateContract,
   updatePda,
   setManualReviewStatus,
   assertPersistedContractScores,
@@ -520,9 +577,9 @@ const contractHandler = exports.handler;
 exports.handler = async event => {
   const result = await contractHandler(event);
   if (event.httpMethod === 'POST' && result.statusCode >= 200 && result.statusCode < 300) {
-    let action, contractId;
-    try { const payload = JSON.parse(event.body || '{}'); action = payload.action; contractId = payload.contratto_id; } catch { /* Already validated by the handler. */ }
-    if (['update', 'update_pda', 'delete_document'].includes(action)) {
+    let action, mode, contractId;
+    try { const payload = JSON.parse(event.body || '{}'); action = payload.action; mode = payload.mode; contractId = payload.contratto_id; } catch { /* Already validated by the handler. */ }
+    if (['update', 'update_pda', 'delete_document'].includes(action) && !(action === 'update' && mode === 'save_energy')) {
       try {
         const worker = require('./_lib/verifica-worker'), db = getAdminClient();
         if (contractId) await worker.changed(db, contractId);

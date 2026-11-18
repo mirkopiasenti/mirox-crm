@@ -13,6 +13,7 @@
     cliente_incompleto: 'Controlla il codice fiscale o la partita IVA in anagrafica.',
     csv_assente: 'Carica il CSV WindTre per riscontrare il numero di contratto.',
     csv_non_trovato: 'Il POD/PDR inserito non è presente nell’ultimo CSV caricato.',
+    csv_numero_diverso: 'Il numero contratto inserito non corrisponde alla proposta WindTre per questo cliente e POD/PDR.',
     csv_fiscale_diverso: 'Il codice fiscale o la partita IVA per questa fornitura non coincide con i dati del CSV.',
     csv_ambiguo: 'Il CSV contiene più proposte compatibili. Verifica l’export WindTre.',
     errore_lettura: 'La lettura della bolletta ha avuto un errore. Puoi riscontrare i dati a mano.'

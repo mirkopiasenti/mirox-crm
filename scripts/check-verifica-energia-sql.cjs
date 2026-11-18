@@ -51,7 +51,7 @@ async function main() {
         id uuid PRIMARY KEY, anagrafica_id uuid REFERENCES public.anagrafica,
         pratica_id uuid REFERENCES public.vendita_pratiche, categoria_snapshot text, categoria_id uuid REFERENCES public.vendita_categorie,
         stato_controllo text, cluster_cliente text, pod_pdr text, numero_contratto_energia text,
-        created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now()
+        created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now(), updated_by uuid
       );
       CREATE TABLE public.vendita_documenti (
         id uuid PRIMARY KEY, contratto_id uuid REFERENCES public.vendita_contratti,
@@ -67,6 +67,7 @@ async function main() {
     await load('019_post_vendita_controllo_lg.sql');
     await load('020_lg_csv_import_fields.sql');
     await load('062_controllo_lg_esiti_manuali.sql');
+    await load('20261112214904_vendita_energia_assicurazione_impianti.sql');
     await db.exec('GRANT SELECT, UPDATE, INSERT, DELETE ON ALL TABLES IN SCHEMA public TO service_role');
     await query("INSERT INTO anagrafica VALUES ($1,$2,'Consumer')", [cliente, fiscale]);
     await query("INSERT INTO vendita_pratiche VALUES ($1,'inviata'),($2,'bozza')", [inviato, bozza]);
@@ -310,6 +311,44 @@ async function main() {
     await assert.rejects(setStatus('in_attesa_csv', null, null, null, mobile), { code: '22023' });
     assert.deepEqual(await setStatus('da_confermare', null, null, null, mobile),
       { stato: 'da_confermare', motivo: null, versione: 1 });
+
+    await db.exec('RESET ROLE');
+    await load('20261118213626_energia_modifiche_manuali.sql');
+    await db.exec("SET ROLE authenticated; SET test.verifica='true'");
+    await assert.rejects(query('SELECT numero_manuale FROM vendita_energia_verifiche'), { code: '42501' });
+    await db.exec('RESET ROLE; SET ROLE service_role');
+
+    const staleClaim = await nextSupplier();
+    const nuovoPunto = '00123456789045';
+    await query(`UPDATE vendita_contratti SET categoria_snapshot='Energia', pod_pdr=$2, numero_contratto_energia='0099',
+      ex_fornitore='Iren Mercato', assicurazione_impianti=false, updated_by=$3 WHERE id=$1`, [pendente, nuovoPunto, operatore]);
+    assert.equal(await attempt(staleClaim, null, 'Gestore superato'), null);
+    await csv(header + `${fiscale};;0019;${nuovoPunto};Nuovo;\n`, '5');
+    const unmatchedNumber = await nextSupplier();
+    assert.equal(unmatchedNumber.gestore, 'Iren Mercato');
+    assert.deepEqual(await attempt(unmatchedNumber, null, unmatchedNumber.gestore), reject('csv_numero_diverso'));
+    assert.deepEqual(await fields(), fieldValues(nuovoPunto, '0099', 'Iren Mercato'));
+    assert.equal(await value('SELECT assicurazione_impianti AS v FROM vendita_contratti WHERE id=$1', [pendente]), false);
+    assert.equal(await nextSupplier(false), null);
+
+    await csv(header + `${fiscale};;0019;${nuovoPunto};Nuovo;\n${fiscale};;0099;${nuovoPunto};Attivato;\n`, '6');
+    const chosen = await nextSupplier();
+    assert.equal(chosen.gestore, 'Iren Mercato');
+    assert.deepEqual(await attempt(chosen, null, chosen.gestore),
+      { stato: 'in_attesa_verifica', motivo: null, motivo_csv: null, motivo_fornitore: null });
+    assert.equal(await value('SELECT lettura_da AS v FROM vendita_energia_verifiche WHERE contratto_id=$1', [pendente]), operatore);
+    await query('UPDATE vendita_contratti SET assicurazione_impianti=true WHERE id=$1', [pendente]);
+    assert.equal(await value('SELECT vendita_energia_pronta($1,$2,$3,$4) AS v', [pendente, nuovoPunto, '0099', 'Iren Mercato']), true);
+    assert.equal(await nextSupplier(false), null);
+
+    await confirm(pendente);
+    const postSale = await outcome(pendente);
+    await query(`UPDATE vendita_contratti SET pod_pdr=$2, numero_contratto_energia='0100',
+      ex_fornitore='Argos', assicurazione_impianti=false WHERE id=$1`, [pendente, altroPunto]);
+    assert.equal(await value('SELECT stato_controllo AS v FROM vendita_contratti WHERE id=$1', [pendente]), 'controllato');
+    assert.deepEqual(await fields(), fieldValues(altroPunto, '0100', 'Argos'));
+    assert.deepEqual(await outcome(pendente), postSale);
+    assert.equal(await nextSupplier(false), null);
     console.log('Verifica Energia SQL: migrazione, ACL, riscontro, esiti, concorrenza ottimistica e rollback verificati.');
   } finally {
     await db.close();

@@ -1025,20 +1025,24 @@ function apriPopupDettaglio(c, opts) {
       <h4>Campi specifici categoria</h4>
       <div class="det-grid">
         <div class="det-field" id="vc_field_pod">
-          <label>POD / PDR contatore <span class="required vc-required-energia">*</span></label>
-          <input type="text" id="vc_pod_pdr" maxlength="32" value="${escapeHtml(c.pod_pdr || '')}" ${energy ? 'readonly' : ro} placeholder="Es. IT001E12345678">
+          <label for="vc_pod_pdr">POD / PDR contatore <span class="required vc-required-energia">*</span></label>
+          <input type="text" id="vc_pod_pdr" maxlength="32" value="${escapeHtml(c.pod_pdr || '')}" ${energy ? '' : ro} placeholder="Es. IT001E12345678">
         </div>
         <div class="det-field" id="vc_field_assicurazione_impianti">
-          <label>Assicurazione impianti</label>
-          <input type="text" value="${c.assicurazione_impianti === true ? 'Sì' : c.assicurazione_impianti === false ? 'No' : 'Non indicata'}" readonly>
+          <label for="vc_assicurazione_impianti">Assicurazione impianti</label>
+          <select id="vc_assicurazione_impianti" ${isReadOnly && !energy ? 'disabled' : ''}>
+            <option value="">Non indicata</option>
+            <option value="true" ${c.assicurazione_impianti === true ? 'selected' : ''}>Sì</option>
+            <option value="false" ${c.assicurazione_impianti === false ? 'selected' : ''}>No</option>
+          </select>
         </div>
         <div class="det-field" id="vc_field_num_contratto_energia">
-          <label>Numero Contratto Energia <span class="required">*</span> <small style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;">(obbligatorio per verificare)</small></label>
-          <input type="text" id="vc_numero_contratto_energia" value="${escapeHtml(c.numero_contratto_energia || '')}" ${energy ? 'readonly' : ro} placeholder="Compilato dal CSV WindTre">
+          <label for="vc_numero_contratto_energia">Numero Contratto Energia <span class="required">*</span> <small style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;">(obbligatorio per verificare)</small></label>
+          <input type="text" id="vc_numero_contratto_energia" maxlength="80" value="${escapeHtml(c.numero_contratto_energia || '')}" ${energy ? '' : ro} placeholder="Compilato dal CSV WindTre">
         </div>
         <div class="det-field" id="vc_field_ex_fornitore">
-          <label>Ex Fornitore <span class="required">*</span> <small style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;">(obbligatorio per verificare)</small></label>
-          <input type="text" id="vc_ex_fornitore" value="${escapeHtml(c.ex_fornitore || '')}" ${energy ? 'readonly' : ro} placeholder="Es. Enel Energia, Eni Plenitude...">
+          <label for="vc_ex_fornitore">Ex Fornitore <span class="required">*</span> <small style="font-weight:500;text-transform:none;letter-spacing:0;color:#94a3b8;">(obbligatorio per verificare)</small></label>
+          <input type="text" id="vc_ex_fornitore" maxlength="160" value="${escapeHtml(c.ex_fornitore || '')}" ${energy ? '' : ro} placeholder="Es. Enel Energia, Eni Plenitude...">
         </div>
         <div class="det-field" id="vc_field_prezzo_fisso">
           <label>Prezzo di vendita Fisso (€)</label>
@@ -1135,6 +1139,7 @@ function apriPopupDettaglio(c, opts) {
          <div class="left">${deleteButtonHtml}</div>
          <div class="right">
            <button type="button" class="mx-btn mx-btn-secondary" data-mx-close-popup>Chiudi</button>
+           ${energy ? `<button type="button" class="mx-btn mx-btn-secondary" onclick="salvaModifiche('${escapeHtml(c.id)}', true)">Salva dati Energia</button>` : ''}
            <button type="button" class="mx-btn mx-btn-primary" onclick="rimettiInVerifica('${escapeHtml(c.id)}')">Rimetti in verifica</button>
          </div>
        </div>`
@@ -1794,9 +1799,7 @@ function leggiPayloadDalPopup() {
     // Migration 035 - Smartphone Reload + modalita (boolean + text con CHECK coerenza)
     smartphone_reload: v('vc_smartphone_reload') === 'true' ? true : (v('vc_smartphone_reload') === 'false' ? false : null),
     smartphone_reload_modalita: v('vc_smartphone_reload') === 'true' ? (v('vc_smartphone_reload_modalita') || null) : null,
-    pod_pdr: isEnergia ? (v('vc_pod_pdr').trim() || null) : null,
-    numero_contratto_energia: isEnergia ? (v('vc_numero_contratto_energia').trim() || null) : null,
-    ex_fornitore: isEnergia ? (v('vc_ex_fornitore').trim() || null) : null,
+    ...(isEnergia ? leggiDatiEnergia() : { pod_pdr: null, numero_contratto_energia: null, ex_fornitore: null }),
     prezzo_fisso: isFisso ? (() => {
       const s = v('vc_prezzo_fisso');
       if (!s) return null;
@@ -1828,11 +1831,27 @@ function leggiPayloadDalPopup() {
   return { ana, contratto, isEnergia };
 }
 
+function leggiDatiEnergia() {
+  const value = id => document.getElementById(id)?.value ?? '';
+  const impianti = value('vc_assicurazione_impianti');
+  return {
+    pod_pdr: value('vc_pod_pdr').trim() || null,
+    numero_contratto_energia: value('vc_numero_contratto_energia').trim() || null,
+    ex_fornitore: value('vc_ex_fornitore').trim() || null,
+    assicurazione_impianti: impianti === 'true' ? true : impianti === 'false' ? false : null
+  };
+}
+
 // ============================================================
 // CONFERMA VERIFICA
 // ============================================================
 async function confermaVerifica(id) {
   const { ana, contratto, isEnergia } = leggiPayloadDalPopup();
+  if (isEnergia && ['pod_pdr', 'numero_contratto_energia', 'ex_fornitore'].some(key =>
+    contratto[key] !== (window.__currentVerificaContratto?.[key]?.trim() || null))) {
+    await window.MiroxUI.alert('Salva le modifiche Energia per avviare il nuovo riscontro, poi conferma la verifica.', { type: 'warning' });
+    return;
+  }
   if (isEnergia && statoVisibileContratto(window.__currentVerificaContratto) !== 'in_attesa_verifica') {
     await window.MiroxUI.alert('Completa il riscontro con la bolletta e il CSV WindTre prima di confermare.', { type: 'warning' });
     return;
@@ -1915,12 +1934,13 @@ window.confermaVerifica = confermaVerifica;
 // in "In attesa". Lo stato_controllo NON viene toccato, percio' la
 // dashboard giornaliera continua a contare il contratto correttamente.
 // Approvazione formale avverra' il giorno successivo via "Conferma verifica".
-async function salvaModifiche(id) {
-  const { ana, contratto } = leggiPayloadDalPopup();
+async function salvaModifiche(id, soloEnergia = false) {
+  const { ana, contratto } = soloEnergia ? { contratto: leggiDatiEnergia() } : leggiPayloadDalPopup();
   // NOTA: nessuna validazione di numero_contratto_energia qui — quel campo e'
   // obbligatorio solo per "Conferma verifica", non per salvare modifiche intermedie.
   const ok = await window.MiroxUI.confirm(
-    'Salvare le modifiche al contratto <strong>senza approvare</strong> la verifica?<br><br>Il contratto resterà nella lista <strong>In attesa</strong> per l\'approvazione successiva.',
+    soloEnergia ? 'Salvare i dati Energia del contratto verificato?'
+      : 'Salvare le modifiche al contratto <strong>senza approvare</strong> la verifica?<br><br>Il contratto resterà nella lista <strong>In attesa</strong> per l\'approvazione successiva.',
     { title: 'Salva modifica', okText: 'Sì, salva', cancelText: 'Annulla', html: true }
   );
   if (!ok) return;
@@ -1928,7 +1948,7 @@ async function salvaModifiche(id) {
   try {
     const c = window.__currentVerificaContratto;
     // Update server-side SENZA toccare stato_controllo / controllato_da / controllato_at
-    const patch = {
+    const patch = soloEnergia ? contratto : {
       ...contratto,
       categoria_snapshot: document.querySelector('#vc_categoria_id option:checked')?.textContent || c.categoria_snapshot,
       nome_offerta_snapshot: document.querySelector('#vc_offerta_id option:checked')?.textContent || c.nome_offerta_snapshot,
@@ -1937,7 +1957,7 @@ async function salvaModifiche(id) {
     };
     await gestisciVenditaContratto({
       action: 'update',
-      mode: 'save',
+      mode: soloEnergia ? 'save_energy' : 'save',
       contratto_id: id,
       expected_updated_at: c.updated_at,
       contratto: patch,
@@ -1946,8 +1966,7 @@ async function salvaModifiche(id) {
     loader.success('Modifiche salvate');
     setTimeout(async () => {
       if (window.__currentVerificaModal) window.__currentVerificaModal.close();
-      // Ricarico solo la lista "da_controllare": il contratto resta li, non passa ai verificati.
-      await caricaContratti('da_controllare');
+      await caricaContratti(soloEnergia ? 'controllato' : 'da_controllare');
     }, 900);
   } catch (e) {
     loader.error('Errore di salvataggio');
