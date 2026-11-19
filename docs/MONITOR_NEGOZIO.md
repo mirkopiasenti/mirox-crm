@@ -1,11 +1,17 @@
 # Monitor KPI negozio — servizio Windows e aggiornamenti pagina
 
-## Revisione18–19/11 — Supabase diretto, rilascio autorizzato
+## Revisione18–19/11 — Supabase diretto pubblicato
 
 Richiesta del proprietario: eliminare il consumo periodico di Functions Netlify
 della TV, usando la lettura diretta e il calcolo client della Dashboard. Questa
-versione e verificata in locale (873test,63check SQL nuovi e55legacy); migration
-applicata/riletta20261119123037, pubblicazione autorizzata in corso.
+versione e pubblicata con `bcf2009`, Netlify `6afeed2cc8e8a2b629369ea0`;
+migration applicata/riletta20261119123037. CI44526065285 Linux/Windows verde
+(873test; installazione/SYSTEM/DPAPI/aggiornamento/rollback nativi);63check SQL
+nuovi e55legacy verdi. Il solo mock Windows e corretto in0138569, senza un altro
+deploy Netlify. Via HTTPS verificati manifest API2/12asset identici, ZIP25file
+SHA256 `41f0b0f47434f3d1f84cc5829145a31856a11fc7bd01751de5337e8cb3811686`,
+pagine/PrettyURL, API401/403 e preflight RPC. Prove private release-tv-diretto-20261119.
+Reinstallazione e collaudo fisico sul PC/TV ancora da eseguire.
 La versione descritta nelle sezioni storiche sotto rimane sul PC finché non viene
 reinstallato il nuovo pacchetto.
 
@@ -62,8 +68,9 @@ l'associazione esistente, la RPC non emette permessi operativi.
 
 L’installer verifica la nuova RPC con una credenziale vuota prima di fermare
 il servizio precedente; rete o migration non pronte interrompono il preflight.
-Attivazione: migration gia applicata, pubblicare il pacchetto su richiesta e
-reinstallare una volta con `installa-monitor.cmd`
+Attivazione: migration e pacchetto gia pubblicati. Scaricare il
+[nuovo ZIP Windows](https://mirox-crm.it/assets/mirox-monitor-windows.zip),
+estrarlo in una nuova cartella e reinstallare una volta con `installa-monitor.cmd`
 come amministratore. Stato DPAPI e associazione conservati. Il vecchio helper
 rifiuta il manifest API2 e continua a consumare Netlify finché non viene
 sostituito: ricaricare la pagina o spegnere soltanto lo schermo non lo aggiorna.

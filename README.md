@@ -45,7 +45,7 @@ CI Linux/Windows verde e723test. Popup e asset verificati online via HTTP.
 
 ## Monitor KPI negozio — aggiornato06/11/2026
 
-**Revisione18–19/11, pubblicazione autorizzata in corso:** KPI direttamente
+**Revisione18–19/11, pubblicata:** KPI direttamente
 da Supabase con la credenziale della postazione e calcolo nel browser, usando
 lo stesso core della Dashboard. Nessuna Function Netlify nel ciclo ordinario.
 Controllo leggero ogni3s, dati completi soltanto se cambia una fonte, conteggi
@@ -53,9 +53,13 @@ e layout conservati. Gli aggiornamenti della pagina vengono cercati ogni15min.
 Il nuovo pacchetto contiene soltanto la chiave pubblica Supabase; segreto
 dispositivo nel servizio Windows/DPAPI, mai nel browser. Per attivarlo occorrono
 la migration `20261118223737_monitor_diretto_supabase.sql` (applicata/riletta
-come20261119123037), il rilascio autorizzato e una reinstallazione del servizio che conserva l'associazione. Il vecchio helper
+come20261119123037) e una reinstallazione del servizio che conserva l'associazione. Il vecchio helper
 continua a chiamare Netlify finché non viene sostituito. Dettagli nella guida
 [Monitor negozio](docs/MONITOR_NEGOZIO.md).
+Pubblicato19/11 con `bcf2009`, Netlify `6afeed2cc8e8a2b629369ea0`.
+CI44526065285 verde Linux/Windows (873test); correzione del solo mock QA
+`0138569` senza altro deploy. Verificati via HTTPS manifest API2/12asset, ZIP25file
+e SHA256, pagine/PrettyURL, API401/403 e preflight RPC. Reinstallazione PC ancora da eseguire.
 
 Versione precedentemente pubblicata e installata:
 

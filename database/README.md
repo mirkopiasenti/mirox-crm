@@ -155,6 +155,9 @@ identiche per impronta (2903contratti/548appuntamenti/9profili); solo il checkpo
 del cron Guardian e cambiato durante la finestra. Collaudo su postazione sintetica
 con ruolo anon, proiezione/privacy/cache/revoca e rollback:0dispositivi test persistenti.
 Advisor invariati, nessun backfill o scrittura ai dati operativi.
+Runtime pubblicato19/11 `bcf2009`, Netlify6afeed2cc8e8a2b629369ea0 online;
+CI44526065285 Linux/Windows verde873test, preflight RPC remoto verificato.
+Reinstallazione del servizio sul PC ancora da eseguire; nessun altro DDL richiesto.
 Prove locali: `scripts/check-monitor-diretto-sql.cjs`, senza accessi production.
 
 `20261105123113_monitor_kpi_dispositivi.sql` aggiunge soltanto tre tabelle

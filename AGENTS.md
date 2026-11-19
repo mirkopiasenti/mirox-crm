@@ -675,13 +675,21 @@ Le migration Guardian additive `065`–`068` sono applicate sul production `lbgw
 
 ### Monitor negozio — migration applicata05/11/2026
 
-Revisione18/11 in locale: `20261118223737_monitor_diretto_supabase.sql`, solo
+Revisione18–19/11 applicata/riletta come20261119123037:
+`20261118223737_monitor_diretto_supabase.sql`, solo
 schema `mirox_monitor_privato` e funzioni, senza nuove tabelle/trigger/policy.
 RPC pubblica `mirox_monitor_leggi(text,text)` INVOKER, funzione privata DEFINER
 con controllo capability256bit/stato/negozio e allowlist campi; mai user_metadata
 o privilegi operatore. Fingerprint MVCC/hash proiezione, risposta invariata senza
 righe; giorno/mese server Rome. Heartbeat dispositivo5min. Nessun grant sulle
-sorgenti o modifica a CC/anagrafica. Migration non applicata.
+sorgenti o modifica a CC/anagrafica. Impronte strutture/RLS/grant/trigger/funzioni
+precedenti e advisor invariati;87/88tabelle identiche, solo checkpoint del cron
+Guardian variato durante la finestra. Collaudo anon/privacy/cache/revoca in
+transazione annullata,0dispositivi test persistenti. Pubblicato19/11 con
+`bcf2009`, Netlify6afeed2cc8e8a2b629369ea0; CI44526065285 Linux/Windows verde
+873test, mock QA corretto in0138569 senza deploy aggiuntivo. HTTP12asset/ZIP25file/
+SHA/PrettyURL/API401–403/preflight RPC verificati. Reinstallazione sul PC ancora
+da eseguire: il vecchio helper continua a chiamare Netlify fino alla sostituzione.
 
 `database/20261105123113_monitor_kpi_dispositivi.sql`: mirox_monitor_dispositivi
 (nome/negozio/stato/hash-token/hash-codice/scadenza/autore/timestamp),

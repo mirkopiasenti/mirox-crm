@@ -25,12 +25,16 @@ Segnalazioni11/11: nessuna distinzione Normale/Urgente; Riepilogo con In Corso/C
 
 Upload identità 09/11: barcode CF e carrello automatici, Consumer da anagrafica, Business dal CF del delegato sulla PDA. Il Nome referente resta separato dall’OCR Business. Scadenza esclusa dall’upload. Flusso attuale in AGENTS.md e docs/IDENTITA_UPLOAD_2026-10-28.md.
 
-Revisione TV18–19/11 in pubblicazione autorizzata: letture dirette Supabase con credenziale
+Revisione TV18–19/11 pubblicata: letture dirette Supabase con credenziale
 dispositivo e calcolo nel browser tramite core Dashboard; nessuna Function
 Netlify nel ciclo KPI. Fingerprint MVCC/hash dati senza trigger sulle sorgenti,
 manifest API2 ogni15min, nuovo ZIP25file. Migration
 `20261118223737_monitor_diretto_supabase.sql` applicata/riletta20261119123037;
-serve reinstallare il servizio Windows conservando DPAPI/associazione.
+runtime `bcf2009`, Netlify6afeed2cc8e8a2b629369ea0 online; CI44526065285
+Linux/Windows verde873test (mock QA corretto in0138569, nessun nuovo deploy).
+HTTP12asset/ZIP25file/SHA/PrettyURL/API401–403/preflight RPC verificati.
+Resta da reinstallare il servizio Windows conservando DPAPI/associazione;
+il vecchio helper continua a consumare Netlify fino alla sostituzione.
 Regole e dettagli aggiornati in AGENTS/README/databaseREADME e
 `docs/MONITOR_NEGOZIO.md`.
 
