@@ -44,7 +44,7 @@ try {
     Expand-Archive -LiteralPath (Join-Path $output 'assets\mirox-monitor-windows.zip') -DestinationPath $package
     # Il test Windows verifica installazione/DPAPI senza contattare progetti reali.
     $probeHost = Join-Path $package 'monitor-host.cjs'
-    Add-Content -LiteralPath $probeHost -Value "`nexports.probeDataConfig=async()=>true;"
+    Add-Content -LiteralPath $probeHost -Value "`nmodule.exports.probeDataConfig=async()=>true;"
     $probeManifestPath = Join-Path $package 'version.json'
     $probeManifest = Get-Content -LiteralPath $probeManifestPath -Raw | ConvertFrom-Json
     $probeManifest.sha256.PSObject.Properties['monitor-host.cjs'].Value = (Get-FileHash $probeHost -Algorithm SHA256).Hash.ToLowerInvariant()

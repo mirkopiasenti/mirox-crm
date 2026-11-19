@@ -110,6 +110,10 @@ Le regole seguenti valgono per qualunque assistant lavori sul repository:
    deploy a consumo. Il push runtime deve essere gia concluso separatamente;
    non aggiungere questi marcatori a codice/config/asset o a un push che deve
    ancora pubblicarli. Annotare lo SHA runtime online distinto dal commit docs.
+   Una correzione esclusivamente QA in tests/ o scripts/check-*, dopo che il
+   runtime e stato pubblicato, puo usare il solo `[skip netlify]` mantenendo
+   attiva la CI. Verificare che nessun file distribuito o usato dalla build sia
+   cambiato; non usare `[skip ci]` su una correzione dei test.
 4. **Un commit = un cambio coerente**: messaggio in italiano, primo verbo all'imperativo (`fix(...)`, `feat(...)`, `docs(...)`, `refactor(...)`, `chore(...)`). Corpo opzionale con contesto se non ovvio e firma `Co-Authored-By` dell'assistant che ha scritto il cambio.
 5. **Prima di iniziare, leggere gli ultimi commit**: `git log --oneline -20` mostra cosa ha fatto l'altro. Se un commit recente tocca la stessa area del task che stai per fare, allineati con lo stato attuale invece di sovrascriverlo.
 6. **Convenzioni tecniche identiche**: no emoji in HTML/JS visibili (vedi sezione dedicata), niente `alert()`/`confirm()` nativi (usare `MiroxUI.*`), niente `fetch()` diretto verso Netlify functions (usare `MiroxApi.fetch()`), niente `db.storage.from().upload()` dal client (solo via Netlify function). Vedi sezione "Convenzioni" per l'elenco completo.
