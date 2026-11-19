@@ -2,7 +2,7 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {zipSync}=require('fflate');
 const {WEB,manifestFor,validatePageFiles}=require('../tools/monitor-windows/monitor-updates.cjs');
-const TOOLS=['monitor-host.cjs','monitor-updates.cjs','vault.ps1','restart-browser.ps1','supervisor.ps1','install.ps1','installa-monitor.cmd','uninstall.ps1','avvia-monitor.cmd','LEGGIMI.txt'];
+const TOOLS=['monitor-host.cjs','monitor-data.cjs','monitor-updates.cjs','vault.ps1','restart-browser.ps1','supervisor.ps1','install.ps1','installa-monitor.cmd','uninstall.ps1','avvia-monitor.cmd','LEGGIMI.txt'];
 function buildRelease(root,output){
   const files=Object.fromEntries(WEB.map(file=>[file,fs.readFileSync(path.join(root,file))]));
   validatePageFiles(files);
@@ -11,12 +11,13 @@ function buildRelease(root,output){
   fs.writeFileSync(path.join(output,'assets','monitor-release.json'),JSON.stringify(manifest));
   return manifest;
 }
-function buildPackage(root,output,environment='production',origin=null){
+function buildPackage(root,output,environment='production',origin=null,dataConfig=null){
+  const supabase=require('../tools/monitor-windows/monitor-data.cjs').validateDataConfig(dataConfig||require('./build-static')._test.resolveFrontendConfig({MIROX_DEPLOY_ENV:environment}));
   buildRelease(root,output);
   const files={};
   for(const file of WEB)files[file]=new Uint8Array(fs.readFileSync(path.join(root,file)));
   for(const file of TOOLS)files[file]=new Uint8Array(fs.readFileSync(path.join(root,'tools/monitor-windows',file)));
-  files['config.json']=Buffer.from(JSON.stringify({environment,origin:environment==='production'?'https://mirox-crm.it':origin}));
+  files['config.json']=Buffer.from(JSON.stringify({environment,origin:environment==='production'?'https://mirox-crm.it':origin,supabase}));
   const hashes=Object.fromEntries(Object.entries(files).map(([name,bytes])=>[name,crypto.createHash('sha256').update(bytes).digest('hex')]));
   files['version.json']=Buffer.from(JSON.stringify({versione:1,sha256:hashes},null,2));
   const zip=zipSync(files,{level:6});

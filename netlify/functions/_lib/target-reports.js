@@ -3,7 +3,7 @@
 const core = require('../../../js/dashboard-report-core');
 const { buildProfileResolver, emptyMetrics, addCall, addAppointmentSet } = require('../admin-kpi-call-center').reportHelpers;
 const PAGE_SIZE = 1000;
-const CONTRACT_FIELDS = 'id,operatore_id,cluster_cliente,categoria_snapshot,nome_offerta_snapshot,nome_opzione_snapshot,nome_reload_snapshot,tipo_attivazione,apri_chiudi,intestatario,switch_sim,modalita_pagamento,dispositivo_associato,tipo_acquisto,fascia_prezzo,finanziaria,kolme,reload_exchange,data_contratto,stato_inserimento,reinserimento_fisso_finalizzato,codice_rivenditore,punteggio_gara_totale,punteggio_extra_gara_totale,punteggio_offerta,punteggio_opzione,punteggio_totale,punteggio_gara_offerta,punteggio_gara_opzione,punteggio_extra_gara_offerta,punteggio_extra_gara_opzione';
+const { CONTRACT_FIELDS, monthlyState } = core;
 
 function romeParts(now = new Date()) {
   return Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now).map(p => [p.type,p.value]));
@@ -40,17 +40,7 @@ async function byIds(db,table,fields,ids) {
   for(let i=0;i<ids.length;i+=200) result.push(...await paged(db,table,fields,q=>q.in('contratto_id',ids.slice(i,i+200))));
   return result;
 }
-function monthlyState(contracts,metrics,objectives,profiles,post,fttc,year,month) {
-  const active=core.reportProfiles(profiles,`${year}-${String(month).padStart(2,'0')}`).filter(p=>p.attivo);
-  const map=new Map(active.map(p=>[p.id,p]));
-  const resolve=id=> { let cur=id; for(let i=0;i<3;i++) { const p=map.get(cur); if(!p?.alias_di) return cur; cur=p.alias_di; } return cur; };
-  const ids=new Set(active.filter(p=>p.in_gara&&!p.alias_di).map(p=>p.id));
-  [...contracts,...fttc].filter(c=>core.inMonthlyScope(c,true)).forEach(c=>ids.add(resolve(c.operatore_id)));
-  return {anno:year,mese:month,contrattiMese:contracts.filter(core.isMonthlyCandidate),metricheGara:metrics,obiettivi:objectives,
-    operatoriAttiviMese:[...ids].map(id=>map.get(id)).filter(p=>p&&!p.alias_di),resolveOperatore:resolve,
-    statoPostVendita:{fisso:new Map(post.fisso.map(r=>[r.contratto_id,r.stato])),energia:new Map(post.energia.map(r=>[r.contratto_id,r.stato])),allarmi:new Map(post.allarmi.map(r=>[r.contratto_id,r.stato]))},
-    tecnologiaFisso:new Map(post.fisso.map(r=>[r.contratto_id,r.tecnologia])),fissoFTTCAttivatiMese:fttc};
-}
+
 function callSummary(consumer,business,appointments,profiles,date) {
   const resolver=buildProfileResolver(profiles);
   function channel(calls,sets,label) {

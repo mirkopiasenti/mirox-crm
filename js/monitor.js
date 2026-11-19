@@ -50,7 +50,15 @@
         snapshot=null;$('monitorData').hidden=true;
         $('monitorPairHelp').textContent=state.stato==='revocato'?'Postazione revocata. Crea un nuovo codice dall’Admin per associarla di nuovo.':'Da Admin → Monitor negozio crea un codice, poi inseriscilo qui.';
         $('monitorHealth').textContent=state.stato==='revocato'?'Accesso revocato':'Postazione da associare';
-      }else if(state.snapshot){snapshot=state.snapshot;if(lastRendered!==snapshot.aggiornato_il)render(snapshot);}
+      }else if(state.snapshot){
+        const incoming=state.snapshot;
+        snapshot=incoming.versione===2
+          ? snapshot?.revisione===incoming.revisione
+            ? {...snapshot,verificato_il:incoming.verificato_il,postazione:incoming.postazione}
+            : window.MiroxMonitorReport.build(incoming)
+          : incoming;
+        if(lastRendered!==snapshot.aggiornato_il)render(snapshot);
+      }
       else if(!snapshot){$('monitorHealth').textContent=state.errore || 'In attesa del primo aggiornamento...';}
       clock();pageHealthy=pairing||!!snapshot;pageBroken=false;
     }catch(error){

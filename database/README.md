@@ -136,6 +136,27 @@ identici via HTTP.
 
 ## Monitor negozio — migration applicata05/11/2026
 
+**Revisione18–19/11 applicata e riletta come20261119123037:**
+`20261118223737_monitor_diretto_supabase.sql` aggiunge soltanto lo schema privato
+`mirox_monitor_privato` e due funzioni, senza tabelle/trigger/policy sulle sorgenti.
+RPC pubblica INVOKER `mirox_monitor_leggi(text,text)` con EXECUTE anon/authenticated,
+che delega a una funzione DEFINER privata con search_path vuoto: la credenziale
+256bit, stato attivo e negozio sono verificati prima/dopo le letture.
+Un fingerprint di `pg_current_snapshot()` rileva le modifiche senza contatori
+scritti dalle operazioni del CRM; il successivo hash della proiezione evita
+trasferimenti per transazioni estranee al monitor. Nessun nuovo grant o policy
+sulle tabelle operative. Solo campi tecnici in allowlist, senza anagrafica,
+documenti/codici cliente/note; agenda con codici brevi/orari/durata/presenza.
+Giorno/mese server Europe/Rome, ultimo CSV globale e FTTC fuori mese conservati.
+Solo `last_seen_at` del dispositivo viene aggiornato, al massimo ogni5min.
+Nessun dato storico da ricopiare. Production: funzioni/source hash e grant corretti;
+colonne/RLS/policy/trigger/grant/funzioni preesistenti identici.87/88tabelle pubbliche
+identiche per impronta (2903contratti/548appuntamenti/9profili); solo il checkpoint
+del cron Guardian e cambiato durante la finestra. Collaudo su postazione sintetica
+con ruolo anon, proiezione/privacy/cache/revoca e rollback:0dispositivi test persistenti.
+Advisor invariati, nessun backfill o scrittura ai dati operativi.
+Prove locali: `scripts/check-monitor-diretto-sql.cjs`, senza accessi production.
+
 `20261105123113_monitor_kpi_dispositivi.sql` aggiunge soltanto tre tabelle
 `mirox_monitor_dispositivi`, `mirox_monitor_audit`, `mirox_monitor_rate` e tre
 RPC INVOKER `mirox_monitor_amministra`, `mirox_monitor_associa`, `mirox_monitor_limita`.

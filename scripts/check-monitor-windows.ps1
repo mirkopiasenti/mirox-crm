@@ -39,9 +39,17 @@ try {
   try {
     $output = Join-Path $scratch 'build'
     $origin = 'https://mirox-monitor-ci-' + [Guid]::NewGuid().ToString('N') + '.netlify.app'
-    & $node -e "require('./scripts/build-monitor-package').buildPackage(process.cwd(),process.argv[1],'staging',process.argv[2])" $output $origin
+    & $node -e "const ref='abcdefghijklmnopqrst';const anonKey='eyJhbGciOiJIUzI1NiJ9.'+Buffer.from(JSON.stringify({role:'anon',ref})).toString('base64url')+'.synthetic';require('./scripts/build-monitor-package').buildPackage(process.cwd(),process.argv[1],'staging',process.argv[2],{url:'https://'+ref+'.supabase.co',anonKey})" $output $origin
     if ($LASTEXITCODE -ne 0) { throw 'Build del pacchetto sintetico fallita.' }
     Expand-Archive -LiteralPath (Join-Path $output 'assets\mirox-monitor-windows.zip') -DestinationPath $package
+    # Il test Windows verifica installazione/DPAPI senza contattare progetti reali.
+    $probeHost = Join-Path $package 'monitor-host.cjs'
+    Add-Content -LiteralPath $probeHost -Value "`nexports.probeDataConfig=async()=>true;"
+    $probeManifestPath = Join-Path $package 'version.json'
+    $probeManifest = Get-Content -LiteralPath $probeManifestPath -Raw | ConvertFrom-Json
+    $probeManifest.sha256.PSObject.Properties['monitor-host.cjs'].Value = (Get-FileHash $probeHost -Algorithm SHA256).Hash.ToLowerInvariant()
+    $probeManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $probeManifestPath -Encoding UTF8
+
   } finally { Pop-Location }
   Run-Installer $true
   if ((Read-LocalState).stato -ne 'non_associato') { throw 'Stato iniziale inatteso.' }

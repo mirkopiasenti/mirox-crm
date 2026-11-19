@@ -4,8 +4,9 @@ const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),
 const {execFileSync,execFile}=require('node:child_process');
 const powershell=process.platform==='win32'?path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe'):'powershell.exe';
 const {WEB,createPageUpdates}=require('./monitor-updates.cjs');
+const {createDirectSource,validateDataConfig,probeDataConfig}=require('./monitor-data.cjs');
 const POLL_MS=3000;
-const FILES={'/monitor':'monitor.html','/':'monitor.html','/monitor.html':'monitor.html','/css/monitor.css':'css/monitor.css','/js/mirox-safe.js':'js/mirox-safe.js','/js/mirox-api.js':'js/mirox-api.js','/js/monitor-core.js':'js/monitor-core.js','/js/monitor.js':'js/monitor.js','/assets/logo.png':'assets/logo.png','/assets/favicon.png':'assets/favicon.png','/assets/fonts/InterVariable.woff2':'assets/fonts/InterVariable.woff2'};
+const FILES={'/monitor':'monitor.html','/':'monitor.html','/monitor.html':'monitor.html','/css/monitor.css':'css/monitor.css','/js/mirox-safe.js':'js/mirox-safe.js','/js/mirox-api.js':'js/mirox-api.js','/js/monitor-core.js':'js/monitor-core.js','/js/dashboard-report-core.js':'js/dashboard-report-core.js','/js/monitor-report-core.js':'js/monitor-report-core.js','/js/monitor.js':'js/monitor.js','/assets/logo.png':'assets/logo.png','/assets/favicon.png':'assets/favicon.png','/assets/fonts/InterVariable.woff2':'assets/fonts/InterVariable.woff2'};
 function validateOrigin(value,environment='production') {
   const u=new URL(value);
   if(u.protocol!=='https:' || u.username || u.password || u.port || u.pathname!=='/' || u.search || u.hash)throw Error('Origine remota non valida.');
@@ -17,8 +18,9 @@ function vault(root) {
   function run(mode,input){try{return execFileSync(powershell,['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(root,'vault.ps1'),'-Mode',mode,'-Path',path.join(root,'state.bin')],{input:input || '',encoding:'utf8',windowsHide:true,timeout:15000,stdio:['pipe','pipe','pipe']}).trim();}catch{throw Error('Archivio credenziali Windows non disponibile.');}}
   return {read:()=>fs.existsSync(path.join(root,'state.bin'))?JSON.parse(run('read')):null,write:state=>run('write',JSON.stringify(state))};
 }
-function createHost({root,origin,environment='production',store=vault(root),remote=fetch,now=Date.now,restartBrowser=()=>{},port=8765,pageUpdates=null}) {
+function createHost({root,origin,environment='production',store=vault(root),remote=fetch,now=Date.now,restartBrowser=()=>{},port=8765,pageUpdates=null,supabase,source=null}) {
   origin=validateOrigin(origin,environment);
+  const dataSource=source||createDirectSource({config:supabase,remote});
   const nonce=crypto.randomBytes(32).toString('hex');
   let credential=store.read(),snapshot=null,stato=credential?.associated?'caricamento':'non_associato',errore=null;
   let busy=false,remoteBusy=false,timer=null,heartbeat=0,lastRestart=0,closed=false,failures=0,credentialRejected=false;
@@ -38,8 +40,8 @@ function createHost({root,origin,environment='production',store=vault(root),remo
     if(remoteBusy || (busy && !force) || !credential || stato==='revocato')return;
     remoteBusy=true;
     try {
-      const data=await call('GET');
-      if(data.versione!==1 || typeof data.data!=='string' || !Array.isArray(data.day) || !Array.isArray(data.mensile) || !data.agenda)throw Error('Risposta KPI non valida.');
+      const data=await dataSource.read(credential.secret);
+      if(data.versione!==2 || typeof data.data!=='string' || !Array.isArray(data.contratti) || !Array.isArray(data.metriche) || !data.post)throw Error('Risposta KPI non valida.');
       if(!credential.associated)persistCredential({...credential,associated:true});
       snapshot=data;stato='attivo';errore=null;failures=0;credentialRejected=false;
     }catch(error){
@@ -110,4 +112,4 @@ if(require.main===module) {
     const host=createHost({root,...config,restartBrowser,pageUpdates});host.server.on('error',()=>process.exit(1));host.start();
   }catch{process.stderr.write('Servizio monitor non avviato. Verifica installazione e configurazione.\n');process.exitCode=1;}
 }
-module.exports={createHost,validateOrigin,FILES,POLL_MS};
+module.exports={createHost,validateOrigin,validateDataConfig,probeDataConfig,FILES,POLL_MS};

@@ -105,6 +105,11 @@ Le regole seguenti valgono per qualunque assistant lavori sul repository:
 1. **Fonti di verità condivise**: `README.md` (utente-facing) + `AGENTS.md` (questo file) + `CLAUDE.md` (compatibilità storica) + `database/README.md` (schema). Ogni modifica va riflessa nei file pertinenti **nella stessa sessione** in cui si tocca il codice. La tabella "trigger → cosa aggiornare" sopra è l'oracolo condiviso.
 2. **Nessuna azione irreversibile senza conferma esplicita dell'utente**: no `git push --force`, no DROP tabelle/colonne, no `rm -rf` fuori dallo scratchpad, no revoca policy RLS, no cambio env var Netlify. Se una modifica DB rompe potenzialmente il CC prod (vedi lista tabelle condivise in "Roadmap & boundaries") → **bloccarsi e chiedere prima**.
 3. **Push su GitHub solo quando l'utente lo dice**: si può preparare un commit locale, ma `git push origin main` va lanciato solo su richiesta esplicita ("push", "carica su github", "manda in produzione"). Netlify fa deploy automatico al push, quindi ogni push è un deploy production su `mirox-crm.it`.
+   Per registrare i soli esiti di un rilascio gia pubblicato/verificato, un commit
+   esclusivamente documentale puo usare `[skip netlify] [skip ci]`: evita un nuovo
+   deploy a consumo. Il push runtime deve essere gia concluso separatamente;
+   non aggiungere questi marcatori a codice/config/asset o a un push che deve
+   ancora pubblicarli. Annotare lo SHA runtime online distinto dal commit docs.
 4. **Un commit = un cambio coerente**: messaggio in italiano, primo verbo all'imperativo (`fix(...)`, `feat(...)`, `docs(...)`, `refactor(...)`, `chore(...)`). Corpo opzionale con contesto se non ovvio e firma `Co-Authored-By` dell'assistant che ha scritto il cambio.
 5. **Prima di iniziare, leggere gli ultimi commit**: `git log --oneline -20` mostra cosa ha fatto l'altro. Se un commit recente tocca la stessa area del task che stai per fare, allineati con lo stato attuale invece di sovrascriverlo.
 6. **Convenzioni tecniche identiche**: no emoji in HTML/JS visibili (vedi sezione dedicata), niente `alert()`/`confirm()` nativi (usare `MiroxUI.*`), niente `fetch()` diretto verso Netlify functions (usare `MiroxApi.fetch()`), niente `db.storage.from().upload()` dal client (solo via Netlify function). Vedi sezione "Convenzioni" per l'elenco completo.
@@ -308,6 +313,24 @@ Sostituire sempre con testo descrittivo (es. `🔄 Aggiorna` → `Aggiorna`, `�
 - **Integrazione CC completata nelle fasi 2–4**: `storico_cliente` esteso, backfill/auto-link di `chiamate.anagrafica_id` e convergenza Upload Contratti con `origine_pratica` automatica sono già applicati. Le eventuali estensioni successive sono nuove funzionalità, non attività arretrate.
 
 ### Monitor KPI negozio — pubblicato05/11/2026
+
+Revisione richiesta18/11 per ridurre quasi a zero Netlify: nuova postazione
+legge una RPC Supabase dedicata con la credenziale dispositivo esistente;
+nessun utente operativo, service_role o segreto nel browser. La RPC pubblica
+INVOKER delega a codice DEFINER in schema privato, con controllo esplicito
+della credenziale256bit e dello stato/negozio ad ogni lettura: autenticazione
+di dispositivo, non `auth.uid()` o user_metadata. Nessun accesso diretto alle
+tabelle per anon/authenticated. La proiezione contiene soltanto campi tecnici
+in allowlist; il servizio locale pseudonimizza gli ID contratto prima del browser.
+I calcoli usano il core Dashboard nel browser e possono aggiornarsi tramite
+manifest web, mai eseguendo download remoti nel processo Node/SYSTEM. Un
+fingerprint MVCC verifica le modifiche senza scrivere nelle sorgenti; un hash
+della proiezione evita trasferimenti per modifiche estranee. Nessun trigger,
+record, RLS o regola delle tabelle sorgenti viene cambiato. Predisporre/verificare la migration in locale;
+applicazione production, push e installazione del nuovo helper restano distinti.
+Controllo dati3s verso Supabase, manifest Netlify15min: zero Functions Netlify
+per i KPI ordinari, associazione/Admin soltanto su azione esplicita. Nessun
+fallback automatico al vecchio GET Netlify in caso di errore Supabase.
 
 Layout 09/11. Day by Day completo e compatto a sinistra, agenda del giorno a
 destra con prossimo appuntamento fisso e fino a sei successivi per pagina
@@ -546,6 +569,7 @@ Pagine HTML statiche, no bundler. Netlify esegue `scripts/build-static.js` e pub
 | `js/vendita-pda-ui.js` | `window.MiroxPdaUI` | Popup codice/costo/contatto e gestione Professional Cloud, controllo duplicati e editor PDA condiviso fra wizard e consultazione |
 | `js/customer-base-device.js` | `window.MiroxCustomerBaseDevice` / CommonJS server | Vincola dispositivo e acquisto nelle due combinazioni Customer Base finanziato/VAR |
 | `js/dashboard-report-core.js` | `window.MiroxDashboardReport` / CommonJS server | Motore puro condiviso con Target e Admin: matching, pesi, calendario, righe Day/Mensile, netto e dettaglio Luce & Gas, gare mensili e compensi |
+| `js/monitor-report-core.js` | `window.MiroxMonitorReport` / CommonJS | KPI TV dalla sola proiezione tecnica; usa il core Dashboard e lo stato mensile puro condiviso con Target, nessuna rete o credenziale |
 | `js/config.js` | `window.db`, `window.MiroxEnvironment` | Guard nel sorgente; la build genera il client con URL + publishable/anon key dell'ambiente |
 | `js/mirox-permissions-core.js` | `window.MiroxPermissions` / CommonJS | Catalogo 20 pagine, permessi puri e dipendenze lettura/scrittura per API e DB |
 | `js/mirox-permissions-ui.js` | `window.MiroxPermissionsUI` | Nasconde menu, gestisce blocchi e iniziale attesa autorizzazioni; caricato con il catalogo nella head prima di Auth |
@@ -646,6 +670,14 @@ Le migration Guardian additive `065`–`068` sono applicate sul production `lbgw
 ## Mappa Supabase per dominio
 
 ### Monitor negozio — migration applicata05/11/2026
+
+Revisione18/11 in locale: `20261118223737_monitor_diretto_supabase.sql`, solo
+schema `mirox_monitor_privato` e funzioni, senza nuove tabelle/trigger/policy.
+RPC pubblica `mirox_monitor_leggi(text,text)` INVOKER, funzione privata DEFINER
+con controllo capability256bit/stato/negozio e allowlist campi; mai user_metadata
+o privilegi operatore. Fingerprint MVCC/hash proiezione, risposta invariata senza
+righe; giorno/mese server Rome. Heartbeat dispositivo5min. Nessun grant sulle
+sorgenti o modifica a CC/anagrafica. Migration non applicata.
 
 `database/20261105123113_monitor_kpi_dispositivi.sql`: mirox_monitor_dispositivi
 (nome/negozio/stato/hash-token/hash-codice/scadenza/autore/timestamp),

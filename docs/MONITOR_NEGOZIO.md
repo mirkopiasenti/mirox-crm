@@ -1,5 +1,77 @@
 # Monitor KPI negozio — servizio Windows e aggiornamenti pagina
 
+## Revisione18–19/11 — Supabase diretto, rilascio autorizzato
+
+Richiesta del proprietario: eliminare il consumo periodico di Functions Netlify
+della TV, usando la lettura diretta e il calcolo client della Dashboard. Questa
+versione e verificata in locale (873test,63check SQL nuovi e55legacy); migration
+applicata/riletta20261119123037, pubblicazione autorizzata in corso.
+La versione descritta nelle sezioni storiche sotto rimane sul PC finché non viene
+reinstallato il nuovo pacchetto.
+
+Percorso dei dati:
+
+1. Il servizio Windows chiama ogni3s la sola RPC Supabase `mirox_monitor_leggi`
+   con la credenziale dispositivo gia cifrata in DPAPI. URL e chiave pubblica del
+   progetto sono nel config del pacchetto; nessuna service_role o sessione CRM.
+2. La RPC verifica token256bit, postazione attiva e negozio, anche a dati invariati.
+   Un fingerprint MVCC (`pg_current_snapshot`) riconosce i cambiamenti senza
+   trigger o contatori sulle tabelle operative. Se cambia per una transazione
+   estranea, un secondo hash della proiezione evita comunque il trasferimento
+   delle stesse righe. Le letture non assegnano un transaction ID; nelle
+   transazioni che hanno gia scritto la verifica usa sempre la proiezione.
+3. A prima lettura, nuovo giorno/mese o dati diversi, trasferisce solo i campi
+   tecnici per i conteggi. Niente anagrafiche, telefoni, CF/PIVA, codici cliente,
+   documenti, note o dettagli nominativi degli appuntamenti. Agenda: soltanto
+   codice breve/orario/durata/presenza. L'ultimo CSV e globale come prima.
+4. `monitor-data.cjs` elimina i campi fuori allowlist e sostituisce gli ID dei
+   contratti con riferimenti locali prima di esporli al browser loopback. I
+   dati e i collegamenti tecnici restano solo in memoria. La copia e riutilizzata
+   alle conferme di revisione, senza trasferimenti o calcoli server ripetuti.
+5. `js/monitor-report-core.js` calcola Day/Mensile/agenda nel browser con
+   `dashboard-report-core`, lo stesso stato mensile puro usato da Target.
+   I calcoli restano aggiornabili tramite i soli file web: Node/SYSTEM non
+   importa o esegue JavaScript scaricato. Il backend legacy usa lo stesso
+   builder puro, quindi vecchi helper e nuovi client condividono le regole.
+
+`verificato_il` distingue l'ultimo controllo riuscito dall'ultimo trasferimento
+`aggiornato_il`: una giornata senza modifiche non viene segnalata come obsoleta.
+Errori mantengono la copia con avviso15s/obsoleto60s; revoca confermata elimina
+la copia e interrompe le letture. Nessun fallback al GET Netlify in caso di
+errore Supabase. Cambio giorno/mese deciso dal server Europe/Rome, vecchi dati
+nascosti finché non arriva una risposta valida.
+
+Gli aggiornamenti pagina usano manifest API2,12file web e controllo ogni15minuti
+(anche al primo avvio), con le verifiche SHA/allowlist/rollback precedenti.
+Il nuovo ZIP contiene25file, inclusi `monitor-data.cjs` e i due core web.
+Netlify resta per associazione/Admin su azione esplicita e hosting degli asset;
+zero invocazioni Functions Netlify per gli aggiornamenti KPI ordinari. A PC
+sempre acceso, il solo controllo manifest genera circa2880richieste/mese,
+circa0,576crediti secondo la tariffa consultata18/11, oltre a banda/download.
+Le richieste Supabase continuano a usare il database esistente: la riduzione
+riguarda Netlify e i ricalcoli/trasferimenti evitati, non un costo totale nullo.
+
+Migration `database/20261118223737_monitor_diretto_supabase.sql`, applicata
+e riletta19/11 come20261119123037:
+schema privato e funzione DEFINER con autenticazione esplicita della postazione,
+wrapper pubblico INVOKER. Esecuzione consentita ad anon/authenticated, ma senza
+credenziale valida non restituisce dati. Nessun grant sulle tabelle sorgenti,
+nuova tabella, trigger, policy o modifica ai dati CC/anagrafica. Solo heartbeat
+`last_seen_at` del dispositivo, al massimo ogni5minuti. La credenziale riusa
+l'associazione esistente, la RPC non emette permessi operativi.
+
+L’installer verifica la nuova RPC con una credenziale vuota prima di fermare
+il servizio precedente; rete o migration non pronte interrompono il preflight.
+Attivazione: migration gia applicata, pubblicare il pacchetto su richiesta e
+reinstallare una volta con `installa-monitor.cmd`
+come amministratore. Stato DPAPI e associazione conservati. Il vecchio helper
+rifiuta il manifest API2 e continua a consumare Netlify finché non viene
+sostituito: ricaricare la pagina o spegnere soltanto lo schermo non lo aggiorna.
+Prove: `tests/monitor-data.test.js`, DOM/host/updater reali e
+`scripts/check-monitor-diretto-sql.cjs` con PGlite locale.
+
+## Versione precedentemente pubblicata
+
 Stato: **aggiornamento06/11 pubblicato con codice42ddc96**, Netlify
 6aee57bbf9012b875feb1a2e. CI42306373563(ramo tecnico) e42306680853(main):
 687test Linux/Node22 e prove Windows native verdi. HTTP10payload/ZIP22file/SHA,

@@ -1,22 +1,22 @@
 'use strict';
 // Scarica solo contenuti browser: mai eseguire questi byte nel processo Node.
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const WEB=Object.freeze(['monitor.html','css/monitor.css','js/mirox-safe.js','js/mirox-api.js','js/monitor-core.js','js/monitor.js','assets/logo.png','assets/favicon.png','assets/fonts/InterVariable.woff2','assets/fonts/Inter-OFL.txt']);
-const CHECK_MS=30000,ACK_MS=45000,MAX_FILE=2*1024*1024,MAX_TOTAL=4*1024*1024;
+const WEB=Object.freeze(['monitor.html','css/monitor.css','js/mirox-safe.js','js/mirox-api.js','js/monitor-core.js','js/dashboard-report-core.js','js/monitor-report-core.js','js/monitor.js','assets/logo.png','assets/favicon.png','assets/fonts/InterVariable.woff2','assets/fonts/Inter-OFL.txt']);
+const CHECK_MS=15*60*1000,ACK_MS=45000,MAX_FILE=2*1024*1024,MAX_TOTAL=4*1024*1024;
 const digest=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 function manifestFor(files) {
   const entries=Object.fromEntries(WEB.map(name=>[name,{bytes:files[name].length,sha256:digest(files[name])}]));
-  return {formato:1,api:1,versione:digest(JSON.stringify({api:1,files:entries})),files:entries};
+  return {formato:1,api:2,versione:digest(JSON.stringify({api:2,files:entries})),files:entries};
 }
 function validateManifest(value) {
-  if(!value||value.formato!==1||value.api!==1||!value.files||Object.keys(value.files).length!==WEB.length)throw Error('Manifest pagina incompatibile.');
+  if(!value||value.formato!==1||value.api!==2||!value.files||Object.keys(value.files).length!==WEB.length)throw Error('Manifest pagina incompatibile.');
   let total=0;const entries={};
   for(const name of WEB){
     const item=value.files[name];
     if(!item||!Number.isInteger(item.bytes)||item.bytes<1||item.bytes>MAX_FILE||!/^[a-f0-9]{64}$/.test(item.sha256||''))throw Error('Manifest pagina non valido.');
     total+=item.bytes;entries[name]={bytes:item.bytes,sha256:item.sha256};
   }
-  if(total>MAX_TOTAL||value.versione!==digest(JSON.stringify({api:1,files:entries})))throw Error('Impronta pagina non valida.');
+  if(total>MAX_TOTAL||value.versione!==digest(JSON.stringify({api:2,files:entries})))throw Error('Impronta pagina non valida.');
   return {...value,files:entries};
 }
 function validatePageFiles(files) {

@@ -243,6 +243,18 @@ function dettaglioEnergiaMensile(state, regola) {
     return {contratto:c,esito,dataInserimento,inclusoNelNetto:statoEnergiaNettoValido(stato)};
   });
 }
+const CONTRACT_FIELDS = 'id,operatore_id,cluster_cliente,categoria_snapshot,nome_offerta_snapshot,nome_opzione_snapshot,nome_reload_snapshot,tipo_attivazione,apri_chiudi,intestatario,switch_sim,modalita_pagamento,dispositivo_associato,tipo_acquisto,fascia_prezzo,finanziaria,kolme,reload_exchange,data_contratto,stato_inserimento,reinserimento_fisso_finalizzato,codice_rivenditore,punteggio_gara_totale,punteggio_extra_gara_totale,punteggio_offerta,punteggio_opzione,punteggio_totale,punteggio_gara_offerta,punteggio_gara_opzione,punteggio_extra_gara_offerta,punteggio_extra_gara_opzione';
+function monthlyState(contracts,metrics,objectives,profiles,post,fttc,year,month) {
+  const active=reportProfiles(profiles,`${year}-${String(month).padStart(2,'0')}`).filter(p=>p.attivo);
+  const map=new Map(active.map(p=>[p.id,p]));
+  const resolve=id=> { let cur=id; for(let i=0;i<3;i++) { const p=map.get(cur); if(!p?.alias_di) return cur; cur=p.alias_di; } return cur; };
+  const ids=new Set(active.filter(p=>p.in_gara&&!p.alias_di).map(p=>p.id));
+  [...contracts,...fttc].filter(c=>inMonthlyScope(c,true)).forEach(c=>ids.add(resolve(c.operatore_id)));
+  return {anno:year,mese:month,contrattiMese:contracts.filter(isMonthlyCandidate),metricheGara:metrics,obiettivi:objectives,
+    operatoriAttiviMese:[...ids].map(id=>map.get(id)).filter(p=>p&&!p.alias_di),resolveOperatore:resolve,
+    statoPostVendita:{fisso:new Map(post.fisso.map(r=>[r.contratto_id,r.stato])),energia:new Map(post.energia.map(r=>[r.contratto_id,r.stato])),allarmi:new Map(post.allarmi.map(r=>[r.contratto_id,r.stato]))},
+    tecnologiaFisso:new Map(post.fisso.map(r=>[r.contratto_id,r.tecnologia])),fissoFTTCAttivatiMese:fttc};
+}
 function monthlyRows(state,asOf) {
   const year=state.anno,month=state.mese;
   const validPiva=c=> {
@@ -290,5 +302,5 @@ function dailyRows(contracts,rows,profiles,date) {
     return {nome:r.nome,gruppo:r.gruppo,operatori:operators,totale:Object.values(operators).reduce((a,b)=>a+b,0)};
   }).filter(r=>r.totale>0);
 }
-return {LEGNAGO,CEREA,reportProfiles,isReportOperator,dayOperators,isMonthlyCandidate,inMonthlyScope,matchRegola,pesoContratto,calcolaCompenso,valutaGara,accessoBonusGare,easter,isWorkday,workingDays,progress,dettaglioEnergiaMensile,monthlyRows,dailyRows};
+return {LEGNAGO,CEREA,CONTRACT_FIELDS,monthlyState,reportProfiles,isReportOperator,dayOperators,isMonthlyCandidate,inMonthlyScope,matchRegola,pesoContratto,calcolaCompenso,valutaGara,accessoBonusGare,easter,isWorkday,workingDays,progress,dettaglioEnergiaMensile,monthlyRows,dailyRows};
 }));

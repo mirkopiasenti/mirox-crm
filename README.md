@@ -45,6 +45,20 @@ CI Linux/Windows verde e723test. Popup e asset verificati online via HTTP.
 
 ## Monitor KPI negozio — aggiornato06/11/2026
 
+**Revisione18–19/11, pubblicazione autorizzata in corso:** KPI direttamente
+da Supabase con la credenziale della postazione e calcolo nel browser, usando
+lo stesso core della Dashboard. Nessuna Function Netlify nel ciclo ordinario.
+Controllo leggero ogni3s, dati completi soltanto se cambia una fonte, conteggi
+e layout conservati. Gli aggiornamenti della pagina vengono cercati ogni15min.
+Il nuovo pacchetto contiene soltanto la chiave pubblica Supabase; segreto
+dispositivo nel servizio Windows/DPAPI, mai nel browser. Per attivarlo occorrono
+la migration `20261118223737_monitor_diretto_supabase.sql` (applicata/riletta
+come20261119123037), il rilascio autorizzato e una reinstallazione del servizio che conserva l'associazione. Il vecchio helper
+continua a chiamare Netlify finché non viene sostituito. Dettagli nella guida
+[Monitor negozio](docs/MONITOR_NEGOZIO.md).
+
+Versione precedentemente pubblicata e installata:
+
 Correzione visiva 09/11. La pagina riserva il 3% dell’altezza in alto, il 2,5%
 in basso e il 2,5% della larghezza per lato. Il logo viene mostrato intero e
 il suo fondo si fonde con quello della pagina.
@@ -218,6 +232,8 @@ produce anche `dist/assets/monitor-release.json` e
 | `css/` | `style.css`, `mirox-modules.css`, `admin-shell.css`, `admin-kpi.css`, `admin-permessi.css`, `mirox-permissions.css`, `compilatore-subentri.css`, `compilatore-malpractis.css` |
 | `assets/` | Logo, favicon e mascotte trasparente `kona-guardian-robot.png` |
 | `scripts/build-static.js` | Build Netlify: copia in `dist/` soltanto i file pubblici, genera `dist/js/config.js` con ambiente/release e inietta la telemetria nelle pagine autenticate |
+| `js/monitor-report-core.js` | Calcolo puro dei KPI TV da proiezione tecnica, condiviso fra browser del monitor e backend legacy; usa `dashboard-report-core` per stati, periodi e punteggi |
+| `tools/monitor-windows/monitor-data.cjs` | Accesso diretto alla sola RPC monitor Supabase, cache per revisione e pseudonimizzazione; nessun calcolo report o codice remoto eseguito da Node |
 | `scripts/backfill-identita-contratti.js` | Bonifica documenti identita dal 01/07/2026 Europe/Rome: dry-run predefinito, `--apply` per copie indipendenti con SHA256/readback; `--same-client` solo con autorizzazione del proprietario per il documento piu recente dello stesso cliente. Piano/report privati in `.backup-private/identity-backfill/` |
 | `scripts/backup/` | Runner DB/Storage read-only, adattatore Aruba cifrato, provisioning Ubuntu, restore PG isolato trimestrale, audit quotidiano, export/verifica TAR indipendente, timer/service systemd, lifecycle, packaging Git, test offline; template AWS precedente non scelto. Escluso dalla build pubblica |
 | `.backup-private/` | Credenziali e pacchetti privati, ignorati da Git; mai pubblici |

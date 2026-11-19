@@ -63,7 +63,7 @@ test('conferma heartbeat: conserva nuova versione; rollback del codice tramite n
 
 test('manifest ostili/incompatibili: nessuna attivazione o download helper, percorsi e dimensioni vincolati',async t=>{
   const base=manifestFor(files('invalid'));
-  for(const mutate of [m=>{m.api=2;},m=>{m.files['../state.bin']=m.files['monitor.html'];delete m.files['monitor.html'];},m=>{m.files['monitor-host.cjs']=m.files['monitor.html'];},m=>{m.files['monitor.html'].bytes=2*1024*1024+1;},m=>{m.files['monitor.html'].sha256='0'.repeat(64);}]){
+  for(const mutate of [m=>{m.api=1;},m=>{m.files['../state.bin']=m.files['monitor.html'];delete m.files['monitor.html'];},m=>{m.files['monitor-host.cjs']=m.files['monitor.html'];},m=>{m.files['monitor.html'].bytes=2*1024*1024+1;},m=>{m.files['monitor.html'].sha256='0'.repeat(64);}]){
     const pub=publisher(files('invalid'));pub.manifest=structuredClone(base);mutate(pub.manifest);
     assert.throws(()=>validateManifest(pub.manifest));const pages=updater(t,pub),old=pages.version;
     assert.equal(await pages.check(),false);assert.equal(pages.version,old);assert.equal(pub.calls.length,1);
@@ -92,7 +92,8 @@ test('host reale: HTML e CSS versionati, versione notificata, associazione conse
   const content=files('host');content['monitor.html']=Buffer.from(content['monitor.html'].toString().replace('href="css/monitor.css"','HREF = "./css/monitor.css"'));
   const pub=publisher(content),pages=updater(t,pub),old=pages.version;await pages.check();
   const secret='d'.repeat(64);let writes=0;
-  const host=createHost({root,origin:'https://mirox-crm.it',port:0,pageUpdates:pages,store:{read:()=>({secret,associated:true}),write:()=>writes++},remote:async()=>({ok:true,status:200,json:async()=>({versione:1,data:'2026-11-06',day:[],mensile:[],agenda:{}})})});
+  const {directConfig,directFixture}=require('./monitor-helpers.cjs');
+  const host=createHost({supabase:directConfig(),root,origin:'https://mirox-crm.it',port:0,pageUpdates:pages,store:{read:()=>({secret,associated:true}),write:()=>writes++},remote:async()=>new Response(JSON.stringify(directFixture('2026-11-06')),{status:200})});
   t.after(()=>host.close());host.start();await once(host.server,'listening');
   const request=(url,{method='GET',headers={},body}={})=>new Promise((resolve,reject)=>{
     const req=http.request({hostname:'127.0.0.1',port:host.server.address().port,path:url,method,headers:{Host:'127.0.0.1:0',...headers}},res=>{let text='';res.on('data',x=>text+=x);res.on('end',()=>resolve({status:res.statusCode,text}));});req.on('error',reject);req.end(body);

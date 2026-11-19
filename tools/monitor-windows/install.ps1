@@ -22,6 +22,11 @@ $config = Get-Content (Join-Path $PSScriptRoot 'config.json') -Raw | ConvertFrom
 if ($Origin) { $config.origin = $Origin }
 & $node -e "require(process.argv[1]).validateOrigin(process.argv[2],process.argv[3])" (Join-Path $PSScriptRoot 'monitor-host.cjs') $config.origin $config.environment
 if ($LASTEXITCODE -ne 0) { throw 'Indirizzo remoto non valido. Lo staging richiede -Origin con il suo deploy dedicato.' }
+& $node -e "const fs=require('node:fs');const c=JSON.parse(fs.readFileSync(process.argv[2],'utf8').replace(/^\uFEFF/,''));require(process.argv[1]).validateDataConfig(c.supabase)" (Join-Path $PSScriptRoot 'monitor-host.cjs') (Join-Path $PSScriptRoot 'config.json')
+if ($LASTEXITCODE -ne 0) { throw 'Configurazione Supabase non valida: scarica il pacchetto corretto prima di aggiornare il servizio.' }
+& $node -e "const fs=require('node:fs');const c=JSON.parse(fs.readFileSync(process.argv[2],'utf8').replace(/^\uFEFF/,''));require(process.argv[1]).probeDataConfig(c.supabase).catch(()=>{process.stderr.write('Servizio dati monitor non pronto.\n');process.exitCode=1})" (Join-Path $PSScriptRoot 'monitor-host.cjs') (Join-Path $PSScriptRoot 'config.json')
+if ($LASTEXITCODE -ne 0) { throw 'Il nuovo servizio dati non e pronto o non e raggiungibile. Il monitor esistente non e stato fermato: applica la migration e verifica la rete prima di riprovare.' }
+
 if (Test-Path $target) {
   if ((Get-Item $target).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'La destinazione non deve essere un collegamento.' }
   if (Get-ChildItem $target -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }) { throw 'La destinazione contiene collegamenti non consentiti.' }

@@ -1,6 +1,7 @@
 'use strict';
 const core = require('../../../js/dashboard-report-core');
-const {paged,monthlyState,today,nextDay,romeMidnight,CONTRACT_FIELDS} = require('./target-reports');
+const Report = require('../../../js/monitor-report-core');
+const {paged,today,nextDay,romeMidnight,CONTRACT_FIELDS} = require('./target-reports');
 const {checked} = require('./monitor-device');
 async function byIds(db,table,fields,ids) {
   const rows=[];
@@ -29,23 +30,9 @@ async function buildSnapshot(db,now=new Date()) {
     byIds(db,'post_vendita_controllo_lg','id,contratto_id,stato',ids),
     byIds(db,'post_vendita_controllo_allarmi','id,contratto_id,stato',ids)
   ]);
-  rows.sort((a,b)=>a.ordine-b.ordine || a.id-b.id);
-  const priority={avanzamento_standard:0,avanzamento_piva:1,avanzamento_extra_piva:2};
-  metrics.sort((a,b)=>priority[a.tabella]-priority[b.tabella] || a.ordine-b.ordine || a.id-b.id);
-  const daily=core.dailyRows(contracts.filter(c=>String(c.data_contratto).slice(0,10)===date),rows,profiles,date);
-  const key=r=>r.gruppo+'\0'+r.nome;
-  const counts=new Map(daily.map(r=>[key(r),r.operatori]));
-  const operators=core.dayOperators(date);
-  const day=rows.map(r=>({nome:r.nome,gruppo:r.gruppo,colore:r.colore_hex,operatori:operators.map(op=>counts.get(key(r))?.[op] || 0)}));
-  const state=monthlyState(contracts,metrics,objectives,profiles,{fisso,energia,allarmi},fttc,year,month);
-  const monthly=core.monthlyRows(state,date).map(r=>({nome:r.nome,tabella:r.tabella,punti:r.punteggio,obiettivo:r.obiettivo,andamento:r.andamento,eccedenza:r.eccedenza,
-    ...(r.conteggioNetto === undefined ? {} : {netto:r.conteggioNetto,ultimo_csv:lastCsv})}));
-  appointments.sort((a,b)=>a.data_ora.localeCompare(b.data_ora) || a.id.localeCompare(b.id));
-  const pending=appointments.filter(a=>!a.presentato).map(a=>({codice:'A-'+a.id.slice(0,8).toUpperCase(),ora:a.data_ora,durata:a.durata_minuti}));
-  return {versione:1,data:date,aggiornato_il:now.toISOString(),negozio:'Legnago',operatori:operators,day,
-    totale_day:day.reduce((sum,r)=>sum+r.operatori.reduce((a,b)=>a+b,0),0),mensile:monthly,
-    agenda:{totale:appointments.length,presentati:appointments.filter(a=>a.presentato==='si').length,
-      non_presentati:appointments.filter(a=>a.presentato==='no').length,in_attesa:pending.length,appuntamenti:pending}};
+  return Report.build({versione:2,data:date,aggiornato_il:now.toISOString(),contratti:contracts,righe:rows,
+    metriche:metrics,obiettivi:objectives,profili:profiles,fttc,post:{fisso,energia,allarmi},
+    agenda:appointments,ultimo_csv:lastCsv});
 }
 function snapshotCache(build=buildSnapshot) {
   let cache=null,inflight=null;

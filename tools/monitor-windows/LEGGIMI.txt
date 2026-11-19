@@ -2,10 +2,14 @@ MIROX MONITOR - WINDOWS 11
 
 Prerequisiti: Node.js LTS >=22 installato da https://nodejs.org in Program Files;
 Microsoft Edge aggiornato; account locale standard dedicato alla sola visione.
-Il servizio non contiene credenziali Supabase o account degli operatori.
+Il servizio contiene solo URL e chiave pubblica Supabase, senza privilegi
+amministrativi o account degli operatori. La credenziale dispositivo resta
+cifrata nel servizio Windows e non viene consegnata al browser.
 
 1. Estrarre tutto il pacchetto in una cartella temporanea sul PC.
-2. Nella cartella estratta: tasto destro su installa-monitor.cmd, scegliere
+2. La migration diretta Supabase deve essere gia pubblicata e la rete attiva.
+   L’installer controlla la nuova RPC prima di fermare il vecchio servizio.
+   Nella cartella estratta: tasto destro su installa-monitor.cmd, scegliere
    Esegui come amministratore e confermare la richiesta Windows.
    In alternativa, aprire Windows PowerShell come amministratore ed eseguire:
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
@@ -37,7 +41,11 @@ RECUPERO: il task riavvia il servizio; Assigned Access riapre Edge se chiuso.
 Se una pagina gia collegata non invia heartbeat per due minuti, il servizio
 termina solo il processo Edge con l'URL chiosco di questo monitor; Assigned
 Access lo riapre. Con avvia-monitor.cmd manuale la riapertura e manuale.
-I dati sono richiesti al server ogni3s, cache server1s, lettura schermo1s;
+I dati vengono controllati direttamente su Supabase ogni3s, senza Functions
+Netlify. Se la revisione non cambia si riceve solo una conferma; i dati tecnici
+sono riletti soltanto dopo una modifica e calcolati dal browser con il core
+Dashboard condiviso. Nessun dato anagrafico o documento cliente viene letto.
+Lettura dello schermo locale ogni1s;
 retry progressivo fino30s. Latenza attesa circa3-6s con rete/server regolari,
 oltre al tempo di elaborazione; nessuna garanzia in assenza di collegamento.
 L'ora mostrata e quella dell'ultimo snapshot, non del tentativo di connessione.
@@ -48,7 +56,7 @@ remoto successivo, normalmente entro4s oltre al tempo della richiesta.
 
 PRIMA ABILITAZIONE: dopo la pubblicazione del nuovo sistema, installare questo
 pacchetto una volta e riavviare il PC. Nessuna nuova associazione se gia attiva.
-PAGINA: controllo versione online ogni30s. HTML/CSS/JS/font/logo vengono
+PAGINA: controllo versione online ogni15minuti. HTML/CSS/JS/font/logo vengono
 scaricati da mirox-crm.it, verificati per dimensioni/API/SHA256 e attivati insieme.
 La pagina si ricarica automaticamente senza riavvio del PC. Se non parte o non
 renderizza, ritorna alla precedente dopo45s dalla prima apertura, tramite chiosco.
@@ -75,5 +83,8 @@ I file rimangono per recupero; nessuna eliminazione automatica di credenziali.
 
 COLLAUDO: avvio freddo, rete assente/ripristinata, chiusura Edge, revoca,
 giorno/mese nuovo, timer TV e un'intera giornata 08:30-20:00.
+Questa versione richiede la nuova migration monitor_diretto_supabase e una
+reinstallazione del servizio: il vecchio programma continua a usare Netlify.
+Non basta ricaricare la pagina o spegnere soltanto lo schermo.
 Il pacchetto deve essere pubblicato e la migration monitor applicata prima
 dell'associazione. Finche non accade il servizio non mostra numeri simulati.

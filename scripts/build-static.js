@@ -253,7 +253,7 @@ function buildStatic(env = process.env) {
   fs.appendFileSync(path.join(OUTPUT,'_headers'),cameraHeaders);
   injectTelemetryScript();
 
-  require('./build-monitor-package').buildPackage(ROOT,OUTPUT,frontendConfig.environment);
+  require('./build-monitor-package').buildPackage(ROOT,OUTPUT,frontendConfig.environment,null,frontendConfig);
 
   assertPrivateSourcesExcluded();
 
