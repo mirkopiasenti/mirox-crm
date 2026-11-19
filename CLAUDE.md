@@ -27,9 +27,10 @@ Upload identità 09/11: barcode CF e carrello automatici, Consumer da anagrafica
 
 TV19/11: proprietario conferma schermo funzionante dopo installazione/riavvio.
 Log confermano letture dirette Supabase200 e monitor-kpi Netlify da19,99/min a0
-fra13:49 e13:57:40Europe/Rome. Nuovo intervallo30s richiesto19/11: pronto in
-locale e push autorizzato; avviso45s/obsoleto90s,51test monitor e suite
-completa874/874/build verdi, pubblicazione in corso.
+fra13:49 e13:57:40Europe/Rome. Nuovo intervallo30s richiesto19/11: pubblicato2827530; avviso45s/obsoleto90s,
+51test monitor e suite completa874/874/build verdi. CI44529659573 Linux/Windows
+verde e Netlify6afef39570837fbda0636185 online; HTTP12asset/ZIP25file/SHA/
+PrettyURL/API401–403/preflight RPC e intervallo30000ms verificati.
 Serve nuovo pacchetto/reinstallazione helper; nessun DB modificato.
 
 Revisione TV18–19/11 pubblicata: letture dirette Supabase con credenziale

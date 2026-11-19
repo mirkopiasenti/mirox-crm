@@ -45,12 +45,14 @@ CI Linux/Windows verde e723test. Popup e asset verificati online via HTTP.
 
 ## Monitor KPI negozio — aggiornato06/11/2026
 
-**Intervallo30secondi,19/11 — pubblicazione autorizzata in corso:** su richiesta
-del proprietario il prossimo helper passa da3s a30s (90%letture Supabase in meno),
+**Intervallo30secondi,19/11 — pubblicato:** su richiesta
+del proprietario il nuovo helper passa da3s a30s (90%letture Supabase in meno),
 con prima lettura immediata e nessuna sovrapposizione. Avviso45s/obsoleto90s
 evita falsi allarmi fra due letture. Latenza normale fino a circa30–31s più
 elaborazione/rete, revoca al successivo controllo. Richiede nuovo ZIP e
-reinstallazione; nessun cambiamento DB.51test monitor e suite completa874/874/build verdi.
+reinstallazione; nessun cambiamento DB.51test monitor e suite completa874/874/build verdi. Pubblicato `2827530`,
+CI44529659573 Linux/Windows verde; Netlify6afef39570837fbda0636185 online.
+HTTPS conferma12asset/ZIP25file/SHA, intervallo30000ms e avvisi45/90.
 Verifica installazione precedente19/11: TV attiva e letture Supabase200;
 Netlify monitor-kpi da circa20/min a0chiamate13:49–13:57:40 Europe/Rome.
 Il totale crediti account resta cumulativo e comprende anche altri servizi.

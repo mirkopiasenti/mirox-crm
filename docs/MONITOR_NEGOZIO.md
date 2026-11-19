@@ -1,9 +1,9 @@
 # Monitor KPI negozio — servizio Windows e aggiornamenti pagina
 
-## Intervallo30secondi —19/11, pubblicazione autorizzata in corso
+## Intervallo30secondi —19/11, pubblicato
 
 Richiesta successiva del proprietario: controllare i dati ogni30secondi.
-Il prossimo helper mantiene prima lettura immediata, intervallo fra gli inizi e
+Il nuovo helper mantiene prima lettura immediata, intervallo fra gli inizi e
 assenza di sovrapposizioni.120letture/ora invece di1200: riduzione90%delle
 richieste Supabase. Finestra08:30–20:00 circa1380letture,2880su24ore.
 Nessuna nuova chiamata Netlify per i KPI; manifest web ancora ogni15minuti.
@@ -13,9 +13,17 @@ giorno nasconde i dati precedenti. Latenza/revoca al successivo controllo, fino
 a circa30–31secondi con rete regolare oltre all'elaborazione, senza garanzia
 quando la rete non risponde. Nessuna migration/configurazione remota modificata.
 51test monitor/build verdi, timer virtuale con lettura lenta/stop e confini45/90.
-Suite completa874/874verde in copia pulita prima del push.
+Suite completa874/874verde in copia pulita prima del push. Pubblicato con
+`2827530`, CI44529659573 Linux/Windows verde, Netlify6afef39570837fbda0636185
+online. Via HTTPS confermati12asset/ZIP25file/hash, pagine/PrettyURL/API401–403,
+preflight RPC e intervallo30000ms/avvisi45000–90000ms nel pacchetto. ZIP SHA256:
+`c5f8e2e99ca35ed0d7269bb7b96c46c07a181274ba2600246a7454bab8a93fe0`.
+Prove private `release-tv-30s-20261119/http-verifica.json`.
 
-**Push autorizzato, pubblicazione in corso:** richiede un nuovo ZIP e reinstallazione del servizio Windows,
+**Pubblicato, reinstallazione PC da eseguire:** scaricare nuovamente il
+[nuovo ZIP](https://mirox-crm.it/assets/mirox-monitor-windows.zip?v=2827530),
+estrarlo in una nuova cartella ed eseguire `installa-monitor.cmd` come
+amministratore, poi riavviare il PC. Il pacchetto aggiorna il servizio Windows,
 conservando l'associazione. Il manifest aggiorna solo la pagina, non il programma
 Node/SYSTEM. Il PC gia aggiornato al pacchetto bcf2009 continua per ora ogni3s.
 
