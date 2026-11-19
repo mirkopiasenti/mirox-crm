@@ -2,12 +2,13 @@
 
 Aggiornato:2026-11-19. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
 
-## Upload Luce & Gas con bolletta e blocco giornaliero —19/11, pronto in locale
+## Upload Luce & Gas con bolletta e blocco giornaliero —19/11, pubblicato e bonifica conclusa
 
 - Luce & Gas Consumer/Business richiede la sola bolletta. Documento e controllo identità esclusi anche nelle bozze Energia con altri contratti; i PDF si associano ai soli contratti che li richiedono. Finalize verifica per contratto. In Verifica Energia pendente sparisce il documento d’identità dagli allegati e dalle scelte.
 - POD/PDR normalizzato, giorno di inserimento `created_at` Europe/Rome, entrambi i negozi. Blocco nel wizard, nel carrello e nella Function; indice univoco parziale e trigger privato per gli inserimenti concorrenti e i cambi di chiave dei contratti di oggi. Storico preesistente conservato. Migrazione sorgente `20261119173949_energia_upload_bolletta_duplicati.sql`.
 - Build e suite completa 879/879 verdi in copia isolata. Harness PGlite 0.5.13 verde su ACL, storico, cambio giorno e ora legale, cancellazione bozza e rollback del doppio inserimento. Verificati flusso Energia con sola bolletta, carrello misto, errore di duplicato e allegati Verifica. Nessun browser.
-- Preflight production in sola lettura: 35 contratti Energia inviate/da_controllare, 35 bollette e 35 PDF identità con oggetto presente, 0 percorsi condivisi e 0 pratiche miste nel perimetro. Nessuna scrittura o cancellazione eseguita. Al via libera applicare la migrazione, pubblicare UI/API, rieseguire il preflight e rimuovere i soli record e file d’identità dei pendenti. README, AGENTS e databaseREADME aggiornati.
+- Migrazione applicata e riletta come `20261119175643`: trigger e indice validi, RPC service-only, vero per punto presente oggi e falso per chiave assente. Advisor sicurezza e prestazioni invariati. Pubblicato `4fa8ae4`, CI 44582737396 Linux/Windows verde, Netlify `6aff389dfeaa03f91cf70ebc` online. Quattro URL HTML e core JS verificati contro build, tre API 401 senza JWT.
+- Bonifica dopo il deploy con prova di rollback e controllo delle associazioni sotto lock. Rimosse 35 righe documento e 35 PDF via Storage API. Rilettura indipendente conferma zero identità Energia pendenti e zero oggetti residui, tutte le 35 pratiche e bollette presenti, 368 identità Energia verificate conservate. Prove private in `.backup-private/energia-upload-20261119/`. README, AGENTS e databaseREADME aggiornati.
 
 ## Tipo pratica nel dettaglio e duplicati Energia —19/11, pubblicati
 
