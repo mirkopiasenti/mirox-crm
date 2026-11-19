@@ -332,7 +332,20 @@ fingerprint MVCC verifica le modifiche senza scrivere nelle sorgenti; un hash
 della proiezione evita trasferimenti per modifiche estranee. Nessun trigger,
 record, RLS o regola delle tabelle sorgenti viene cambiato. Predisporre/verificare la migration in locale;
 applicazione production, push e installazione del nuovo helper restano distinti.
-Controllo dati3s verso Supabase, manifest Netlify15min: zero Functions Netlify
+Rettifica richiesta19/11, push autorizzato e pubblicazione in corso: intervallo dati30s,
+prima lettura immediata e richieste sequenziali. Avviso45s/obsoleto90s, usando
+verificato_il anche a proiezione invariata; latenza/revoca al controllo successivo
+(fino a circa30–31s più rete/elaborazione).90%letture Supabase in meno rispetto
+a3s. Modifica nativa: richiede nuovo ZIP/reinstallazione, mai aggiornare il codice
+Node/SYSTEM tramite manifest web. Nessuna migration o modifica ai dati.51test
+monitor/build verdi, incluso timer virtuale30s/lettura lenta/stop e confini avvisi; suite completa874/874verde
+in copia pulita prima del push.
+Controllo pubblicato19/11: postazione attiva,143letture dirette200fra13:49:07
+e13:56:23; Netlify monitor-kpi prima19,99/min, ultima13:47:29,0invocazioni
+13:49–13:57:40Europe/Rome. Prove private release-tv-diretto-20261119; contatori
+aggregati Netlify per ora non adatti a finestre inferiori all'ora, usare log puntuali.
+
+Versione pubblicata precedente: Controllo dati3s verso Supabase, manifest Netlify15min: zero Functions Netlify
 per i KPI ordinari, associazione/Admin soltanto su azione esplicita. Nessun
 fallback automatico al vecchio GET Netlify in caso di errore Supabase.
 

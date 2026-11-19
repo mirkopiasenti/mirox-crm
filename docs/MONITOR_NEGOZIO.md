@@ -1,5 +1,35 @@
 # Monitor KPI negozio — servizio Windows e aggiornamenti pagina
 
+## Intervallo30secondi —19/11, pubblicazione autorizzata in corso
+
+Richiesta successiva del proprietario: controllare i dati ogni30secondi.
+Il prossimo helper mantiene prima lettura immediata, intervallo fra gli inizi e
+assenza di sovrapposizioni.120letture/ora invece di1200: riduzione90%delle
+richieste Supabase. Finestra08:30–20:00 circa1380letture,2880su24ore.
+Nessuna nuova chiamata Netlify per i KPI; manifest web ancora ogni15minuti.
+Avviso dopo45secondi senza conferma e dati obsoleti dopo90; conferme a revisione
+invariata aggiornano verificato_il. I valori restano visibili con avviso; cambio
+giorno nasconde i dati precedenti. Latenza/revoca al successivo controllo, fino
+a circa30–31secondi con rete regolare oltre all'elaborazione, senza garanzia
+quando la rete non risponde. Nessuna migration/configurazione remota modificata.
+51test monitor/build verdi, timer virtuale con lettura lenta/stop e confini45/90.
+Suite completa874/874verde in copia pulita prima del push.
+
+**Push autorizzato, pubblicazione in corso:** richiede un nuovo ZIP e reinstallazione del servizio Windows,
+conservando l'associazione. Il manifest aggiorna solo la pagina, non il programma
+Node/SYSTEM. Il PC gia aggiornato al pacchetto bcf2009 continua per ora ogni3s.
+
+Verifica fisica19/11: proprietario riferisce installazione riuscita e schermo
+funzionante dopo il primo ERR_CONNECTION_REFUSED. Avvio automatico al prossimo
+riavvio ancora da ricontrollare, causa precisa del primo errore non provata.
+Log diretti Supabase:143risposte200da13:49:07a13:56:23Europe/Rome e heartbeat
+postazione attivo. Netlify: campione100invocazioni monitor-kpi13:20:01–13:24:58
+(19,99/min); ultima chiamata13:47:29, poi0invocazioni13:49–13:57:40.
+Finestre precise dai log puntuali con paginazione completa; le metriche aggregate
+per ora non consentono di attribuire uno zero su intervalli di pochi minuti.
+Prove private `release-tv-diretto-20261119/consumi-netlify-prima-dopo.json`.
+La verifica riguarda la TV, non azzera crediti gia usati o consumo degli altri siti.
+
 ## Revisione18–19/11 — Supabase diretto pubblicato
 
 Richiesta del proprietario: eliminare il consumo periodico di Functions Netlify

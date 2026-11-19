@@ -25,6 +25,13 @@ Segnalazioni11/11: nessuna distinzione Normale/Urgente; Riepilogo con In Corso/C
 
 Upload identità 09/11: barcode CF e carrello automatici, Consumer da anagrafica, Business dal CF del delegato sulla PDA. Il Nome referente resta separato dall’OCR Business. Scadenza esclusa dall’upload. Flusso attuale in AGENTS.md e docs/IDENTITA_UPLOAD_2026-10-28.md.
 
+TV19/11: proprietario conferma schermo funzionante dopo installazione/riavvio.
+Log confermano letture dirette Supabase200 e monitor-kpi Netlify da19,99/min a0
+fra13:49 e13:57:40Europe/Rome. Nuovo intervallo30s richiesto19/11: pronto in
+locale e push autorizzato; avviso45s/obsoleto90s,51test monitor e suite
+completa874/874/build verdi, pubblicazione in corso.
+Serve nuovo pacchetto/reinstallazione helper; nessun DB modificato.
+
 Revisione TV18–19/11 pubblicata: letture dirette Supabase con credenziale
 dispositivo e calcolo nel browser tramite core Dashboard; nessuna Function
 Netlify nel ciclo KPI. Fingerprint MVCC/hash dati senza trigger sulle sorgenti,

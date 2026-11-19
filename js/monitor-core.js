@@ -8,7 +8,7 @@
     const age=now-Date.parse(verified);
     if(!Number.isFinite(age)||age< -60000)return {hide:true,stale:true,text:'Data aggiornamento non valida. Controlla l’orologio del PC.'};
     const stamp=rome(new Date(verified),{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    return {hide:false,stale:age>15000,error:age>60000,text:age>60000?`Dati obsoleti · ultimo aggiornamento ${stamp}`:age>15000?`Aggiornamento interrotto · dati delle ${stamp}`:`Connesso · dati delle ${stamp}`};
+    return {hide:false,stale:age>45000,error:age>90000,text:age>90000?`Dati obsoleti · ultimo aggiornamento ${stamp}`:age>45000?`Aggiornamento interrotto · dati delle ${stamp}`:`Connesso · dati delle ${stamp}`};
   }
   function countdown(iso,now=new Date()){const mins=Math.ceil((Date.parse(iso)-now)/60000);return mins>0?`Tra ${mins} min`:mins===0?'Adesso':`In attesa da ${Math.abs(mins)} min`;}
   function agendaPage(appointments,tick){

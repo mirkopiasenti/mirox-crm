@@ -41,18 +41,18 @@ RECUPERO: il task riavvia il servizio; Assigned Access riapre Edge se chiuso.
 Se una pagina gia collegata non invia heartbeat per due minuti, il servizio
 termina solo il processo Edge con l'URL chiosco di questo monitor; Assigned
 Access lo riapre. Con avvia-monitor.cmd manuale la riapertura e manuale.
-I dati vengono controllati direttamente su Supabase ogni3s, senza Functions
+I dati vengono controllati direttamente su Supabase ogni30s, senza Functions
 Netlify. Se la revisione non cambia si riceve solo una conferma; i dati tecnici
 sono riletti soltanto dopo una modifica e calcolati dal browser con il core
 Dashboard condiviso. Nessun dato anagrafico o documento cliente viene letto.
 Lettura dello schermo locale ogni1s;
-retry progressivo fino30s. Latenza attesa circa3-6s con rete/server regolari,
+retry ogni30s. Latenza attesa fino a circa30-31s con rete/server regolari,
 oltre al tempo di elaborazione; nessuna garanzia in assenza di collegamento.
 L'ora mostrata e quella dell'ultimo snapshot, non del tentativo di connessione.
 Senza rete vengono conservati in memoria con avviso; al riavvio si attende
 un nuovo snapshot. Al cambio giorno i dati vecchi sono nascosti.
 Revoca: Admin > Monitor negozio > Revoca. Lo schermo si oscura al controllo
-remoto successivo, normalmente entro4s oltre al tempo della richiesta.
+remoto successivo, normalmente entro31s oltre al tempo della richiesta.
 
 PRIMA ABILITAZIONE: dopo la pubblicazione del nuovo sistema, installare questo
 pacchetto una volta e riavviare il PC. Nessuna nuova associazione se gia attiva.

@@ -5,7 +5,7 @@ const {execFileSync,execFile}=require('node:child_process');
 const powershell=process.platform==='win32'?path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe'):'powershell.exe';
 const {WEB,createPageUpdates}=require('./monitor-updates.cjs');
 const {createDirectSource,validateDataConfig,probeDataConfig}=require('./monitor-data.cjs');
-const POLL_MS=3000;
+const POLL_MS=30000;
 const FILES={'/monitor':'monitor.html','/':'monitor.html','/monitor.html':'monitor.html','/css/monitor.css':'css/monitor.css','/js/mirox-safe.js':'js/mirox-safe.js','/js/mirox-api.js':'js/mirox-api.js','/js/monitor-core.js':'js/monitor-core.js','/js/dashboard-report-core.js':'js/dashboard-report-core.js','/js/monitor-report-core.js':'js/monitor-report-core.js','/js/monitor.js':'js/monitor.js','/assets/logo.png':'assets/logo.png','/assets/favicon.png':'assets/favicon.png','/assets/fonts/InterVariable.woff2':'assets/fonts/InterVariable.woff2'};
 function validateOrigin(value,environment='production') {
   const u=new URL(value);

@@ -6,6 +6,22 @@ const pairingUrl=url=>url.includes('/.netlify/functions/');
 const response=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json'}});
 const {createHost,validateOrigin}=require('../tools/monitor-windows/monitor-host.cjs');
 const {unzipSync,strFromU8}=require('fflate');
+test('ciclo dati: primo controllo immediato, poi ogni30secondi e nessuna richiesta sovrapposta',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']});
+  let now=0,calls=0,finish;
+  const source={read:async()=>{calls++;if(calls===2)await new Promise(resolve=>{finish=resolve;});return directFixture();}};
+  const host=createHost({root:path.resolve(__dirname,'..'),origin:'https://mirox-crm.it',port:0,now:()=>now,source,store:{read:()=>({secret:'a'.repeat(64),associated:true}),write:()=>{}}});
+  t.after(()=>host.close());host.start();await once(host.server,'listening');
+  const flush=()=>new Promise(setImmediate);
+  await flush();assert.equal(calls,1);
+  now=29999;t.mock.timers.tick(29999);await flush();assert.equal(calls,1);
+  now=30000;t.mock.timers.tick(1);await flush();assert.equal(calls,2);
+  now=35000;t.mock.timers.tick(5000);await flush();assert.equal(calls,2,'lettura ancora in corso');
+  finish();await flush();
+  now=59999;t.mock.timers.tick(24999);await flush();assert.equal(calls,2);
+  now=60000;t.mock.timers.tick(1);await flush();assert.equal(calls,3,'intervallo fra inizi senza sommare la durata della lettura');
+  host.close();now=90000;t.mock.timers.tick(30000);await flush();assert.equal(calls,3);
+});
 test('origini remote vincolate: HTTPS, niente redirect/proxy generico o production nello staging',()=>{assert.equal(validateOrigin('https://mirox-crm.it'),'https://mirox-crm.it');for(const url of ['http://mirox-crm.it','https://evil.example','https://user@mirox-crm.it','https://mirox-crm.it/path','https://mirox-crm.it?token=x'])assert.throws(()=>validateOrigin(url));assert.throws(()=>validateOrigin('https://mirox-crm.netlify.app','staging'));assert.equal(validateOrigin('https://deploy-example.netlify.app','staging'),'https://deploy-example.netlify.app');});
 test('host loopback: nonce, origin/Host, pairing, credenziale fuori browser e revoca',async t=>{
   const root=path.resolve(__dirname,'..');let stored=null,revoked=false,requests=[];
