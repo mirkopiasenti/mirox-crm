@@ -17,6 +17,22 @@ test('Verifica Contratti espone la conferma manuale e lascia scollegato il colla
   assert.match(page, /data-tab="mobile"[^>]*>In Attesa - Mobile /);
 });
 
+test('allegati Energia in attesa mostrano la bolletta e omettono il documento di identità', () => {
+  const list = { innerHTML: '' };
+  const context = vm.createContext({ document: { getElementById: () => list }, CONTRATTI_BUCKET: 'contratti-vendita',
+    escapeHtml: value => String(value || ''), fmtDateTime: () => '', categoriaInAttesa: c => c.categoria_snapshot.toLowerCase() });
+  vm.runInContext(page.slice(page.indexOf('function renderAllegatiPopup('), page.indexOf('async function gestisciVenditaContratto(')), context);
+  const docs = [{ tipo_documento: 'documento_identita', storage_path: 'identity.pdf' },
+    { tipo_documento: 'copia_bolletta', storage_path: 'bill.pdf' }];
+  context.renderAllegatiPopup({ categoria_snapshot: 'Energia' }, docs, false);
+  assert.match(list.innerHTML, /bill\.pdf/);
+  assert.doesNotMatch(list.innerHTML, /identity\.pdf/);
+  context.renderAllegatiPopup({ categoria_snapshot: 'Energia' }, docs, true);
+  assert.match(list.innerHTML, /identity\.pdf/);
+  context.renderAllegatiPopup({ categoria_snapshot: 'Mobile' }, docs, false);
+  assert.match(list.innerHTML, /identity\.pdf/);
+});
+
 function fixture({ failure = false, deferred = false, review = null } = {}) {
   const nodes = { listaDaVerificare: { innerHTML: '' }, listaVerificati: { innerHTML: '' } };
   const counts = {}, calls = []; let release;

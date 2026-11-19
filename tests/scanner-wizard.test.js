@@ -21,7 +21,7 @@ test('upload porta al carrello dopo la verifica e attende gli allegati obbligato
  const source=html.slice(start,html.indexOf(' function currentNeedsPermit()',start));
  const sim=[];let verified=0,adds=0,step=true,settle;
  const context={inDocumentsStep:()=>step,getIdentityFiles:()=>[{}],runtimeState:{documentsRevision:0},
-  ensureIdentityUpload:async()=>{verified++;if(settle)await settle;},updateUploadVisibility(){},getCurrentDocumentRequirements:()=>({copia_sim_mnp:true}),
+  ensureIdentityUpload:async()=>{verified++;if(settle)await settle;},updateUploadVisibility(){},getCurrentDocumentRequirements:()=>({documento_identita:true,copia_sim_mnp:true}),
   isCurrentCategoriaPda:()=>false,getInputFiles:()=>sim,refs:{},currentNeedsPermit:()=>false,
   addContrattoToCart:async({current})=>{assert.equal(current(),true);adds++;step=false;},showUserError:error=>assert.fail(error)};
  vm.runInNewContext(source,context);
@@ -34,6 +34,22 @@ test('upload porta al carrello dopo la verifica e attende gli allegati obbligato
  const current=context.continueFromDocuments();
  release();
  await Promise.all([obsolete,current]);
+ assert.equal(adds,1);
+});
+test('upload Luce & Gas attende solo la bolletta',async()=>{
+ const start=html.indexOf(' async function continueFromDocuments()');
+ const source=html.slice(start,html.indexOf(' function currentNeedsPermit()',start));
+ const bills=[];let adds=0;
+ const context={inDocumentsStep:()=>true,getIdentityFiles:()=>[],runtimeState:{documentsRevision:0},
+  ensureIdentityUpload:async()=>assert.fail('Controllo identità richiesto per Energia'),updateUploadVisibility(){},
+  getCurrentDocumentRequirements:()=>({documento_identita:false,copia_bolletta:true}),
+  isCurrentCategoriaPda:()=>false,getInputFiles:()=>bills,refs:{},currentNeedsPermit:()=>false,
+  addContrattoToCart:async()=>{adds++;},showUserError:error=>assert.fail(error)};
+ vm.runInNewContext(source,context);
+ await context.continueFromDocuments();
+ assert.equal(adds,0);
+ bills.push({});
+ await context.continueFromDocuments();
  assert.equal(adds,1);
 });
 test('allegati oltre limite fermati prima della creazione pratica, limite esatto ammesso',()=>{

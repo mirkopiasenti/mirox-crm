@@ -1,5 +1,6 @@
 const Fixed = require('../../js/fisso-core');
-const { confirmedPoint } = require('../../js/energia-core');
+const { confirmedPoint, isEnergy } = require('../../js/energia-core');
+const EnergyUpload = require('./_lib/energia-upload');
 const Pda = require('./_lib/pda-contract');
 const Identity = require('./_lib/identita-upload');
 const BusinessIdentity = require('./_lib/pda-business-identity');
@@ -678,6 +679,15 @@ exports.handler = async (event) => {
 
   const action = cleanString(payload.action) || 'create';
 
+  if (action === 'check_punto_energia') {
+    try {
+      await EnergyUpload.assertAvailable(supabase, [payload.pod_pdr]);
+      return response(200, { success: true });
+    } catch (error) {
+      return response(error.statusCode || 500, { success: false, error: error.message, error_code: error.error_code });
+    }
+  }
+
   if (action === 'finalize') {
     const praticaId = normalizeUuidOrNull(payload.pratica_id);
     const manageable = await loadManageablePractice({ supabase, auth, praticaId });
@@ -702,41 +712,43 @@ exports.handler = async (event) => {
       });
     }
 
-    const [contractsResult, identityResult] = await Promise.all([
-      supabase.from('vendita_contratti').select('id').eq('pratica_id', praticaRow.id),
-      supabase.from('vendita_documenti').select('contratto_id').eq('pratica_id', praticaRow.id)
-        .eq('anagrafica_id', praticaRow.anagrafica_id).eq('tipo_documento', 'documento_identita')
+    const [contractsResult, documentsResult] = await Promise.all([
+      supabase.from('vendita_contratti').select('id,categoria_snapshot,codice_contratto,cluster_cliente,dispositivo_associato,tipo_acquisto').eq('pratica_id', praticaRow.id),
+      supabase.from('vendita_documenti').select('contratto_id,tipo_documento,sha256,storage_bucket,storage_path').eq('pratica_id', praticaRow.id)
+        .eq('anagrafica_id', praticaRow.anagrafica_id)
         .eq('storage_bucket', 'contratti-vendita')
     ]);
-    if (contractsResult.error || identityResult.error) {
-      return response(500, { success: false, error: 'Impossibile verificare i documenti identita prima dell\'invio' });
+    if (contractsResult.error || documentsResult.error) {
+      return response(500, { success: false, error: 'Impossibile verificare gli allegati prima dell’invio.' });
     }
-    const identityContractIds = new Set((identityResult.data || []).map(d => d.contratto_id));
-    if (!contractsResult.data?.length || contractsResult.data.some(c => !identityContractIds.has(c.id))) {
-      return response(409, { success: false, error: 'Ogni contratto deve avere il documento identita prima dell\'invio' });
+    const contracts = contractsResult.data || [];
+    const documents = documentsResult.data || [];
+    const identityContracts = contracts.filter(c => !isEnergy(c.categoria_snapshot));
+    if (!contracts.length) return response(409, { success: false, error: 'Nessun contratto da inviare.' });
+    if (contracts.some(c => isEnergy(c.categoria_snapshot)
+      && !documents.some(d => d.contratto_id === c.id && d.tipo_documento === 'copia_bolletta'))) {
+      return response(409, { success: false, error: 'Ogni contratto Luce & Gas deve avere la propria bolletta prima dell’invio.' });
+    }
+    if (identityContracts.some(c => !documents.some(d => d.contratto_id === c.id && d.tipo_documento === 'documento_identita'))) {
+      return response(409, { success: false, error: 'Manca il documento di riconoscimento per un contratto che lo richiede.' });
     }
 
-    if (praticaRow.identita_verifica_upload) {
+    if (identityContracts.length && praticaRow.identita_verifica_upload) {
       try {
         const check = praticaRow.identita_verifica_upload;
         const owner = await supabase.from('anagrafica').select('cf_piva,cluster,ragione_sociale,nome_referente').eq('id', praticaRow.anagrafica_id).single();
         if (owner.error) throw new Error('Impossibile rileggere l’anagrafica prima dell’invio.');
         Identity.assertPractice(check, owner.data);
-        const [contracts, documents] = await Promise.all([
-          supabase.from('vendita_contratti').select('id,categoria_snapshot,codice_contratto,cluster_cliente,dispositivo_associato,tipo_acquisto').eq('pratica_id', praticaRow.id),
-          supabase.from('vendita_documenti').select('contratto_id,tipo_documento,sha256,storage_bucket,storage_path').eq('pratica_id', praticaRow.id)
-        ]);
-        if (contracts.error || documents.error) throw new Error('Impossibile verificare gli allegati prima dell’invio.');
-        await BusinessIdentity.assertSources(supabase, check, owner.data, contracts.data || [], documents.data || []);
-        for (const c of contracts.data || []) {
+        await BusinessIdentity.assertSources(supabase, check, owner.data, identityContracts, documents);
+        for (const c of identityContracts) {
           if (Identity.Core.needsPermit(c, 'extra_ue') && !check.result.cittadinanza) throw new Error('Conferma la cittadinanza prima di inviare un Mobile Consumer con dispositivo VAR.');
           for (const source of check.documents) {
-            if (!(documents.data || []).some(d => d.contratto_id === c.id && d.tipo_documento === 'documento_identita' && d.sha256 === source.sha256)) {
+            if (!documents.some(d => d.contratto_id === c.id && d.tipo_documento === 'documento_identita' && d.sha256 === source.sha256)) {
               throw new Error('Il documento identita caricato non coincide con tutti i PDF controllati.');
             }
           }
           if (Identity.Core.needsPermit(c, check.result.cittadinanza)
-            && !(documents.data || []).some(d => d.contratto_id === c.id && d.tipo_documento === 'permesso_soggiorno' && /^[a-f0-9]{64}$/.test(d.sha256 || ''))) {
+            && !documents.some(d => d.contratto_id === c.id && d.tipo_documento === 'permesso_soggiorno' && /^[a-f0-9]{64}$/.test(d.sha256 || ''))) {
             throw new Error('Permesso di soggiorno obbligatorio per Mobile Consumer con dispositivo VAR e cittadinanza extra UE.');
           }
         }
@@ -933,6 +945,8 @@ exports.handler = async (event) => {
     if (pdaCategoryError) throw pdaCategoryError;
     const seenPdaCodes = new Set();
     const customerCodes = [];
+    const energyPoints = [];
+    const identityContracts = [];
     for (let i = 0; i < normalizedContracts.length; i++) {
       const contract = normalizedContracts[i];
       const category = (pdaCategories || []).find(c => c.id === contract.categoria_id);
@@ -953,11 +967,14 @@ exports.handler = async (event) => {
       if (customerCode) customerCodes.push(customerCode);
       try { contract.assicurazione_impianti = validateAssicurazioneImpianti(contrattiRaw[i], category.nome); }
       catch (error) { error.statusCode = 400; throw error; }
-      if (String(category.nome).trim().toLowerCase() === 'energia') {
+      if (isEnergy(category.nome)) {
         const raw = contrattiRaw[i];
         contract.pod_pdr = confirmedPoint(raw.pod_pdr, raw.pod_pdr_conferma);
         if (!contract.pod_pdr) throw Object.assign(new Error('Conferma il POD/PDR dalla bolletta prima di inviare il contratto Energia.'), { statusCode: 400 });
         contract.numero_contratto_energia = null;
+        energyPoints.push(contract.pod_pdr);
+      } else {
+        identityContracts.push({ ...contract, categoria_snapshot: category.nome, cluster_cliente: cluster });
       }
       if (contract.codice_contratto) {
         if (seenPdaCodes.has(contract.codice_contratto)) throw Pda.duplicateError();
@@ -965,13 +982,16 @@ exports.handler = async (event) => {
         await Pda.assertAvailable(supabase, contract.codice_contratto);
       }
     }
-    const identityCheck = Identity.verify(pratica.identita_token, { user: Identity.author(auth), customer: cliente, secret: serviceRoleKey });
-    if (!Identity.approved(identityCheck)) throw new Error('Completa il controllo identita prima dell’invio.');
-    await BusinessIdentity.assertSources(supabase, identityCheck, cliente, normalizedContracts.map(c => ({ ...c, categoria_snapshot: pdaCategories.find(category => category.id === c.categoria_id)?.nome })));
-    for (const contract of normalizedContracts) {
-      const category = pdaCategories.find(c => c.id === contract.categoria_id);
-      if (Identity.Core.needsPermit({ ...contract, categoria_snapshot: category.nome, cluster_cliente: cluster }, 'extra_ue') && !identityCheck.result.cittadinanza) {
-        throw new Error('Conferma la cittadinanza per il Mobile Consumer con dispositivo VAR.');
+    await EnergyUpload.assertAvailable(supabase, energyPoints);
+    let identityCheck = null;
+    if (identityContracts.length) {
+      identityCheck = Identity.verify(pratica.identita_token, { user: Identity.author(auth), customer: cliente, secret: serviceRoleKey });
+      if (!Identity.approved(identityCheck)) throw new Error('Completa il controllo identita prima dell’invio.');
+      await BusinessIdentity.assertSources(supabase, identityCheck, cliente, identityContracts);
+      for (const contract of identityContracts) {
+        if (Identity.Core.needsPermit(contract, 'extra_ue') && !identityCheck.result.cittadinanza) {
+          throw new Error('Conferma la cittadinanza per il Mobile Consumer con dispositivo VAR.');
+        }
       }
     }
     let anagraficaId;
@@ -1559,6 +1579,7 @@ exports.handler = async (event) => {
       }
 
       if (contractInsertError) {
+        if (EnergyUpload.isDuplicateViolation(contractInsertError)) throw EnergyUpload.duplicateError();
         throw Pda.isDuplicateViolation(contractInsertError) ? Pda.duplicateError() : new Error(readableError(contractInsertError, `Errore creazione contratto indice ${index}`));
       }
 

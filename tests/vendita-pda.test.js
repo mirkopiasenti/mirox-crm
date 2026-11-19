@@ -422,11 +422,11 @@ test('lettura AI/manuale e valori nascosti sopravvivono al restore e al reset de
 
 test('payload server conserva i valori PDA nascosti senza inviare metadati UI',()=>{
   const source=fs.readFileSync(path.join(__dirname,'../moduli/upload-contratti-vendita.html'),'utf8');
-  const a=source.indexOf(' function buildInvioPayload()'),b=source.indexOf(' async function inviaPratica()',a);
+  const a=source.indexOf(' function isEnergyCartItem('),b=source.indexOf(' async function inviaPratica()',a);
   const item={...Pda.validate({...mobile,portabilita:true,numero_telefono:'3491234567',numero_mnp:'3491234567',numero_provvisorio:'3931234567',operatore_provenienza:'Vodafone'},'Mobile'),
     codice_cliente:'P0001234567',pda_lettura:'ai',pda_dispositivo_auto:false,pda_dispositivo_manuale:true,pda_tipo_attivazione_auto:'Portabilita',pda_tipo_attivazione_manuale:true,categoria_nome:'Mobile',categoria_id:'cat',offerta_id:'offer',flags:{},files:{},codice_rivenditore:'9000822241'};
   const state={cart:{contratti:[item]}},cliente={cf_piva:'RSSMRA80A01H501U'};
-  const ctx={window:{MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda,MiroxIdentitaCore:require('../js/identita-upload-core'),MiroxIdentitaUpload:{get:()=>({token:'fixture',result:{cittadinanza:'ue'}})}},state,getClienteFormData:()=>cliente,validateClienteData(){},
+  const ctx={window:{MiroxEnergia:require('../js/energia-core'), MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda:Pda,MiroxIdentitaCore:require('../js/identita-upload-core'),MiroxIdentitaUpload:{get:()=>({token:'fixture',result:{cittadinanza:'ue'}})}},state,getClienteFormData:()=>cliente,validateClienteData(){},
     praticaFiles:{documento_identita:[{}]},runtimeState:{},refs:{originePratica:{value:'spontaneo'},operatoreId:{value:'operator'}},
     CODICI_RIVENDITORE:['9001415852'],CODICE_RIVENDITORE_DEFAULT:'9001415852'};
   vm.runInNewContext(source.slice(a,b)+';this.payload=buildInvioPayload;',ctx);

@@ -2,6 +2,13 @@
 
 Aggiornato:2026-11-19. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
 
+## Upload Luce & Gas con bolletta e blocco giornaliero —19/11, pronto in locale
+
+- Luce & Gas Consumer/Business richiede la sola bolletta. Documento e controllo identità esclusi anche nelle bozze Energia con altri contratti; i PDF si associano ai soli contratti che li richiedono. Finalize verifica per contratto. In Verifica Energia pendente sparisce il documento d’identità dagli allegati e dalle scelte.
+- POD/PDR normalizzato, giorno di inserimento `created_at` Europe/Rome, entrambi i negozi. Blocco nel wizard, nel carrello e nella Function; indice univoco parziale e trigger privato per gli inserimenti concorrenti e i cambi di chiave dei contratti di oggi. Storico preesistente conservato. Migrazione sorgente `20261119173949_energia_upload_bolletta_duplicati.sql`.
+- Build e suite completa 879/879 verdi in copia isolata. Harness PGlite 0.5.13 verde su ACL, storico, cambio giorno e ora legale, cancellazione bozza e rollback del doppio inserimento. Verificati flusso Energia con sola bolletta, carrello misto, errore di duplicato e allegati Verifica. Nessun browser.
+- Preflight production in sola lettura: 35 contratti Energia inviate/da_controllare, 35 bollette e 35 PDF identità con oggetto presente, 0 percorsi condivisi e 0 pratiche miste nel perimetro. Nessuna scrittura o cancellazione eseguita. Al via libera applicare la migrazione, pubblicare UI/API, rieseguire il preflight e rimuovere i soli record e file d’identità dei pendenti. README, AGENTS e databaseREADME aggiornati.
+
 ## Tipo pratica nel dettaglio e duplicati Energia —19/11, pubblicati
 
 - Campo Tipo pratica in sola lettura nei Campi specifici categoria. In caso di più righe per POD/PDR, criteri progressivi M (Data Firma rispetto a giorno Data Inserimento Mirox, Europe/Rome), E/F (CF o P.IVA), X (esclusione Annullato). Zero o più righe finali → Da verificare con nota. Il prossimo CSV riprende i soli esiti automatici da verificare, con tutela degli override e della coppia proposta–POD/PDR.

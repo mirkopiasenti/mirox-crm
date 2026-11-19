@@ -149,9 +149,13 @@ Nelle liste dei contratti in attesa il colore è applicato soltanto alle etichet
 
 ## Verifica Energia con il CSV WindTre
 
-In **Upload Contratti**, prima degli allegati, **Avanti** mostra in grande il POD/PDR inserito. L’operatore lo confronta con la bolletta e lo digita una seconda volta. Si prosegue quando i due codici coincidono. La pratica Energia inviata parte da **IN ATTESA CSV**.
+In **Upload Contratti**, **Avanti** mostra il POD/PDR da ridigitare dopo il confronto con la bolletta. Se per lo stesso POD o PDR risulta già un contratto inserito nello stesso giorno, il CRM blocca il caricamento. Il giorno si calcola in ora italiana e il controllo vale per entrambi i negozi. Lo stesso codice può essere usato in una giornata diversa.
+
+Per Luce & Gas l’unico allegato obbligatorio è la **copia della bolletta**. Nei carrelli misti il documento di riconoscimento si associa solo ai contratti che lo richiedono. La pratica Energia inviata parte da **IN ATTESA CSV**.
 
 In **Verifica Contratti → Energia**, **Carica CSV WindTre** cerca nel file il POD/PDR già registrato. Una corrispondenza univoca compila **Numero Contratto** dalla colonna H (*Proposta di Contratto*) e **Tipo pratica** dalla colonna K (*Tipo Richiesta*). La pratica passa subito a **IN ATTESA VERIFICA** per il controllo manuale degli allegati. L’Ex Fornitore è facoltativo.
+
+La scheda Energia in attesa mostra gli allegati utili alla verifica e consente di integrare la bolletta. La rimozione dei PDF d’identità già presenti interessa le sole pratiche Energia inviate e ancora in attesa di verifica. Lo stato del rilascio e della rimozione è in [Stato del lavoro](docs/STATO_LAVORO.md).
 
 Per più righe con lo stesso POD/PDR, il CRM confronta prima il giorno della **Data Inserimento** con la **Data Firma** in M. Se ne restano più d’una, confronta il codice fiscale in E per Consumer o la P.IVA in F per Business. Se serve un ulteriore filtro, scarta **Annullato** in X. Il risultato deve essere univoco. Un nuovo caricamento riesamina anche gli esiti automatici **DA VERIFICARE**. **Campi specifici categoria** mostra il **Tipo pratica** in sola lettura, accanto al numero di contratto.
 

@@ -131,11 +131,11 @@ test('Reload: doppi cambi bloccati e conferme tardive scartate su PDA, contratto
 });
 
 test('Reload: carrello, payload di invio e backend conservano i due valori indipendenti', () => {
-  const start = source.indexOf(' function buildInvioPayload()'), end = source.indexOf(' async function inviaPratica()', start);
+  const start = source.indexOf(' function isEnergyCartItem('), end = source.indexOf(' async function inviaPratica()', start);
   for (const category of ['Mobile', 'Customer Base']) for (const exchange of [true, false]) for (const forever of [true, false]) {
     const item = { codice_contratto: 'TEST001', codice_cliente: 'P0001', categoria_nome: category, categoria_id: 'cat', offerta_id: 'offer',
       costo_offerta_mensile: 12.99, numero_telefono: '3331234567', numero_provvisorio: null, portabilita: false, reload_exchange: exchange, reload_forever: forever, reload_forever_gestione: forever ? 'Mantieni attiva' : null, flags: {}, files: {} };
-    const ctx = { window: { MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda: Pda, MiroxIdentitaCore: require('../js/identita-upload-core'),
+    const ctx = { window: { MiroxEnergia: require('../js/energia-core'), MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda: Pda, MiroxIdentitaCore: require('../js/identita-upload-core'),
       MiroxIdentitaUpload: { get: () => ({ token: 'fixture', result: { cittadinanza: 'ue' } }) } },
       state: { cart: { contratti: [item] } }, getClienteFormData: () => ({ cluster: 'Consumer' }), validateClienteData() {},
       praticaFiles: { documento_identita: [{}] }, runtimeState: {}, refs: { originePratica: { value: 'spontaneo' }, operatoreId: { value: 'operator' } },

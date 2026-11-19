@@ -1,6 +1,7 @@
 const Busboy = require('busboy');
 const { createClient } = require('@supabase/supabase-js');
 const Identity = require('./_lib/identita-upload');
+const { isEnergy } = require('../../js/energia-core');
 const { requireAuth: requireBaseAuth } = require('./_lib/require-auth');
 const requireAuth = (event, options = {}) => requireBaseAuth(event, { ...options, endpoint: 'upload-vendita-documento' });
 
@@ -492,6 +493,12 @@ exports.handler = async (event) => {
       }
       contrattoRow = data;
     }
+    if (tipoDocumento === 'documento_identita' && isEnergy(contrattoRow?.categoria_snapshot)) {
+      return response(409, { success: false, error: 'Per Luce & Gas carica la bolletta come allegato.' });
+    }
+    if (tipoDocumento === 'documento_identita' && praticaRow.stato_pratica === 'inviata' && !contrattoId) {
+      return response(400, { success: false, error: 'contratto_id obbligatorio per allegare il documento di riconoscimento' });
+    }
     if (tipoDocumento === 'permesso_soggiorno' && !Identity.Core.needsPermit(contrattoRow || {}, praticaRow.identita_verifica_upload?.result?.cittadinanza)) {
       return response(400, { success: false, error: 'Permesso di soggiorno previsto solo per Mobile Consumer con dispositivo VAR e cittadinanza extra UE.' });
     }
@@ -518,11 +525,15 @@ exports.handler = async (event) => {
 
     if (tipoDocumento === 'documento_identita' && praticaRow.stato_pratica === 'bozza') {
       const { data: contracts, error: contractsError } = await supabase.from('vendita_contratti')
-        .select('id, pratica_id, anagrafica_id').eq('pratica_id', praticaId)
+        .select('id, pratica_id, anagrafica_id, categoria_snapshot').eq('pratica_id', praticaId)
         .eq('anagrafica_id', anagraficaId).order('created_at').order('id');
       if (contractsError) throw contractsError;
-      const identityContractId = contrattoId || contracts?.[0]?.id;
-      const documenti = await storeIdentityForContracts({ supabase, contracts: contracts || [], buffer: file.buffer,
+      const identityContracts = (contracts || []).filter(c => !isEnergy(c.categoria_snapshot));
+      const identityContractId = contrattoId || identityContracts[0]?.id;
+      if (!identityContractId) {
+        return response(409, { success: false, error: 'Per Luce & Gas carica la bolletta come allegato.' });
+      }
+      const documenti = await storeIdentityForContracts({ supabase, contracts: identityContracts, buffer: file.buffer,
         payload: { pratica_id: praticaId, contratto_id: identityContractId, anagrafica_id: anagraficaId,
           tipo_documento: tipoDocumento, storage_bucket: STORAGE_BUCKET, storage_path: storagePath,
           file_name: finalFileName, mime_type: file.mimeType, file_size: file.size, uploaded_by: uploadedBy, sha256: Identity.hash(file.buffer) }

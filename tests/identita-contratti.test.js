@@ -144,19 +144,17 @@ for (const failure of [null,'readback','insert']) test(`bonifica verifica i byte
   assert.deepEqual(files.get(source.storage_path), Buffer.from('%PDF-test'));
 });
 
-function finalizeFixture({ identityIds, readError = false, check = null, fileDocs = [], customer = null, contractPatch = {} }) {
+function finalizeFixture({ identityIds = [], readError = false, check = null, fileDocs = [], customer = null, contractPatch = {}, storedContracts }) {
   let finalized = false, ccCalls = 0;
   const practice = { id: pratica, anagrafica_id: cliente, operatore_id: 'user', stato_pratica: 'bozza', identita_verifica_upload: check };
   const db = { from(table) {
-    let update = false; const filters = [];
-    const q = { select() { return q; }, eq(key, value) { filters.push([key, value]); return q; }, update() { update = true; return q; },
+    let update = false;
+    const q = { select() { return q; }, eq() { return q; }, update() { update = true; return q; },
       async single() { return { data: customer }; },
       async maybeSingle() { if (update) finalized = true; return { data: update ? { id: pratica } : practice }; },
       then(resolve, reject) {
-        let data = table === 'vendita_contratti' ? contracts.map(c => ({ ...c, ...contractPatch })) : check ? fileDocs : identityIds.map(contratto_id => ({ contratto_id }));
-        if (check && table === 'vendita_documenti') for (const [key, value] of filters) {
-          if (key === 'tipo_documento') data = data.filter(row => row[key] === value);
-        }
+        const data = table === 'vendita_contratti' ? storedContracts || contracts.map(c => ({ ...c, ...contractPatch }))
+          : fileDocs.concat(identityIds.map(contratto_id => ({ contratto_id, tipo_documento: 'documento_identita' })));
         return Promise.resolve(readError ? { error: new Error('DB offline') } : { data }).then(resolve,reject);
       }
     }; return q;
@@ -172,6 +170,7 @@ function finalizeFixture({ identityIds, readError = false, check = null, fileDoc
       if (id === './_lib/pda-contract') return require('../netlify/functions/_lib/pda-contract');
       if (id === '../../js/fisso-core') return require('../js/fisso-core');
       if (id === '../../js/energia-core') return require('../js/energia-core');
+      if (id === './_lib/energia-upload') return require('../netlify/functions/_lib/energia-upload');
       if (id === '../../js/customer-base-device') return require('../js/customer-base-device');
       if (id === '@supabase/supabase-js') return { createClient: () => db };
       if (id === './_lib/require-auth') return { requireAuth: async () => ({ ok: true, user: { id: 'user' }, profilo: { ruolo: 'admin' } }) };
@@ -181,6 +180,24 @@ function finalizeFixture({ identityIds, readError = false, check = null, fileDoc
     } });
   return { handler: module.exports.handler, get finalized() { return finalized; }, get ccCalls() { return ccCalls; } };
 }
+
+test('finalize Energia con bolletta e finalizzazione mista con identità sul solo contratto soggetto', async () => {
+  const energy = { ...contracts[0], categoria_snapshot: 'Energia' };
+  const other = { ...contracts[1], categoria_snapshot: 'Mobile' };
+  const bill = { contratto_id: energy.id, tipo_documento: 'copia_bolletta' };
+  for (const [storedContracts, fileDocs, identityIds, status] of [
+    [[energy], [bill], [], 200],
+    [[energy], [], [energy.id], 409],
+    [[energy, other], [bill], [other.id], 200],
+    [[energy, other], [bill], [energy.id], 409]
+  ]) {
+    const f = finalizeFixture({ storedContracts, fileDocs, identityIds });
+    const r = await f.handler({ httpMethod: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'finalize', pratica_id: pratica }) });
+    assert.equal(r.statusCode, status, r.body);
+    assert.equal(f.finalized, status === 200);
+  }
+});
 
 test('finalize nuovo upload verifica hash di tutti i PDF, anagrafica e permesso Consumer VAR extra UE lato server', async () => {
   const owner = { cf_piva: 'RSSMRA80A01H501U', cluster: 'Consumer', ragione_sociale: 'Mario Rossi' };

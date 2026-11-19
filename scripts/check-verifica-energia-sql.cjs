@@ -552,6 +552,42 @@ SET LOCAL lock_timeout`).replace(/ROLLBACK;\s*$/, 'COMMIT;');
     assert.match(await reason('2026-11-20', fiscale), /Nessuna ha la Data Firma/);
     assert.match(await reason('2026-11-19', 'BNCANN80A01H501U'), /stesso codice fiscale/);
     assert.match(await reason('2026-11-19', fiscale), /tutte Annullato/);
+
+    await db.exec('RESET ROLE');
+    await load('20261119173949_energia_upload_bolletta_duplicati.sql');
+    const availableCheck = points => value('SELECT vendita_energia_punto_caricato_oggi($1) AS v', [points]);
+    const writeAt = (id, point, created, category = 'Energia') => query(`INSERT INTO vendita_contratti
+      (id,anagrafica_id,pratica_id,categoria_snapshot,categoria_id,stato_controllo,cluster_cliente,pod_pdr,created_at)
+      VALUES($1,$2,$3,$4,$5,'da_controllare','Consumer',$6,$7)`,
+      [fixtureId(id), cliente, bozza, category, fixtureId(category === 'Mobile' ? 21 : 20), point, created]);
+    await db.exec('SET ROLE authenticated');
+    await assert.rejects(availableCheck([supplyFor(1)]), { code: '42501' });
+    await db.exec('SET ROLE service_role');
+    assert.equal(await availableCheck([supplyFor(1)]), true); // Duplicati storici già presenti.
+    assert.equal(await availableCheck(['IT002E12345678']), false);
+    const current = await value('SELECT statement_timestamp() AS v');
+    await assert.rejects(writeAt(101, supplyFor(1), current), { code: '23505' });
+    await query("UPDATE vendita_contratti SET data_contratto='2026-11-21' WHERE id=$1", [dateMatch]);
+    const newPod = 'IT002E12345678';
+    await writeAt(102, 'it002e 12345678', '2026-11-19T22:59:59Z');
+    await writeAt(103, newPod, '2026-11-19T23:00:00Z', null); // Snapshot legacy, categoria Energia.
+    await assert.rejects(writeAt(104, newPod, '2026-11-20T10:00:00Z'), { code: '23505' });
+    await writeAt(104, newPod, '2026-11-20T10:00:00Z', 'Mobile');
+    await writeAt(105, '00123456789300', '2026-07-01T21:59:59Z');
+    await writeAt(106, '00123456789300', '2026-07-01T22:00:00Z');
+    await assert.rejects(writeAt(107, '00123456789300', '2026-07-02T11:00:00Z'), { code: '23505' });
+    await query("UPDATE vendita_contratti SET pod_pdr=$2 WHERE id=$1", [fixtureId(103), 'it002e12345678']);
+    await writeAt(111, supplyFor(1), current, 'Mobile');
+    await assert.rejects(query("UPDATE vendita_contratti SET categoria_snapshot='Energia' WHERE id=$1", [fixtureId(111)]), { code: '23505' });
+    await writeAt(112, '00123456789302', '2026-07-02T11:00:00Z');
+    await query("UPDATE vendita_contratti SET pod_pdr='00123456789300' WHERE id=$1", [fixtureId(112)]);
+    await query('DELETE FROM vendita_contratti WHERE id=$1', [fixtureId(103)]);
+    await writeAt(108, newPod, '2026-11-20T10:00:00Z'); // Una bozza annullata via rollback libera il punto.
+    const atomicPoint = '00123456789301';
+    await assert.rejects(query(`INSERT INTO vendita_contratti
+      (id,categoria_snapshot,pod_pdr,created_at) VALUES ($1,'Energia',$3,$4),($2,'Energia',$3,$4)`,
+      [fixtureId(109), fixtureId(110), atomicPoint, current]), { code: '23505' });
+    assert.equal(await availableCheck([atomicPoint]), false);
     console.log('Verifica Energia SQL: migrazione, ACL, riscontro, esiti, concorrenza ottimistica e rollback verificati.');
   } finally {
     await db.close();

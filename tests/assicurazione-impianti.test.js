@@ -56,6 +56,7 @@ function nextFixture(category = 'Energia') {
   const steps = [], ctx = { refs, window: { MiroxEnergia: Energia }, runtimeState: { pdaRevision: 1, assicurazioneImpianti: null },
     getCategoriaName: () => category, isCategory, isCurrentCategoriaPda: () => false,
     collectContractDraft: () => ({ pod_pdr: pdr }), chiediConfermaPuntoEnergia: () => pdr,
+    checkEnergyPoint: async () => {},
     chiediAssicurazioneImpianti() { asks++; return new Promise(r => { resolve = r; }); },
     queueDraftSave() { saves++; }, goToStep: n => steps.push(n), showUserError: msg => assert.fail(msg) };
   vm.runInNewContext(section(" refs.btnContrattoNext.addEventListener('click', async () => {", ' function chiediConfermaPuntoEnergia'), ctx);
@@ -65,6 +66,7 @@ test('Avanti attende una scelta, blocca doppi click e conserva anche No', async 
   for (const answer of [true, false, null]) {
     const f = nextFixture(), pending = f.refs.btnContrattoNext.click();
     await f.refs.btnContrattoNext.click();
+    await new Promise(setImmediate);
     assert.equal(f.asks(), 1); assert.deepEqual(f.steps, []);
     f.answer(answer); await pending;
     assert.equal(f.ctx.runtimeState.assicurazioneImpianti, answer);
@@ -75,7 +77,7 @@ test('Avanti attende una scelta, blocca doppi click e conserva anche No', async 
 });
 test('risposta tardiva non modifica un nuovo contratto e le altre categorie non aprono il popup', async () => {
   const f = nextFixture(), pending = f.refs.btnContrattoNext.click();
-  await Promise.resolve();
+  await new Promise(setImmediate);
   f.ctx.runtimeState.pdaRevision++; f.answer(true); await pending;
   assert.equal(f.ctx.runtimeState.assicurazioneImpianti, null); assert.deepEqual(f.steps, []);
   const other = nextFixture('Allarmi'); await other.refs.btnContrattoNext.click();
@@ -86,6 +88,21 @@ test('Avanti non apre gli allegati se il riscontro del POD/PDR viene annullato',
   const f = nextFixture();
   f.ctx.chiediConfermaPuntoEnergia = () => null;
   await f.refs.btnContrattoNext.click();
+  assert.equal(f.ctx.runtimeState.puntoEnergiaConfermato, null);
+  assert.equal(f.asks(), 0);
+  assert.deepEqual(f.steps, []);
+});
+
+test('Avanti blocca una fornitura già caricata prima di chiedere l’assicurazione o i PDF', async () => {
+  const f = nextFixture();
+  const messages = [];
+  f.ctx.checkEnergyPoint = async point => {
+    assert.equal(point, pdr);
+    throw new Error('È già stata caricata una pratica oggi');
+  };
+  f.ctx.showUserError = message => messages.push(message);
+  await f.refs.btnContrattoNext.click();
+  assert.match(messages[0], /già stata caricata/);
   assert.equal(f.ctx.runtimeState.puntoEnergiaConfermato, null);
   assert.equal(f.asks(), 0);
   assert.deepEqual(f.steps, []);
@@ -116,20 +133,21 @@ test('popup POD/PDR mostra il valore, respinge una differenza e accetta una nuov
   assert.equal(await pending, pdr);
 });
 
-function payload(items, cluster) {
+function payload(items, cluster, identityFiles = [{}]) {
   const ctx = { window: { MiroxEnergia: Energia, MiroxFisso:require('../js/fisso-core'),MiroxFissoUI:{form:()=>'',bind(){},read:()=>({})},MiroxPda: Pda, MiroxIdentitaCore: require('../js/identita-upload-core'),
     MiroxIdentitaUpload: { get: () => ({ token: 'fixture', result: {} }) } },
     state: { cart: { contratti: items } }, getClienteFormData: () => ({ cluster }), validateClienteData() {},
-    praticaFiles: { documento_identita: [{}] }, runtimeState: {},
+    praticaFiles: { documento_identita: identityFiles }, runtimeState: {},
     refs: { originePratica: { value: 'spontaneo' }, operatoreId: { value: 'operator' } }, CODICE_RIVENDITORE_DEFAULT: '9001415852' };
-  vm.runInNewContext(section(' function buildInvioPayload()', ' async function inviaPratica()'), ctx);
+  vm.runInNewContext(section(' function isEnergyCartItem(', ' async function inviaPratica()'), ctx);
   return ctx.buildInvioPayload();
 }
 const item = value => ({ temp_id: 'temp', categoria_nome: 'Energia', categoria_id: 'cat', offerta_id: 'offer',
-  assicurazione_impianti: value, pod_pdr: pdr, pod_pdr_conferma: pdr, flags: {}, files: {} });
+  assicurazione_impianti: value, pod_pdr: pdr, pod_pdr_conferma: pdr, flags: {}, files: { bolletta: [{}] } });
+const pod = 'IT001E12345678';
 test('carrello misto e payload Consumer/Business preservano risposte opposte per singolo contratto', () => {
   for (const cluster of ['Consumer', 'Business']) {
-    const dto = payload([item(true), item(false), { ...item(undefined), categoria_nome: 'Assicurazioni' }], cluster);
+    const dto = payload([item(true), { ...item(false), pod_pdr: pod, pod_pdr_conferma: pod }, { ...item(undefined), categoria_nome: 'Assicurazioni' }], cluster);
     assert.deepEqual(Array.from(dto.contratti, c => c.assicurazione_impianti), [true, false, null]);
     for (const raw of dto.contratti) {
       const normalized = normalizeContractInput(raw, 0);
@@ -139,6 +157,13 @@ test('carrello misto e payload Consumer/Business preservano risposte opposte per
     assert.equal(dto.contratti[0].pod_pdr_conferma, pdr);
     assert.throws(() => payload([{ ...item(false), pod_pdr_conferma: null }], cluster), /conferma il POD\/PDR/);
   }
+});
+
+test('carrello Energia invia soltanto la bolletta e richiede un punto distinto per contratto', () => {
+  assert.equal(payload([item(false)], 'Consumer', []).pratica.identita_token, null);
+  assert.throws(() => payload([{ ...item(false), files: {} }], 'Business', []), /bolletta mancante/);
+  assert.throws(() => payload([item(true), item(false)], 'Consumer', []), /già stata caricata/);
+  assert.throws(() => payload([item(false), { ...item(undefined), categoria_nome: 'Assicurazioni' }], 'Consumer', []), /Documento di riconoscimento mancante/);
 });
 
 test('bozza, riapertura carrello e nuovo contratto conservano No senza ereditarlo', () => {
@@ -168,7 +193,16 @@ test('bozza, riapertura carrello e nuovo contratto conservano No senza ereditarl
 test('handler respinge Energia senza risposta prima di scrivere pratica, anagrafica o file', async () => {
   const filename = path.join(__dirname, '../netlify/functions/crea-vendita-pratica-carrello.js');
   const module = { exports: {} }, nativeRequire = require('node:module').createRequire(filename);
-  const db = { from(table) { assert.equal(table, 'vendita_categorie'); return { select() { return this; }, async in() { return { data: [{ id: 'cat', nome: 'Energia' }] }; } }; } };
+  let duplicateChecks = 0;
+  const db = {
+    from(table) { assert.equal(table, 'vendita_categorie'); return { select() { return this; }, async in() { return { data: [{ id: 'cat', nome: 'Energia' }] }; } }; },
+    async rpc(name, args) {
+      assert.equal(name, 'vendita_energia_punto_caricato_oggi');
+      assert.deepEqual(Array.from(args.p_punti), [pdr]);
+      duplicateChecks++;
+      return { data: true };
+    }
+  };
   vm.runInNewContext(fs.readFileSync(filename, 'utf8'), { module, exports: module.exports, Buffer, Date, Intl,
     console: { log() {}, warn() {}, error() {} }, process: { env: { SUPABASE_URL: 'https://example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'test' } },
     require(name) {
@@ -183,4 +217,9 @@ test('handler respinge Energia senza risposta prima di scrivere pratica, anagraf
   assert.equal(result.statusCode, 400); assert.match(JSON.parse(result.body).error, /assicurazione impianti/);
   const mismatch = await submit({ assicurazione_impianti: false, pod_pdr: pdr, pod_pdr_conferma: '00123456789013' });
   assert.equal(mismatch.statusCode, 400); assert.match(JSON.parse(mismatch.body).error, /Conferma il POD\/PDR/);
+  assert.equal(duplicateChecks, 0);
+  const duplicate = await submit({ assicurazione_impianti: false, pod_pdr: pdr, pod_pdr_conferma: pdr });
+  assert.equal(duplicate.statusCode, 409, duplicate.body);
+  assert.equal(JSON.parse(duplicate.body).error_code, 'punto_energia_duplicato');
+  assert.equal(duplicateChecks, 1);
 });

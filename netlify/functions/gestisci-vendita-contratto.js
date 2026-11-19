@@ -13,6 +13,7 @@ const {
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MANUAL_REVIEW_STATES = new Set(['da_verificare', 'da_confermare', 'in_attesa_csv', 'in_attesa_verifica']);
 const { code: energyCode, isPoint } = require('../../js/energia-core');
+const EnergyUpload = require('./_lib/energia-upload');
 const ENERGY_FIELDS = ['pod_pdr', 'assicurazione_impianti', 'numero_contratto_energia', 'ex_fornitore'];
 const CONTRACT_FIELDS = new Set([
   ...Pda.FIELDS,
@@ -545,6 +546,9 @@ exports.handler = async (event) => {
     return response(400, { success: false, error: 'Action non valida' });
   } catch (error) {
     if (Pda.isDuplicateViolation(error)) error = Pda.duplicateError();
+    if (EnergyUpload.isDuplicateViolation(error)) {
+      error = EnergyUpload.duplicateError('Per questo POD/PDR è già stata caricata una pratica nello stesso giorno di inserimento.');
+    }
     return response(error.statusCode || (error.code === '40001' ? 409 : 500), {
       error_code: error.error_code || null,
       duplicate: error.duplicate || null,

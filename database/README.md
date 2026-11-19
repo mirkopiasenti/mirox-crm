@@ -483,6 +483,12 @@ Applicata e riletta il 18/11 in produzione come `20261118224831`. L’intervento
 
 Applicata il 19/11 e riletta come `20261118231007`. Su produzione verificati in sola lettura l’esclusione dell’annullato, il grant service-only, 42 tipi già disponibili e 10 esiti automatici pronti al riesame sul prossimo CSV.
 
+### Upload Energia con bolletta e unicità giornaliera19/11
+
+`20261119173949_energia_upload_bolletta_duplicati.sql` aggiunge il marker `energia_chiave_giornaliera_protetta` ai contratti e un indice univoco parziale sulla coppia giorno di `created_at` in Europe/Rome e POD/PDR normalizzato. Il trigger privato protegge i nuovi inserimenti Energia con punto valido e i cambi di chiave per i contratti inseriti oggi. Consulta anche le righe precedenti alla migrazione tramite l’indice del punto normalizzato esistente. Le chiavi già presenti conservano righe e valori. La RPC `vendita_energia_punto_caricato_oggi` è INVOKER, service-only e restituisce un booleano. Il trigger DEFINER ha search path vuoto e controlla il punto anche sulle scritture sottoposte a RLS. La finalizzazione della bozza esige la bolletta per ciascun contratto Energia e il documento d’identità per le altre categorie.
+
+Applicare la migrazione prima del codice. Dopo il rilascio rileggere e bonificare i soli `vendita_documenti.tipo_documento='documento_identita'` associati a contratti Energia `da_controllare` e pratiche `inviata`. Riconfermare stato e riferimenti degli allegati al momento della cancellazione. Rimuovere i file esclusivi con l’API Storage e verificare sia i record sia gli oggetti. Il preflight del 19/11 ha contato 35 allegati candidati, tutti con oggetto presente e percorso esclusivo. La migrazione è solo schema e non contiene la rimozione dei PDF.
+
 **Evoluzione delle migrazioni precedenti.**
 
 `20261118142349_verifica_energia_csv.sql` aggiunge tre tabelle RLS. `vendita_energia_csv` conserva impronta, versione, data e autore dell’ultima fonte valida. `vendita_energia_csv_righe` indicizza i campi normalizzati necessari. `vendita_energia_verifiche` conserva fase, motivo, correzione POD/PDR, revisione documentale, fonte e lease per ogni contratto. La sola ACL Verifica Contratti legge ID, fase, motivo, POD/PDR precedente e data CSV. Prove, righe CSV e RPC restano riservate al servizio.

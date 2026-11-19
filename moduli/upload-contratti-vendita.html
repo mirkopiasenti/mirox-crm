@@ -1365,7 +1365,7 @@ Reload Forever
 </div>
 </section> <section id="stepDocumentiSection" class="card panel hidden">
 <h2>Upload Documenti Cliente</h2>
-<p class="hint" style="margin:0 0 10px;">Carica il documento una sola volta per la pratica. Mirox legge il codice a barre e confronta il codice fiscale.</p>
+<p id="identityDocumentHint" class="hint" style="margin:0 0 10px;">Carica il documento una sola volta per la pratica. Mirox legge il codice a barre e confronta il codice fiscale.</p>
 <div class="grid">
 <div id="fieldDocumentoIdentita" class="field half">
 <label for="file_documento_identita">Documento di riconoscimento *</label>
@@ -1382,7 +1382,7 @@ Reload Forever
 <label for="file_copia_sim_mnp">Copia SIM MNP</label>
 <input id="file_copia_sim_mnp" type="file" accept="application/pdf" multiple>
 </div> <div id="fieldFileBolletta" class="field half hidden">
-<label for="file_copia_bolletta">Copia bolletta</label>
+<label for="file_copia_bolletta">Copia bolletta *</label>
 <input id="file_copia_bolletta" type="file" accept="application/pdf" multiple>
 </div>
 </div>
@@ -1419,8 +1419,7 @@ Reload Forever
 <div id="cartSummary" class="inline-box">
 <strong>Contratti:</strong>
 <span id="cartCount">0</span>
-<strong>Documento identita:</strong>
-<span id="identityStatus">non caricato</span>
+<span id="cartIdentitySummary" class="hidden"><strong>Documento identità:</strong> <span id="identityStatus">non caricato</span></span>
 </div>
 <div id="cartClienteBox" class="inline-box" style="margin-top:10px;"></div>
 <div id="cartList" class="cart-list" style="margin-top:10px;"></div>
@@ -2540,7 +2539,7 @@ Reload Forever
  { input: refs.fileDocumentoIdentita, title: 'PDF del documento di riconoscimento', hint: 'Trascina i PDF dello scanner o clicca per selezionarli', icon: '', multiple: true },
  { input: refs.fileContrattoFirmato, title: 'Contratto firmato *', hint: 'Trascina la scansione del PDA firmato (1 PDF)', icon: '', multiple: false },
  { input: refs.fileCopiaSimMnp, title: 'Fotocopia SIM', hint: 'Trascina i PDF qui o clicca per selezionare', icon: '', multiple: true },
- { input: refs.fileCopiaBolletta, title: 'Copia bolletta', hint: 'Trascina i PDF qui o clicca per selezionare', icon: '', multiple: true }
+ { input: refs.fileCopiaBolletta, title: 'Copia bolletta *', hint: 'Trascina i PDF qui o clicca per selezionare', icon: '', multiple: true }
  ];
 
  uploadConfig.forEach((item) => {
@@ -2643,6 +2642,16 @@ Reload Forever
  function getCartIdentityFiles() {
  return runtimeState.replacingCartIdentity ? getIdentityFiles() : praticaFiles.documento_identita || [];
  }
+ async function checkEnergyPoint(point) {
+ if (state.cart.contratti.some(item => item.temp_id !== runtimeState.editingTempId
+   && isEnergyCartItem(item) && window.MiroxEnergia.code(item.pod_pdr) === point)) {
+ throw duplicateEnergyPointError();
+ }
+ await fetchJsonOrTechnicalError('/.netlify/functions/crea-vendita-pratica-carrello', {
+ method: 'POST', headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ action: 'check_punto_energia', pod_pdr: point })
+ }, 'Impossibile controllare il POD/PDR');
+ }
  function invalidateIdentitySelection() {
  window.MiroxIdentitaUpload.invalidate();
  document.getElementById('identitaControlloEsito').textContent = 'Carica il PDF del documento, fino a 4 MB complessivi.';
@@ -2677,14 +2686,15 @@ Reload Forever
  && files.length === getFiles().length && files.every((file, index) => file === getFiles()[index]) });
  }
  async function continueFromDocuments() {
- if (!inDocumentsStep() || !getIdentityFiles().length) return;
+ if (!inDocumentsStep()) return;
+ const required = getCurrentDocumentRequirements();
+ if (required.documento_identita && !getIdentityFiles().length) return;
  const revision = runtimeState.documentsRevision;
  const current = () => inDocumentsStep() && revision === runtimeState.documentsRevision;
  try {
- await ensureIdentityUpload(inDocumentsStep);
+ if (required.documento_identita) await ensureIdentityUpload(inDocumentsStep);
  if (!current()) return;
  updateUploadVisibility();
- const required = getCurrentDocumentRequirements();
  if ((isCurrentCategoriaPda() && runtimeState.pendingTipoFirma === 'cartacea' && !getInputFile(refs.fileContrattoFirmato))
  || (required.copia_sim_mnp && !getInputFiles(refs.fileCopiaSimMnp).length)
  || (required.copia_bolletta && !getInputFiles(refs.fileCopiaBolletta).length)
@@ -2704,6 +2714,9 @@ Reload Forever
  window.MiroxIdentitaUpload.get()?.result?.cittadinanza);
  }
  function updateUploadVisibility() {
+ const needsIdentity = getCurrentDocumentRequirements().documento_identita;
+ document.getElementById('fieldDocumentoIdentita').classList.toggle('hidden', !needsIdentity);
+ document.getElementById('identityDocumentHint').classList.toggle('hidden', !needsIdentity);
  document.getElementById('fieldPermessoSoggiorno').classList.toggle('hidden', !currentNeedsPermit());
  // Il contratto PDA originale e' gestito in staging dallo step 1.
  // Il campo "Contratto firmato" appare allo step Documenti solo se per questo contratto
@@ -3309,12 +3322,13 @@ Reload Forever
  function getCurrentDocumentRequirements() {
  const offertaId = refs.offerta.value;
  const opzioneId = refs.opzione.value;
+ const energia = window.MiroxEnergia.isEnergy(getCategoriaName());
 
  return {
- documento_identita: true,
- contratto: hasOffertaDocumentRule(offertaId, DOC_TYPES.CONTRATTO),
- copia_bolletta: hasOffertaDocumentRule(offertaId, DOC_TYPES.COPIA_BOLLETTA),
- copia_sim_mnp: hasOpzioneDocumentRule(opzioneId, DOC_TYPES.COPIA_SIM_MNP)
+ documento_identita: !energia,
+ contratto: !energia && hasOffertaDocumentRule(offertaId, DOC_TYPES.CONTRATTO),
+ copia_bolletta: energia || hasOffertaDocumentRule(offertaId, DOC_TYPES.COPIA_BOLLETTA),
+ copia_sim_mnp: !energia && hasOpzioneDocumentRule(opzioneId, DOC_TYPES.COPIA_SIM_MNP)
  };
  }
 
@@ -4088,6 +4102,7 @@ Reload Forever
  function renderCarrello() {
  refs.cartCount.textContent = String(state.cart.contratti.length);
  refs.cartBadgeTop.textContent = String(state.cart.contratti.length);
+ document.getElementById('cartIdentitySummary').classList.toggle('hidden', !cartNeedsIdentity());
  if (Array.isArray(praticaFiles.documento_identita) && praticaFiles.documento_identita.length> 0) {
  if (praticaFiles.documento_identita.length === 1) {
  refs.identityStatus.textContent = `caricato: ${praticaFiles.documento_identita[0].name}`;
@@ -4622,7 +4637,8 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  contratto_firmato: selectedContractFirmato
  };
 
- const selectedDocumentoIdentita = getInputFiles(refs.fileDocumentoIdentita);
+ const needsIdentity = getCurrentDocumentRequirements().documento_identita;
+ const selectedDocumentoIdentita = needsIdentity ? getInputFiles(refs.fileDocumentoIdentita) : [];
 
  if (selectedDocumentoIdentita.length> 0) {
  selectedDocumentoIdentita.forEach((file, idx) => {
@@ -4648,21 +4664,12 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  assertValidFile(selectedContractFirmato, 'Contratto firmato');
  }
 
- if (
- state.cart.contratti.length === 0 &&
- getCurrentDocumentRequirements().documento_identita &&
- selectedDocumentoIdentita.length === 0 &&
- (!Array.isArray(praticaFiles.documento_identita) || praticaFiles.documento_identita.length === 0)
- ) {
- throw new Error('Sul primo contratto devi caricare il documento identita della pratica');
- }
-
- const identity = await ensureIdentityUpload(inDocumentsStep);
+ const identity = needsIdentity ? await ensureIdentityUpload(inDocumentsStep) : null;
  if (!stillCurrent()) return;
  updateUploadVisibility();
  const isConsumerVar = window.MiroxIdentitaCore.needsPermit({ cluster: cliente.cluster, categoria_nome: getCategoriaName(),
  dispositivo_associato: refs.dispositivoAssociato.value === 'true', tipo_acquisto: refs.tipoAcquisto.value }, 'extra_ue');
- if (isConsumerVar && !identity.result.cittadinanza) throw new Error('Conferma la cittadinanza prima di inserire un Mobile Consumer con dispositivo VAR.');
+ if (isConsumerVar && !identity?.result.cittadinanza) throw new Error('Conferma la cittadinanza prima di inserire un Mobile Consumer con dispositivo VAR.');
  if (currentNeedsPermit() && !getInputFiles(refs.filePermessoSoggiorno).length) throw new Error('Carica il permesso di soggiorno per il dispositivo VAR del cliente extra UE.');
  selectedContractFiles.permesso_soggiorno = currentNeedsPermit() ? getInputFiles(refs.filePermessoSoggiorno) : [];
  selectedContractFiles.permesso_soggiorno.forEach(file => assertValidFile(file, 'Permesso di soggiorno'));
@@ -4889,6 +4896,18 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  });
  }
 
+ function isEnergyCartItem(item) {
+ return window.MiroxEnergia.isEnergy(item.categoria_nome || item.categoria_snapshot || item.snapshot?.categoria);
+ }
+ function cartNeedsIdentity() {
+ return state.cart.contratti.some(item => !isEnergyCartItem(item));
+ }
+ function duplicateEnergyPointError() {
+ return Object.assign(new Error('Per questo POD/PDR è già stata caricata una pratica oggi.'), {
+ serverErrorCode: 'punto_energia_duplicato'
+ });
+ }
+
  function buildInvioPayload() {
  const cliente = getClienteFormData();
  validateClienteData(cliente);
@@ -4898,8 +4917,9 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
 
  const identityFiles = Array.isArray(praticaFiles.documento_identita) ? praticaFiles.documento_identita : [];
- if (identityFiles.length === 0) {
- throw new Error('Documento identita mancante: caricalo una volta per associarlo a tutti i contratti');
+ const needsIdentity = cartNeedsIdentity();
+ if (needsIdentity && identityFiles.length === 0) {
+ throw new Error('Documento di riconoscimento mancante. Caricalo per i contratti che lo richiedono.');
  }
 
  state.cart.contratti.forEach((item, idx) => {
@@ -4911,18 +4931,25 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
  });
 
- const identity = window.MiroxIdentitaUpload.get();
- if (!identity?.token) throw new Error('Completa il controllo identita prima dell’invio.');
+ const identity = needsIdentity ? window.MiroxIdentitaUpload.get() : null;
+ if (needsIdentity && !identity?.token) throw new Error('Completa il controllo identita prima dell’invio.');
+ const energyPoints = new Set();
  state.cart.contratti.forEach((item, index) => {
+ if (isEnergyCartItem(item)) return;
  const scoped = window.MiroxIdentitaCore.needsPermit({ ...item, cluster_cliente: cliente.cluster }, 'extra_ue');
  if (scoped && !identity.result.cittadinanza) throw new Error('Conferma la cittadinanza per il dispositivo VAR.');
  if (window.MiroxIdentitaCore.needsPermit({ ...item, cluster_cliente: cliente.cluster }, identity.result.cittadinanza)
  && !(item.files?.permesso_soggiorno || []).length) throw new Error(`Contratto ${index + 1}: permesso di soggiorno mancante. Modifica il contratto nel carrello e caricalo.`);
  });
  const contratti = state.cart.contratti.map((item, idx) => {
- const isEnergia = String(item.categoria_nome || item.categoria_snapshot || item.snapshot?.categoria || '').trim().toLowerCase() === 'energia';
- if (isEnergia && !window.MiroxEnergia.confirmedPoint(item.pod_pdr, item.pod_pdr_conferma)) {
+ const isEnergia = isEnergyCartItem(item);
+ const point = isEnergia ? window.MiroxEnergia.confirmedPoint(item.pod_pdr, item.pod_pdr_conferma) : null;
+ if (isEnergia && !point) {
  throw new Error(`Contratto ${idx + 1}: conferma il POD/PDR dalla bolletta. Modifica il contratto nel carrello.`);
+ }
+ if (point) {
+ if (energyPoints.has(point)) throw duplicateEnergyPointError();
+ energyPoints.add(point);
  }
  if (isEnergia && typeof item.assicurazione_impianti !== 'boolean') {
  throw new Error(`Contratto ${idx + 1}: indica se è stata attivata l'assicurazione impianti. Modifica il contratto nel carrello.`);
@@ -4930,7 +4957,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  if (item.flags.sim_mnp_required && (!Array.isArray(item.files.sim_mnp) || item.files.sim_mnp.length === 0)) {
  throw new Error(`Contratto ${idx + 1}: fotocopia SIM mancante`);
  }
- if (item.flags.bolletta_required && (!Array.isArray(item.files.bolletta) || item.files.bolletta.length === 0)) {
+ if ((isEnergia || item.flags.bolletta_required) && (!Array.isArray(item.files?.bolletta) || !item.files.bolletta.length)) {
  throw new Error(`Contratto ${idx + 1}: copia bolletta mancante`);
  }
 
@@ -5002,7 +5029,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  return {
  cliente,
  pratica: {
- identita_token: identity.token,
+ identita_token: identity?.token ?? null,
  origine_pratica: origineCurrente,
  appuntamento_id: praticaAppuntamentoId,
  chiamata_id: praticaChiamataId,
@@ -5036,8 +5063,10 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  if (!item.codice_contratto) continue;
  if (!await window.MiroxPdaUI.checkCode(item.codice_contratto, state.cart.contratti, item.temp_id)) return;
  }
+ if (cartNeedsIdentity()) {
  await ensureIdentityUpload(() => uiState.view === 'cart', true);
  praticaFiles.documento_identita = getCartIdentityFiles();
+ }
  runtimeState.replacingCartIdentity = false;
  payload = buildInvioPayload();
  setMessage('Creazione pratica e contratti in corso...', 'info');
@@ -5068,9 +5097,10 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  );
 
  const contractsByTempId = new Map((createResult.contratti || []).map((item) => [item.temp_id, item]));
- const firstContract = createResult.contratti?.[0] || null;
+ const firstIdentityContract = createResult.contratti?.find(item => !window.MiroxEnergia.isEnergy(item.categoria_snapshot));
 
- const identityFiles = Array.isArray(praticaFiles.documento_identita) ? praticaFiles.documento_identita : [];
+ const identityFiles = cartNeedsIdentity() ? praticaFiles.documento_identita : [];
+ if (identityFiles.length && !firstIdentityContract) throw new Error('Manca il contratto a cui associare il documento di riconoscimento.');
  if (identityFiles.length> 0) {
  setMessage('Pratica creata. Upload documento identita...', 'info');
  updateLoadingOverlay('Caricamento in corso', 'Upload documento identità...');
@@ -5085,7 +5115,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
 
  const identityDebug = {
  tipo_documento: 'documento_identita',
- contratto_id: firstContract ? firstContract.contratto_id : null,
+ contratto_id: firstIdentityContract.contratto_id,
  fileName: identityFile.name,
  fileSize: identityFile.size,
  fileType: identityFile.type,
@@ -5100,7 +5130,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  const identityUpload = await uploadDocumentoOrTechnicalError({
  file: identityFile,
  pratica_id: createResult.pratica_id,
- contratto_id: firstContract ? firstContract.contratto_id : null,
+ contratto_id: firstIdentityContract.contratto_id,
  anagrafica_id: createResult.anagrafica_id,
  tipo_documento: 'documento_identita',
  file_name: identityFileName,
@@ -5381,6 +5411,11 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  if (error.serverErrorCode === 'contratto_duplicato' && !rollbackError && !error.rollbackFailed) {
  hideLoadingOverlay();
  await window.MiroxPdaUI.duplicateNotice(error.duplicate);
+ return;
+ }
+ if (error.serverErrorCode === 'punto_energia_duplicato' && !rollbackError && !error.rollbackFailed) {
+ hideLoadingOverlay();
+ await window.MiroxUI.alert(error.message, { type: 'warning', title: 'POD/PDR già caricato' });
  return;
  }
  if (window.MiroxIdentitaUpload?.showError?.(error)) {
@@ -6460,12 +6495,19 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  if (isCategory(categoriaNome, 'Energia')) {
  runtimeState.puntoEnergiaConfermato = null;
  const punto = await chiediConfermaPuntoEnergia(draft.pod_pdr);
- if (punto === null || revision !== runtimeState.pdaRevision || category !== getCategoriaName()
-   || punto !== window.MiroxEnergia.code(refs.podPdr.value)) return;
+ const pointIsCurrent = () => revision === runtimeState.pdaRevision && category === getCategoriaName()
+   && punto === window.MiroxEnergia.code(refs.podPdr.value);
+ if (punto === null || !pointIsCurrent()) return;
+ try {
+ await checkEnergyPoint(punto);
+ } catch (error) {
+ if (pointIsCurrent()) throw error;
+ return;
+ }
+ if (!pointIsCurrent()) return;
  runtimeState.puntoEnergiaConfermato = punto;
  const risposta = await chiediAssicurazioneImpianti();
- if (risposta === null || revision !== runtimeState.pdaRevision || category !== getCategoriaName()
-   || punto !== runtimeState.puntoEnergiaConfermato || punto !== window.MiroxEnergia.code(refs.podPdr.value)) return;
+ if (risposta === null || !pointIsCurrent() || punto !== runtimeState.puntoEnergiaConfermato) return;
  runtimeState.assicurazioneImpianti = risposta;
  queueDraftSave();
  }

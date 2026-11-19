@@ -1113,7 +1113,7 @@ function apriPopupDettaglio(c, opts) {
           <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#697386;">Carica nuovo allegato</label>
           <div style="display:grid;grid-template-columns:minmax(180px, 200px) 1fr auto;gap:8px;align-items:center;">
             <select id="vc_new_doc_tipo" style="padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;background:#fff;font-family:inherit;width:100%;">
-              <option value="documento_identita">Documento identità</option>
+              ${energy ? '' : '<option value="documento_identita">Documento identità</option>'}
               <option value="permesso_soggiorno">Permesso di soggiorno</option>
               <option value="contratto">Contratto</option>
               <option value="copia_sim_mnp">Copia SIM MNP</option>
@@ -1209,7 +1209,7 @@ function apriPopupDettaglio(c, opts) {
   // Bottone chiudi via attributo
   m.foot.querySelectorAll('[data-mx-close-popup]').forEach(b => b.addEventListener('click', () => m.close()));
   if (!isReadOnly) collegaCambioStato(m.body, c, m.foot.querySelector('[data-vc-conferma-verifica]'));
-  renderAllegatiPopup(c, allegati, isReadOnly);
+  renderAllegatiPopup(c, allegati, isReadOnly, energy);
 
   // Applica regole di visibilità in base a categoria + bind dei listener
   applyVisibilityRules();
@@ -1427,14 +1427,15 @@ function repopulateOpzioni() {
   ).join('');
 }
 
-function renderAllegatiPopup(c, allegati, isReadOnly) {
+function renderAllegatiPopup(c, allegati, isReadOnly, energy = categoriaInAttesa(c) === 'energia') {
   const list = document.getElementById('vc_allegati_list');
   if (!list) return;
-  if (!allegati || !allegati.length) {
+  const files = (allegati || []).filter(d => isReadOnly || !energy || d.tipo_documento !== 'documento_identita');
+  if (!files.length) {
     list.innerHTML = '<div style="color:#94a3b8;font-size:13px;text-align:center;padding:14px;">Nessun allegato presente</div>';
     return;
   }
-  list.innerHTML = allegati.map(d => {
+  list.innerHTML = files.map(d => {
     const bucket = d.storage_bucket || CONTRATTI_BUCKET;
     const path = d.storage_path || '';
     const label = (d.tipo_documento || 'documento').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
