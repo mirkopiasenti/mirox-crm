@@ -588,6 +588,53 @@ SET LOCAL lock_timeout`).replace(/ROLLBACK;\s*$/, 'COMMIT;');
       (id,categoria_snapshot,pod_pdr,created_at) VALUES ($1,'Energia',$3,$4),($2,'Energia',$3,$4)`,
       [fixtureId(109), fixtureId(110), atomicPoint, current]), { code: '23505' });
     assert.equal(await availableCheck([atomicPoint]), false);
+
+    const [sameDay, wrongDay, noDate, badDate] = Array.from({ length: 4 }, (_, i) => fixtureId(130 + i));
+    const newPoint = n => `0012345678940${n}`;
+    for (const [index, id] of [sameDay, wrongDay, noDate, badDate].entries()) {
+      await newEnergy(id, newPoint(index));
+      await query(`UPDATE vendita_contratti
+        SET data_contratto=CASE WHEN id=$2 THEN NULL ELSE '2026-11-19T23:30:00Z'::timestamptz END,
+            created_at=CASE WHEN id=$2 THEN '2026-11-19T23:30:00Z' ELSE '2026-11-18T10:00:00Z' END::timestamptz
+        WHERE id=$1`, [id, wrongDay]);
+    }
+    const proof = id => value('SELECT to_jsonb(v) AS v FROM vendita_energia_verifiche v WHERE contratto_id=$1', [id]);
+    const precedente = await proof(unresolved);
+    const prontoPrima = await proof(statusMatch);
+    await db.exec('RESET ROLE');
+    await load('20261120102022_energia_data_firma_errore_csv.sql');
+    await db.exec('SET ROLE service_role');
+    assert.deepEqual(await proof(unresolved), { ...precedente, stato: 'errore_csv' });
+    assert.deepEqual(await proof(statusMatch), prontoPrima);
+    assert.equal(await value('SELECT motivo AS v FROM vendita_stati_verifica_manuale WHERE contratto_id=$1', [manuallyHeld]), 'Decisione operatore');
+    await assert.rejects(query("UPDATE vendita_energia_verifiche SET nota_csv=NULL WHERE contratto_id=$1", [unresolved]), { code: '23514' });
+    await assert.rejects(setStatus('errore_csv', null, null, 'Errore manuale', wrongDay), { code: '22023' });
+    const strictCsv = hDate
+      + csvRow(fiscale, '', '0601', 'Switch-In', '20/11/2026', newPoint(0), 'Nuovo')
+      + csvRow(fiscale, '', '0602', 'Voltura', '19/11/2026', newPoint(1), 'Attivato')
+      + csvRow(fiscale, '', '0603', 'Voltura', '', newPoint(2), 'Nuovo')
+      + csvRow(fiscale, '', '0604', 'Voltura', '31/11/2026', newPoint(3), 'Nuovo')
+      + csvRow(fiscale, '', '0551', 'Voltura', '19/11/2026', supplyFor(5), 'Attivato');
+    const strictResult = await csvOnly(strictCsv, 'b');
+    assert.ok(strictResult.errore_csv >= 3);
+    assert.equal(await phase(sameDay), 'in_attesa_verifica');
+    assert.equal(await typeOf(sameDay), 'Switch-In');
+    assert.equal(await phase(wrongDay), 'errore_csv');
+    assert.match((await proof(wrongDay)).nota_csv, /uguale alla Data Inserimento Mirox/);
+    for (const id of [noDate, badDate]) {
+      assert.equal(await phase(id), 'errore_csv');
+      assert.match((await proof(id)).nota_csv, /manca o non è valida/);
+    }
+    for (const id of [wrongDay, noDate, badDate]) {
+      assert.equal(await value('SELECT numero_contratto_energia AS v FROM vendita_contratti WHERE id=$1', [id]), null);
+    }
+    assert.equal(await value('SELECT motivo AS v FROM vendita_stati_verifica_manuale WHERE contratto_id=$1', [manuallyHeld]), 'Decisione operatore');
+    assert.equal((await csvOnly(strictCsv, 'b')).duplicato, true);
+    assert.equal(await phase(wrongDay), 'errore_csv');
+    await csvOnly(strictCsv.replace('0602;Voltura;19/11/2026', '0602;Voltura;20/11/2026'), 'c');
+    assert.equal(await phase(wrongDay), 'in_attesa_verifica');
+    assert.equal((await proof(wrongDay)).nota_csv, null);
+    assert.equal(await value('SELECT numero_contratto_energia AS v FROM vendita_contratti WHERE id=$1', [wrongDay]), '0602');
     console.log('Verifica Energia SQL: migrazione, ACL, riscontro, esiti, concorrenza ottimistica e rollback verificati.');
   } finally {
     await db.close();

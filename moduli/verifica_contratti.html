@@ -109,7 +109,7 @@ body > .container { max-width: 1540px !important; width: 100%; }
   white-space: nowrap;
 }
 .stato-pill.da_controllare { background: #1e40af; color: #fff; }
-.stato-pill.da_verificare { background: #b91c1c; color: #fff; }
+.stato-pill.da_verificare, .stato-pill.errore_csv { background: #b91c1c; color: #fff; }
 .stato-pill.da_confermare { background: #15803d; color: #fff; }
 .stato-pill.controllato { background: var(--success-bg); color: var(--success); }
 .stato-pill.errore { background: var(--danger-bg); color: var(--danger); }
@@ -295,6 +295,7 @@ body > .container { max-width: 1540px !important; width: 100%; }
         <option value="da_verificare">Da verificare</option>
         <option value="da_confermare" data-vc-ordinary>Da confermare</option>
         <option value="in_attesa_csv" data-vc-energy hidden disabled>IN ATTESA CSV</option>
+        <option value="errore_csv" data-vc-energy hidden disabled>ERRORE CSV</option>
         <option value="in_attesa_verifica" data-vc-energy hidden disabled>IN ATTESA VERIFICA</option>
       </select>
     </div>
@@ -653,11 +654,18 @@ function renderStatoContratto(c) {
   switch (statoVisibileContratto(c)) {
     case 'controllato': return '<span class="stato-pill">Controllato</span>';
     case 'in_attesa_csv': return '<span class="stato-pill da_controllare">IN ATTESA CSV</span>';
+    case 'errore_csv': return '<span class="stato-pill errore_csv">ERRORE CSV</span>';
     case 'in_attesa_verifica': return '<span class="stato-pill da_confermare">IN ATTESA VERIFICA</span>';
     case 'da_verificare': return '<span class="stato-pill da_verificare">' + (categoriaInAttesa(c) === 'energia' ? 'DA VERIFICARE' : 'Da verificare') + '</span>';
     case 'da_confermare': return '<span class="stato-pill da_confermare">Da confermare</span>';
     default: return '<span class="stato-pill da_controllare">In attesa</span>';
   }
+}
+
+function titoloMotivazioneEsito(stato) {
+  if (stato === 'errore_csv') return 'Motivazione di Errore CSV';
+  if (stato === 'da_verificare') return 'Motivazione di Da verificare';
+  return '';
 }
 
 function renderListaContratti(stateKey) {
@@ -679,7 +687,8 @@ function renderListaContratti(stateKey) {
       if (avanzamento) {
         const pronti = contratti.filter(c => statoVisibileContratto(c) === 'in_attesa_verifica').length;
         const incerti = contratti.filter(c => statoVisibileContratto(c) === 'da_verificare').length;
-        const riepilogo = `${contratti.length - pronti - incerti} in attesa CSV · ${incerti} da verificare · ${pronti} in attesa di verifica`;
+        const erroriCsv = contratti.filter(c => statoVisibileContratto(c) === 'errore_csv').length;
+        const riepilogo = `${contratti.length - pronti - incerti - erroriCsv} in attesa CSV · ${erroriCsv} errori CSV · ${incerti} da verificare · ${pronti} in attesa di verifica`;
         if (avanzamento.textContent !== riepilogo) avanzamento.textContent = riepilogo;
       }
     }
@@ -710,6 +719,7 @@ function renderListaContratti(stateKey) {
     const offertaTxt = c.tecnologia_fisso || c.nome_offerta_snapshot || '-';
     const categoriaTxt = c.categoria_snapshot || '-';
     const cluster = getContrattoCluster(c) || '-';
+    const titoloMotivazione = titoloMotivazioneEsito(statoVisibileContratto(c));
     // Solo per contratti Fisso mostro sotto l'offerta un chip con la convergenza scelta,
     // cosi' l'operatore la vede a colpo d'occhio senza dover aprire il popup dettagli.
     const isFisso = String(categoriaTxt).toLowerCase().includes('fisso');
@@ -728,8 +738,8 @@ function renderListaContratti(stateKey) {
         <td>${escapeHtml(offertaTxt)}${convergenzaChip}</td>
         ${mostraTipoPratica ? `<td>${escapeHtml(c.tipo_pratica_energia || '—')}</td>` : ''}
         <td><div class="vc-stato-cella">${renderStatoContratto(c)}
-          ${statoVisibileContratto(c) === 'da_verificare' ? `<button type="button" class="vc-leggi-motivo"
-            onclick="leggiMotivoVerifica('${escapeHtml(c.id)}')" title="Leggi la motivazione" aria-label="Leggi la motivazione di Da verificare">
+          ${titoloMotivazione ? `<button type="button" class="vc-leggi-motivo"
+            onclick="leggiMotivoVerifica('${escapeHtml(c.id)}')" title="Leggi la motivazione" aria-label="${titoloMotivazione}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/>
               <path d="M8 9h8M8 13h5"/>
@@ -1493,6 +1503,7 @@ function collegaCambioStato(body, c, conferma) {
           <option value="">${energy ? 'Seleziona un esito' : 'Seleziona uno stato'}</option>
           ${opzioni.map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
         </select>
+        ${motivoAutomatico ? `<div class="vc-motivo-testo"><strong>Nota CSV</strong><br>${escapeHtml(motivoAutomatico)}</div>` : ''}
         <div class="vc-stato-motivo" data-vc-motivo hidden>
           <label for="vc_motivo_stato">${energy ? 'Nota obbligatoria' : 'Motivazione obbligatoria'}</label>
           <textarea id="vc_motivo_stato" class="mx-input" rows="5" maxlength="2000"
@@ -1518,8 +1529,9 @@ function collegaCambioStato(body, c, conferma) {
     const errore = m.body.querySelector('[data-vc-stato-errore]');
     const salva = m.foot.querySelector('[data-vc-salva]');
     const annulla = m.foot.querySelector('[data-vc-annulla]');
-    select.value = energy ? statoVisibileContratto(c) : c.revisione?.stato || '';
-    motivo.value = c.revisione?.motivo || motivoAutomatico;
+    const statoCorrente = energy ? statoVisibileContratto(c) : c.revisione?.stato;
+    select.value = opzioni.some(([value]) => value === statoCorrente) ? statoCorrente : '';
+    motivo.value = c.revisione?.motivo || '';
     const aggiornaMotivo = () => {
       const richiesto = select.value === 'da_verificare';
       motivoWrap.hidden = !richiesto;
@@ -1578,10 +1590,14 @@ function collegaCambioStato(body, c, conferma) {
 
 function leggiMotivoVerifica(id) {
   const contratto = VCState.daVerificare.find(c => c.id === id);
-  if (!contratto || statoVisibileContratto(contratto) !== 'da_verificare') return;
-  const motivo = contratto.revisione?.motivo || noteAutomaticheEnergia(contratto) || 'Nessuna motivazione registrata per questo esito.';
+  if (!contratto) return;
+  const stato = statoVisibileContratto(contratto);
+  const titolo = titoloMotivazioneEsito(stato);
+  if (!titolo) return;
+  const nota = stato === 'errore_csv' ? noteAutomaticheEnergia(contratto) : contratto.revisione?.motivo;
+  const motivo = nota || 'Nessuna motivazione registrata per questo esito.';
   const m = window.MiroxUI._build({
-    title: 'Motivazione di Da verificare',
+    title: titolo,
     bodyHtml: `<div class="vc-motivo-testo">${escapeHtml(motivo)}</div>`,
     footerHtml: '<button type="button" class="mx-btn mx-btn-secondary" data-vc-chiudi>Chiudi</button>'
   });

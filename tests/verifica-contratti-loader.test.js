@@ -153,7 +153,7 @@ test('le sei schede hanno contratti e contatori distinti e il deep-link selezion
   assert.equal(f.nodes['tab-verificati'].classList.contains('active'), true);
   assert.match(f.nodes.listaVerificati.innerHTML, /apriDettaglioContratto\('chiuso', 'verificati'\)/);
 });
-test('Energia proietta solo i due stati CSV e li filtra anche sulle pratiche preesistenti', () => {
+test('Energia proietta gli stati CSV e li filtra anche sulle pratiche preesistenti', () => {
   const f = fixture();
   const waiting = { id: 'pendente', categoria_snapshot: 'Energia', stato_controllo: 'da_controllare', revisione: { stato: 'da_confermare' } };
   const ready = { ...waiting, id: 'pronto', riscontro_energia: { stato: 'in_attesa_verifica' } };
@@ -170,21 +170,44 @@ test('la scheda Energia rende visibili la coda e i riscontri incerti', () => {
   const waiting = { categoria_snapshot: 'Energia', stato_controllo: 'da_controllare' };
   f.state.daVerificare = [
     { ...waiting, id: 'coda' },
-    { ...waiting, id: 'incerto', riscontro_energia: { stato: 'da_verificare', motivo: 'punto_incerto' } },
+    { ...waiting, id: 'errore', riscontro_energia: { stato: 'errore_csv', nota_csv: 'Data Firma non coincidente' } },
+    { ...waiting, id: 'incerto', revisione: { stato: 'da_verificare', motivo: 'Controllare intestatario' },
+      riscontro_energia: { stato: 'errore_csv', nota_csv: 'Vecchia nota CSV' } },
     { ...waiting, id: 'pronto', riscontro_energia: { stato: 'in_attesa_verifica' } }
   ];
   f.state.tabInAttesa = 'energia';
   f.state.caricamenti.daVerificare = 'loaded';
   f.nodes.vcEnergiaAvanzamento = { textContent: '' };
   f.context.renderListaContratti('daVerificare');
-  assert.equal(f.nodes.vcEnergiaAvanzamento.textContent, '1 in attesa CSV · 1 da verificare · 1 in attesa di verifica');
+  assert.equal(f.nodes.vcEnergiaAvanzamento.textContent, '1 in attesa CSV · 1 errori CSV · 1 da verificare · 1 in attesa di verifica');
+  assert.match(page, /<option value="errore_csv" data-vc-energy hidden disabled>ERRORE CSV/);
+  assert.match(f.nodes.listaDaVerificare.innerHTML, /ERRORE CSV/);
   assert.match(f.nodes.listaDaVerificare.innerHTML, /DA VERIFICARE/);
   assert.doesNotMatch(f.nodes.listaDaVerificare.innerHTML, /POD\/PDR da riscontrare/);
-  assert.match(f.nodes.listaDaVerificare.innerHTML, /leggiMotivoVerifica/);
+  assert.match(f.nodes.listaDaVerificare.innerHTML, /leggiMotivoVerifica\('errore'\)/);
+  assert.match(f.nodes.listaDaVerificare.innerHTML, /leggiMotivoVerifica\('incerto'\)/);
   f.state.filtroEsitoDaVerificare = 'da_verificare';
   f.context.renderListaContratti('daVerificare');
   assert.match(f.nodes.listaDaVerificare.innerHTML, /Dettagli/);
-  assert.doesNotMatch(f.nodes.listaDaVerificare.innerHTML, /IN ATTESA CSV|IN ATTESA VERIFICA/);
+  assert.doesNotMatch(f.nodes.listaDaVerificare.innerHTML, /IN ATTESA CSV|IN ATTESA VERIFICA|ERRORE CSV/);
+  f.state.filtroEsitoDaVerificare = 'errore_csv';
+  f.context.renderListaContratti('daVerificare');
+  assert.match(f.nodes.listaDaVerificare.innerHTML, /ERRORE CSV/);
+  assert.doesNotMatch(f.nodes.listaDaVerificare.innerHTML, /DA VERIFICARE/);
+
+  const popups = [];
+  f.context.escapeHtml = value => String(value || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  f.context.window.MiroxUI = { _build(options) {
+    popups.push(options);
+    return { modal: { setAttribute() {} }, foot: { querySelector: () => ({ addEventListener() {}, focus() {} }) } };
+  } };
+  f.state.daVerificare[1].riscontro_energia.nota_csv = '<scarto> Data Firma non coincidente';
+  vm.runInContext(statusEditor, f.context);
+  for (const id of ['errore', 'incerto', 'pronto']) f.context.leggiMotivoVerifica(id);
+  assert.deepEqual(popups.map(popup => popup.title), ['Motivazione di Errore CSV', 'Motivazione di Da verificare']);
+  assert.match(popups[0].bodyHtml, /&lt;scarto&gt; Data Firma non coincidente/);
+  assert.match(popups[1].bodyHtml, /Controllare intestatario/);
+  assert.doesNotMatch(popups[1].bodyHtml, /Vecchia nota CSV/);
 });
 for (const energy of [false, true]) test(`il popup ${energy ? 'Energia' : 'Mobile'} richiede una nota e aggiorna l’esito solo dopo Salva`, async () => {
   const f = fixture();
@@ -192,7 +215,7 @@ for (const energy of [false, true]) test(`il popup ${energy ? 'Energia' : 'Mobil
   const contract = f.state.daVerificare[0];
   if (energy) {
     contract.categoria_snapshot = 'Energia';
-    contract.riscontro_energia = { stato: 'da_verificare', nota_csv: 'Il POD/PDR inserito non è presente nel CSV WindTre caricato.' };
+    contract.riscontro_energia = { stato: 'errore_csv', nota_csv: 'Il POD/PDR inserito non è presente nel CSV WindTre caricato.' };
     f.state.tabInAttesa = 'energia';
   }
   const control = () => {
@@ -223,7 +246,10 @@ for (const energy of [false, true]) test(`il popup ${energy ? 'Energia' : 'Mobil
   const save = controls['[data-vc-salva]'], error = controls['[data-vc-stato-errore]'];
   if (energy) {
     assert.match(popup.options.bodyHtml, /IN ATTESA CSV[\s\S]*IN ATTESA VERIFICA[\s\S]*DA VERIFICARE/);
-    assert.equal(note.value, contract.riscontro_energia.nota_csv);
+    assert.equal(note.value, '');
+    assert.equal(select.value, '');
+    assert.match(popup.options.bodyHtml, /Nota CSV[\s\S]*Il POD\/PDR inserito non è presente/);
+    assert.doesNotMatch(popup.options.bodyHtml, /<option value="errore_csv"/);
     assert.doesNotMatch(popup.options.bodyHtml, /da_confermare/);
   }
   let calls = 0, finish;
@@ -234,9 +260,8 @@ for (const energy of [false, true]) test(`il popup ${energy ? 'Energia' : 'Mobil
     assert.equal(payload.stato_atteso, null);
     return new Promise(resolve => { finish = resolve; });
   };
-  if (energy) note.value = '';
   await save.emit('click');
-  assert.match(error.textContent, energy ? /motivazione/ : /Seleziona/);
+  assert.match(error.textContent, /Seleziona/);
   select.value = 'da_verificare'; await select.emit('change');
   assert.equal(controls['[data-vc-motivo]'].hidden, false);
   assert.equal(note.required, true);

@@ -1,6 +1,17 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-19. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
+Aggiornato:2026-11-20. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
+
+## Reset del test Energia novembre 2026 —20/11, eseguito in produzione
+
+- 56 contratti Energia inviati per Data Inserimento Mirox a novembre Europe/Rome. Riaperti 30 verificati, 26 erano già pendenti. Azzerati 50 numeri, riscontri e 20 esiti manuali; 30 righe Controllo L&G rimosse e salvate nel backup privato. Verifica indipendente finale: 56 **IN ATTESA CSV**, zero in Verificati e in Controllo L&G, zero numeri e tipi, 56 bollette e 39 gestori uscenti presenti.
+- Script `database/ripristina_attesa_csv_energia_novembre_2026.sql` provato in rollback, applicato con impronta e riletto. Impronte di contratti estranei, allegati, pratiche, note, fonte corrente, registro tipi e Controllo L&G degli altri periodi identiche. Prove in `.backup-private/ripristino-energia-novembre-20261120/`. Il rilascio della regola Data Firma/Errore CSV resta separato e pronto in locale.
+
+## Data Firma obbligatoria ed Errore CSV —20/11, pronti in locale
+
+- Primo riscontro Energia per POD/PDR e Data Firma M uguale a Data Inserimento Mirox (Europe/Rome), anche quando c’è una sola riga. Fiscale e scarto Annullato sui duplicati. Fallimenti per pratica in **ERRORE CSV** con nota. La lista, il filtro Esito, il riepilogo dell’import e il popup delle motivazioni mostrano il nuovo stato. L’icona apre la nota di revisione anche per **DA VERIFICARE**, destinato al passo successivo con Grogbot.
+- Migrazione `20261120102022_energia_data_firma_errore_csv.sql`: stato e nota obbligatoria, riclassificazione dei precedenti errori CSV pendenti, riesame automatico al prossimo file. Esiti manuali e prove già pronte conservati. Il flusso successivo con Grogbot resta da integrare.
+- Build e 879/879 test verdi in copia isolata. PGlite 0.5.13 verde su data coincidente/diversa/mancante/non valida, mezzanotte Rome, recupero con CSV corretto, nota obbligatoria e tutela degli esiti manuali. README, AGENTS e databaseREADME aggiornati. Prossimo passo al via libera: migrazione prima del push e verifica post-deploy.
 
 ## Upload Luce & Gas con bolletta e blocco giornaliero —19/11, pubblicato e bonifica conclusa
 
@@ -12,7 +23,7 @@ Aggiornato:2026-11-19. Promemoria di ripresa; non autorizza push, attivazioni o 
 
 ## Tipo pratica nel dettaglio e duplicati Energia —19/11, pubblicati
 
-- Campo Tipo pratica in sola lettura nei Campi specifici categoria. In caso di più righe per POD/PDR, criteri progressivi M (Data Firma rispetto a giorno Data Inserimento Mirox, Europe/Rome), E/F (CF o P.IVA), X (esclusione Annullato). Zero o più righe finali → Da verificare con nota. Il prossimo CSV riprende i soli esiti automatici da verificare, con tutela degli override e della coppia proposta–POD/PDR.
+- Campo Tipo pratica in sola lettura nei Campi specifici categoria. La versione online applica data, fiscale ed esclusione Annullato come filtri progressivi sui duplicati. Il primo riscontro obbligatorio sulla data e la separazione degli errori sono pronti in locale, vedi sopra.
 - Migrazione `20261118230401_energia_csv_screma_duplicati.sql` applicata e riletta produzione come `20261118231007`. Riletti 42 tipi disponibili e 10 esiti automatici riesaminabili. SQL PGlite, prova produzione in sola lettura, build e 863/863 test verdi. CSV originale conferma il tracciato M con 512 date. Il titolare eseguirà il caricamento dopo il deploy.
 - Push `f6523b6`, CI 44418597892 verde Linux e Windows, Netlify `6afe30b4c08e5cf2d3172d03` online. Verificati campo Tipo pratica e script serviti nelle due URL di Verifica, Controllo L&G e import 401 senza JWT. Il prossimo caricamento manuale è pronto.
 

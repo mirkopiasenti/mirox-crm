@@ -279,14 +279,14 @@ test('il popup CSV resta in caricamento fino al risultato dell’import e all’
   const promise = context.MiroxEnergiaCsv.run(file, () => new Promise(resolve => { completeRefresh = resolve; }));
   await new Promise(setImmediate);
   assert.deepEqual(calls, ['loading']);
-  completeImport({ ok: true, json: async () => ({ success: true, in_attesa_verifica: 3, da_verificare: 1, aggiornati: 4, protetti: 2 }) });
+  completeImport({ ok: true, json: async () => ({ success: true, in_attesa_verifica: 3, errore_csv: 1, aggiornati: 4, protetti: 2 }) });
   await new Promise(setImmediate);
   assert.deepEqual(calls, ['loading', 'refresh']);
   completeRefresh(true);
   assert.equal(await promise, true);
   assert.equal(calls[2], 'hide');
   assert.equal(calls[3][0], 'warning');
-  assert.match(calls[3][1], /Numero e tipo pratica compilati: 3.*Da verificare: 1/);
+  assert.match(calls[3][1], /Numero e tipo pratica compilati: 3.*Errori CSV: 1/);
 
   calls.length = 0;
   context.MiroxApi.fetch = async () => ({ ok: true, json: async () => ({ success: true }) });

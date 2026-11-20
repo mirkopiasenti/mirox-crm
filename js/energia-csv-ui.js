@@ -11,7 +11,7 @@
     });
     const result = await res.json().catch(() => ({}));
     if (!res.ok || result.success !== true) throw new Error(result.error || 'Caricamento CSV non riuscito. Riprova.');
-    const counts = [result.in_attesa_verifica, result.da_verificare, result.aggiornati, result.protetti];
+    const counts = [result.in_attesa_verifica, result.errore_csv, result.aggiornati, result.protetti];
     if (!counts.every(value => Number.isSafeInteger(value) && value >= 0)) {
       throw new Error('Il server non ha confermato l’esito completo dell’import. Aggiorna la pagina e riprova.');
     }
@@ -37,11 +37,11 @@
     } finally {
       loader.hide();
     }
-    const message = `Verifica Contratti. Numero e tipo pratica compilati: ${result.in_attesa_verifica}. Da verificare: ${result.da_verificare}.\n`
+    const message = `Verifica Contratti. Numero e tipo pratica compilati: ${result.in_attesa_verifica}. Errori CSV: ${result.errore_csv}.\n`
       + `Controllo Luce e Gas. Esiti aggiornati: ${result.aggiornati}. Esiti manuali protetti: ${result.protetti}.`
       + (refreshed ? '' : '\nPer vedere i dati salvati, ricarica l’elenco con Aggiorna.');
     await MiroxUI.alert(message, { title: 'Importazione CSV completata',
-      type: refreshed && result.da_verificare === 0 ? 'success' : 'warning' });
+      type: refreshed && result.errore_csv === 0 ? 'success' : 'warning' });
     return true;
   }
 
