@@ -2,10 +2,10 @@
 
 Aggiornato:2026-11-20. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
 
-## Formato CSV WindTre —20/11, correzione pronta in locale
+## Formato CSV WindTre —20/11, correzione pubblicata
 
 - Riprodotto il blocco del file del titolare: 7 record, PDR arrotondati in notazione scientifica alle righe 2–3, Data Firma con anno a due cifre su tutte le righe. Il backend ora legge le date brevi e indica esplicitamente la riga con il punto alterato, prima della RPC. Serve un export con PDR completi. Il file originale è intatto.
-- Build e suite 880/880, 14 test mirati e harness SQL verdi. Riprodotto il nuovo HTTP 400 con l’allegato e verificata la lettura di tutti i 7 record con due punti sintetici in memoria. README, AGENTS e databaseREADME aggiornati. Al via libera serve solo push del codice. Nessuna migrazione o import.
+- Build e suite 880/880, 14 test mirati e harness SQL verdi. Riprodotto localmente il nuovo HTTP 400 con l’allegato e verificata la lettura di tutti i 7 record con due punti sintetici in memoria. Push `47a4ecf`, CI 44735836115 Linux/Windows verde, Netlify `6b003c8680fefbca0982fc1a` online. Due URL Verifica e asset JS identici alla build, endpoint import 401 senza JWT. README, AGENTS e databaseREADME aggiornati. Nessuna migrazione o import. Prove in `.backup-private/release-energia-formati-csv-20261120/`.
 
 ## Reset del test Energia novembre 2026 —20/11, eseguito in produzione
 
