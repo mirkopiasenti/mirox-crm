@@ -155,6 +155,8 @@ Per Luce & Gas l’unico allegato obbligatorio è la **copia della bolletta**. N
 
 In **Verifica Contratti → Energia**, **Carica CSV WindTre** cerca nel file il POD/PDR già registrato. Una corrispondenza univoca compila **Numero Contratto** dalla colonna H (*Proposta di Contratto*) e **Tipo pratica** dalla colonna K (*Tipo Richiesta*). La pratica passa subito a **IN ATTESA VERIFICA** per il controllo manuale degli allegati. L’Ex Fornitore è facoltativo.
 
+Carica l’export WindTre con i codici completi. Un POD/PDR in notazione scientifica blocca l’intero file prima dell’import e il messaggio indica la prima riga da correggere. Se apri l’export in un foglio di calcolo, importa la colonna POD/PDR come testo per conservare tutte le cifre e gli zeri iniziali. La Data Firma accetta anche `GG/MM/AA`, per esempio `20/11/26` diventa `20/11/2026`.
+
 La scheda Energia in attesa mostra gli allegati utili alla verifica e consente di integrare la bolletta. La rimozione dei PDF d’identità già presenti interessa le sole pratiche Energia inviate e ancora in attesa di verifica. Lo stato del rilascio e della rimozione è in [Stato del lavoro](docs/STATO_LAVORO.md).
 
 Il primo riscontro richiede sia il **POD/PDR** sia la **Data Firma** in M uguale alla **Data Inserimento** Mirox in ora italiana, anche con una sola riga. Se restano più righe, il CRM confronta il codice fiscale in E per Consumer o la P.IVA in F per Business. Se serve un ulteriore filtro, scarta **Annullato** in X. Il risultato deve essere univoco. **Campi specifici categoria** mostra il **Tipo pratica** in sola lettura, accanto al numero di contratto.

@@ -249,18 +249,33 @@ test('il CSV di verifica richiede Tipo Richiesta e mantiene i POD/PDR anche senz
 test('il CSV conserva data, esito e tipo di ogni variante e mostra il tipo nel dettaglio', () => {
   const header = 'Codice Fiscale;Partita Iva;Proposta di Contratto;Tipo Richiesta;Data Firma;POD/PDR;Stato\n';
   const input = header + `${fiscale};;0007;Voltura;18/11/2026;${pdr};Annullato\n`
-    + `${fiscale};;0007;Switch-In;2026-11-19;${pdr};Nuovo\n`.repeat(2)
+    + `${fiscale};;0007;Switch-In;2026-11-19;${pdr};Nuovo\n`
+    + `${fiscale};;0007;Switch-In;19/11/26;${pdr};Nuovo\n`
+    + `${fiscale};;0007;Voltura;9/1/26;${pdr};Nuovo\n`
     + `${fiscale};;0007;Attivazione;31/11/2026;${pdr};Nuovo\n`;
   const [row] = Csv.parse(input, { requirePracticeType: true });
   assert.equal(row.stato, 'Annullato');
   assert.deepEqual(row.varianti_verifica, [
     { data_firma: '2026-11-18', stato: 'Annullato', tipo_pratica: 'Voltura' },
     { data_firma: '2026-11-19', stato: 'Nuovo', tipo_pratica: 'Switch-In' },
+    { data_firma: '2026-01-09', stato: 'Nuovo', tipo_pratica: 'Voltura' },
     { data_firma: null, stato: 'Nuovo', tipo_pratica: 'Attivazione' }
   ]);
   const page = fs.readFileSync(require.resolve('../moduli/verifica_contratti.html'), 'utf8');
   assert.match(page, /id="vc_tipo_pratica" value="\$\{escapeHtml\(c\.tipo_pratica_energia \|\| ''\)\}" readonly/);
   assert.match(page, /_show\('vc_field_tipo_pratica', isEnergia\)/);
+});
+
+test('PDR in notazione scientifica indica la riga e blocca l’import prima della RPC', async () => {
+  const csv = 'Proposta di Contratto;Codice Fiscale;Partita Iva;POD/PDR;Stato;Tipo Richiesta;Data Firma\n';
+  const db = { rpc() { assert.fail('Un CSV con PDR alterato non deve arrivare al DB'); } };
+  const row = point => `0007;${fiscale};;${point};Nuovo;Voltura;19/11/26\n`;
+  for (const point of ['9,87654E+12', '9.87654e+12', '9E12']) {
+    await assert.rejects(Csv.save(db, csv + row(pod) + row(point), 'operatore'), {
+      statusCode: 400,
+      message: /POD\/PDR in notazione scientifica alla riga 3.*CSV originale WindTre/
+    });
+  }
 });
 
 test('il popup CSV resta in caricamento fino al risultato dell’import e all’aggiornamento della lista', async () => {

@@ -2,6 +2,11 @@
 
 Aggiornato:2026-11-20. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
 
+## Formato CSV WindTre —20/11, correzione pronta in locale
+
+- Riprodotto il blocco del file del titolare: 7 record, PDR arrotondati in notazione scientifica alle righe 2–3, Data Firma con anno a due cifre su tutte le righe. Il backend ora legge le date brevi e indica esplicitamente la riga con il punto alterato, prima della RPC. Serve un export con PDR completi. Il file originale è intatto.
+- Build e suite 880/880, 14 test mirati e harness SQL verdi. Riprodotto il nuovo HTTP 400 con l’allegato e verificata la lettura di tutti i 7 record con due punti sintetici in memoria. README, AGENTS e databaseREADME aggiornati. Al via libera serve solo push del codice. Nessuna migrazione o import.
+
 ## Reset del test Energia novembre 2026 —20/11, eseguito in produzione
 
 - 56 contratti Energia inviati per Data Inserimento Mirox a novembre Europe/Rome. Riaperti 30 verificati, 26 erano già pendenti. Azzerati 50 numeri, riscontri e 20 esiti manuali; 30 righe Controllo L&G rimosse e salvate nel backup privato. Verifica indipendente finale: 56 **IN ATTESA CSV**, zero in Verificati e in Controllo L&G, zero numeri e tipi, 56 bollette e 39 gestori uscenti presenti.

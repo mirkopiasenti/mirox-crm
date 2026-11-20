@@ -7,12 +7,21 @@ const { date } = require('../../../js/verifica-contratti-core');
 
 const POINT_HEADERS = new Set(['POD', 'CODICEPOD', 'NUMEROPOD', 'PDR', 'CODICEPDR', 'NUMEROPDR',
   'PODPDR', 'PODOPDR', 'CODICEPODPDR', 'CODICEPODOPDR', 'PUNTODIFORNITURA', 'CODICEPUNTODIFORNITURA']);
+const SCIENTIFIC_NUMBER = /^\d+(?:[.,]\d+)?E[+-]?\d+$/;
 const PRIORITY = new Map(['Attivato', 'Nuovo', 'In attivazione', 'In lavorazione', 'Annullato', 'Rifiutato'].map((state, i) => [state, i + 1]));
 const tax = (value, business) => {
   const normalized = code(value);
   if (business) return /^\d{1,11}$/.test(normalized) ? normalized.padStart(11, '0') : '';
   return /^[A-Z0-9]{16}$/.test(normalized) ? normalized : '';
 };
+
+function signingDate(value) {
+  const italian = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec(value);
+  if (!italian) return date(value);
+  const [, day, month, year] = italian;
+  const fullYear = year.length === 2 ? '20' + year : year;
+  return date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+}
 
 function parse(input, { onlyTypes = false, requirePracticeType = false } = {}) {
   const { header, rows } = readCsv(input);
@@ -36,12 +45,13 @@ function parse(input, { onlyTypes = false, requirePracticeType = false } = {}) {
     const piva = tax(value(row, 'PARTITAIVA'), true);
     const state = value(row, 'STATO');
     const type = hasType ? value(row, 'TIPORICHIESTA').replace(/\s+/g, ' ') : '';
-    const rawDate = requirePracticeType ? value(row, dateHeader) : '';
-    const italianDate = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(rawDate);
-    const signedOn = date(italianDate ? `${italianDate[3]}-${italianDate[2]}-${italianDate[1]}` : rawDate);
+    const signedOn = requirePracticeType ? signingDate(value(row, dateHeader)) : null;
     const supply = [...new Set(points.map(i => code(row[i])).filter(v => v && v !== '-' && v !== '—'))];
     if (!(requirePracticeType && supply.length) && (!numero || (!cf && !piva))) continue;
     if (onlyTypes && (numero.length > 80 || supply.length && !supply.some(isPoint))) continue;
+    if (!onlyTypes && supply.some(point => SCIENTIFIC_NUMBER.test(point))) {
+      throw new Error(`POD/PDR in notazione scientifica alla riga ${index + 2}. Carica il CSV originale WindTre con i codici completi, senza risalvarlo in Excel.`);
+    }
     if (!onlyTypes && (numero.length > 80 || state.length > 100 || supply.some(p => !isPoint(p)))) {
       throw new Error(`Numero contratto, POD/PDR o stato non valido alla riga ${index + 2}.`);
     }
