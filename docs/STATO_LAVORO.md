@@ -2,6 +2,10 @@
 
 Aggiornato:2026-11-20. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
 
+## Ex Fornitore in In Attesa – Energia —20/11, aggiornato in produzione
+
+- Su richiesta svuotati i 39 valori presenti sulle 56 pratiche Energia in attesa, con prova in rollback, salvataggio privato e rilettura finale a zero. Controllate le impronte di esiti CSV, revisioni, allegati, Controllo L&G, altri contratti e altri campi. I 369 valori presenti nei verificati risultano conservati. Prove in `.backup-private/svuota-ex-fornitore-energia-20261120/`. Operazione dati una tantum.
+
 ## Formato CSV WindTre —20/11, correzione pubblicata
 
 - Riprodotto il blocco del file del titolare: 7 record, PDR arrotondati in notazione scientifica alle righe 2–3, Data Firma con anno a due cifre su tutte le righe. Il backend ora legge le date brevi e indica esplicitamente la riga con il punto alterato, prima della RPC. Serve un export con PDR completi. Il file originale è intatto.
