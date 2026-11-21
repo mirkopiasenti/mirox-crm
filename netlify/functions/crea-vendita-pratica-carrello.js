@@ -972,6 +972,7 @@ exports.handler = async (event) => {
         contract.pod_pdr = confirmedPoint(raw.pod_pdr, raw.pod_pdr_conferma);
         if (!contract.pod_pdr) throw Object.assign(new Error('Conferma il POD/PDR dalla bolletta prima di inviare il contratto Energia.'), { statusCode: 400 });
         contract.numero_contratto_energia = null;
+        contract.pda_temp_path = null;
         energyPoints.push(contract.pod_pdr);
       } else {
         identityContracts.push({ ...contract, categoria_snapshot: category.nome, cluster_cliente: cluster });
@@ -1107,9 +1108,11 @@ exports.handler = async (event) => {
       throw new Error('consenso_id passato dal client non corrisponde al consenso attivo per questa anagrafica');
     }
     const consensoIdValidato = consensoAttivo.id;
-    const identityCustomer = await supabase.from('anagrafica').select('cf_piva,cluster,ragione_sociale,nome_referente').eq('id', anagraficaId).single();
-    if (identityCustomer.error) throw new Error('Impossibile rileggere l’anagrafica per il controllo identita.');
-    Identity.assertPractice(identityCheck, identityCustomer.data);
+    if (identityContracts.length) {
+      const identityCustomer = await supabase.from('anagrafica').select('cf_piva,cluster,ragione_sociale,nome_referente').eq('id', anagraficaId).single();
+      if (identityCustomer.error) throw new Error('Impossibile rileggere l’anagrafica per il controllo identita.');
+      Identity.assertPractice(identityCheck, identityCustomer.data);
+    }
 
     const { data: praticaRow, error: praticaInsertError } = await supabase
       .from('vendita_pratiche')

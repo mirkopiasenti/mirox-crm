@@ -105,6 +105,99 @@ function loadHandler(file, db) {
 }
 function event(body) { return {httpMethod:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}; }
 
+test('create invia alla fase allegati Energia Consumer e Business senza identità e la verifica nei carrelli misti', async () => {
+  const Identity = require('../netlify/functions/_lib/identita-upload');
+  const point = '00123456789012';
+  const energy = { categoria_id: 'energy', offerta_id: 'gas', pod_pdr: point,
+    pod_pdr_conferma: point, assicurazione_impianti: false };
+  const customerBase = { categoria_id: 'cb', offerta_id: 'plan', codice_contratto: 'TEST001', tipo_firma: 'elettronica' };
+  for (const scenario of [
+    { cluster: 'Consumer', status: 200 },
+    { cluster: 'Business', status: 200 },
+    { cluster: 'Consumer', mixed: true, status: 409, error: /Ripeti il controllo identita/ },
+    { cluster: 'Consumer', mixed: true, receipt: true, differentOwner: true, status: 500,
+      error: /Il controllo identita non corrisponde all’anagrafica attuale/ },
+    { cluster: 'Consumer', mixed: true, receipt: true, status: 200 }
+  ]) {
+    const customer = { cf_piva: scenario.cluster === 'Business' ? '00560340291' : 'RSSMRA80A01H501U',
+      ragione_sociale: 'Cliente prova', cluster: scenario.cluster, cellulare: '3350000000', email: 'test@example.invalid' };
+    const owner = { ...customer, id, ragione_sociale: scenario.differentOwner ? 'Altra persona' : customer.ragione_sociale };
+    const contractPda = { ...energy, pda_temp_path: `temp/${id}/residuo.pdf` };
+    const contracts = scenario.mixed ? [energy, customerBase] : [scenario.cluster === 'Business' ? contractPda : energy];
+    const token = scenario.receipt
+      ? Identity.sign({ version: 1, at: Date.now(), user: id, customer, result: { stato: 'coerente' } }, 'test')
+      : undefined;
+    const storedContracts = [];
+    let storedPractice;
+    let identityReads = 0;
+    const score = { punteggio_gara: 1, punteggio_extra_gara: 0 };
+    const rows = {
+      vendita_categorie: [{ id: 'energy', nome: 'Energia' }, { id: 'cb', nome: 'Customer Base' }],
+      vendita_offerte: [
+        { ...score, id: 'gas', categoria_id: 'energy', nome_offerta: 'Gas prova', cluster_cliente: customer.cluster },
+        { ...score, id: 'plan', categoria_id: 'cb', nome_offerta: 'Cambio piano prova', cluster_cliente: customer.cluster }
+      ],
+      anagrafica: [{ ...customer, id }],
+      vendita_contratti: [],
+      vendita_pratiche: [],
+      vendita_consensi_privacy: [{ id }]
+    };
+    const db = {
+      async rpc(name, args) {
+        assert.equal(name, 'vendita_energia_punto_caricato_oggi');
+        assert.deepEqual(Array.from(args.p_punti), [point]);
+        return { data: false };
+      },
+      from(table) {
+        assert.ok(Object.hasOwn(rows, table), table);
+        let selectedRows = rows[table];
+        const query = {
+          select() { return query; }, eq() { return query; }, ilike() { return query; },
+          is() { return query; }, gt() { return query; }, order() { return query; }, limit() { return query; },
+          in(column, values) {
+            if (column === 'id') selectedRows = selectedRows.filter(row => values.includes(row.id));
+            return query;
+          },
+          update() { return query; },
+          insert(payload) {
+            if (table === 'vendita_pratiche') storedPractice = payload;
+            if (table === 'vendita_contratti') storedContracts.push(payload);
+            selectedRows = [{ ...payload, id, punteggio_gara_totale: 1, punteggio_extra_gara_totale: 0 }];
+            return query;
+          },
+          async single() {
+            if (table === 'anagrafica') {
+              identityReads++;
+              return { data: owner };
+            }
+            return { data: selectedRows[0] };
+          },
+          async maybeSingle() { return { data: selectedRows[0] }; },
+          then(resolve, reject) { return Promise.resolve({ data: selectedRows }).then(resolve, reject); }
+        };
+        return query;
+      }
+    };
+    const { handler } = loadHandler('crea-vendita-pratica-carrello.js', db);
+    const response = await handler(event({ cliente: customer, pratica: { identita_token: token }, contratti: contracts }));
+    const body = JSON.parse(response.body);
+    assert.equal(response.statusCode, scenario.status, response.body);
+    assert.equal(identityReads, scenario.receipt ? 1 : 0);
+    if (scenario.error) {
+      assert.match(body.error, scenario.error);
+      assert.equal(storedPractice, undefined);
+      assert.equal(storedContracts.length, 0);
+    } else {
+      assert.equal(body.requires_finalization, true);
+      assert.equal(storedPractice.stato_pratica, 'bozza');
+      assert.equal(storedPractice.identita_verifica_upload?.result?.stato ?? null, scenario.receipt ? 'coerente' : null);
+      assert.equal(storedContracts.length, contracts.length);
+      assert.equal(storedContracts[0].pod_pdr, point);
+      assert.equal(storedContracts[0].assicurazione_impianti, false);
+    }
+  }
+});
+
 test('create blocca codice mancante/duplicati nel carrello prima di qualsiasi scrittura',async()=>{
   for(const scenario of ['missing','cart','stored','db-failure']) {
     let writes=0;

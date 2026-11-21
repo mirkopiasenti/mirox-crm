@@ -5063,8 +5063,11 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  if (!item.codice_contratto) continue;
  if (!await window.MiroxPdaUI.checkCode(item.codice_contratto, state.cart.contratti, item.temp_id)) return;
  }
- if (cartNeedsIdentity()) {
- await ensureIdentityUpload(() => uiState.view === 'cart', true);
+ const needsIdentity = cartNeedsIdentity();
+ let citizenship = null;
+ if (needsIdentity) {
+ const identity = await ensureIdentityUpload(() => uiState.view === 'cart', true);
+ citizenship = identity.result.cittadinanza;
  praticaFiles.documento_identita = getCartIdentityFiles();
  }
  runtimeState.replacingCartIdentity = false;
@@ -5099,7 +5102,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  const contractsByTempId = new Map((createResult.contratti || []).map((item) => [item.temp_id, item]));
  const firstIdentityContract = createResult.contratti?.find(item => !window.MiroxEnergia.isEnergy(item.categoria_snapshot));
 
- const identityFiles = cartNeedsIdentity() ? praticaFiles.documento_identita : [];
+ const identityFiles = needsIdentity ? praticaFiles.documento_identita : [];
  if (identityFiles.length && !firstIdentityContract) throw new Error('Manca il contratto a cui associare il documento di riconoscimento.');
  if (identityFiles.length> 0) {
  setMessage('Pratica creata. Upload documento identita...', 'info');
@@ -5199,7 +5202,7 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  });
  }
 
- if (window.MiroxIdentitaCore.needsPermit({ ...cartItem, cluster_cliente: payload.cliente.cluster }, window.MiroxIdentitaUpload.get().result.cittadinanza)) {
+ if (window.MiroxIdentitaCore.needsPermit({ ...cartItem, cluster_cliente: payload.cliente.cluster }, citizenship)) {
  const permitFiles = cartItem.files.permesso_soggiorno || [];
  for (let n = 0; n < permitFiles.length; n++) {
  const permitFile = permitFiles[n]; assertValidFile(permitFile, 'Permesso di soggiorno');
