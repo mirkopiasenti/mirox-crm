@@ -2,10 +2,10 @@
 
 Aggiornato:2026-11-21. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
 
-## Invio contratti Energia —21/11, correzione locale
+## Invio contratti Energia —21/11, correzione pubblicata
 
 - Riprodotto l’errore prima della bolletta: la Function confrontava una ricevuta d’identità assente anche se il carrello era solo Energia. Dopo la creazione, il wizard cercava la cittadinanza nella ricevuta assente. Corrette entrambe le fasi. Il consenso, il blocco POD/PDR giornaliero e la bolletta per contratto restano obbligatori. Il carrello misto verifica i contratti soggetti e carica il permesso VAR extra UE quando richiesto.
-- Build in copia isolata e 886/886 test verdi, inclusi gli otto test con server su localhost rieseguiti separatamente. Provate creazione Consumer/Business, invio della bolletta e finalizzazione con dati simulati. Guide README, AGENTS e databaseREADME aggiornate. Prossimo passo: pubblicazione su richiesta esplicita del proprietario.
+- Pubblicato su richiesta con `c7b9393`. Build e 882/882 test sulla copia esatta del rilascio, CI `44920182519` verde Linux/Windows e Netlify `6b01babf704546363e9e1ea5` online dalle 16:38 Europe/Rome. Due URL di Upload Contratti, due core JS e pagina Subentri confrontati con la build. Function carrello HTTP 401 senza JWT. Creazione Consumer/Business, upload della bolletta e finalizzazione verificati con dati simulati. Guide README, AGENTS e databaseREADME aggiornate. Prossimo passo operativo: riprovare l’invio della pratica Energia. Evidenze in `.backup-private/release-energia-identita-20261121/`.
 
 ## Ex Fornitore in In Attesa – Energia —20/11, aggiornato in produzione
 
