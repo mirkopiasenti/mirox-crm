@@ -107,6 +107,8 @@ Segnalazioni12/11, classificazione all’inserimento: valori nuovi di `gestione_
 
 Segnalazioni 22/11. `segnalazioni.gestione_pratica` è testuale e accetta anche `Disattivazione Più Sicuri`. Le nuove segnalazioni con questa scelta salvano `tipo_ask` a null. Tre pratiche in Da gestire sono state riclassificate in produzione il 22/11 con un aggiornamento atomico del campo e il normale timestamp di modifica. La rilettura ha verificato lo stato e tutti gli altri campi. Nessuna migration.
 
+Il pulsante Disattivata usa i campi esistenti `azione_eseguita`, `stato`, `data_chiusura` e `data_apertura_segnalazione`. L’UPDATE riguarda una segnalazione ancora in coda con la stessa gestione e conferma la chiusura se restituisce il suo ID. Note, riferimenti ASK e allegati sono conservati.
+
 ## Assicurazione impianti Luce e Gas — 12/11/2026
 
 Sorgente `20261112214904_vendita_energia_assicurazione_impianti.sql` creata con CLI

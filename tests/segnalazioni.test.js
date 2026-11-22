@@ -26,7 +26,11 @@ function fixture({ profile = { id: 'synthetic', nome: 'Vincenzo', attivo: true }
       maybeSingle() { call.single = true; return q; },
       then(resolve, reject) {
         if(call.update&&updateResult)return Promise.resolve(updateResult(call)).then(resolve,reject);
-        if(call.update)records.filter(r=>r.id===call.filters.id).forEach(r=>Object.assign(r,call.update));
+        if(call.update){
+          const matching=records.filter(r=>Object.entries(call.filters).every(([k,v])=>Array.isArray(v)?v.includes(r[k]):r[k]===v));
+          matching.forEach(r=>Object.assign(r,call.update));
+          return Promise.resolve({data:call.single?matching[0]||null:matching}).then(resolve,reject);
+        }
         const result = table === 'anagrafica' ? (lookup ? lookup(call) : { data: [{ cf_piva: call.filters.cf_piva, ragione_sociale: 'Cliente sintetico', cellulare: '3331234567' }] }) : call.insert ? { data: { id: 999 } } : { data: records.filter(r => Object.entries(call.filters).every(([k,v]) => Array.isArray(v) ? v.includes(r[k]) : r[k] === v) && (!call.notNull || r[call.notNull] != null)), count: records.filter(r => Object.entries(call.filters).every(([k,v]) => Array.isArray(v) ? v.includes(r[k]) : r[k] === v)).length };
         if(call.single)result.data=result.data[0]||null;
         else if(omitFromList&&table==='segnalazioni'&&!call.options?.head)result.data=[];
@@ -260,21 +264,47 @@ test('Gestione ASK: mostra il tipo iniziale in sola lettura e salva il numero se
 test('Da gestire: evidenzia la gestione scelta e mostra i comandi del relativo percorso', async () => {
   for(const [gestione,tipo,label,action,numero,button] of [
     ['ASK','Recesso','ASK - Recesso',false,true,'Salva'],['Angel',null,'Angel',false,false,'Confermo apertura Angel'],
-    ['Interna negozio',null,'Gestione negozio',true,true,'Salva'],['159',null,'159',true,true,'Salva'],
-    ['Disattivazione Più Sicuri',null,'Disattivazione Più Sicuri',true,true,'Salva']]){
+    ['Interna negozio',null,'Gestione negozio',true,true,'Salva'],['159',null,'159',true,true,'Salva']]){
     const f=fixture();await f.ready();f.context.row={id:1,gestione_pratica:gestione,tipo_ask:tipo};f.run('dataGest=[row]');await f.context.openGest(1);
     const html=f.nodes.modalGestBody.innerHTML;
     assert.ok(html.includes('<div class="gestione-scelta">'+label+'</div>'));
     assert.equal(html.includes('id="mAzione"'),action);assert.equal(html.includes('id="mNumAsk"'),numero);
     assert.ok(html.includes('onclick="salvaGest()">'+button+'</button>'));
     assert.match(html,/id="mNote"/);assert.match(html,/id="mFileInput"/);
-    if(gestione==='Disattivazione Più Sicuri'){
-      f.context.renderGest([f.context.row]);
-      f.context.renderRiep([f.context.row]);
-      assert.match(f.nodes.tbGest.innerHTML,/<td>Disattivazione Più Sicuri<\/td>/);
-      assert.match(f.nodes.tbRiep.innerHTML,/<td>Disattivazione Più Sicuri<\/td>/);
-    }
   }
+});
+test('Più Sicuri: il solo pulsante Disattivata chiude la segnalazione dalla coda', async () => {
+  const row={id:42,gestione_pratica:'Disattivazione Più Sicuri',stato:'Da gestire',note_back_office:'Nota già salvata'};
+  const f=fixture({records:[row]});await f.ready();await f.context.loadGest();await f.context.openGest(42);
+  assert.match(f.nodes.tbGest.innerHTML,/<td>Disattivazione Più Sicuri<\/td>/);
+  const html=f.nodes.modalGestBody.innerHTML;
+  assert.match(html,/onclick="salvaGest\(\)">Disattivata<\/button>/);
+  assert.equal([...html.matchAll(/<button\b/g)].length,1);
+  assert.doesNotMatch(html,/Gestione scelta|id="mAzione"|id="mNote"|id="mFileInput"/);
+  await Promise.all([f.context.salvaGest(),f.context.salvaGest()]);
+  const writes=f.calls.filter(c=>c.update);
+  assert.equal(writes.length,1);
+  const {update,filters,select}=writes[0];
+  assert.equal(select,'id');assert.equal(filters.gestione_pratica,row.gestione_pratica);
+  assert.ok(filters.stato.includes('Da gestire'));assert.ok(!filters.stato.includes('Chiuso'));
+  assert.equal(update.stato,'Chiuso');assert.equal(update.azione_eseguita,'Disattivata');
+  assert.ok(update.data_chiusura);assert.equal(update.data_chiusura,update.data_apertura_segnalazione);
+  assert.equal(row.note_back_office,'Nota già salvata');assert.equal(f.calls.filter(c=>c.upload).length,0);
+  assert.equal(f.nodes.modalGest.classList.contains('active'),false);
+  assert.doesNotMatch(f.nodes.tbGest.innerHTML,/#42/);
+  f.nodes.fRiepHideChiusi.checked=false;await f.context.loadRiep();await f.context.openRiep(42);
+  assert.match(f.nodes.tbRiep.innerHTML,/<td>Disattivazione Più Sicuri<\/td>/);
+  assert.match(f.nodes.modalRiepBody.innerHTML,/>Disattivata<\/div>/);
+});
+test('Più Sicuri: una chiusura concorrente non viene sovrascritta o confermata due volte', async () => {
+  const open={id:42,gestione_pratica:'Disattivazione Più Sicuri',stato:'Da gestire'};
+  const closed={...open,stato:'Chiuso',data_chiusura:'2026-11-22T12:30:00Z'};
+  const f=fixture({records:[closed]});await f.ready();f.context.record=open;f.run('dataGest=[record]');
+  await f.context.openGest(42);await f.context.salvaGest();
+  assert.equal(closed.data_chiusura,'2026-11-22T12:30:00Z');
+  assert.equal(open.stato,'Da gestire');
+  assert.equal(f.nodes.modalGest.classList.contains('active'),true);
+  assert.equal(f.nodes.mSalvaGestione.disabled,false);
 });
 test('ASK: numero vuoto o solo spazi blocca senza upload/update; testo non vuoto salva e apre Riepilogo', async () => {
   const row={id:42,gestione_pratica:'ASK',tipo_ask:'Comportamento Scorretto',stato:'Da gestire'};

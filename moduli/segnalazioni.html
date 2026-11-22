@@ -290,7 +290,8 @@ async function listFiles(segId){const{data}=await sb.storage.from(BUCKET).list(`
 function fileLink(path,name){return`<button type="button" class="js-storage-file" data-storage-path="${esc(path)}" style="display:inline-block;padding:4px 10px;background:var(--bg);border-radius:6px;margin:3px;color:var(--text);font-size:12px;border:1px solid var(--border);cursor:pointer;">${esc(name)}</button>`;}
 function driveLink(raw){const url=MiroxSafe.safeUrl(raw,{allowRelative:false});return url?`<div style="margin-top:8px;"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">Drive (legacy)</a></div>`:'';}
 document.addEventListener('click',e=>{const btn=e.target.closest('.js-storage-file');if(!btn)return;MiroxStorage.openAttachment(BUCKET,btn.dataset.storagePath);});
-const GESTIONI_PRATICA=['Angel','ASK','Interna negozio','Disattivazione Più Sicuri'];
+const GESTIONE_PIU_SICURI='Disattivazione Più Sicuri';
+const GESTIONI_PRATICA=['Angel','ASK','Interna negozio',GESTIONE_PIU_SICURI];
 const TIPI_ASK_NUOVA=['Recesso','Comportamento Scorretto','Normalizzazione','Reclami su Fattura','Convergenza','Subentro','CS','Altro'];
 let moduliVersione=0;
 function cambiaGestionePratica(){
@@ -476,6 +477,7 @@ function filterGestione(){const a=document.getElementById('fGestOperatore').valu
 
 function percorsoGestione(r){
  const gestione=String(r.gestione_pratica||'').trim().toUpperCase();
+ if(gestione===GESTIONE_PIU_SICURI.toUpperCase())return 'piu-sicuri';
  return gestione==='ASK'?'ask':gestione==='ANGEL'?'angel':gestione==='INTERNA NEGOZIO'?'interna':'legacy';
 }
 function gestioneInEvidenza(r){
@@ -488,6 +490,12 @@ function campiGestioneHtml(r){
  if(percorso==='ask')return `<div class="form-group"><label class="form-label" for="mNumAsk">Numero ASK</label><input class="form-control" id="mNumAsk" required value="${esc(r.numero_ask||'')}"></div>`;
  return `<div class="form-group"><label class="form-label" for="mAzione">Azione Eseguita</label><select class="form-control" id="mAzione" onchange="document.getElementById('mAskFields').style.display=this.value==='ASK'?'block':'none'"><option value="">Seleziona</option><option>Call me Back</option><option>ASK</option><option>Non Gestibile</option><option>Gestione Interna</option></select></div><div id="mAskFields" style="display:none;"><div class="form-row"><div class="form-group"><label class="form-label" for="mTipoAsk">Tipo ASK</label><select class="form-control" id="mTipoAsk">${opzioniTipoAsk(r.tipo_ask)}</select></div><div class="form-group"><label class="form-label" for="mNumAsk">Numero ASK</label><input class="form-control" id="mNumAsk"></div></div></div>`;
 }
+function azioniGestioneHtml(r){
+ const percorso=percorsoGestione(r),piuSicuri=percorso==='piu-sicuri';
+ const button=`<div style="text-align:right;"><button type="button" id="mSalvaGestione" class="btn btn-primary" onclick="salvaGest()">${piuSicuri?'Disattivata':percorso==='angel'?'Confermo apertura Angel':'Salva'}</button></div>`;
+ if(piuSicuri)return button;
+ return `<div class="action-section"><div class="action-title">Gestione scelta</div><div class="gestione-scelta">${esc(gestioneInEvidenza(r))}</div>${campiGestioneHtml(r)}<div class="form-group"><label class="form-label" for="mNote">Note</label><textarea class="form-control" id="mNote" rows="3">${esc(r.note_back_office||'')}</textarea></div><div class="form-group"><label class="form-label">Allega file</label><div class="file-drop" onclick="document.getElementById('mFileInput').click()" style="padding:16px;"><input type="file" id="mFileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tif,.tiff,.heic,.heif,.avif" style="display:none" onchange="handleGestFiles(this)"><div class="file-drop-text">Clicca per allegare</div></div><div id="mFileList"></div></div>${button}</div>`;
+}
 async function openGest(id){
  if(salvataggioGestione)return;
  const r=dataGest.find(x=>x.id===id);if(!r){toast('Non trovata','danger');return;}
@@ -495,7 +503,7 @@ async function openGest(id){
  const safeId=safeSegId(id),files=await listFiles(id);
  if(versione!==gestioneVersione||editingId!==id)return;
  const fHtml=files.length?files.map(f=>fileLink(`segnalazione_${safeId}/${f.name}`,f.name)).join(''):'<span style="color:var(--text-light);font-size:13px;">Nessun file</span>';
- document.getElementById('modalGestBody').innerHTML=`<div class="section-divider">Informazioni Cliente</div><div class="info-grid"><div class="info-field"><div class="info-field-label">Operatore</div><div class="info-field-value">${esc(r.operatore||'-')}</div></div><div class="info-field"><div class="info-field-label">Ragione Sociale</div><div class="info-field-value">${esc(clienteName(r))}</div></div><div class="info-field"><div class="info-field-label">Codice Fiscale / P.IVA</div><div class="info-field-value">${esc(cfPiva(r)||'-')}</div></div><div class="info-field"><div class="info-field-label">Numero</div><div class="info-field-value">${esc(r.numero_contatto||'-')}</div></div></div><div class="section-divider">Dettagli</div><div class="detail-block">${esc(r.dettagli_segnalazione||'-')}</div><div class="section-divider">File — ${esc(fName(r))}</div><div style="margin-bottom:16px;">${fHtml}${driveLink(r.link_cartella_drive)}</div><div class="action-section"><div class="action-title">Gestione scelta</div><div class="gestione-scelta">${esc(gestioneInEvidenza(r))}</div>${campiGestioneHtml(r)}<div class="form-group"><label class="form-label" for="mNote">Note</label><textarea class="form-control" id="mNote" rows="3">${esc(r.note_back_office||'')}</textarea></div><div class="form-group"><label class="form-label">Allega file</label><div class="file-drop" onclick="document.getElementById('mFileInput').click()" style="padding:16px;"><input type="file" id="mFileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tif,.tiff,.heic,.heif,.avif" style="display:none" onchange="handleGestFiles(this)"><div class="file-drop-text">Clicca per allegare</div></div><div id="mFileList"></div></div><div style="text-align:right;"><button type="button" id="mSalvaGestione" class="btn btn-primary" onclick="salvaGest()">${percorsoGestione(r)==='angel'?'Confermo apertura Angel':'Salva'}</button></div></div>`;
+ document.getElementById('modalGestBody').innerHTML=`<div class="section-divider">Informazioni Cliente</div><div class="info-grid"><div class="info-field"><div class="info-field-label">Operatore</div><div class="info-field-value">${esc(r.operatore||'-')}</div></div><div class="info-field"><div class="info-field-label">Ragione Sociale</div><div class="info-field-value">${esc(clienteName(r))}</div></div><div class="info-field"><div class="info-field-label">Codice Fiscale / P.IVA</div><div class="info-field-value">${esc(cfPiva(r)||'-')}</div></div><div class="info-field"><div class="info-field-label">Numero</div><div class="info-field-value">${esc(r.numero_contatto||'-')}</div></div></div><div class="section-divider">Dettagli</div><div class="detail-block">${esc(r.dettagli_segnalazione||'-')}</div><div class="section-divider">File — ${esc(fName(r))}</div><div style="margin-bottom:16px;">${fHtml}${driveLink(r.link_cartella_drive)}</div>${azioniGestioneHtml(r)}`;
  if(window.MiroxUpload)window.MiroxUpload.bindAll(document.getElementById('modalGestBody'));
  document.getElementById('modalGest').classList.add('active');
 }
@@ -507,8 +515,10 @@ async function salvaGest(){
  const id=editingId,r=dataGest.find(x=>x.id===id);
  if(!r){toast('Segnalazione non disponibile. Ricarica la lista.','danger');return;}
  const percorso=percorsoGestione(r);
+ const piuSicuri=percorso==='piu-sicuri';
  let azione='',tipo=null,numero=null;
- if(percorso==='ask'){
+ if(piuSicuri)azione='Disattivata';
+ else if(percorso==='ask'){
   numero=document.getElementById('mNumAsk').value.trim();
   if(!numero){toast('Inserisci il numero ASK.','warning');return;}
   azione='ASK';tipo=r.tipo_ask||null;
@@ -521,18 +531,27 @@ async function salvaGest(){
    if(!tipo||!numero){toast('Compila i campi ASK','warning');return;}
   }
  }
- const now=new Date().toISOString(),stato=['Call me Back','Non Gestibile'].includes(azione)?'Chiuso':'Segnalazione in Corso';
- const up={stato,data_apertura_segnalazione:now,azione_eseguita:azione,tipo_ask:tipo,numero_ask:numero,note_back_office:document.getElementById('mNote').value.trim()||null};
+ const now=new Date().toISOString(),stato=piuSicuri||['Call me Back','Non Gestibile'].includes(azione)?'Chiuso':'Segnalazione in Corso';
+ const up={stato,data_apertura_segnalazione:piuSicuri?(r.data_apertura_segnalazione||now):now,azione_eseguita:azione};
+ if(!piuSicuri){
+  up.tipo_ask=tipo;up.numero_ask=numero;
+  up.note_back_office=document.getElementById('mNote').value.trim()||null;
+ }
  if(stato==='Chiuso')up.data_chiusura=now;
- const files=[...gestFiles],versione=gestioneVersione;
+ const files=piuSicuri?[]:[...gestFiles],versione=gestioneVersione;
  salvataggioGestione=true;
  const button=document.getElementById('mSalvaGestione');if(button)button.disabled=true;
  try{
   showLoad('Salvataggio...');
   if(files.length){showLoad('Upload file...');await uploadFiles(id,files);}
-  const{error}=await sb.from('segnalazioni').update(up).eq('id',id);if(error)throw error;
+  const update=sb.from('segnalazioni').update(up).eq('id',id);
+  const {data,error}=await (piuSicuri
+   ?update.in('stato',STATI_DA_GESTIRE).eq('gestione_pratica',r.gestione_pratica).select('id').maybeSingle()
+   :update);
+  if(error)throw error;
+  if(piuSicuri&&!data)throw new Error('La segnalazione è già stata modificata. Ricarica Da gestire.');
   Object.assign(r,up);
-  showOk(percorso==='angel'?'Apertura Angel confermata':'Segnalazione gestita');
+  showOk(piuSicuri?'Disattivazione registrata. Segnalazione chiusa.':percorso==='angel'?'Apertura Angel confermata':'Segnalazione gestita');
   gestFiles=[];salvataggioGestione=false;closeModal('modalGest');
   if(percorso==='ask'||percorso==='angel'){
    document.getElementById('fRiepStato').value='';document.getElementById('fRiepOperatore').value='';document.getElementById('fRiepSearch').value='';document.getElementById('fRiepHideChiusi').checked=true;
