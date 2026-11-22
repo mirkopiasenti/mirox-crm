@@ -20,6 +20,10 @@ Reload Exchange/Forever/Professional Cloud presente; aggiunti4codici esatti con
 punto senza eliminare quelli precedenti. Contratti e allegati invariati.
 Build e785/785test verdi. Pubblicato13/11 con `18d71f6`: CI43447547729 LinuxNode22/Windows verde,785test; Netlify6af7251873130dbaa4ce7858 online. Verificati6asset/HTML/script/stili/PrettyURL e action get_codici_cliente401 senza JWT. Nessuna nuova scrittura DB nel push.
 
+## Smartphone Reload nell’upload — 22/11/2026
+
+Quando Smartphone Reload risulta attiva, l'upload apre una domanda dedicata con **Disattivazione cliente** e **Mantenere attivo**. La scelta viene mostrata nel modulo e può essere cambiata con **Scegli gestione**. Chiudere senza scegliere lascia la modalità vuota e impedisce di completare il contratto. Le decisioni già salvate in bozze e carrello vengono conservate. La disattivazione effettiva segue il processo operativo esistente.
+
 ## Reload Exchange e Forever nell’upload — 13/11/2026
 
 La lettura PDA precompila le due caselle sotto Offerta per Mobile/Customer Base.

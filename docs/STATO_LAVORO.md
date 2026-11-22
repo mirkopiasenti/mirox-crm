@@ -2,13 +2,20 @@
 
 Aggiornato:2026-11-22. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
 
-## Segnalazioni Customer Base —22/11
+## Popup Smartphone Reload upload —22/11, locale
+
+- Quando Smartphone Reload è rilevata dalla PDA o impostata manualmente su Sì, l'upload chiede al cliente se disattivare o mantenere attivo tramite popup. Scelta visibile e modificabile con pulsante dedicato, chiusura senza scelta non permette di proseguire. Bozze/carrello conservati, risposta tardiva protetta dal cambio PDA o contratto. Nessuna modifica al DB. Push richiesto dal proprietario.
+- Build e suite 900/900 in copia isolata. Test mirati del popup, scelta/modifica, chiusura, risposta tardiva e applicazione OCR. Nessuna verifica browser con contratto reale. Pubblicazione e verifiche in corso.
+
+## Segnalazioni Customer Base —22/11, pubblicate
 
 - In Verifica Contratti, anche nei Verificati, il pulsante Apri segnalazione offre Reload Forever (ASK - Normalizzazione) o Altro (Interna negozio con nota). Stessa ACL, copia degli allegati e retry del flusso Mobile, validazione server su categoria canonica e snapshot. Flag Reload Forever del contratto indipendente. Estensione applicativa senza migration, con test API e del popup.
-- Build e suite completa 897/897 in copia isolata, di cui 27 test Segnalazioni. Lettura su produzione: tutti gli 823 contratti con snapshot Customer Base hanno la categoria di catalogo coerente. Pubblicazione su `main` richiesta dal proprietario.
+- Build e suite completa 897/897 in copia isolata, di cui 27 test Segnalazioni. Lettura su produzione: tutti gli 823 contratti con snapshot Customer Base hanno la categoria di catalogo coerente. Push `34ebb86`, CI `45021920857` verde su Linux e Windows. In produzione, pagina Verifica raggiungibile, core e popup identici alla build, motivi controllati e API HTTP 401 senza sessione. Creazione verificata con dati simulati. Prossimo passo: uso operativo dal dettaglio Customer Base.
 
 ## Verifica PDA Customer Base —22/11
 
+- Controllo in sola lettura sugli ultimi 50 Customer Base con offerta Telefono Incluso, per data inserimento: Smartphone Reload attiva su 14, con 8 Mantenere attivo e 6 Disattivazione cliente; 36 senza flag. Reload Forever risulta disattivata sui 50. Nessuna scrittura dati.
+- Consegnato archivio temporaneo con le otto PDA associate ai contratti con Smartphone Reload da mantenere, verificati download, lettura e integrità ZIP. La PDA 1634370773727 contiene quattro pagine con numerazione originale 1, 2, 3 e 6.
 - Letti in sola consultazione gli ultimi 50 contratti per data di inserimento e i 50 PDF associati: Reload Forever Basic compare in tre PDA, anche nell'elenco opzioni; due hanno il flag CRM disattivato. Nessuna modifica ai dati. Testo estratto e cinque PDF con immagini/testo incompleto ricontrollati visivamente; uno dei PDF contiene solo le pagine numerate 1, 2, 3 e 6. Evidenze private in `.backup-private/customer-base-reload-20261122/`.
 
 ## Rilascio Subentri —22/11, pubblicato

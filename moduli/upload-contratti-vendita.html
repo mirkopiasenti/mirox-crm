@@ -1342,12 +1342,14 @@ Reload Forever
 <option value="false">No</option>
 </select>
 </div> <div id="fieldSmartphoneReloadModalita" class="field hidden">
-<label for="smartphone_reload_modalita">Modalita Smartphone Reload</label>
-<select id="smartphone_reload_modalita">
+<label for="smartphone_reload_choose">Modalita Smartphone Reload</label>
+<select id="smartphone_reload_modalita" hidden tabindex="-1" aria-hidden="true">
 <option value="">Seleziona</option>
 <option value="Mantenere attivo">Mantenere attivo</option>
 <option value="Disattivazione cliente">Disattivazione cliente</option>
 </select>
+<p id="smartphone_reload_scelta" aria-live="polite">Nessuna scelta effettuata</p>
+<button type="button" class="mx-btn mx-btn-secondary" id="smartphone_reload_choose">Scegli gestione</button>
 </div>
 </div>
 </section> <section id="stepFirmaSection" class="card panel hidden">
@@ -1656,6 +1658,8 @@ Reload Forever
  kolme: document.getElementById('kolme'),
  smartphoneReload: document.getElementById('smartphone_reload'),
  smartphoneReloadModalita: document.getElementById('smartphone_reload_modalita'),
+ smartphoneReloadScelta: document.getElementById('smartphone_reload_scelta'),
+ smartphoneReloadChoose: document.getElementById('smartphone_reload_choose'),
 
  fieldOpzione: document.getElementById('fieldOpzione'),
  fieldTipoAttivazione: document.getElementById('fieldTipoAttivazione'),
@@ -3695,6 +3699,7 @@ Reload Forever
  if (refs.fieldSmartphoneReload) refs.fieldSmartphoneReload.classList.toggle('hidden', !hasDevice || fwaIndoor);
  const smartphoneReloadIsSi = hasDevice && !fwaIndoor && refs.smartphoneReload && refs.smartphoneReload.value === 'true';
  if (refs.fieldSmartphoneReloadModalita) refs.fieldSmartphoneReloadModalita.classList.toggle('hidden', !smartphoneReloadIsSi);
+ if (refs.smartphoneReloadScelta) refs.smartphoneReloadScelta.textContent = refs.smartphoneReloadModalita.value || 'Nessuna scelta effettuata';
  if (!hasDevice) {
  refs.imei.value = '';
  refs.fasciaPrezzo.value = '';
@@ -5507,7 +5512,45 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  refs.apriChiudi.addEventListener('change', renderDynamicSections);
  refs.dispositivoAssociato.addEventListener('change', confirmDeviceChange);
  refs.tipoAcquisto.addEventListener('change', renderDynamicSections);
- if (refs.smartphoneReload) refs.smartphoneReload.addEventListener('change', renderDynamicSections);
+ let smartphoneReloadChoiceSequence = 0;
+ let smartphoneReloadChoicePending = false;
+ async function chooseSmartphoneReload() {
+ if (smartphoneReloadChoicePending || refs.smartphoneReload.value !== 'true'
+     || refs.dispositivoAssociato.value !== 'true' || isFwaIndoor()) return;
+ smartphoneReloadChoicePending = true;
+ const sequence = ++smartphoneReloadChoiceSequence;
+ const revision = runtimeState.pdaRevision;
+ const editingId = runtimeState.editingTempId;
+ const offer = refs.offerta.value;
+ try {
+ const choice = await new Promise(resolve => {
+ let selected = null;
+ const modal = window.MiroxUI._build({
+ title: 'Gestione Smartphone Reload',
+ bodyHtml: '<p>Ho rilevato che c’è una Smartphone Reload attiva. Cosa desidera fare il cliente?</p>',
+ footerHtml: '<button type="button" class="mx-btn mx-btn-secondary" data-smartphone-stop>Disattivazione cliente</button>'
+   + '<button type="button" class="mx-btn mx-btn-primary" data-smartphone-keep>Mantenere attivo</button>',
+ onClose: () => resolve(selected)
+ });
+ modal.foot.querySelector('[data-smartphone-stop]').addEventListener('click', () => { selected = 'Disattivazione cliente'; modal.close(); });
+ modal.foot.querySelector('[data-smartphone-keep]').addEventListener('click', () => { selected = 'Mantenere attivo'; modal.close(); });
+ });
+ if (!choice || sequence !== smartphoneReloadChoiceSequence || runtimeState.pdaRevision !== revision
+     || runtimeState.editingTempId !== editingId || refs.offerta.value !== offer
+     || refs.smartphoneReload.value !== 'true' || refs.dispositivoAssociato.value !== 'true' || isFwaIndoor()) return;
+ refs.smartphoneReloadModalita.value = choice;
+ renderDynamicSections();
+ queueDraftSave();
+ } finally {
+ smartphoneReloadChoicePending = false;
+ }
+ }
+ if (refs.smartphoneReloadChoose) refs.smartphoneReloadChoose.addEventListener('click', chooseSmartphoneReload);
+ if (refs.smartphoneReload) refs.smartphoneReload.addEventListener('change', () => {
+ smartphoneReloadChoiceSequence++;
+ renderDynamicSections();
+ if (refs.smartphoneReload.value === 'true' && !refs.smartphoneReloadModalita.value) void chooseSmartphoneReload();
+ });
 
  function hasUnsavedContractFields() {
  return Boolean(
@@ -6202,6 +6245,9 @@ ${window.MiroxPdaUI.summary(item, { wizard: true })}
  }
 
  runtimeState.ocrDeviceApplied = true;
+ if (!fwaIndoorOcr && refs.smartphoneReload?.value === 'true' && !refs.smartphoneReloadModalita?.value) {
+ void chooseSmartphoneReload();
+ }
  if (window.MiroxUI && typeof window.MiroxUI.toast === 'function') {
  const msg = fwaIndoorOcr
  ? 'Dati modem FWA Indoor precompilati dal PDA (IMEI + Prezzo).'
