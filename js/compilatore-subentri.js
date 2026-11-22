@@ -28,8 +28,8 @@
         else input.type=rule==='data'?'date':rule==='telefono'?'tel':'text';
         input.required=!optional;
         if(rule==='data'&&key!=='data')input.max=today();
-        if(['cap','piva','cliente'].includes(rule))input.inputMode='numeric';
-        const patterns={cap:'[0-9]{5}',piva:'[0-9]{11}',cliente:'[0-9]{1,10}',cf:'[A-Za-z0-9]{16}',provincia:'[A-Za-z]{2}'};
+        if(['cap','piva'].includes(rule))input.inputMode='numeric';
+        const patterns={cap:'[0-9]{5}',piva:'[0-9]{11}',cf:'[A-Za-z0-9]{16}',provincia:'[A-Za-z]{2}'};
         if(patterns[rule])input.pattern=patterns[rule];
         const caption=el('label','',label+(optional?'':' *'));caption.htmlFor=key;field.append(caption,input);container.append(field);
       }

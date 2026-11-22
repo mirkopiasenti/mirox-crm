@@ -2,10 +2,31 @@
 
 Aggiornato:2026-11-22. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
 
-## Popup Smartphone Reload upload —22/11, locale
+## Subentri, nuove anagrafiche e codice cliente —22/11
+
+- Nei quattro percorsi con modulo, Invia pratica e Compilazione standard censiscono nel CRM cedente e cessionario mancanti per CF/P.IVA. Si salvano nome/ragione sociale, cluster, referente per Business, recapito e indirizzo pertinente quando disponibili. Schede già presenti conservate. Documenti, IBAN, consensi e codice cliente restano nella pratica. 1928 e storico già chiuso fuori perimetro.
+- RPC INVOKER service-only `subentri_finalizza_con_anagrafiche` rende atomici censimento e chiusura dopo verifica degli allegati e salvataggio PDF. Migration `20261122163641_subentri_censisci_anagrafiche.sql`, applicata e riletta su Supabase come `20261122164822`; niente modifiche a schema/trigger/RLS dell’anagrafica condivisa. Verificati in PGlite permessi, quattro tipi, 1928, schede legacy con spazi/minuscole, rollback, retry, sede legale e profilo operatore.
+- Codice cliente fino a 40 caratteri stampabili con maiuscole/minuscole, zeri, punti e simboli conservati. Fino a dieci usa le caselle, oltre dieci una riga adattata. Render controllato e quattro PDF numerici identici alla versione precedente. Build e 904/904 test, 37 Subentri. README, AGENTS e databaseREADME aggiornati.
+- Push e migration esplicitamente autorizzati. RPC riletta INVOKER service-only, senza variazioni a vincoli, ACL, trigger e RLS delle due tabelle o ai conteggi degli advisor sicurezza. Build, 37 test e SQL sulla copia esatta del runtime. Push e verifica del deploy in corso.
+
+## Segnalazioni, chiusura Più Sicuri —22/11, pubblicata
+
+- Nel dettaglio Da gestire, Disattivata sostituisce il riquadro di azione/note/allegati delle pratiche Più Sicuri. Registra Disattivata e Chiuso con data in un unico aggiornamento condizionato alla presenza in coda. Il Riepilogo mostra la pratica tra le chiuse. Testato con pratiche sintetiche, doppio clic e conflitto concorrente; nessuna chiusura reale di collaudo.
+- Build e suite 902/902 in copia isolata (58 Segnalazioni), client Supabase verificato con risposte simulate. Guide allineate. Push richiesto `d97568a`, CI `45039668598` verde Linux/Windows, Netlify `6b030d17c7ebeeafc4d6bfb7` online. Commit e script inline verificati via HTTP sulle due URL pubbliche. Prossimo passo: uso operativo del pulsante.
+
+## Raccolta PDA Reload e Cloud —22/11
+
+- Consegnato sul Desktop ZIP con 33 PDA dal 15/10 al 22/11 per data contratto: 6 Mobile, 6 Fisso, 21 Customer Base. Selezione da flag CRM e opzioni presenti nelle PDA; per Telefono Incluso CB, Smartphone Reload = Sì nel CRM. Verificati ZIP e copia tramite SHA256. Due contratti Mobile del periodo senza PDA associata non sono verificabili; una PDA CB ha pagine originali 1, 2, 3 e 6. Evidenze private in `.backup-private/pda-raccolta-20261015-20261122/`. Nessuna modifica dati; nessun seguito richiesto.
+
+## Segnalazioni, Disattivazione Più Sicuri —22/11, pubblicata
+
+- In produzione aggiornato il tipo di gestione delle tre segnalazioni richieste, tutte ancora in Da gestire. Transazione con controllo delle tre righe e rilettura indipendente, compresa la storica chiusa dello stesso cliente. Gli altri campi delle tre righe corrispondono per impronta, salvo il timestamp ordinario di modifica.
+- Nuova voce nel menu Gestione pratica, validata in inserimento e visibile in lista e dettaglio. Build e 900 test verificati in copia isolata. Primo push `8ad0dbf`, CI `45038783133` verde Linux/Windows, Netlify `6b030acf879fb3820071ceef` verificato. Il flusso di chiusura aggiornato è descritto sopra.
+
+## Popup Smartphone Reload upload —22/11, pubblicato
 
 - Quando Smartphone Reload è rilevata dalla PDA o impostata manualmente su Sì, l'upload chiede al cliente se disattivare o mantenere attivo tramite popup. Scelta visibile e modificabile con pulsante dedicato, chiusura senza scelta non permette di proseguire. Bozze/carrello conservati, risposta tardiva protetta dal cambio PDA o contratto. Nessuna modifica al DB. Push richiesto dal proprietario.
-- Build e suite 900/900 in copia isolata. Test mirati del popup, scelta/modifica, chiusura, risposta tardiva e applicazione OCR. Nessuna verifica browser con contratto reale. Pubblicazione e verifiche in corso.
+- Build e suite 900/900 in copia isolata. Test mirati del popup, scelta/modifica, chiusura, risposta tardiva e applicazione OCR. Push `da7623a`; CI `45028417372` verde Linux/Windows, pagina online con script inline identici alla build. Nessuna verifica browser con contratto reale. Prossimo passo: uso operativo dell'upload.
 
 ## Segnalazioni Customer Base —22/11, pubblicate
 

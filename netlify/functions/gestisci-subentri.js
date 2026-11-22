@@ -190,9 +190,10 @@ async function finalize({supabase,auth,body}) {
     if(!/already exists|duplicate|resource.*exists/i.test(String(result.error.message||result.error.error||''))) throw result.error;
     await downloadVerified(supabase,path,hash,pdf.buffer.length);
   }
-  const kind=row.tipo.slice('mobile_'.length).replaceAll('_','-')+(row.mortis_causa?'-mortis-causa':'');
-  const filename=`subentro-${kind}-${row.id}.pdf`;
-  checkError(await supabase.from(TABLE).update({stato:'generato',storage_path:path,nome_file:filename,pdf_sha256:hash,template_versione:pdf.templateVersion,numero_pagine:pdf.pageCount,generato_at:new Date().toISOString()}).eq('id',row.id).eq('stato','bozza').eq('created_by',auth.user.id));
+  checkError(await supabase.rpc('subentri_finalizza_con_anagrafiche',{
+    p_id:row.id,p_operatore:auth.user.id,p_pdf_sha256:hash,
+    p_template_versione:pdf.templateVersion,p_numero_pagine:pdf.pageCount
+  }));
   return readyResponse(supabase,await ownedDraft(supabase,row.id,auth));
 }
 function buildAnagraficaResult(row) {

@@ -51,6 +51,17 @@ test('subentri: PDF identico nei retry della stessa bozza, firme non compilate',
   const options={createdAt:'2026-10-18T10:00:00Z'};const first=await generateSubentroPdf(sample(),options);const second=await generateSubentroPdf(sample(),options);assert.equal(hash(first.buffer),hash(second.buffer));
   const pdf=await PDFDocument.load(first.buffer);const text=drawnText(normalizedText(pdf,0));assert.doesNotMatch(text,/FIRMA|DOMICILIAZIONE|CARTA DI CREDITO/);
 });
+test('subentri: codice cliente testuale conservato integro anche oltre le caselle del PDF',async()=>{
+  for(const code of ['00Ab.1/_-#','w3.000123/AB_#-','W'.repeat(40)]) {
+    const raw={...sample(5),codice_cliente:` ${code} `};
+    assert.equal(Core.validatePayload(raw).codice_cliente,code);
+    const {buffer}=await generateSubentroPdf(raw);
+    const pdf=await PDFDocument.load(buffer);
+    for(let page=0;page<2;page++) assert.ok(drawnText(normalizedText(pdf,page)).includes(code));
+  }
+  assert.throws(()=>Core.validatePayload({...sample(),codice_cliente:'A'.repeat(41)}),/massimo 40 caratteri/);
+  assert.throws(()=>Core.validatePayload({...sample(),codice_cliente:'A\n1'}),/non supportati/);
+});
 test('subentri: manifest richiede le tre categorie, limiti e path generati dal server',()=>{
   const manifest=['identita','tessera_sanitaria','visura'].map(tipo=>({id:crypto.randomUUID(),tipo,nome:'prova.pdf',mime:'application/pdf',size:20,sha256:'a'.repeat(64),storage_path:'../../altro'}));
   const result=validateManifest(manifest,'2026/test');assert.match(result[0].storage_path,/^2026\/test\/allegati\//);
@@ -66,7 +77,7 @@ test('subentri: standard ammette solo manifest vuoto e le modalità devono esser
 });
 
 function memoryStore({anagrafiche=[],searchError=false}={}) {
-  const rows=new Map(),files=new Map();const mutations=[];let failSigning=false;
+  const rows=new Map(),files=new Map();const mutations=[],finalizations=[];let failSigning=false,failFinalization=false;
   class Query {
     constructor(table){this.table=table;this.filters=[];this.operation='select';this.columns='*';}
     select(columns='*',opts={}){this.columns=columns;this.count=opts.count;return this;}
@@ -93,12 +104,25 @@ function memoryStore({anagrafiche=[],searchError=false}={}) {
       return {data:this.one?(values[0]||null):values,count,error:null};
     }
   }
-  const supabase={from:table=>new Query(table),storage:{from:bucket=>({
+  const supabase={from:table=>new Query(table),async rpc(name,args) {
+    assert.equal(name,'subentri_finalizza_con_anagrafiche');
+    finalizations.push(args);
+    if(failFinalization)return {error:{code:'transaction_failed'}};
+    const row=rows.get(args.p_id);
+    assert.equal(row.created_by,args.p_operatore);
+    assert.notEqual(row.tipo,Core.TYPE_1928);
+    const kind=row.tipo.slice('mobile_'.length).replaceAll('_','-')+(row.mortis_causa?'-mortis-causa':'');
+    Object.assign(row,{stato:'generato',storage_path:`${row.storage_prefix}/subentro.pdf`,nome_file:`subentro-${kind}-${row.id}.pdf`,
+      pdf_sha256:args.p_pdf_sha256,template_versione:args.p_template_versione,numero_pagine:args.p_numero_pagine});
+    mutations.push('update');
+    return {error:null};
+  },storage:{from:bucket=>({
     async upload(path,bytes){assert.equal(bucket,'subentri-files');if(files.has(path))return {error:{message:'The resource already exists'}};files.set(path,Buffer.from(bytes));return {error:null};},
     async download(path){const value=files.get(path);return value?{data:new Blob([value]),error:null}:{data:null,error:{message:'not found'}};},
     async createSignedUrl(path){return failSigning?{error:{message:'temporary failure'}}:{data:{signedUrl:`https://storage.example/${path}?token=test`},error:null};}
   })}};
-  return {rows,files,mutations,supabase,setFailSigning:value=>{failSigning=value;}};
+  return {rows,files,mutations,finalizations,supabase,setFailSigning:value=>{failSigning=value;},
+    setFailFinalization:value=>{failFinalization=value;}};
 }
 async function request(store,body,{user=owner,method='POST',query={},denied=false}={}) {
   const result=await handle({httpMethod:method,body:JSON.stringify(body||{}),headers:{},queryStringParameters:query},{requireAuth:async()=>denied?{ok:false,status:401,error:'Sessione richiesta'}:{ok:true,user:{id:user},profilo:{nome:'Operatore Test'}},getAdminClient:()=>store.supabase});
@@ -174,11 +198,30 @@ test('subentri: flusso completo e retry finale producono una sola pratica con do
   for(const entry of row.documenti)assert.equal((await upload(store,multipart(row,entry,bytes))).status,200);
   const result=await request(store,{action:'finalize',id});assert.equal(result.status,200);assert.equal(result.subentro.numero_pagine,2);assert.equal(store.files.size,4);assert.equal(store.rows.get(id).stato,'generato');
   const retry=await request(store,{action:'finalize',id});assert.equal(retry.status,200);assert.equal(store.files.size,4);
+  assert.equal(store.finalizations.length,1);
   const list=await request(store,null,{method:'GET'});assert.equal(list.subentri.length,1);assert.equal(list.subentri[0].dati_compilazione,undefined);assert.equal(list.subentri[0].documenti,undefined);
   const docs=await request(store,{action:'documents',id});assert.equal(docs.documenti.length,3);assert.equal(docs.documenti[0].storage_path,undefined);
   const link=await request(store,{action:'signed_url',id,document_id:row.documenti[0].id});assert.match(link.signed_url,/token=test/);
   assert.equal((await request(store,{action:'signed_url',id,document_id:crypto.randomUUID()})).status,404);
   const duplicate=await request(store,{action:'duplicate_data',id});assert.equal(duplicate.subentro.cedente_nome,'LUCA');assert.equal(duplicate.documenti,undefined);
+});
+test('subentri: se il censimento fallisce la pratica resta in bozza e il retry riusa il PDF',async()=>{
+  const store=memoryStore();
+  const body={action:'create',id,subentro:{...sample(),codice_cliente:'w3.01234567/#'},modalita_compilazione:'standard',documenti:[]};
+  assert.equal((await request(store,body)).status,200);
+  assert.equal(store.finalizations.length,0);
+  store.setFailFinalization(true);
+  assert.equal((await request(store,{action:'finalize',id})).status,500);
+  assert.equal(store.rows.get(id).stato,'bozza');
+  assert.equal((await request(store,null,{method:'GET'})).subentri.length,0);
+  assert.equal(store.files.size,1);
+  const [storedPdf]=store.files.values();
+  assert.equal(store.finalizations[0].p_pdf_sha256,hash(storedPdf));
+  store.setFailFinalization(false);
+  assert.equal((await request(store,{action:'finalize',id})).status,200);
+  assert.equal(store.rows.get(id).stato,'generato');
+  assert.equal(store.files.size,1);
+  assert.deepEqual(store.finalizations[1],store.finalizations[0]);
 });
 test('subentri: un errore signed URL non trasforma un salvataggio riuscito in un duplicato',async()=>{
   const store=memoryStore();const {bytes,row}=await draft(store);for(const entry of row.documenti)await upload(store,multipart(row,entry,bytes));
@@ -560,6 +603,7 @@ test('subentri 1928: archivia i tre gruppi verificati, senza dati del modulo né
   const closed=await request(store,{action:'finalize',id});
   assert.equal(closed.status,200);
   assert.equal(closed.subentro.stato,'archiviato');
+  assert.equal(store.finalizations.length,0);
   assert.equal(closed.subentro.numero_pagine,null);
   assert.equal(closed.signed_url,null);
   assert.equal(store.files.size,3);

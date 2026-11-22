@@ -54,7 +54,7 @@
   });
   // [nome, etichetta, lunghezza, validazione, facoltativo]
   const FIELDS = Object.freeze({
-    generale: [['codice_cliente', 'Codice cliente WINDTRE', 10, 'cliente']],
+    generale: [['codice_cliente', 'Codice cliente WINDTRE', 40, 'cliente']],
     cedente: [
       ['cedente_nome', 'Nome della persona/delegato', 60],
       ['cedente_cognome', 'Cognome della persona/delegato', 60],
@@ -151,13 +151,15 @@
     } else fail('Ruolo anagrafica non valido');
     return identifier;
   }
-  function clean(value, max, label, optional = false) {
+  function clean(value, max, label, optional = false, preserveCode = false) {
     if (value !== undefined && value !== null && typeof value !== 'string') fail(`${label}: valore non valido`);
-    const text = String(value || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().toLocaleUpperCase('it-IT');
+    const raw = String(value || '');
+    const text = preserveCode ? raw.trim() : raw.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().toLocaleUpperCase('it-IT');
     if (!text && !optional) fail(`${label}: campo obbligatorio`);
     if (text.length > max) fail(`${label}: massimo ${max} caratteri`);
     // Il template usa WinAnsi: messaggio esplicito per caratteri non stampabili.
-    if ([...text].some(ch => ch.codePointAt(0) > 255 && !'€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ'.includes(ch))) fail(`${label}: contiene caratteri non supportati dal modulo`);
+    if ((preserveCode && /[\u0000-\u001f\u007f-\u009f]/.test(text)) ||
+        [...text].some(ch => ch.codePointAt(0) > 255 && !'€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ'.includes(ch))) fail(`${label}: contiene caratteri non supportati dal modulo`);
     return text;
   }
   function date(value, label, optional, allowFuture = false) {
@@ -194,9 +196,9 @@
     if (rule === 'data') return date(raw[key], label, optional, key === 'data');
     if (rule === 'telefono') return optional && !clean(raw[key], max, label, true) ? '' : phone(raw[key], label);
     if (rule === 'iban') return validIban(raw[key]);
-    const value = clean(raw[key], max, label, optional);
+    const value = clean(raw[key], max, label, optional, rule === 'cliente');
     if (!value && optional) return value;
-    const patterns = { cf: /^[A-Z0-9]{16}$/, piva: /^\d{11}$/, cf_piva: /^(?:[A-Z0-9]{16}|\d{11})$/, provincia: /^[A-Z]{2}$/, cap: /^\d{5}$/, cliente: /^\d{1,10}$/, documento: /^[A-Z0-9-]{1,11}$/ };
+    const patterns = { cf: /^[A-Z0-9]{16}$/, piva: /^\d{11}$/, cf_piva: /^(?:[A-Z0-9]{16}|\d{11})$/, provincia: /^[A-Z]{2}$/, cap: /^\d{5}$/, documento: /^[A-Z0-9-]{1,11}$/ };
     if (rule && patterns[rule] && !patterns[rule].test(value)) fail(`${label}: formato non valido`);
     return value;
   }
@@ -234,9 +236,9 @@
         result[key] = fieldValue(raw, field, result.mortis_causa && key === 'cedente_telefono' ? true : field[4]);
       }
     }
+    validateSearchIdentifier('subentrante', result.subentrante_codice_fiscale, PRIVATE_TYPE);
     if (tipo !== TYPE) {
       validateSearchIdentifier('cedente', result.cedente_codice_fiscale, PRIVATE_TYPE);
-      validateSearchIdentifier('subentrante', result.subentrante_codice_fiscale, PRIVATE_TYPE);
       if ((!businessSubentrante || result.mortis_causa) && result.cedente_codice_fiscale === result.subentrante_codice_fiscale) {
         fail('Cedente e cessionario devono avere codici fiscali diversi');
       }

@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+const { PDFDocument, StandardFonts, rgb, pushGraphicsState, popGraphicsState, translate, scale } = require('pdf-lib');
 const { validatePayload, ValidationError, TYPE_LABELS } = require('../../../js/subentri-core');
 const MAP = require('./pdf-subentro-coordinates.json');
 const TEMPLATE_VERSION = 'windtre-cessione-mobile-2024-06-v1';
@@ -32,6 +32,21 @@ async function generateSubentroPdf(raw, { createdAt = new Date().toISOString() }
     [...value].forEach((ch,i) => draw(page,positions[i]-font.widthOfTextAtSize(ch,size)/2,baseline,ch,10,size));
   }
   function grid(page, key, value, size) { const m=MAP[key]; chars(page,m.cells,m.baseline,value,size); }
+  function drawCustomerCode(page) {
+    const code = data.codice_cliente;
+    try { font.encodeText(code); } catch (_) { throw new ValidationError('Codice cliente WINDTRE: contiene caratteri non supportati dal modulo'); }
+    if (code.length <= MAP.codice_cliente.cells.length) {
+      grid(page,'codice_cliente',code,7);
+      return;
+    }
+    // Lascia il bordo del riquadro e sostituisce le divisioni interne con una riga continua.
+    const size = 7;
+    const horizontalScale = Math.min(1, 107 / font.widthOfTextAtSize(code, size));
+    page.drawRectangle({x:440, y:page.getHeight()-39.45, width:112, height:10.85, color:rgb(1,1,1)});
+    page.pushOperators(pushGraphicsState(), translate(442,page.getHeight()-MAP.codice_cliente.baseline), scale(horizontalScale,1));
+    page.drawText(code,{x:0,y:0,size,font,color:ink});
+    page.pushOperators(popGraphicsState());
+  }
   function phone(page,key,value) {
     const m=MAP[key]; const prefix=value.startsWith('0') ? Math.min(4,value.length-1) : 3;
     chars(page,m.prefix,m.baseline,value.slice(0,prefix)); chars(page,m.suffix,m.baseline,value.slice(prefix));
@@ -86,7 +101,7 @@ async function generateSubentroPdf(raw, { createdAt = new Date().toISOString() }
   const pageCount = Math.ceil(data.numeri.length/4);
   for (let i=0;i<pageCount;i++) {
     const [page] = await doc.copyPages(source,[0]); doc.addPage(page);
-    grid(page,'codice_cliente',data.codice_cliente,7);
+    drawCustomerCode(page);
     draw(page,204,121.7,data.cedente_nome,155,6.2); draw(page,397,121.7,data.cedente_cognome,151,6.2);
     grid(page,'cedente_cf',data.cedente_codice_fiscale); phone(page,'cedente_telefono',data.cedente_telefono);
     if (data.cedente_tipo==='impresa') {
