@@ -2,10 +2,19 @@
 
 Aggiornato:2026-11-22. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
 
-## Rilascio Subentri —22/11
+## Segnalazioni Customer Base —22/11
+
+- In Verifica Contratti, anche nei Verificati, il pulsante Apri segnalazione offre Reload Forever (ASK - Normalizzazione) o Altro (Interna negozio con nota). Stessa ACL, copia degli allegati e retry del flusso Mobile, validazione server su categoria canonica e snapshot. Flag Reload Forever del contratto indipendente. Estensione applicativa senza migration, con test API e del popup.
+- Build e suite completa 897/897 in copia isolata, di cui 27 test Segnalazioni. Lettura su produzione: tutti gli 823 contratti con snapshot Customer Base hanno la categoria di catalogo coerente. Pubblicazione su `main` richiesta dal proprietario.
+
+## Verifica PDA Customer Base —22/11
+
+- Letti in sola consultazione gli ultimi 50 contratti per data di inserimento e i 50 PDF associati: Reload Forever Basic compare in tre PDA, anche nell'elenco opzioni; due hanno il flag CRM disattivato. Nessuna modifica ai dati. Testo estratto e cinque PDF con immagini/testo incompleto ricontrollati visivamente; uno dei PDF contiene solo le pagine numerate 1, 2, 3 e 6. Evidenze private in `.backup-private/customer-base-reload-20261122/`.
+
+## Rilascio Subentri —22/11, pubblicato
 
 - Il proprietario ha chiesto il push unico e ha autorizzato esplicitamente la migration production. La migration è stata applicata come `20261122104944`. La rilettura conferma i nuovi vincoli, archivio vuoto, zero oggetti nel bucket, RLS e grant invariati.
-- Build e 894/894 test sulla copia esatta del runtime. Prima del rilascio, main remoto `c9752e5`, pagina Subentri HTTP 200 e API anonima 401. Push unico e verifica CI/Netlify/HTTP in corso.
+- Push unico `a075d68` su main. Build e 894/894 test sulla copia esatta del runtime, CI `45014440360` Linux e Windows verde. Netlify `6b02c9279e9525aaf86a1d1d` verificata online alle 11:54 Europe/Rome. HTML e Pretty URL coerenti con la build, con la sola riscrittura del link dashboard di Netlify. JS e CSS identici, storico e PDF PEC 401 senza sessione, percorso statico diretto PDF 404. Advisor Supabase con gli stessi tipi e conteggi. Evidenze HTTP in `.backup-private/release-subentri-20261122/`. Prossimo passo: uso operativo dei cinque percorsi Mobile.
 
 ## Subentri 1928 → Privato —22/11, incluso nel rilascio
 

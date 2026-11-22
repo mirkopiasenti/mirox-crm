@@ -30,6 +30,10 @@ precedenti identici per impronta. Advisor warning/errori invariati; solo INFO RL
 senza policy41vs40 atteso sul nuovo registro server-only. Nessuna nota reale creata.
 Prove private ignorate `.backup-private/release-note-contratto-20261116/`.
 
+## Segnalazioni da Customer Base —22/11/2026
+
+La Function `apri-segnalazione-mobile` accetta Customer Base con categoria canonica e snapshot coerenti. Reload Forever produce ASK - Normalizzazione, Altro Interna negozio con nota obbligatoria. Il flag `reload_forever` del contratto resta indipendente dall'apertura. Il registro `segnalazioni_mobile_richieste`, le RPC service-only e il bucket esistente gestiscono snapshot, retry e copia degli allegati come per Mobile e Fisso. L'estensione non richiede migration.
+
 ## Segnalazioni da Fisso —18/11/2026, estensione applicativa pubblicata
 
 Lo stesso registro `segnalazioni_mobile_richieste` e le RPC prepara/completa gia generiche supportano anche Fisso senza DDL. La Function esistente `apri-segnalazione-mobile` verifica categoria canonica e snapshot coerenti Mobile/Fisso; nel Fisso ammette soltanto Professional Cloud/Altro, senza fidarsi della categoria ricevuta. Stesse ACL fresche Verifica, copie server-side di tutti e soli gli allegati del contratto e finalizzazione atomica/idempotente. Hash/chiavi/retry Mobile precedenti conservati, cache browser Fisso separata. Nessuna query o scrittura production, backfill, schema/RLS/grant/RPC/sequenza o nuova tabella/bucket/Function da applicare. Pubblicato18/11 con `9f23b10`: CI44278001931 LinuxNode22/Windows verde,845test; Netlify6afd725beb82b62cc8e43052 online. HTTP14asset/HTML/script/stili/PrettyURL e4API401 verificati.

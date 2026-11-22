@@ -8,6 +8,8 @@ Verificati. Non basta Storico Cliente né Segnalazioni; nessun accesso nuovo agl
 account. Registro RLS/server-only SELECT/INSERT, senza grant browser o modifiche
 alle risorse condivise. Le note non cambiano lo stato di verifica del contratto.
 
+Estensione del 22/11: Customer Base usa la stessa ACL Verifica Contratti per aprire una segnalazione con Reload Forever o Altro, anche nei Verificati. La pagina Segnalazioni continua a richiedere il proprio permesso.
+
 Estensione pubblicata18/11: il pulsante è disponibile anche per contratti Fisso Consumer/Business e Verificati, con sole Professional Cloud/Altro. Identica ACL Verifica Contratti; pagina Segnalazioni ancora riservata. Nessuna nuova assegnazione, catalogo, endpoint, grant/RLS/RPC o schema.
 
 Rettifica16/11, confermata dal proprietario: `apri-segnalazione-mobile` richiede

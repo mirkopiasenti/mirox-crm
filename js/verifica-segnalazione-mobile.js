@@ -4,9 +4,9 @@
   const pending = new Map();
   const active = new Map();
   function open(contract, { autore } = {}) {
-    if (!Core.isSupported(contract.categoria_snapshot)) return null;
-    const category = contract.categoria_snapshot;
-    const key = `mirox-segnalazione-${Core.isFixed(category) ? 'fisso' : 'mobile'}:${autore}:${contract.id}`;
+    const category = Core.categoria(contract.categoria_snapshot);
+    if (!category) return null;
+    const key = `mirox-segnalazione-${category.toLowerCase().replace(/ /g, '-')}:${autore}:${contract.id}`;
     if (active.has(key)) return active.get(key);
     const esc = root.MiroxSafe.escapeHtml;
     let cached = pending.get(key);

@@ -110,6 +110,8 @@ Estensione Mobile14/11: nel dettaglio Verifica Contratti il pulsante **Apri segn
 
 Estensione Fisso pubblicata18/11: lo stesso pulsante e flusso sono disponibili anche per Fisso Consumer/Business, inclusi i Verificati, con sole Professional Cloud (ASK - Normalizzazione, note facoltative) e Altro (Interna negozio, note obbligatorie). Nessuna Reload nel Fisso. Cliente, codici, riferimento Contratto Fisso e tutti gli allegati dal contratto persistito; stessa conferma Si/No, caricamento, retry senza duplicati e permanenza sul dettaglio. Motivi e categoria controllati anche server-side. Endpoint/registro/RPC conservano i nomi mobile per compatibilita, senza nuove migration, ACL, invii o modifiche allo storico.845test/build e DOM Node verdi; nessuna pratica reale o scrittura production. Pubblicato18/11 con `9f23b10`: CI44278001931 LinuxNode22/Windows verde,845test; Netlify6afd725beb82b62cc8e43052 online. HTTP14asset/HTML/script/stili/PrettyURL e4API401 verificati.
 
+Dal 22/11 **Apri segnalazione** è disponibile anche in Customer Base, inclusi i contratti verificati. **Reload Forever** apre una pratica ASK - Normalizzazione, con note facoltative. **Altro** apre una pratica Interna negozio e richiede una nota. Il pulsante è disponibile anche quando Reload Forever non è spuntata nel contratto. Dopo la copia degli allegati, la richiesta compare in Da gestire e il dettaglio del contratto resta aperto.
+
 Da gestire distingue i tre percorsi e mostra la scelta nel riquadro giallo: ASK richiede solo numero ASK, note e allegati facoltativi; Salva porta al Riepilogo. Angel offre note/allegati e Confermo apertura Angel, con passaggio al Riepilogo Angel e conferma dedicata. Interna negozio mantiene la scelta Azione Eseguita e le regole precedenti. ASK e Angel restano in corso dopo l’apertura; errori mantengono il dettaglio per riprovare.
 
 Inserimento aggiornato12/11: Gestione pratica offre Angel, ASK e Interna negozio. Scegliendo ASK compare il tipo obbligatorio: Recesso, Comportamento Scorretto, Normalizzazione, Reclami su Fattura, Convergenza, Subentro, CS o Altro. Recesso e Comportamento Scorretto mostrano i rispettivi PDF gia disponibili. La scelta viene salvata ed e visibile nel dettaglio della segnalazione.
@@ -297,7 +299,7 @@ Tutte le functions richiedono JWT valido, eccetto i cron Netlify, `public-prenot
 
 | Function | Metodo | Auth | Scopo |
 |---|---|---|---|
-| `apri-segnalazione-mobile` | POST | JWT + Verifica Contratti | Recupera cliente/allegati dal contratto Mobile/Fisso; motivi per categoria, copia Storage e inserimento atomico/idempotente in Da gestire |
+| `apri-segnalazione-mobile` | POST | JWT + Verifica Contratti | Recupera cliente/allegati dal contratto Mobile, Fisso o Customer Base; motivi per categoria, copia Storage e inserimento atomico/idempotente in Da gestire |
 | `target-telegram-webhook` | POST | secret Telegram + chat privata proprietario | Accoda testo/vocali nel bot dedicato Target; dedupe update e dialogo libero |
 | `target-worker-background` | POST background | HMAC + timestamp | Genera report/dialogo, memoria privata e consegna con checkpoint |
 | `cron-target-reports` | scheduled `*/5 * * * *` | cron Netlify | Report alle 19:45 italiane, calendario lavorativo, dedupe e risveglio coda Target |
@@ -985,7 +987,7 @@ Le pagine sono state copiate **mantenendo la loro logica interna** (testata in p
 
 ## Pannello Admin Mirox
 
-Dal16/11 il permesso Verifica Contratti comprende Apri segnalazione dai contratti Mobile; estensione pubblicata18/11 anche a Fisso. L’abilitazione Segnalazioni resta necessaria per accedere alla pagina e gestire le richieste; nessun interruttore, ruolo o accesso dell’account viene aggiunto automaticamente.
+Dal16/11 il permesso Verifica Contratti comprende Apri segnalazione dai contratti Mobile, Fisso e Customer Base. L’abilitazione Segnalazioni resta necessaria per accedere alla pagina e gestire le richieste; nessun interruttore, ruolo o accesso dell’account viene aggiunto automaticamente.
 
 Nuova voce Configurazioni → **Monitor negozio**, solo Admin: codici monouso,
 stato/ultimo contatto e revoca; endpoint admin con profilo riletto e RPC con

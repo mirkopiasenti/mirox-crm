@@ -1802,6 +1802,10 @@ Reload Exchange/Forever escluse Business da scope condiviso UI/API; Professional
 
 Rettifica pubblicata17/11, precisazione proprietario: nel dettaglio Verifica Professional Cloud deve usare lo stesso checkbox e flusso di Reload Forever (conferma, gestione, annulla, salvataggio generale), con binder condiviso in vendita-pda-ui. Nei Verificati controlli disabilitati come Reload; NULL storico conservato. La proposta locale di soli campi testo e superata.837test/build e DOM dettaglio completo verdi. Pubblicata con `f9a8ec1`, CI Linux/Windows e HTTP verdi; dettagli in AGENTS/STATO_LAVORO.
 
+### Segnalazioni da Customer Base —22/11/2026
+
+Il pulsante Apri segnalazione in Verifica Contratti si estende a Customer Base, inclusi i Verificati. Reload Forever usa ASK - Normalizzazione con note facoltative, Altro usa Interna negozio con nota obbligatoria. Stessa ACL Verifica, copia allegati e retry di Mobile/Fisso. Categoria verificata lato server. Il flag Reload Forever del contratto resta indipendente e non serve una migration.
+
 ### Segnalazioni da Fisso —18/11/2026, pubblicate
 
 Apri segnalazione anche nel dettaglio Fisso Consumer/Business, compresi i Verificati: sole Professional Cloud e Altro, senza Reload. Stesso popup/Si-No/spinner/allegati/retry/permanenza del Mobile e sola ACL Verifica; Cloud ASK-Normalizzazione con note facoltative, Altro Interna negozio con note obbligatorie. Endpoint/widget/core/registro/RPC mobile riusati per compatibilita, nessun DDL o dato reale. Categoria e motivi riletti/validati server-side. Fonte AGENTS.md, pubblicato con `9f23b10`, CI Linux/Windows e HTTP verdi.

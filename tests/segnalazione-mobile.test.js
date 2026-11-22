@@ -108,6 +108,34 @@ test('Fisso: categoria forgiata non abilita Reload e non prenota richieste o cop
   assert.equal(f.tables.segnalazioni_mobile_richieste.length,0);assert.equal(f.calls.some(c=>c.rpc),false);
   assert.equal((await f.send({motivo:'Altro',note:' '})).status,400);
 });
+test('Customer Base: Reload Forever e Altro creano Da gestire con i dati e gli allegati del contratto', async () => {
+  const cases = [
+    { motivo: 'Reload Forever', note: '', gestione_pratica: 'ASK', tipo_ask: 'Normalizzazione' },
+    { motivo: 'Altro', note: 'Dettaglio della richiesta', gestione_pratica: 'Interna negozio', tipo_ask: null }
+  ];
+  for (const { motivo, note, gestione_pratica, tipo_ask } of cases) {
+    const f = fixture('Customer Base');
+    const result = await f.send({ motivo, note });
+    assert.equal(result.status, 200);
+    assert.equal(result.allegati, 3);
+    const [row] = f.tables.segnalazioni;
+    assert.equal(row.stato, 'Da gestire');
+    assert.equal(row.gestione_pratica, gestione_pratica);
+    assert.equal(row.tipo_ask, tipo_ask);
+    assert.match(row.dettagli_segnalazione, /Contratto Customer Base: 0001234/);
+    assert.ok(row.dettagli_segnalazione.includes(motivo));
+    if (note) assert.ok(row.dettagli_segnalazione.includes(note));
+    assert.equal(f.copies.size, 3);
+  }
+});
+test('Customer Base: Professional Cloud, Altro senza nota e categorie incoerenti non creano segnalazioni', async () => {
+  const f = fixture('Customer Base');
+  assert.equal((await f.send({ motivo: 'Professional Cloud', categoria_snapshot: 'Mobile' })).status, 400);
+  assert.equal((await f.send({ motivo: 'Altro', note: ' ' })).status, 400);
+  f.tables.vendita_categorie[0].nome = 'Mobile';
+  assert.equal((await f.send()).status, 400);
+  assert.equal(f.calls.some(call => call.rpc || call.copy), false);
+});
 test('Fisso: copia parziale e risposta persa recuperano la stessa richiesta senza duplicare segnalazioni',async()=>{
   const f=fixture('Fisso');f.state.failCopy=2;
   assert.equal((await f.send({motivo:'Professional Cloud'})).status,503);assert.equal(f.copies.size,1);assert.equal(f.tables.segnalazioni.length,0);
@@ -200,7 +228,7 @@ test('Mobile: revoca Verifica, account disabilitato o errore ACL bloccano anche 
   }
 });
 
-test('Mobile: pulsante visibile con sola Verifica e pagina Segnalazioni ancora vietata', () => {
+test('Pulsante visibile nelle categorie supportate con sola Verifica Contratti', () => {
   const page = fs.readFileSync(require.resolve('../moduli/verifica_contratti.html'), 'utf8');
   const line = page.split('\n').find(s => s.includes('data-apri-segnalazione-mobile>'));
   const condition = line.slice(line.indexOf('${') + 2, line.indexOf(" ? '<div"));
@@ -211,7 +239,8 @@ test('Mobile: pulsante visibile con sola Verifica e pagina Segnalazioni ancora v
     assert.equal(vm.runInNewContext(condition, context), pages.verifica_contratti === true);
     context.c.categoria_snapshot = 'Fisso';assert.equal(vm.runInNewContext(condition, context),pages.verifica_contratti===true);
     if (pages.verifica_contratti) assert.equal(allowedPath('/moduli/segnalazioni.html'), false);
-    context.c.categoria_snapshot = 'Customer Base'; assert.equal(vm.runInNewContext(condition, context), false);
+    context.c.categoria_snapshot = 'Customer Base'; assert.equal(vm.runInNewContext(condition, context), pages.verifica_contratti === true);
+    context.c.categoria_snapshot = 'Energia'; assert.equal(vm.runInNewContext(condition, context), false);
   }
 });
 
@@ -240,8 +269,8 @@ function uiFixture(category = 'Mobile') {
   const submit = m => m.fields['[data-mobile-submit]'].emit('click');
   return { root, open, choose, submit, modals, memory, requests, navigations, confirmations, alerts, state };
 }
-test('Mobile popup: solo Mobile, tre scelte, Altro richiede note; No conserva i valori senza inviare', async () => {
-  const f = uiFixture(); assert.equal(f.open({ categoria_snapshot: 'Customer Base' }), null);
+test('Mobile popup: tre scelte, Altro richiede note; No conserva i valori senza inviare', async () => {
+  const f = uiFixture(); assert.equal(f.open({ categoria_snapshot: 'Energia' }), null);
   const m = f.open(); assert.equal(f.open(), m); assert.match(m.opts.bodyHtml, /&lt;Cliente>/);
   await f.choose(m, 'Altro', '   '); assert.equal(m.fields['#mobileSegNote'].required, true);
   await f.submit(m); assert.equal(f.confirmations.length, 0); assert.equal(f.requests.length, 0);
@@ -269,7 +298,7 @@ test('Fisso popup: cache separata dal Mobile, retry conserva UUID e note senza r
   assert.equal(f.requests[1].body.request_id,f.requests[2].body.request_id);assert.notEqual(f.requests[0].body.request_id,f.requests[1].body.request_id);
   assert.equal(f.memory.size,1);assert.equal([...f.memory.keys()][0].startsWith('mirox-segnalazione-mobile:'),true);
 });
-for (const category of ['Mobile','Fisso']) test(`${category} popup: sì blocca i doppi clic e conferma il successo lasciando aperto il contratto senza navigazione`, async () => {
+for (const category of ['Mobile','Fisso','Customer Base']) test(`${category} popup: sì blocca i doppi clic e conferma il successo lasciando aperto il contratto senza navigazione`, async () => {
   const f = uiFixture(category);
   let openSignal;
   const parent = { closed: false, fields: { cliente: 'Cliente sintetico', telefono: '3331234567' }, body: {
@@ -282,7 +311,11 @@ for (const category of ['Mobile','Fisso']) test(`${category} popup: sì blocca i
     c: { id: CONTRACT, updated_at: DATE, categoria_snapshot: category, anagrafica: { ragione_sociale: 'Cliente sintetico' } },
     getProfiloCorrenteVC: async () => ({ id: AUTHOR }) });
   await openSignal();
-  const m = f.modals[0]; await f.choose(m, category==='Fisso'?'Professional Cloud':'Reload Forever');
+  const m = f.modals[0];
+  if (category === 'Customer Base') {
+    assert.deepEqual(Array.from(m.opts.bodyHtml.matchAll(/<option>([^<]+)<\/option>/g), match => match[1]), ['Reload Forever', 'Altro']);
+  }
+  await f.choose(m, category==='Fisso'?'Professional Cloud':'Reload Forever');
   let resolve; f.state.network = () => new Promise(r => { resolve = r; });
   const sending = f.submit(m); await new Promise(r => setImmediate(r));
   assert.equal(m.fields['[data-mobile-progress]'].hidden, false); assert.equal(m.fields['#mobileSegMotivo'].disabled, true);
