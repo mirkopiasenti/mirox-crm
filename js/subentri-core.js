@@ -6,7 +6,20 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
   const TYPE = 'mobile_microbusiness_privato';
+  const PRIVATE_TYPE = 'mobile_privato_privato';
+  const TO_BUSINESS_TYPE = 'mobile_privato_microbusiness';
+  const BUSINESS_TYPE = 'mobile_microbusiness_microbusiness';
+  const TYPE_1928 = 'mobile_1928_privato';
+  const TYPE_LABELS = Object.freeze({
+    [TYPE]: 'Microbusiness a Privato',
+    [PRIVATE_TYPE]: 'Privato a Privato',
+    [TO_BUSINESS_TYPE]: 'Privato a Microbusiness',
+    [BUSINESS_TYPE]: 'Microbusiness a Microbusiness',
+    [TYPE_1928]: '1928 a Privato'
+  });
   const MAX_NUMERI = 100;
+  const MAX_NUMERI_MORTIS = 4;
+  const MAX_DOCUMENTI = 12;
   const CONSENSI = Object.freeze({
     windtre: 'Comunicazioni commerciali WINDTRE',
     terze_parti: 'Comunicazioni commerciali di terze parti tramite WINDTRE',
@@ -17,6 +30,27 @@
     identita: 'Carta d’identità fronte/retro del subentrante',
     tessera_sanitaria: 'Tessera sanitaria fronte/retro del subentrante',
     visura: 'Visura camerale'
+  });
+  const DOCUMENTI_PRIVATI = Object.freeze({
+    identita_cedente: 'Documento d’identità del cedente',
+    identita_cessionario: 'Documento d’identità del cessionario'
+  });
+  const DOCUMENTI_MORTIS = Object.freeze({
+    ...DOCUMENTI_PRIVATI,
+    certificato_morte: 'Certificato di morte'
+  });
+  const DOCUMENTI_CESSIONARIO_BUSINESS = Object.freeze({...DOCUMENTI_PRIVATI, visura: DOCUMENTI.visura});
+  const DOCUMENTI_CESSIONARIO_BUSINESS_MORTIS = Object.freeze({...DOCUMENTI_CESSIONARIO_BUSINESS, certificato_morte: DOCUMENTI_MORTIS.certificato_morte});
+  const DOCUMENTI_DUE_BUSINESS = Object.freeze({
+    ...DOCUMENTI_PRIVATI,
+    visura_cedente: 'Visura camerale del cedente',
+    visura_cessionario: 'Visura camerale del cessionario'
+  });
+  const DOCUMENTI_DUE_BUSINESS_MORTIS = Object.freeze({...DOCUMENTI_DUE_BUSINESS, certificato_morte: DOCUMENTI_MORTIS.certificato_morte});
+  const DOCUMENTI_1928 = Object.freeze({
+    documenti_rappresentante: 'Carta d’identità e tessera sanitaria del rappresentante legale',
+    visura_azienda: 'Visura camerale dell’attuale azienda',
+    documenti_intestatario: 'Carta d’identità e tessera sanitaria del nuovo intestatario'
   });
   // [nome, etichetta, lunghezza, validazione, facoltativo]
   const FIELDS = Object.freeze({
@@ -50,6 +84,17 @@
       ['subentrante_comune', 'Comune di residenza', 60],
       ['subentrante_provincia', 'Provincia di residenza', 2, 'provincia']
     ],
+    subentrante_business: [['subentrante_partita_iva', 'Partita IVA del cessionario', 11, 'piva']],
+    subentrante_impresa: [
+      ['subentrante_ragione_sociale', 'Denominazione/ragione sociale', 100],
+      ['subentrante_telefono_impresa', 'Recapito dell’impresa', 30, 'telefono'],
+      ['subentrante_sede_via', 'Indirizzo della sede legale', 80],
+      ['subentrante_sede_civico', 'Civico della sede legale', 15],
+      ['subentrante_sede_localita', 'Località della sede legale (se diversa dal Comune)', 60, '', true],
+      ['subentrante_sede_cap', 'CAP della sede legale', 5, 'cap'],
+      ['subentrante_sede_comune', 'Comune della sede legale', 60],
+      ['subentrante_sede_provincia', 'Provincia della sede legale', 2, 'provincia']
+    ],
     banca: [['banca', 'Nome banca/Poste', 100], ['iban', 'IBAN', 34, 'iban']],
     sottoscrittore: [
       ['sottoscrittore_nome', 'Nome', 60], ['sottoscrittore_cognome', 'Cognome', 60],
@@ -66,18 +111,42 @@
       ['conto_provincia', 'Provincia', 2, 'provincia'],
       ['conto_cf_piva', 'Codice fiscale/Partita IVA', 16, 'cf_piva']
     ],
-    firma: [['luogo', 'Luogo di sottoscrizione', 60], ['data', 'Data di sottoscrizione', 10, 'data', true]]
+    firma: [['luogo', 'Luogo di sottoscrizione', 60], ['data', 'Data di sottoscrizione', 10, 'data', true]],
+    mortis: [
+      ['dichiarazione_mortis', 'Testo della dichiarazione', 550, 'testo'],
+      ['dichiarante_domicilio_comune', 'Comune di domicilio', 60, '', true],
+      ['dichiarante_domicilio_provincia', 'Provincia di domicilio (EE se estero)', 2, 'provincia', true],
+      ['dichiarante_domicilio_via', 'Indirizzo di domicilio', 80, '', true],
+      ['dichiarante_domicilio_civico', 'Civico di domicilio', 15, '', true]
+    ]
   });
   class ValidationError extends Error { constructor(message) { super(message); this.status = 400; } }
   function fail(message) { throw new ValidationError(message); }
-  function validateSearchIdentifier(role, value) {
+  function validateType(type) {
+    if (typeof type !== 'string' || !Object.hasOwn(TYPE_LABELS, type)) fail('Questa categoria di subentro non è ancora disponibile');
+    return type;
+  }
+  function documentGroups(type, mortisCausa) {
+    if (type === TYPE_1928) return DOCUMENTI_1928;
+    if (type === TYPE) return DOCUMENTI;
+    if (type === TO_BUSINESS_TYPE) return mortisCausa ? DOCUMENTI_CESSIONARIO_BUSINESS_MORTIS : DOCUMENTI_CESSIONARIO_BUSINESS;
+    if (type === BUSINESS_TYPE) return mortisCausa ? DOCUMENTI_DUE_BUSINESS_MORTIS : DOCUMENTI_DUE_BUSINESS;
+    return mortisCausa ? DOCUMENTI_MORTIS : DOCUMENTI_PRIVATI;
+  }
+  function usesBusinessIdentifier(role, type) {
+    return (role === 'cedente' && (type === TYPE || type === BUSINESS_TYPE))
+      || (role === 'subentrante' && (type === TO_BUSINESS_TYPE || type === BUSINESS_TYPE));
+  }
+  function validateSearchIdentifier(role, value, type = TYPE) {
+    validateType(type);
+    if (type === TYPE_1928) fail('Il percorso 1928 richiede solo gli allegati');
     const identifier = typeof value === 'string' ? value.trim().toUpperCase() : '';
-    if (role === 'cedente') {
-      if (!/^\d{11}$/.test(identifier)) fail('Cliente cedente: inserisci una partita IVA completa di 11 cifre');
-    } else if (role === 'subentrante') {
+    if (usesBusinessIdentifier(role, type)) {
+      if (!/^\d{11}$/.test(identifier)) fail(`Cliente ${role}: inserisci una partita IVA completa di 11 cifre`);
+    } else if (role === 'cedente' || role === 'subentrante') {
       // Sono ammesse anche le sostituzioni numeriche previste dall'omocodia.
       if (!/^[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-EHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/.test(identifier)) {
-        fail('Cliente subentrante: inserisci un codice fiscale personale completo di 16 caratteri');
+        fail(`Cliente ${role}: inserisci un codice fiscale personale completo di 16 caratteri`);
       }
     } else fail('Ruolo anagrafica non valido');
     return identifier;
@@ -120,12 +189,13 @@
     if (remainder !== 1) fail('IBAN non valido: verifica le coordinate');
     return compact;
   }
-  function fieldValue(raw, field) {
-    const [key, label, max, rule, optional] = field;
+  function fieldValue(raw, field, optional = field[4]) {
+    const [key, label, max, rule] = field;
     if (rule === 'data') return date(raw[key], label, optional, key === 'data');
-    if (rule === 'telefono') return phone(raw[key], label);
+    if (rule === 'telefono') return optional && !clean(raw[key], max, label, true) ? '' : phone(raw[key], label);
     if (rule === 'iban') return validIban(raw[key]);
     const value = clean(raw[key], max, label, optional);
+    if (!value && optional) return value;
     const patterns = { cf: /^[A-Z0-9]{16}$/, piva: /^\d{11}$/, cf_piva: /^(?:[A-Z0-9]{16}|\d{11})$/, provincia: /^[A-Z]{2}$/, cap: /^\d{5}$/, cliente: /^\d{1,10}$/, documento: /^[A-Z0-9-]{1,11}$/ };
     if (rule && patterns[rule] && !patterns[rule].test(value)) fail(`${label}: formato non valido`);
     return value;
@@ -136,16 +206,47 @@
   }
   function validatePayload(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) fail('Dati subentro non validi');
-    if (raw.tipo !== TYPE) fail('Questa categoria di subentro non è ancora disponibile');
-    if (!['impresa', 'professionista'].includes(raw.cedente_tipo)) fail('Seleziona impresa oppure libero professionista/artigiano');
+    const tipo = validateType(raw.tipo);
+    if (tipo === TYPE_1928) fail('Il percorso 1928 richiede solo gli allegati');
+    const privateCedente = !usesBusinessIdentifier('cedente', tipo);
+    const businessSubentrante = usesBusinessIdentifier('subentrante', tipo);
+    if (tipo !== TYPE && typeof raw.mortis_causa !== 'boolean') fail('Indica Sì oppure No per il subentro mortis causa');
+    if (!privateCedente && !['impresa', 'professionista'].includes(raw.cedente_tipo)) fail('Seleziona impresa oppure libero professionista/artigiano');
+    if (businessSubentrante && !['impresa', 'professionista'].includes(raw.subentrante_tipo)) fail('Per il cessionario, seleziona impresa oppure libero professionista/artigiano');
     if (!['iban', 'bollettino'].includes(raw.pagamento)) fail('Pagamento non valido: scegli IBAN o bollettino postale');
     if (!['M', 'F'].includes(raw.subentrante_sesso)) fail('Seleziona il sesso del subentrante');
-    const result = { tipo: TYPE, cedente_tipo: raw.cedente_tipo, pagamento: raw.pagamento, subentrante_sesso: raw.subentrante_sesso };
-    for (const group of ['generale', 'cedente', 'subentrante', 'firma', ...(raw.cedente_tipo === 'impresa' ? ['impresa'] : []), ...(raw.pagamento === 'iban' ? ['banca', 'sottoscrittore', 'conto'] : [])]) {
-      for (const field of FIELDS[group]) result[field[0]] = fieldValue(raw, field);
+    const result = { tipo, ...(!privateCedente ? { cedente_tipo: raw.cedente_tipo } : {}),
+      ...(tipo !== TYPE ? { mortis_causa: raw.mortis_causa } : {}),
+      pagamento: raw.pagamento, subentrante_sesso: raw.subentrante_sesso };
+    const groups = ['generale', 'cedente', 'subentrante', 'firma'];
+    if (!privateCedente && raw.cedente_tipo === 'impresa') groups.push('impresa');
+    if (businessSubentrante) {
+      result.subentrante_tipo = raw.subentrante_tipo;
+      groups.push('subentrante_business');
+      if (raw.subentrante_tipo === 'impresa') groups.push('subentrante_impresa');
+    }
+    if (raw.pagamento === 'iban') groups.push('banca', 'sottoscrittore', 'conto');
+    if (result.mortis_causa) groups.push('mortis');
+    for (const group of groups) {
+      for (const field of FIELDS[group]) {
+        const [key] = field;
+        if (privateCedente && key === 'cedente_partita_iva') continue;
+        result[key] = fieldValue(raw, field, result.mortis_causa && key === 'cedente_telefono' ? true : field[4]);
+      }
+    }
+    if (tipo !== TYPE) {
+      validateSearchIdentifier('cedente', result.cedente_codice_fiscale, PRIVATE_TYPE);
+      validateSearchIdentifier('subentrante', result.subentrante_codice_fiscale, PRIVATE_TYPE);
+      if ((!businessSubentrante || result.mortis_causa) && result.cedente_codice_fiscale === result.subentrante_codice_fiscale) {
+        fail('Cedente e cessionario devono avere codici fiscali diversi');
+      }
+    }
+    if (tipo === BUSINESS_TYPE && result.cedente_partita_iva === result.subentrante_partita_iva) {
+      fail('Cedente e cessionario devono avere partite IVA diverse');
     }
     if (result.subentrante_documento_rilascio < result.subentrante_data_nascita) fail('Il rilascio del documento precede la nascita');
-    if (!Array.isArray(raw.numeri) || !raw.numeri.length || raw.numeri.length > MAX_NUMERI) fail(`Inserisci da 1 a ${MAX_NUMERI} numeri mobile`);
+    const maxNumeri = result.mortis_causa ? MAX_NUMERI_MORTIS : MAX_NUMERI;
+    if (!Array.isArray(raw.numeri) || !raw.numeri.length || raw.numeri.length > maxNumeri) fail(`Inserisci da 1 a ${maxNumeri} numeri mobile`);
     result.numeri = raw.numeri.map(value => phone(value, 'Numero da trasferire', true));
     if (new Set(result.numeri).size !== result.numeri.length) fail('Lo stesso numero mobile è presente più volte');
     result.consensi = {};
@@ -155,5 +256,6 @@
     }
     return result;
   }
-  return Object.freeze({ TYPE, MAX_NUMERI, FIELDS, CONSENSI, DOCUMENTI, validatePayload, validateMode, validateSearchIdentifier, ValidationError });
+  return Object.freeze({ TYPE, PRIVATE_TYPE, TO_BUSINESS_TYPE, BUSINESS_TYPE, TYPE_1928, TYPE_LABELS, MAX_NUMERI, MAX_NUMERI_MORTIS, MAX_DOCUMENTI, FIELDS, CONSENSI, DOCUMENTI,
+    documentGroups, usesBusinessIdentifier, validatePayload, validateMode, validateType, validateSearchIdentifier, ValidationError });
 });

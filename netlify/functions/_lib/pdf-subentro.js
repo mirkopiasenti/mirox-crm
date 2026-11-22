@@ -2,12 +2,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
-const { validatePayload, ValidationError } = require('../../../js/subentri-core');
+const { validatePayload, ValidationError, TYPE_LABELS } = require('../../../js/subentri-core');
 const MAP = require('./pdf-subentro-coordinates.json');
 const TEMPLATE_VERSION = 'windtre-cessione-mobile-2024-06-v1';
-function resolveTemplatePath() {
+function resolveTemplatePath(filename = 'cessione-mobile-2024-06.pdf') {
   for (const directory of [path.join(__dirname, '_templates', 'subentri'), path.join(__dirname, '..', '_templates', 'subentri'), path.join(process.cwd(), 'netlify', 'functions', '_templates', 'subentri')]) {
-    const candidate = path.join(directory, 'cessione-mobile-2024-06.pdf');
+    const candidate = path.join(directory, filename);
     if (fs.existsSync(candidate)) return candidate;
   }
   throw new Error('Modello PDF subentri non disponibile');
@@ -45,6 +45,44 @@ async function generateSubentroPdf(raw, { createdAt = new Date().toISOString() }
     page.drawLine({ start:{x:x+m,y:height-top-m},end:{x:x+size-m,y:height-top-size+m},thickness:.65,color:ink });
     page.drawLine({ start:{x:x+m,y:height-top-size+m},end:{x:x+size-m,y:height-top-m},thickness:.65,color:ink });
   }
+  async function appendDeclaration() {
+    const declaration = await PDFDocument.load(fs.readFileSync(resolveTemplatePath('dichiarazione-notorieta.pdf')));
+    const [page] = await doc.copyPages(declaration, [0]);
+    doc.addPage(page);
+    const write = (x, y, width, value, size = 9) => draw(page, x, page.getHeight() - y, value, width, size);
+    write(180, 689, 156, data.subentrante_cognome);
+    write(349, 689, 152, data.subentrante_nome);
+    write(127, 652, 207, data.subentrante_comune_nascita);
+    write(354, 652, 30, data.subentrante_provincia_nascita);
+    write(409, 652, 94, formatDate(data.subentrante_data_nascita));
+    write(143, 613, 116, data.subentrante_comune);
+    write(275, 613, 24, data.subentrante_provincia);
+    write(339, 613, 136, data.subentrante_via);
+    write(491, 613, 21, data.subentrante_civico);
+    write(167, 574, 99, data.dichiarante_domicilio_comune);
+    write(277, 574, 22, data.dichiarante_domicilio_provincia);
+    write(339, 574, 136, data.dichiarante_domicilio_via);
+    write(491, 574, 23, data.dichiarante_domicilio_civico);
+    write(87, 281, 200, [data.luogo, formatDate(data.data)].filter(Boolean).join(', '));
+
+    const width = 412, size = 9;
+    const lines = [];
+    let line = '';
+    for (const word of data.dichiarazione_mortis.split(' ')) {
+      const next = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(next, size) <= width) {
+        line = next;
+        continue;
+      }
+      if (!line || font.widthOfTextAtSize(word, size) > width) throw new ValidationError('Il testo della dichiarazione contiene una parola troppo lunga');
+      lines.push(line);
+      line = word;
+    }
+    lines.push(line);
+    if (lines.length > 6) throw new ValidationError('Il testo della dichiarazione supera le sei righe disponibili: abbrevialo');
+    const baselines = [403, 389, 375, 361, 347, 334];
+    lines.forEach((text, index) => write(87, baselines[index], width, text, size));
+  }
   const pageCount = Math.ceil(data.numeri.length/4);
   for (let i=0;i<pageCount;i++) {
     const [page] = await doc.copyPages(source,[0]); doc.addPage(page);
@@ -54,7 +92,7 @@ async function generateSubentroPdf(raw, { createdAt = new Date().toISOString() }
     if (data.cedente_tipo==='impresa') {
       draw(page,178,149.1,data.cedente_ragione_sociale,370,6.2);
       grid(page,'cedente_piva_impresa',data.cedente_partita_iva); phone(page,'impresa_telefono',data.cedente_telefono_impresa);
-    } else grid(page,'cedente_piva_prof',data.cedente_partita_iva);
+    } else if (data.cedente_tipo === 'professionista') grid(page,'cedente_piva_prof',data.cedente_partita_iva);
     draw(page,204,178.5,data.subentrante_nome,155,6.2); draw(page,397,178.5,data.subentrante_cognome,151,6.2);
     grid(page,'subentrante_cf',data.subentrante_codice_fiscale);
     check(page,data.subentrante_sesso==='M'?68.94:84.5,192.62,4.11);
@@ -65,6 +103,19 @@ async function generateSubentroPdf(raw, { createdAt = new Date().toISOString() }
     draw(page,100,224.2,data.subentrante_via,402,6.1); draw(page,521,224.2,data.subentrante_civico,29);
     draw(page,68,233.4,data.subentrante_localita,165); grid(page,'cap',data.subentrante_cap);
     draw(page,322,233.4,data.subentrante_comune,194); grid(page,'provincia',data.subentrante_provincia);
+    if (data.subentrante_tipo === 'impresa') {
+      draw(page,154,242.6,data.subentrante_ragione_sociale,394,6.2);
+      grid(page,'subentrante_piva_impresa',data.subentrante_partita_iva);
+      phone(page,'subentrante_telefono_impresa',data.subentrante_telefono_impresa);
+      draw(page,79,260.8,data.subentrante_sede_via,423,6.1);
+      draw(page,521,260.8,data.subentrante_sede_civico,29);
+      draw(page,68,269.94,data.subentrante_sede_localita,165);
+      grid(page,'subentrante_sede_cap',data.subentrante_sede_cap);
+      draw(page,322,269.94,data.subentrante_sede_comune,194);
+      grid(page,'subentrante_sede_provincia',data.subentrante_sede_provincia);
+    } else if (data.subentrante_tipo === 'professionista') {
+      grid(page,'subentrante_piva_prof',data.subentrante_partita_iva);
+    }
     data.numeri.slice(i*4,i*4+4).forEach((number,index)=>phone(page,`numero${index}`,number));
     if (data.pagamento==='iban') {
       check(page,42.9,393.42,5.31); draw(page,96,414.8,data.banca,450);
@@ -90,8 +141,11 @@ async function generateSubentroPdf(raw, { createdAt = new Date().toISOString() }
     draw(page,474,706.1,formatDate(data.data),74,5.8); draw(page,474,737.4,formatDate(data.data),74,5.8);
     if(pageCount>1) draw(page,42.5,17,`PAGINA ${i+1}/${pageCount} - NUMERI ${i*4+1}-${Math.min(i*4+4,data.numeri.length)} DI ${data.numeri.length}`,510,7);
   }
-  doc.setTitle('Subentro Mobile da Microbusiness a Privato'); doc.setCreator('Mirox CRM'); doc.setProducer('Mirox CRM - pdf-lib');
+  if (data.mortis_causa) await appendDeclaration();
+  const titleSuffix = data.mortis_causa ? ' per mortis causa' : '';
+  doc.setTitle(`Subentro Mobile da ${TYPE_LABELS[data.tipo]}${titleSuffix}`); doc.setCreator('Mirox CRM'); doc.setProducer('Mirox CRM - pdf-lib');
   doc.setCreationDate(new Date(createdAt)); doc.setModificationDate(new Date(createdAt));
-  return {buffer:Buffer.from(await doc.save({useObjectStreams:false})),data,pageCount,templateVersion:TEMPLATE_VERSION};
+  return {buffer:Buffer.from(await doc.save({useObjectStreams:false})),data,pageCount:doc.getPageCount(),
+    templateVersion:data.mortis_causa ? `${TEMPLATE_VERSION}+dichiarazione-notorieta-v1` : TEMPLATE_VERSION};
 }
 module.exports={generateSubentroPdf,resolveTemplatePath,TEMPLATE_VERSION};

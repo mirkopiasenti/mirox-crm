@@ -2,9 +2,10 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
+const fs=require('node:fs');
 const {PDFDocument,PDFArray,PDFName,decodePDFRawStream}=require('pdf-lib');
 const Core=require('../js/subentri-core');
-const {generateSubentroPdf}=require('../netlify/functions/_lib/pdf-subentro');
+const {generateSubentroPdf,resolveTemplatePath}=require('../netlify/functions/_lib/pdf-subentro');
 const {handle,validateManifest,validateFile,readMultipart}=require('../netlify/functions/gestisci-subentri')._test;
 const {sample}=require('./fixtures/subentro');
 const owner='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222';
@@ -20,7 +21,7 @@ function drawnText(operators) {return [...operators.matchAll(/<([\dA-F]+)>\s*Tj/
 test('subentri: normalizzazione, doppio soggetto e soli IBAN/bollettino',()=>{
   const value=Core.validatePayload(sample());assert.equal(value.cedente_ragione_sociale,'AZIENDA ESEMPIO SRL');assert.equal(value.subentrante_nome,'GIULIA');assert.equal(value.numeri.length,5);
   assert.throws(()=>Core.validatePayload({...sample(),pagamento:'carta'}),/Pagamento non valido/);
-  assert.throws(()=>Core.validatePayload({...sample(),tipo:'mobile_privato_privato'}),/non è ancora disponibile/);
+  assert.throws(()=>Core.validatePayload({...sample(),tipo:'mobile_fisso_privato'}),/non è ancora disponibile/);
   assert.throws(()=>Core.validatePayload({...sample(),cedente_nome:''}),/obbligatorio/);
   assert.throws(()=>Core.validatePayload({...sample(),subentrante_codice_fiscale:'123'}),/formato non valido/);
 });
@@ -230,4 +231,349 @@ test('subentri: ricerca esatta senza corrispondenza non restituisce altre P.IVA 
   const store=memoryStore({anagrafiche:[{id:owner,cluster:'Business',cf_piva:'00000000000',ragione_sociale:'Azienda Test'}]});
   const result=await request(store,null,{method:'GET',query:{action:'search_anagrafica',ruolo:'cedente',q:'00000000001'}});
   assert.equal(result.status,200);assert.deepEqual(result.anagrafiche,[]);
+});
+
+function samplePrivate(mortisCausa, count=4) {
+  return {...sample(count), tipo:Core.PRIVATE_TYPE, mortis_causa:mortisCausa,
+    dichiarazione_mortis:'Dichiaro che il cedente Luca Esempio è deceduto a Legnago il 15/10/2026.',
+    dichiarante_domicilio_comune:'Cerea', dichiarante_domicilio_provincia:'VR',
+    dichiarante_domicilio_via:'Via Esempio', dichiarante_domicilio_civico:'10'};
+}
+
+test('subentri tra privati: scelta esplicita, due CF distinti e soli dati pertinenti',()=>{
+  const ordinary=Core.validatePayload(samplePrivate(false));
+  assert.equal(ordinary.mortis_causa,false);
+  for(const key of ['cedente_tipo','cedente_partita_iva','cedente_ragione_sociale','dichiarazione_mortis']) {
+    assert.equal(Object.hasOwn(ordinary,key),false);
+  }
+  for(const value of [undefined,'true',null]) assert.throws(()=>Core.validatePayload(samplePrivate(value)),/Indica Sì oppure No/);
+  assert.throws(()=>Core.validatePayload({...samplePrivate(false),cedente_codice_fiscale:'00000000000'}),/Codice fiscale/);
+  assert.throws(()=>Core.validatePayload({...samplePrivate(false),cedente_codice_fiscale:ordinary.subentrante_codice_fiscale}),/codici fiscali diversi/);
+  assert.throws(()=>Core.validatePayload({...samplePrivate(true),dichiarazione_mortis:''}),/Testo della dichiarazione.*obbligatorio/);
+  assert.throws(()=>Core.validatePayload(samplePrivate(true,5)),/da 1 a 4/);
+  assert.equal(Core.validatePayload({...samplePrivate(true),cedente_telefono:''}).cedente_telefono,'');
+  assert.equal(Core.validatePayload(samplePrivate(false,5)).numeri.length,5);
+});
+
+test('subentri tra privati: dichiarazione compilata come seconda pagina soltanto per mortis causa',async()=>{
+  const createdAt='2026-10-18T10:00:00Z';
+  const ordinary=await generateSubentroPdf(samplePrivate(false),{createdAt});
+  const mortis=await generateSubentroPdf(samplePrivate(true),{createdAt});
+  const pdf=await PDFDocument.load(mortis.buffer);
+  assert.equal(ordinary.pageCount,1);
+  assert.equal(mortis.pageCount,2);
+  assert.equal(pdf.getPageCount(),2);
+  assert.deepEqual(pdf.getPages().map(page=>page.node.Annots()?.size()||0),[0,0]);
+  assert.match(drawnText(normalizedText(pdf,0)),/LUCAESEMPIO/);
+  assert.doesNotMatch(drawnText(normalizedText(pdf,0)),/AZIENDA ESEMPIO SRL/);
+  const declaration=drawnText(normalizedText(pdf,1));
+  assert.match(declaration,/CAMPIONEGIULIAVERONAVR01\/01\/1990/);
+  assert.match(declaration,/DICHIARO CHE IL CEDENTE LUCA ESEMPIO È DECEDUTO A LEGNAGO IL 15\/10\/2026/);
+  assert.match(declaration,/CEREAVRVIA ESEMPIO10/);
+  assert.deepEqual(mortis.buffer,(await generateSubentroPdf(samplePrivate(true),{createdAt})).buffer);
+  await assert.rejects(generateSubentroPdf({...samplePrivate(true),dichiarazione_mortis:'W '.repeat(270)}),/sei righe disponibili/);
+});
+
+test('subentri tra privati: il cedente si cerca in Consumer/Turista con il CF',async()=>{
+  const q=sample().cedente_codice_fiscale;
+  const store=memoryStore({anagrafiche:[
+    {id:owner,cluster:'Turista',cf_piva:q,nome_referente:'Luca Esempio'},
+    {id:other,cluster:'Business',cf_piva:q,nome_referente:'Business da escludere'}
+  ]});
+  const query={action:'search_anagrafica',tipo:Core.PRIVATE_TYPE,ruolo:'cedente',q:q.toLowerCase()};
+  const result=await request(store,null,{method:'GET',query});
+  assert.equal(result.status,200);
+  assert.deepEqual(result.anagrafiche.map(item=>item.id),[owner]);
+  assert.equal(result.anagrafiche[0].prefill.codice_fiscale,q);
+  assert.equal((await request(store,null,{method:'GET',query:{...query,q:'00000000000'}})).status,400);
+});
+
+test('subentri tra privati: invia pratica archivia il certificato separato e lo storico mostra mortis causa',async()=>{
+  const store=memoryStore();
+  const file=await PDFDocument.create();
+  file.addPage();
+  const bytes=Buffer.from(await file.save());
+  const manifest=['identita_cedente','identita_cessionario','certificato_morte'].map(tipo=>({
+    id:crypto.randomUUID(),tipo,nome:'test.pdf',mime:'application/pdf',size:bytes.length,sha256:hash(bytes)
+  }));
+  const body={action:'create',id,subentro:samplePrivate(true),modalita_compilazione:'invia_pratica',documenti:manifest};
+  assert.equal((await request(store,{...body,documenti:manifest.slice(0,2)})).status,400);
+  assert.equal((await request(store,body)).status,200);
+  assert.equal((await request(store,{...body,subentro:samplePrivate(false),documenti:manifest.slice(0,2)})).status,409);
+  const row=store.rows.get(id);
+  assert.equal(row.cedente_partita_iva,null);
+  assert.equal(row.cedente_codice_fiscale,body.subentro.cedente_codice_fiscale);
+  for(const entry of row.documenti.slice(0,2)) assert.equal((await upload(store,multipart(row,entry,bytes))).status,200);
+  assert.equal((await request(store,{action:'finalize',id})).status,409);
+  assert.equal((await upload(store,multipart(row,row.documenti[2],bytes))).status,200);
+  const generated=await request(store,{action:'finalize',id});
+  assert.equal(generated.status,200);
+  assert.equal(generated.subentro.numero_pagine,2);
+  assert.match(generated.subentro.nome_file,/privato-privato-mortis-causa/);
+  assert.equal((await request(store,{action:'finalize',id})).status,200);
+  assert.equal(store.files.size,4);
+  const listing=await request(store,null,{method:'GET'});
+  assert.equal(listing.subentri[0].mortis_causa,true);
+  assert.equal(listing.subentri[0].cedente_codice_fiscale,row.cedente_codice_fiscale);
+  assert.equal(listing.subentri[0].dati_compilazione,undefined);
+  const duplicate=(await request(store,{action:'duplicate_data',id})).subentro;
+  assert.equal(duplicate.tipo,Core.PRIVATE_TYPE);
+  assert.equal(duplicate.mortis_causa,undefined);
+  assert.equal(duplicate.dichiarazione_mortis,undefined);
+  assert.equal(duplicate.dichiarante_domicilio_comune,undefined);
+
+  const standardId=crypto.randomUUID();
+  assert.equal((await request(store,{...body,id:standardId,modalita_compilazione:'standard',documenti:[]})).status,200);
+  const standard=await request(store,{action:'finalize',id:standardId});
+  assert.equal(standard.status,200);
+  assert.equal(standard.subentro.numero_pagine,2);
+  assert.deepEqual((await request(store,{action:'documents',id:standardId})).documenti,[]);
+
+  const ordinaryId=crypto.randomUUID();
+  const ordinary={...body,id:ordinaryId,subentro:samplePrivate(false),documenti:manifest.slice(0,2)};
+  assert.equal((await request(store,{...ordinary,documenti:manifest})).status,400);
+  assert.equal((await request(store,ordinary)).status,200);
+  const ordinaryRow=store.rows.get(ordinaryId);
+  for(const entry of ordinaryRow.documenti) assert.equal((await upload(store,multipart(ordinaryRow,entry,bytes))).status,200);
+  const ordinaryPdf=await request(store,{action:'finalize',id:ordinaryId});
+  assert.equal(ordinaryPdf.status,200);
+  assert.equal(ordinaryPdf.subentro.numero_pagine,1);
+});
+
+function sampleToBusiness(mortisCausa, tipo='impresa') {
+  return {...samplePrivate(mortisCausa),tipo:Core.TO_BUSINESS_TYPE,subentrante_tipo:tipo,
+    subentrante_partita_iva:'01234567890',subentrante_ragione_sociale:'Officina Esempio SRL',
+    subentrante_telefono_impresa:'0442123456',subentrante_sede_via:'Via Artigiani',
+    subentrante_sede_civico:'27',subentrante_sede_localita:'Zona Industriale',
+    subentrante_sede_cap:'37053',subentrante_sede_comune:'Cerea',subentrante_sede_provincia:'VR'};
+}
+
+test('subentri Privato a Microbusiness: identifica il privato per CF e il cessionario per P.IVA',async()=>{
+  const cedente = sample().cedente_codice_fiscale;
+  const partitaIva = sampleToBusiness(false).subentrante_partita_iva;
+  const store = memoryStore({anagrafiche:[
+    {id:owner,cluster:'Consumer',cf_piva:cedente,nome_referente:'Luca Esempio'},
+    {id:other,cluster:'Business',cf_piva:partitaIva,ragione_sociale:'Officina Esempio SRL',via:'Via Artigiani'},
+    {id,cluster:'Consumer',cf_piva:partitaIva,ragione_sociale:'Da escludere'}
+  ]});
+  const find = (ruolo,q) => request(store,null,{method:'GET',query:{action:'search_anagrafica',tipo:Core.TO_BUSINESS_TYPE,ruolo,q}});
+  assert.deepEqual((await find('cedente',cedente)).anagrafiche.map(item=>item.id),[owner]);
+  const recipient = await find('subentrante',partitaIva);
+  assert.deepEqual(recipient.anagrafiche.map(item=>item.id),[other]);
+  assert.equal(recipient.anagrafiche[0].prefill.partita_iva,partitaIva);
+  assert.equal(recipient.anagrafiche[0].prefill.via,'Via Artigiani');
+  assert.equal((await find('cedente',partitaIva)).status,400);
+  assert.equal((await find('subentrante',cedente)).status,400);
+});
+
+test('subentri Privato a Microbusiness: compila Partita IVA e sede nel blocco pertinente',async()=>{
+  const business = sampleToBusiness(false);
+  assert.throws(()=>Core.validatePayload({...business,mortis_causa:undefined}),/Indica Sì oppure No/);
+  assert.throws(()=>Core.validatePayload({...business,subentrante_tipo:''}),/Per il cessionario/);
+  assert.throws(()=>Core.validatePayload({...business,subentrante_partita_iva:business.subentrante_codice_fiscale}),/Partita IVA del cessionario/);
+  assert.throws(()=>Core.validatePayload({...business,subentrante_sede_cap:''}),/CAP della sede legale/);
+  assert.equal(Core.validatePayload({...business,cedente_codice_fiscale:business.subentrante_codice_fiscale}).subentrante_partita_iva,business.subentrante_partita_iva);
+  assert.throws(()=>Core.validatePayload({...business,mortis_causa:true,cedente_codice_fiscale:business.subentrante_codice_fiscale}),/codici fiscali diversi/);
+  const companyCase={...sampleToBusiness(true),pagamento:'bollettino'};
+  const personCase={...sampleToBusiness(false,'professionista'),pagamento:'bollettino'};
+  const company=await generateSubentroPdf(companyCase);
+  const person=await generateSubentroPdf(personCase);
+  assert.equal(company.pageCount,2);
+  assert.equal(person.pageCount,1);
+  const companyPdf=await PDFDocument.load(company.buffer);
+  const companyText=drawnText(normalizedText(companyPdf,0));
+  const personText=drawnText(normalizedText(await PDFDocument.load(person.buffer),0));
+  assert.match(companyText,/OFFICINA ESEMPIO SRL012345678900442123456VIA ARTIGIANI27ZONA INDUSTRIALE37053CEREAVR/);
+  assert.match(personText,/01234567890/);
+  assert.doesNotMatch(personText,/OFFICINA ESEMPIO SRL|VIA ARTIGIANI/);
+  assert.equal(Object.hasOwn(person.data,'subentrante_sede_via'),false);
+  const declarant=drawnText(normalizedText(companyPdf,1));
+  assert.match(declarant,/CAMPIONEGIULIAVERONAVR01\/01\/1990LEGNAGOVRVIA DELLA PROVA/);
+  assert.doesNotMatch(declarant,/OFFICINA ESEMPIO SRL|VIA ARTIGIANI/);
+});
+
+test('subentri Privato a Microbusiness: visura obbligatoria, certificato per mortis causa e storico con P.IVA',async()=>{
+  const store=memoryStore();
+  const attachment=await PDFDocument.create();
+  attachment.addPage();
+  const bytes=Buffer.from(await attachment.save());
+  const manifest=['identita_cedente','identita_cessionario','visura','certificato_morte'].map(tipo=>({
+    id:crypto.randomUUID(),tipo,nome:'test.pdf',mime:'application/pdf',size:bytes.length,sha256:hash(bytes)
+  }));
+  for(const mortis of [false,true]) {
+    const subentro=sampleToBusiness(mortis);
+    const rowId=crypto.randomUUID();
+    const documenti=mortis?manifest:manifest.slice(0,3);
+    const body={action:'create',id:rowId,subentro,modalita_compilazione:'invia_pratica',documenti};
+    assert.match((await request(store,{...body,documenti:documenti.filter(entry=>entry.tipo!=='visura')})).error,/Visura camerale/);
+    if(mortis) assert.match((await request(store,{...body,documenti:manifest.slice(0,3)})).error,/Certificato di morte/);
+    else assert.equal((await request(store,{...body,documenti:manifest})).status,400);
+    assert.equal((await request(store,body)).status,200);
+    assert.equal((await request(store,body)).status,200);
+    const row=store.rows.get(rowId);
+    for(const entry of row.documenti) assert.equal((await upload(store,multipart(row,entry,bytes))).status,200);
+    const result=await request(store,{action:'finalize',id:rowId});
+    assert.equal(result.status,200);
+    assert.equal(result.subentro.numero_pagine,mortis?2:1);
+    assert.match(result.subentro.nome_file,new RegExp('^subentro-privato-microbusiness'+(mortis?'-mortis-causa':'')+'-'+rowId));
+    const found=(await request(store,null,{method:'GET'})).subentri.find(item=>item.id===rowId);
+    assert.equal(found.subentrante_partita_iva,subentro.subentrante_partita_iva);
+    assert.equal(found.subentrante_ragione_sociale,'OFFICINA ESEMPIO SRL');
+    const duplicate=(await request(store,{action:'duplicate_data',id:rowId})).subentro;
+    assert.equal(duplicate.subentrante_partita_iva,subentro.subentrante_partita_iva);
+    assert.equal(duplicate.dichiarazione_mortis,undefined);
+  }
+  const extra=Array.from({length:9},(_,i)=>({...manifest[i%4],id:crypto.randomUUID()}));
+  assert.throws(()=>validateManifest([...manifest,...extra],'test','invia_pratica',Core.TO_BUSINESS_TYPE,true),/massimo 12 file/);
+});
+
+function sampleBothBusiness(mortisCausa, cedenteTipo='impresa', subentranteTipo='impresa') {
+  return {...sampleToBusiness(mortisCausa,subentranteTipo),tipo:Core.BUSINESS_TYPE,cedente_tipo:cedenteTipo,
+    cedente_partita_iva:'10987654321'};
+}
+
+test('subentri tra Microbusiness: cerca entrambi per P.IVA nel cluster Business',async()=>{
+  const input=sampleBothBusiness(false);
+  const store=memoryStore({anagrafiche:[
+    {id:owner,cluster:'Business',cf_piva:input.cedente_partita_iva,ragione_sociale:'Azienda Esempio SRL'},
+    {id:other,cluster:'Business',cf_piva:input.subentrante_partita_iva,ragione_sociale:'Officina Esempio SRL'},
+    {id,cluster:'Consumer',cf_piva:input.cedente_partita_iva,nome_referente:'Da escludere'}
+  ]});
+  const search=(ruolo,q)=>request(store,null,{method:'GET',query:{action:'search_anagrafica',tipo:Core.BUSINESS_TYPE,ruolo,q}});
+  assert.deepEqual((await search('cedente',input.cedente_partita_iva)).anagrafiche.map(row=>row.id),[owner]);
+  assert.deepEqual((await search('subentrante',input.subentrante_partita_iva)).anagrafiche.map(row=>row.id),[other]);
+  assert.equal((await search('cedente',input.cedente_codice_fiscale)).status,400);
+  assert.equal((await search('subentrante',input.subentrante_codice_fiscale)).status,400);
+});
+
+test('subentri tra Microbusiness: due partite IVA distinte e i due riquadri corretti nel PDF',async()=>{
+  const input=sampleBothBusiness(false);
+  assert.throws(()=>Core.validatePayload({...input,mortis_causa:undefined}),/Indica Sì oppure No/);
+  assert.throws(()=>Core.validatePayload({...input,cedente_tipo:''}),/Seleziona impresa/);
+  assert.throws(()=>Core.validatePayload({...input,subentrante_tipo:''}),/Per il cessionario/);
+  assert.throws(()=>Core.validatePayload({...input,subentrante_partita_iva:input.cedente_partita_iva}),/partite IVA diverse/);
+  assert.doesNotThrow(()=>Core.validatePayload({...input,subentrante_codice_fiscale:input.cedente_codice_fiscale}));
+  assert.throws(()=>Core.validatePayload({...input,mortis_causa:true,subentrante_codice_fiscale:input.cedente_codice_fiscale}),/codici fiscali diversi/);
+  const ordinary=await generateSubentroPdf({...sampleBothBusiness(false,'impresa','professionista'),pagamento:'bollettino'});
+  const mortis=await generateSubentroPdf({...sampleBothBusiness(true,'professionista','impresa'),cedente_telefono:''});
+  assert.equal(ordinary.pageCount,1);
+  assert.equal(mortis.pageCount,2);
+  const ordinaryText=drawnText(normalizedText(await PDFDocument.load(ordinary.buffer),0));
+  assert.match(ordinaryText,/AZIENDA ESEMPIO SRL10987654321/);
+  assert.match(ordinaryText,/01234567890/);
+  assert.doesNotMatch(ordinaryText,/OFFICINA ESEMPIO SRL/);
+  const mortisPdf=await PDFDocument.load(mortis.buffer);
+  const mortisText=drawnText(normalizedText(mortisPdf,0));
+  assert.match(mortisText,/SMPLCU80A01F205Q10987654321/);
+  assert.match(mortisText,/OFFICINA ESEMPIO SRL01234567890/);
+  assert.doesNotMatch(mortisText,/AZIENDA ESEMPIO SRL/);
+  assert.match(drawnText(normalizedText(mortisPdf,1)),/CAMPIONEGIULIA/);
+});
+
+test('subentri tra Microbusiness: visure separate e certificato nel ramo mortis causa',async()=>{
+  const store=memoryStore();
+  const attachment=await PDFDocument.create();
+  attachment.addPage();
+  const bytes=Buffer.from(await attachment.save());
+  const manifest=['identita_cedente','identita_cessionario','visura_cedente','visura_cessionario','certificato_morte'].map(tipo=>({
+    id:crypto.randomUUID(),tipo,nome:'test.pdf',mime:'application/pdf',size:bytes.length,sha256:hash(bytes)
+  }));
+  for(const mortis of [false,true]) {
+    const rowId=crypto.randomUUID();
+    const subentro=sampleBothBusiness(mortis);
+    const documenti=mortis?manifest:manifest.slice(0,4);
+    const body={action:'create',id:rowId,subentro,modalita_compilazione:'invia_pratica',documenti};
+    for(const [index,party] of [[2,'cedente'],[3,'cessionario']]) {
+      const missing=documenti.map((entry,i)=>i===index?{...entry,tipo:'identita_cedente'}:entry);
+      assert.match((await request(store,{...body,documenti:missing})).error,new RegExp('Visura camerale del '+party));
+    }
+    if(mortis) assert.match((await request(store,{...body,documenti:manifest.slice(0,4)})).error,/Certificato di morte/);
+    else assert.equal((await request(store,{...body,documenti:manifest})).status,400);
+    assert.equal((await request(store,body)).status,200);
+    assert.equal((await request(store,body)).status,200);
+    const row=store.rows.get(rowId);
+    assert.equal(row.cedente_partita_iva,subentro.cedente_partita_iva);
+    assert.equal(Object.hasOwn(row,'cedente_codice_fiscale'),false);
+    for(const entry of row.documenti) assert.equal((await upload(store,multipart(row,entry,bytes))).status,200);
+    const result=await request(store,{action:'finalize',id:rowId});
+    assert.equal(result.status,200);
+    assert.equal(result.subentro.numero_pagine,mortis?2:1);
+    const listed=(await request(store,null,{method:'GET'})).subentri.find(item=>item.id===rowId);
+    assert.equal(listed.cedente_partita_iva,subentro.cedente_partita_iva);
+    assert.equal(listed.subentrante_partita_iva,subentro.subentrante_partita_iva);
+    assert.equal(listed.mortis_causa,mortis);
+    const duplicate=(await request(store,{action:'duplicate_data',id:rowId})).subentro;
+    assert.equal(duplicate.tipo,Core.BUSINESS_TYPE);
+    assert.equal(duplicate.mortis_causa,undefined);
+    assert.equal(duplicate.dichiarazione_mortis,undefined);
+  }
+});
+
+test('subentri 1928: la procedura PEC è un PDF dietro la stessa autorizzazione della Function',async()=>{
+  const event={httpMethod:'GET',queryStringParameters:{action:'procedura_1928'}};
+  const noDatabase=()=>{throw new Error('La procedura non deve interrogare l’archivio');};
+  const denied=await handle(event,{requireAuth:async()=>({ok:false,status:403,error:'Accesso negato'}),getAdminClient:noDatabase});
+  assert.equal(denied.statusCode,403);
+  assert.equal(denied.isBase64Encoded,undefined);
+  const response=await handle(event,{requireAuth:async()=>({ok:true}),getAdminClient:noDatabase});
+  assert.equal(response.statusCode,200);
+  assert.equal(response.headers['Content-Type'],'application/pdf');
+  assert.equal(response.headers['Cache-Control'],'no-store');
+  assert.equal(response.isBase64Encoded,true);
+  assert.deepEqual(Buffer.from(response.body,'base64'),fs.readFileSync(resolveTemplatePath('procedura-invio-pec-1928.pdf')));
+});
+
+test('subentri 1928: archivia i tre gruppi verificati, senza dati del modulo né PDF generato',async()=>{
+  const store=memoryStore();
+  const attachment=await PDFDocument.create();
+  attachment.addPage();
+  const bytes=Buffer.from(await attachment.save());
+  const groups=['documenti_rappresentante','visura_azienda','documenti_intestatario'];
+  const manifest=groups.map(tipo=>({
+    id:crypto.randomUUID(),tipo,nome:'test.pdf',mime:'application/pdf',size:bytes.length,sha256:hash(bytes)
+  }));
+  const body={action:'create',id,subentro:{tipo:Core.TYPE_1928},documenti:manifest,modalita_compilazione:'invia_pratica'};
+  assert.equal((await request(store,{...body,modalita_compilazione:'standard',documenti:[]})).status,400);
+  for(const missing of manifest) {
+    assert.equal((await request(store,{...body,documenti:manifest.filter(entry=>entry!==missing)})).status,400);
+  }
+  assert.equal(store.rows.size,0);
+  assert.equal((await request(store,{...body,subentro:{...sample(),tipo:Core.TYPE_1928,mortis_causa:true}})).status,200);
+  const row=store.rows.get(id);
+  assert.deepEqual(row.dati_compilazione,{tipo:Core.TYPE_1928});
+  assert.deepEqual(row.numeri,[]);
+  assert.equal(row.stato,'bozza');
+  assert.equal((await request(store,null,{method:'GET'})).subentri.length,0);
+  assert.equal((await request(store,{action:'documents',id})).status,404);
+  assert.equal((await request(store,body)).status,200);
+  assert.equal((await request(store,{action:'finalize',id},{user:other})).status,404);
+  for(const entry of row.documenti.slice(0,2)) {
+    assert.equal((await upload(store,multipart(row,entry,bytes))).status,200);
+  }
+  assert.equal((await request(store,{action:'finalize',id})).status,409);
+  const third=row.documenti[2];
+  assert.equal((await upload(store,multipart(row,third,bytes))).status,200);
+  store.files.set(third.storage_path,Buffer.from('file alterato'));
+  assert.equal((await request(store,{action:'finalize',id})).status,409);
+  assert.equal(row.stato,'bozza');
+  store.files.set(third.storage_path,bytes);
+  const closed=await request(store,{action:'finalize',id});
+  assert.equal(closed.status,200);
+  assert.equal(closed.subentro.stato,'archiviato');
+  assert.equal(closed.subentro.numero_pagine,null);
+  assert.equal(closed.signed_url,null);
+  assert.equal(store.files.size,3);
+  assert.equal((await request(store,{action:'finalize',id})).subentro.stato,'archiviato');
+  assert.equal((await request(store,body)).stato,'archiviato');
+  assert.equal((await upload(store,multipart(row,third,bytes))).status,409);
+  const [summary]=(await request(store,null,{method:'GET'})).subentri;
+  assert.equal(summary.tipo,Core.TYPE_1928);
+  assert.equal(summary.cedente_nome,undefined);
+  assert.equal(summary.subentrante_codice_fiscale,undefined);
+  assert.deepEqual((await request(store,{action:'documents',id})).documenti.map(entry=>entry.tipo),groups);
+  assert.equal((await request(store,{action:'signed_url',id})).status,404);
+  assert.equal((await request(store,{action:'signed_url',id,document_id:third.id})).status,200);
+  assert.equal((await request(store,{action:'duplicate_data',id})).status,400);
+  assert.throws(()=>Core.validateSearchIdentifier('cedente','01234567890',Core.TYPE_1928),/solo gli allegati/);
+  await assert.rejects(generateSubentroPdf({tipo:Core.TYPE_1928}),/solo gli allegati/);
 });

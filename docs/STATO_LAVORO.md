@@ -1,11 +1,44 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-21. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
+Aggiornato:2026-11-22. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
+
+## Rilascio Subentri —22/11
+
+- Il proprietario ha chiesto il push unico e ha autorizzato esplicitamente la migration production. La migration è stata applicata come `20261122104944`. La rilettura conferma i nuovi vincoli, archivio vuoto, zero oggetti nel bucket, RLS e grant invariati.
+- Build e 894/894 test sulla copia esatta del runtime. Prima del rilascio, main remoto `c9752e5`, pagina Subentri HTTP 200 e API anonima 401. Push unico e verifica CI/Netlify/HTTP in corso.
+
+## Subentri 1928 → Privato —22/11, incluso nel rilascio
+
+- Riepilogo del proprietario con nuova SIM Consumer, Windtre Business Pos → Passaggio da P.IVA vs CF (tab arancione) e dichiarazione dell’azienda via PEC a konatechsrl@pec.it. Prosegui apre il popup Procedura invio PEC con il PDF originale dietro ACL Subentri. Apri PDF per stampare o Scarica PDF sblocca Continua. Errori di caricamento con Riprova.
+- Tre gruppi obbligatori in ordine: identità e tessera sanitaria del rappresentante legale, visura azienda, identità e tessera sanitaria del nuovo intestatario. Dichiarazione nel flusso PEC. Conferma e chiudi pratica verifica gli allegati e salva archiviato. Storico con soli allegati per quel tipo, senza dati del modulo, ricerca, mortis causa, PDF generato, duplicazione o invii automatici.
+- Build e 894/894 test, 35 Subentri. DOM Node con retry PEC, apertura/download, chiusura e recupero di una risposta persa. PDF PEC confrontato byte per byte con l’originale e controllato a video, assente dalla build pubblica. Otto PDF/snapshot preesistenti identici. Migration locale `20261121083215_subentri_privato_mortis_causa.sql` estesa e verificata in PGlite per vincoli delle cinque categorie, storico, RLS e privilegi. Guide aggiornate. Quattro nuove tipologie Mobile incluse nel push unico.
+
+## Subentri Microbusiness → Microbusiness —22/11, incluso nel rilascio
+
+- Riepilogo del proprietario con visure cedente e cessionario e percorso ASK fino a Subentro (tab arancione). Dopo Prosegui, Sì/No per mortis causa. Entrambi i soggetti per P.IVA Business, con P.IVA distinte e scelta esplicita impresa o professionista/artigiano per ciascuno. Il PDF compila i riquadri pertinenti dei modelli già in uso, identici agli allegati consegnati. Il ramo mortis usa il professionista o delegato del cessionario per la dichiarazione, con quattro numeri al massimo per due pagine.
+- Invia pratica richiede due documenti d’identità e due visure in gruppi distinti, più il certificato di morte se serve. Standard archivia il PDF. Storico e duplicazione espongono e riconfermano entrambe le P.IVA.
+- Build e suite 892/892, 33 Subentri. DOM Node con entrambe le visure, popup, storico e duplicazione. Tre pagine sintetiche renderizzate e controllate. Sei PDF e snapshot precedenti identici. Migration locale `20261121083215_subentri_privato_mortis_causa.sql` estesa e verificata in PGlite 0.5.13 per vincoli, storico, RLS e privilegi. Guide aggiornate. Pubblicazione inclusa nel push unico.
+
+## Subentri Privato → Microbusiness —22/11, incluso nel rilascio
+
+- Riepilogo fornito dal proprietario con visura camerale confermata e percorso ASK fino a Subentro Consumer-Microbusiness (tab nero). Dopo Prosegui, Sì/No esplicito per mortis causa. Cedente CF Consumer/Turista, cessionario P.IVA Business. Il professionista compila il blocco persona, l’impresa aggiunge ragione sociale/recapito/sede legale. La residenza del delegato resta distinta e alimenta la dichiarazione nel caso mortis causa. Fino a quattro numeri in quel ramo per mantenere il PDF di due pagine.
+- Invia pratica richiede i due documenti d’identità e la visura. Nel ramo mortis causa aggiunge il certificato di morte separato. Standard archivia il solo PDF generato. Storico con P.IVA e ragione sociale se presente, duplicazione dopo nuovo riscontro CF/P.IVA e nuova scelta mortis causa.
+- Build e suite 889/889, 30 test Subentri. DOM Node verificato per popup, visura, certificato, sede, storico e duplicazione. PDF sintetici ordinario professionista e mortis impresa controllati visivamente. Quattro PDF e snapshot delle tipologie precedenti identici al confronto. Estesa la migration locale `20261121083215_subentri_privato_mortis_causa.sql` e validata in PGlite 0.5.13 con storico, RLS/grant e vincoli delle tre categorie. Guide aggiornate. Pubblicazione inclusa nel push unico.
+
+- Loghi CRM 21/11: consegnato ZIP locale con logo Mirox, due favicon, Kona Guardian, logo del simulatore Protecta e grafica WindTre/159 estratta dai moduli in PDF vettoriale e PNG. Verificati i formati, l'integrità dello ZIP e l'anteprima dei file. Nessun seguito richiesto.
 
 ## Invio contratti Energia —21/11, correzione pubblicata
 
 - Riprodotto l’errore prima della bolletta: la Function confrontava una ricevuta d’identità assente anche se il carrello era solo Energia. Dopo la creazione, il wizard cercava la cittadinanza nella ricevuta assente. Corrette entrambe le fasi. Il consenso, il blocco POD/PDR giornaliero e la bolletta per contratto restano obbligatori. Il carrello misto verifica i contratti soggetti e carica il permesso VAR extra UE quando richiesto.
 - Pubblicato su richiesta con `c7b9393`. Build e 882/882 test sulla copia esatta del rilascio, CI `44920182519` verde Linux/Windows e Netlify `6b01babf704546363e9e1ea5` online dalle 16:38 Europe/Rome. Due URL di Upload Contratti, due core JS e pagina Subentri confrontati con la build. Function carrello HTTP 401 senza JWT. Creazione Consumer/Business, upload della bolletta e finalizzazione verificati con dati simulati. Guide README, AGENTS e databaseREADME aggiornate. Prossimo passo operativo: riprovare l’invio della pratica Energia. Evidenze in `.backup-private/release-energia-identita-20261121/`.
+
+## Compilatore Subentri —21/11, modifiche locali
+
+- Nel popup Mobile Microbusiness → Privato, sostituito il riepilogo con il testo fornito dal proprietario su cedente, cessionario, sei punti per il nuovo intestatario Micro Business e percorso ASK fino al tab arancione Subentro. Corpo scorrevole su schermi bassi. README, AGENTS e databaseREADME allineati.
+- Build locale e 23 test Subentri verdi. Verificati in Node il testo distribuito, Indietro, Prosegui e duplicazione. Prossimo passo: proseguire con le richieste del proprietario in locale, poi un solo push su sua richiesta esplicita.
+- Privato → Privato attivo in locale. Riepilogo fornito dal proprietario e domanda successiva Sì/No per mortis causa. Ricerche per CF personale di entrambi. PDF ordinario usa solo il primo foglio WindTre, già identico al modello in repo. Per mortis causa produce due fogli diversi, modulo WindTre e dichiarazione compilata dal primo foglio dell’allegato. Dichiarante dal cessionario, testo inserito dall’operatore, domicilio facoltativo, firme a mano. Limite quattro numeri per il PDF di due pagine. Invia pratica richiede i due documenti d’identità e, in caso di decesso, il certificato come allegato separato. Con Standard il certificato si aggiunge a parte.
+- Verifiche Privato → Privato: build e 884/884 test verdi, 27 Subentri. DOM in Node per sequenza, chiusura, Sì/No, ricerche e ritorno al Microbusiness. PDF sintetici renderizzati e controllati. Dati e PDF Microbusiness identici a HEAD nei casi provati, inclusi retry multipagina. Migration locale `20261121083215_subentri_privato_mortis_causa.sql` validata in PGlite per storico, RLS/grant e nuovi vincoli. Per esito migration e pubblicazione vedi Rilascio Subentri sopra.
+- Consegnati due PDF di esempio con dati fittizi generati dal codice locale: ordinario con IBAN (1 pagina) e mortis causa con bollettino e dichiarazione compilata (2 pagine). Controllate a video tutte e tre le pagine. File di prova fuori dal repository.
 
 ## Ex Fornitore in In Attesa – Energia —20/11, aggiornato in produzione
 
@@ -90,7 +123,7 @@ Aggiornato:2026-11-21. Promemoria di ripresa; non autorizza push, attivazioni o 
 - Identità/scanner:0fbf10d/ff1737a/1f102ea/3335a1c pubblicati, ricevute HMAC/snapshot/hash/byte e recupero manuale confermato. Collaudo fisico UNA pratica CIE col proprietario, poi TS/Business/VAR; nessun test massivo/attivazione serale automatica. File in memoria da riselezionare dopo reload. Guide docs/SCANNER_COLLAUDO_RILASCIO_2026-10-30.md e docs/IDENTITA_RECUPERO_MANUALE_2026-10-30.md.
 - Verifiche/email:collaudo=true, nessun recupero vecchie email/WhatsApp/disattivazione automatica. Conferma assistita di UNA pratica solo dopo esito positivo. Modifiche Energia successive sono quelle soloCSV sopra, non riattivare OCR storico.
 - Planning: formazione9–10ottobre ancora da chiarire, non scegliere date. PDF/ore/nota interna conservati. Seconda linea Fisso:script31/10 già applicato,1,50punti gara/Extra1,00,nessuna nuova esecuzione; reinserimenti Fisso31/10 già finalizzati. Dettagli nelle guide tecniche.
-- Subentri:Microbusiness→Privato tre gruppi, Standard soloPDF, altre4procedure da raccogliere. Disdette: ricerca CRM prima del manuale. Non estendere in autonomia.
+- Subentri Mobile: Microbusiness→Privato pubblicato. Privato→Privato, Privato→Microbusiness, Microbusiness→Microbusiness e 1928→Privato inclusi nel rilascio del 22/11. Disdette: ricerca CRM prima del manuale. Non estendere in autonomia.
 
 ## Vincoli persistenti
 

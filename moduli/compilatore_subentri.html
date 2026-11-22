@@ -33,20 +33,20 @@
         <div class="card-head"><div><p class="eyebrow">Mobile</p><h2 id="categoryTitle">Scegli la tipologia di subentro</h2></div><button class="sub-button" type="button" data-reset>Mobile o Fisso</button></div>
         <div class="choice-grid categories">
           <button class="module-choice" type="button" id="chooseMicrobusinessPrivato"><span class="choice-tag">Disponibile</span><strong>Subentro da Microbusiness a Privato</strong><span>Ricerca cedente e subentrante, documenti e modulo.</span></button>
-          <button class="module-choice" type="button" disabled><span class="choice-tag">In preparazione</span><strong>Subentro da Privato a Privato</strong><span>Solo per Tied.</span></button>
-          <button class="module-choice" type="button" disabled><span class="choice-tag">In preparazione</span><strong>Subentro da 1928 a Privato</strong></button>
-          <button class="module-choice" type="button" disabled><span class="choice-tag">In preparazione</span><strong>Subentro da Privato a Microbusiness</strong></button>
-          <button class="module-choice" type="button" disabled><span class="choice-tag">In preparazione</span><strong>Subentro da Microbusiness a Microbusiness</strong></button>
+          <button class="module-choice" type="button" id="choosePrivatoPrivato"><span class="choice-tag">Disponibile</span><strong>Subentro da Privato a Privato</strong><span>Solo per Tied.</span></button>
+          <button class="module-choice" type="button" id="choose1928"><span class="choice-tag">Disponibile</span><strong>Subentro da 1928 a Privato</strong></button>
+          <button class="module-choice" type="button" id="choosePrivatoMicrobusiness"><span class="choice-tag">Disponibile</span><strong>Subentro da Privato a Microbusiness</strong></button>
+          <button class="module-choice" type="button" id="chooseMicrobusinessMicrobusiness"><span class="choice-tag">Disponibile</span><strong>Subentro da Microbusiness a Microbusiness</strong></button>
         </div>
       </section>
       <section id="searchSection" hidden>
-        <div class="sub-card card-head"><div><p class="eyebrow">Mobile</p><h2>Microbusiness a Privato</h2><p class="muted">Esegui entrambe le ricerche. Se un cliente non è presente, potrai compilare i suoi dati manualmente.</p></div><button type="button" class="sub-button" data-categories>Cambia tipologia</button></div>
+        <div class="sub-card card-head"><div><p class="eyebrow">Mobile</p><h2 id="searchTitle">Microbusiness a Privato</h2><p class="muted">Esegui entrambe le ricerche. Se un cliente non è presente, potrai compilare i suoi dati manualmente.</p></div><button type="button" class="sub-button" data-categories>Cambia tipologia</button></div>
         <div class="search-grid">
           <section class="sub-card search-card" data-role="cedente">
             <h3>1. Cliente cedente</h3>
             <p class="muted" id="descriptionCedente">Inserisci la partita IVA dell’attuale intestatario Microbusiness.</p>
             <form class="search-form" id="searchCedente" novalidate>
-              <label class="sr-only" for="queryCedente">Partita IVA del cedente</label>
+              <label class="sr-only" for="queryCedente" id="labelQueryCedente">Partita IVA del cedente</label>
               <input id="queryCedente" type="search" minlength="11" maxlength="11" pattern="[0-9]{11}" inputmode="numeric" placeholder="Partita IVA del cedente" autocomplete="off" required>
               <button type="submit" class="sub-button primary">Cerca</button>
             </form>
@@ -61,7 +61,7 @@
             <h3>2. Cliente subentrante</h3>
             <p class="muted" id="descriptionSubentrante">Inserisci il codice fiscale del nuovo intestatario privato.</p>
             <form class="search-form" id="searchSubentrante" novalidate>
-              <label class="sr-only" for="querySubentrante">Codice fiscale del subentrante</label>
+              <label class="sr-only" for="querySubentrante" id="labelQuerySubentrante">Codice fiscale del subentrante</label>
               <input id="querySubentrante" type="search" minlength="16" maxlength="16" pattern="[A-Za-z0-9]{16}" placeholder="Codice fiscale del subentrante" autocomplete="off" required>
               <button type="submit" class="sub-button primary">Cerca</button>
             </form>
@@ -75,21 +75,48 @@
         </div>
       </section>
       <section class="sub-card" id="formCard" hidden>
-        <div class="card-head"><div><p class="eyebrow">Compilazione</p><h2>Subentro da Microbusiness a Privato</h2><p class="muted">Verifica i dati richiamati dal CRM. I campi con * sono obbligatori; la data è modificabile e facoltativa.</p></div></div>
+        <div class="card-head"><div><p class="eyebrow" id="formEyebrow">Compilazione</p><h2 id="formTitle">Subentro da Microbusiness a Privato</h2><p class="muted" id="formInstructions">Verifica i dati richiamati dal CRM. I campi con * sono obbligatori e la data è modificabile e facoltativa.</p></div><button type="button" class="sub-button" id="change1928Type" data-categories hidden>Cambia tipologia</button></div>
         <form id="subentroForm" novalidate>
           <fieldset id="compilerFields" class="unframed">
+            <fieldset id="compilationFields" class="unframed">
             <section class="form-section"><h3>Dati generali</h3><div class="form-grid" data-fields="generale"></div></section>
-            <section class="form-section"><h3>Cliente cedente</h3><div class="field"><label for="cedente_tipo">Tipo Microbusiness *</label><select id="cedente_tipo" name="cedente_tipo" required><option value="">Seleziona</option><option value="impresa">Impresa con persona/delegato</option><option value="professionista">Libero professionista / Artigiano</option></select></div><div class="form-grid" data-fields="cedente"></div><fieldset class="unframed conditional" id="impresaFields" hidden disabled><legend>Dati dell’impresa</legend><div class="form-grid" data-fields="impresa"></div></fieldset></section>
-            <section class="form-section"><h3>Cliente subentrante privato</h3><div class="field"><label for="subentrante_sesso">Sesso *</label><select id="subentrante_sesso" name="subentrante_sesso" required><option value="">Seleziona</option><option value="M">M</option><option value="F">F</option></select></div><div class="form-grid" data-fields="subentrante"></div></section>
-            <section class="form-section"><div class="card-head"><div><h3>Numeri mobile da trasferire</h3><p class="muted" id="pageCount" aria-live="polite"></p></div><button type="button" class="sub-button" id="addNumber">Aggiungi numero</button></div><div id="numberRows"></div><p class="muted">Sono accettati numeri italiani, anche con prefisso +39. Ogni pagina del modulo contiene fino a quattro numeri.</p></section>
+            <section class="form-section"><h3>Cliente cedente</h3><div class="field" id="cedenteBusiness"><label for="cedente_tipo">Tipo Microbusiness *</label><select id="cedente_tipo" name="cedente_tipo" required><option value="">Seleziona</option><option value="impresa">Impresa con persona/delegato</option><option value="professionista">Libero professionista / Artigiano</option></select></div><div class="form-grid" data-fields="cedente"></div><fieldset class="unframed conditional" id="impresaFields" hidden disabled><legend>Dati dell’impresa</legend><div class="form-grid" data-fields="impresa"></div></fieldset></section>
+            <section class="form-section">
+              <h3 id="subentranteTitle">Cliente subentrante privato</h3>
+              <fieldset id="subentranteBusiness" class="unframed" hidden disabled>
+                <div class="field">
+                  <label for="subentrante_tipo">Tipo Microbusiness del cessionario *</label>
+                  <select id="subentrante_tipo" name="subentrante_tipo" required>
+                    <option value="">Seleziona</option>
+                    <option value="impresa">Impresa con persona/delegato</option>
+                    <option value="professionista">Libero professionista / Artigiano</option>
+                  </select>
+                </div>
+                <div class="form-grid" data-fields="subentrante_business"></div>
+                <h4>Dati personali del professionista o del delegato</h4>
+              </fieldset>
+              <div class="field"><label for="subentrante_sesso">Sesso *</label><select id="subentrante_sesso" name="subentrante_sesso" required><option value="">Seleziona</option><option value="M">M</option><option value="F">F</option></select></div>
+              <div class="form-grid" data-fields="subentrante"></div>
+              <fieldset id="subentranteImpresaFields" class="unframed conditional" hidden disabled>
+                <legend>Dati dell’impresa e sede legale</legend>
+                <div class="form-grid" data-fields="subentrante_impresa"></div>
+              </fieldset>
+            </section>
+            <section class="form-section"><div class="card-head"><div><h3>Numeri mobile da trasferire</h3><p class="muted" id="pageCount" aria-live="polite"></p></div><button type="button" class="sub-button" id="addNumber">Aggiungi numero</button></div><div id="numberRows"></div><p class="muted" id="numberHint">Sono accettati numeri italiani, anche con prefisso +39. Ogni pagina del modulo contiene fino a quattro numeri.</p></section>
             <section class="form-section"><h3>Modalità di pagamento</h3><div class="field"><label for="pagamento">Pagamento *</label><select id="pagamento" name="pagamento" required><option value="">Seleziona</option><option value="iban">Addebito su conto corrente (IBAN)</option><option value="bollettino">Bollettino postale</option></select></div><fieldset id="bankFields" class="unframed conditional" hidden disabled><legend>Addebito su conto corrente</legend><div class="form-grid" data-fields="banca"></div><div class="card-head"><h4>Sottoscrittore del mandato</h4><button type="button" class="sub-button" id="copySubscriber">Copia dati del subentrante</button></div><div class="form-grid" data-fields="sottoscrittore"></div><div class="card-head"><h4>Intestatario del conto / Debitore</h4><button type="button" class="sub-button" id="copyAccount">Copia dati del sottoscrittore</button></div><p class="muted">Riporta l’intestazione esatta del conto e tutti gli eventuali cointestatari.</p><div class="form-grid" data-fields="conto"></div></fieldset></section>
             <section class="form-section"><h3>Consensi del subentrante</h3><p class="muted">Riporta la scelta del cliente per ciascun consenso. Nessuna opzione è preselezionata.</p><div id="consentRows"></div></section>
-            <section class="form-section"><h3>Luogo e data</h3><div class="form-grid" data-fields="firma"></div><p class="signature-note">Gli spazi firma restano vuoti: il modulo dovrà essere firmato da cedente, subentrante e, quando previsto, sottoscrittore del mandato.</p></section>
+            <fieldset id="mortisFields" class="unframed form-section" hidden disabled>
+              <legend>Dichiarazione sostitutiva dell’atto di notorietà</legend>
+              <p class="muted" id="mortisHint">Il dichiarante è il cessionario. Inserisci i fatti da dichiarare, compresi gli estremi del decesso, sulla base della documentazione disponibile. Il domicilio si compila se diverso dalla residenza.</p>
+              <div class="form-grid" data-fields="mortis"></div>
+            </fieldset>
+            <section class="form-section"><h3>Luogo e data</h3><div class="form-grid" data-fields="firma"></div><p class="signature-note" id="signatureNote">Gli spazi firma restano vuoti: il modulo dovrà essere firmato da cedente, subentrante e, quando previsto, sottoscrittore del mandato.</p><p class="muted" id="deathCertificateNote" hidden>Allega il certificato di morte alla pratica. Con Compilazione standard va aggiunto a parte.</p></section>
             <fieldset class="unframed form-section"><legend>Come vuoi procedere? *</legend><div class="compilation-modes">
               <label class="compilation-mode"><input type="radio" name="modalita_compilazione" value="invia_pratica" required aria-controls="documentSection"><span><strong>Invia pratica</strong><small>Archivia il modulo e la documentazione obbligatoria nello storico CRM.</small></span></label>
               <label class="compilation-mode"><input type="radio" name="modalita_compilazione" value="standard" required aria-controls="documentSection"><span><strong>Compilazione standard</strong><small>Genera e archivia solo il PDF, senza allegare documenti.</small></span></label>
             </div></fieldset>
-            <fieldset class="unframed form-section" id="documentSection" hidden disabled><legend>Documentazione da allegare</legend><p class="muted">PDF, JPEG o PNG, massimo 4 MiB per file e quattro file per gruppo. Per carta d’identità e tessera sanitaria allega un PDF completo fronte/retro oppure le immagini di entrambi i lati.</p><div id="documentRows"></div></fieldset>
+            </fieldset>
+            <fieldset class="unframed form-section" id="documentSection" hidden disabled><legend>Documentazione da allegare</legend><p class="muted" id="documentHint">PDF, JPEG o PNG, massimo 4 MiB per file e quattro file per gruppo. Per carta d’identità e tessera sanitaria allega un PDF completo fronte/retro oppure le immagini di entrambi i lati.</p><div id="documentRows"></div></fieldset>
             <div class="form-actions"><button type="submit" class="sub-button primary" id="generateButton">Prosegui</button></div>
           </fieldset>
         </form>
