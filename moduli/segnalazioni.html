@@ -216,7 +216,7 @@
 <div class="form-card-title">Nuova Segnalazione</div>
 <div class="form-row">
 <div class="form-group"><label class="form-label" for="operatore">Operatore (chi segnala)</label><div class="field-action"><input class="form-control" id="operatore" readonly placeholder="Caricamento profilo..."><button type="button" class="btn btn-secondary" onclick="cambiaUtenza()">Cambia</button></div></div>
-<div class="form-group"><label class="form-label" for="gestionePratica">Gestione Pratica</label><select class="form-control" id="gestionePratica" required onchange="cambiaGestionePratica()"><option value="">Seleziona</option><option>Angel</option><option>ASK</option><option>Interna negozio</option></select></div>
+<div class="form-group"><label class="form-label" for="gestionePratica">Gestione Pratica</label><select class="form-control" id="gestionePratica" required onchange="cambiaGestionePratica()"><option value="">Seleziona</option><option>Angel</option><option>ASK</option><option>Interna negozio</option><option>Disattivazione Più Sicuri</option></select></div>
 </div>
 <div class="form-group" id="tipoAskNuovaSection" style="display:none;"><label class="form-label" for="tipoAskNuova">Tipo ASK</label><select class="form-control" id="tipoAskNuova" disabled onchange="toggleModuli()"><option value="">Seleziona</option><option>Recesso</option><option>Comportamento Scorretto</option><option>Normalizzazione</option><option>Reclami su Fattura</option><option>Convergenza</option><option>Subentro</option><option>CS</option><option>Altro</option></select></div>
 <div id="moduliSection" style="display:none;margin-bottom:16px;"><div class="form-label" id="moduliTitle">Moduli</div><div id="moduliList" class="detail-block" style="margin-top:6px;">Caricamento...</div></div>
@@ -290,7 +290,7 @@ async function listFiles(segId){const{data}=await sb.storage.from(BUCKET).list(`
 function fileLink(path,name){return`<button type="button" class="js-storage-file" data-storage-path="${esc(path)}" style="display:inline-block;padding:4px 10px;background:var(--bg);border-radius:6px;margin:3px;color:var(--text);font-size:12px;border:1px solid var(--border);cursor:pointer;">${esc(name)}</button>`;}
 function driveLink(raw){const url=MiroxSafe.safeUrl(raw,{allowRelative:false});return url?`<div style="margin-top:8px;"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">Drive (legacy)</a></div>`:'';}
 document.addEventListener('click',e=>{const btn=e.target.closest('.js-storage-file');if(!btn)return;MiroxStorage.openAttachment(BUCKET,btn.dataset.storagePath);});
-const GESTIONI_PRATICA=['Angel','ASK','Interna negozio'];
+const GESTIONI_PRATICA=['Angel','ASK','Interna negozio','Disattivazione Più Sicuri'];
 const TIPI_ASK_NUOVA=['Recesso','Comportamento Scorretto','Normalizzazione','Reclami su Fattura','Convergenza','Subentro','CS','Altro'];
 let moduliVersione=0;
 function cambiaGestionePratica(){

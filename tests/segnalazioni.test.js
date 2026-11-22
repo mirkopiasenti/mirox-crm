@@ -199,18 +199,18 @@ test('Email Segnalazioni: il server rifiuta anche vecchi client senza invocare i
 
 test('Nuova Segnalazione: scelte gestione e tipi ASK esatti, sottotipo richiesto solo per ASK', async () => {
   const gest=page.match(/id="gestionePratica"[^>]*>([\s\S]*?)<\/select>/)[1];
-  assert.deepEqual([...gest.matchAll(/<option[^>]*>(.*?)<\/option>/g)].map(m=>m[1]),['Seleziona','Angel','ASK','Interna negozio']);
+  assert.deepEqual([...gest.matchAll(/<option[^>]*>(.*?)<\/option>/g)].map(m=>m[1]),['Seleziona','Angel','ASK','Interna negozio','Disattivazione Più Sicuri']);
   const tipi=page.match(/id="tipoAskNuova"[^>]*>([\s\S]*?)<\/select>/)[1];
   assert.deepEqual([...tipi.matchAll(/<option[^>]*>(.*?)<\/option>/g)].map(m=>m[1]),['Seleziona','Recesso','Comportamento Scorretto','Normalizzazione','Reclami su Fattura','Convergenza','Subentro','CS','Altro']);
   const f=fixture();await f.ready();
   f.nodes.gestionePratica.value='ASK';f.context.cambiaGestionePratica();
   assert.equal(f.nodes.tipoAskNuova.disabled,false);assert.equal(f.nodes.tipoAskNuova.required,true);assert.equal(f.nodes.tipoAskNuovaSection.style.display,'block');
-  f.nodes.tipoAskNuova.value='Recesso';f.nodes.gestionePratica.value='Angel';f.context.cambiaGestionePratica();
+  f.nodes.tipoAskNuova.value='Recesso';f.nodes.gestionePratica.value='Disattivazione Più Sicuri';f.context.cambiaGestionePratica();
   assert.equal(f.nodes.tipoAskNuova.value,'');assert.equal(f.nodes.tipoAskNuova.required,false);assert.equal(f.nodes.tipoAskNuova.disabled,true);
   assert.equal(f.nodes.tipoAskNuovaSection.style.display,'none');assert.equal(f.nodes.moduliSection.style.display,'none');
 });
 test('Nuova Segnalazione: ASK salva il tipo, impedisce tipi mancanti/estranei e fuori ASK salva null', async () => {
-  for(const [gestione,tipo,expected] of [['ASK','Recesso',true],['ASK','',false],['ASK','Guasti',false],['159','',false],['Angel','Recesso',true],['Interna negozio','',true]]){
+  for(const [gestione,tipo,expected] of [['ASK','Recesso',true],['ASK','',false],['ASK','Guasti',false],['159','',false],['Angel','Recesso',true],['Interna negozio','',true],['Disattivazione Più Sicuri','Recesso',true]]){
     const f=fixture();await f.ready();await f.input('cf',CF);await f.context.cercaCliente();
     f.nodes.gestionePratica.value=gestione;f.nodes.tipoAskNuova.value=tipo;f.nodes.dettagli.value='Richiesta sintetica';
     await f.submit();const insert=f.calls.find(c=>c.insert)?.insert;assert.equal(!!insert,expected,gestione+'/'+tipo);
@@ -257,16 +257,23 @@ test('Gestione ASK: mostra il tipo iniziale in sola lettura e salva il numero se
   const update=f.calls.find(c=>c.update)?.update;assert.equal(update.stato,'Segnalazione in Corso');assert.equal(update.tipo_ask,'Recesso');
 });
 
-test('Da gestire: i tre percorsi mostrano la gestione scelta nel riquadro giallo e soltanto i propri comandi', async () => {
+test('Da gestire: evidenzia la gestione scelta e mostra i comandi del relativo percorso', async () => {
   for(const [gestione,tipo,label,action,numero,button] of [
     ['ASK','Recesso','ASK - Recesso',false,true,'Salva'],['Angel',null,'Angel',false,false,'Confermo apertura Angel'],
-    ['Interna negozio',null,'Gestione negozio',true,true,'Salva'],['159',null,'159',true,true,'Salva']]){
+    ['Interna negozio',null,'Gestione negozio',true,true,'Salva'],['159',null,'159',true,true,'Salva'],
+    ['Disattivazione Più Sicuri',null,'Disattivazione Più Sicuri',true,true,'Salva']]){
     const f=fixture();await f.ready();f.context.row={id:1,gestione_pratica:gestione,tipo_ask:tipo};f.run('dataGest=[row]');await f.context.openGest(1);
     const html=f.nodes.modalGestBody.innerHTML;
     assert.ok(html.includes('<div class="gestione-scelta">'+label+'</div>'));
     assert.equal(html.includes('id="mAzione"'),action);assert.equal(html.includes('id="mNumAsk"'),numero);
     assert.ok(html.includes('onclick="salvaGest()">'+button+'</button>'));
     assert.match(html,/id="mNote"/);assert.match(html,/id="mFileInput"/);
+    if(gestione==='Disattivazione Più Sicuri'){
+      f.context.renderGest([f.context.row]);
+      f.context.renderRiep([f.context.row]);
+      assert.match(f.nodes.tbGest.innerHTML,/<td>Disattivazione Più Sicuri<\/td>/);
+      assert.match(f.nodes.tbRiep.innerHTML,/<td>Disattivazione Più Sicuri<\/td>/);
+    }
   }
 });
 test('ASK: numero vuoto o solo spazi blocca senza upload/update; testo non vuoto salva e apre Riepilogo', async () => {

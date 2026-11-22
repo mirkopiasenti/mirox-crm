@@ -105,6 +105,8 @@ Segnalazioni12/11, Da gestire: riusa i campi esistenti. ASK salva `azione_esegui
 
 Segnalazioni12/11, classificazione all’inserimento: valori nuovi di `gestione_pratica` Angel/ASK/Interna negozio e sottotipo ASK nel campo gia esistente `tipo_ask` (null fuori ASK). Nessuna modifica schema, CHECK, RLS, RPC o bucket; i PDF restano negli stessi path `modelli/disdetta` e `modelli/comportamento-scorretto`. Nessuna riscrittura dei valori storici; le nuove scelte sono salvate solo all’invio di nuove segnalazioni.
 
+Segnalazioni 22/11. `segnalazioni.gestione_pratica` è testuale e accetta anche `Disattivazione Più Sicuri`. Le nuove segnalazioni con questa scelta salvano `tipo_ask` a null. Tre pratiche in Da gestire sono state riclassificate in produzione il 22/11 con un aggiornamento atomico del campo e il normale timestamp di modifica. La rilettura ha verificato lo stato e tutti gli altri campi. Nessuna migration.
+
 ## Assicurazione impianti Luce e Gas — 12/11/2026
 
 Sorgente `20261112214904_vendita_energia_assicurazione_impianti.sql` creata con CLI
