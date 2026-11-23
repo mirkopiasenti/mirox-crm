@@ -2,11 +2,12 @@
 
 Aggiornato:2026-11-23. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
 
-## Upload Contratti, simboli nel codice PDA —23/11, rilascio in corso
+## Upload Contratti, simboli nel codice PDA —23/11, pubblicato
 
 - In Continua senza AI per Mobile, Fisso e Customer Base si possono immettere codici come `00123.45` o `AB_001#2`. La validazione condivisa conserva separatori e zeri iniziali nel salvataggio e nei duplicati; lettura PDF e riscontro Business confrontano il codice intero. Il formato e la lista di simboli sono in README, AGENTS e databaseREADME.
 - Build e 906/906 test in copia isolata. PGlite 0.5.13 ha verificato la migration `20261123174819_vendita_codice_pda_separatori.sql` su storico, NULL, limite, simboli, duplicati e sincronizzazione Fisso. Verificata la codifica del filtro con il client Supabase.
-- Migration applicata e riletta come `20261123175336` prima del push richiesto. Impronte dei 2.924 contratti e di Controllo Fissi, altri vincoli, indici univoci, trigger, policy e conteggi degli advisor identici. Tutti i 516 codici precedenti rispettano il nuovo formato. Prossimo passo: verificare il deploy Netlify dopo il push.
+- Migration applicata e riletta come `20261123175336` prima del push richiesto. Impronte dei 2.924 contratti e di Controllo Fissi, altri vincoli, indici univoci, trigger, policy e conteggi degli advisor identici. Tutti i 516 codici precedenti rispettano il nuovo formato.
+- Commit runtime `d5e1435` su main, CI `45232731922` verde Linux/Windows e Netlify `6b047de9153430dfe33c29af` online, verificato alle 18:57 Europe/Rome. I due JS e le due URL della pagina corrispondono alla build con la sola riscrittura del link Dashboard. Due API 401 senza sessione. La prossima pratica manuale con simboli può essere inserita dal wizard live.
 
 ## Subentri, nuove anagrafiche e codice cliente —22/11
 
