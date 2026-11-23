@@ -603,6 +603,10 @@ fra tutti gli operatori, negozi, mesi e stati, anche nelle bozze e nel carrello.
 Un reinserimento richiede un nuovo codice. Il controllo lato database protegge
 anche dai caricamenti contemporanei; un errore di verifica ferma il flusso.
 
+Con **Continua senza AI** puoi inserire codici come `00123.45` o `AB_001#2`.
+Il codice ammette lettere, cifre e i simboli `. _ / - + # @ & * % =`, fino a
+80 caratteri, e conserva gli zeri iniziali e i simboli per il controllo dei duplicati.
+
 Solo Mobile aggiunge costo mensile base dell'offerta (con popup sempre da
 confermare), numero del contratto, portabilita, provvisorio/MNP e gestore di
 provenienza. Nessuna somma di accessori o rate del dispositivo; costo assente da

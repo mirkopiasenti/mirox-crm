@@ -14,8 +14,9 @@ function evidence(text) {
     for (const match of page.matchAll(/Partita\s+IVA\s*\/\s*Cod\.?\s*Fiscale\s+Azienda\s*:\s*([A-Z0-9]+)/gi)) {
       if (/^(?:\d{11}|[A-Z0-9]{16})$/.test(norm(match[1]))) values.fiscale.push({ value: norm(match[1]), page: pageNumber, quote: match[0] });
     }
-    for (const match of page.matchAll(/(?:Codice|Numero)\s+Contratto\s*:?\s*([A-Z0-9][A-Z0-9/-]*)/gi)) {
-      if (Pda.code(match[1])) values.codice_contratto.push({ value: Pda.code(match[1]), page: pageNumber, quote: match[0] });
+    for (const match of page.matchAll(/\b(?:Codice|Numero)\s+Contratto\s*:?\s*(\S+)/gi)) {
+      const code = Pda.code(match[1]);
+      if (code) values.codice_contratto.push({ value: code, page: pageNumber, quote: match[0] });
     }
     for (const header of page.matchAll(/^[ \t]*DATI\s+(?:DEL\s+RAPPRESENTANTE\s+LEGALE|DEL\s+LEGALE\s+RAPPRESENTANTE\s+O\s+DEL\s+DELEGATO)[ \t]*$/gim)) {
       const block = page.slice(header.index + header[0].length, header.index + header[0].length + 2400)
@@ -60,7 +61,8 @@ async function load(db, paths, customer, deps = {}) {
         { ...deps, client: deps.businessClient || (deps.extractBusiness ? null : new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 8000, maxRetries: 0 })) });
       for (const [key, value] of Object.entries(parsed.fields)) {
         if (!value) continue;
-        if (reading.fields?.[key] && norm(reading.fields[key].value) !== norm(value.value)) throw conflict('La lettura della PDA Business contiene dati discordanti. Verifica la copia caricata.');
+        const normalize = key === 'codice_contratto' ? Pda.code : norm;
+        if (reading.fields?.[key] && normalize(reading.fields[key].value) !== value.value) throw conflict('La lettura della PDA Business contiene dati discordanti. Verifica la copia caricata.');
         reading.fields[key] = value;
       }
     }

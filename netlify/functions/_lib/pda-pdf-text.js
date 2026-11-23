@@ -94,7 +94,8 @@ function sectionFields(text, completeText = true) {
     if (/\uFFFD|\uFFFF/.test(match[1])) return undefined;
     return completeText && /\bCosto\s+attivazione|Confermo\s+di\s+aver/i.test(block) ? false : undefined;
   })];
-  const contractCodes=Array.from(normalized.matchAll(/\b(?:Numero|Codice)[ \t]+Contratto[ \t]*:?[ \t]*([A-Z0-9][A-Z0-9/ -]{0,79})/gi),m=>Pda.code(m[1].split(/\s{2,}|\b(?:Per|Data|Offerta)\b/i)[0]));
+  const contractCodes = Array.from(normalized.matchAll(/\b(?:Numero|Codice)[ \t]+Contratto[ \t]*:?[ \t]*([A-Z0-9._/+#@&*%=-][A-Z0-9._/+#@&*%= -]*)(?!\S)/gi),
+    match => Pda.code(match[1].split(/ {2,}| +(?=(?:Per|Data|Offerta)\b)/i)[0]));
   const contractField=contractCodes.length ? {codice_contratto:contractCodes.every(v=>v&&v===contractCodes[0])?contractCodes[0]:null}:{};
   const fixed = { ...contractField, ...fixedActivationFields(normalized), ...customerCodeFields(normalized), ...fixedTechnologyFields(normalized,completeText), ...reload };
   if (cloudValues.some(v => v !== undefined)) {

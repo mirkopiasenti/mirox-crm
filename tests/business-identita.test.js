@@ -19,6 +19,7 @@ test('Business Mobile e Fisso separano CF rappresentante da PIVA, SEPA e altri s
   const ambiguous=Business.evidence(mobile()+'\n'+mobile('VRDLGI80A01H501Z'));
   assert.ok(ambiguous.ambiguous.includes('firmatario_fiscale'));assert.equal(ambiguous.fields.firmatario_fiscale,null);
   assert.equal(Business.fields('PAGINA PDF 1\n\n'+mobile().replace('PAGINA PDF 1','PAGINA PDF 3')).firmatario_fiscale.page,3);
+  assert.equal(Business.fields(mobile(person, '.00C_1#+')).codice_contratto.value, '.00C_1#+');
 });
 test('fallback Business completa la scansione senza sostituire dati digitali discordanti',async()=>{
   const deps={pdfInfo:async()=>1,pdfText:async()=>mobile().replace('Codice Contratto: C001',''),

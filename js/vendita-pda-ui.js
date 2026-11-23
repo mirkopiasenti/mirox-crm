@@ -45,7 +45,7 @@
       await window.MiroxUI.alert('Inserisci un valore valido prima di proseguire.', { type: 'warning', title });
     }
   }
-  const askCode = value => askValue('Codice contratto PDA', 'Codice Contratto / Numero Contratto *', value, Pda.code);
+  const askCode = value => askValue('Codice contratto PDA', 'Codice Contratto / Numero Contratto * (es. 00123.45)', value, Pda.code);
   const askCustomerCode = value => askValue('Codice cliente WindTre', 'Codice cliente anagrafico *', value, Pda.customerCode);
   const askCost = value => askValue('Costo mensile offerta Mobile', 'Solo costo base dell’offerta (euro/mese) *', value, Pda.money);
   const askContact = () => askValue('Contatto per OTP', 'Cellulare della sezione DATI FIRMA ELETTRONICA *', '', Pda.phone);

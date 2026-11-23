@@ -16,7 +16,7 @@ test('codici cliente testuali: prefisso e zeri, deduplica, input invalido senza 
  assert.throws(()=>Pda.customerCodes('P00001'),/Elenco/);assert.throws(()=>Pda.customerCodes(['<script>']),/non valido/);
  assert.equal(normalizeResult({codice_cliente:'P 00001',codice_contratto:'C00002'}).codice_cliente,'P00001');
 });
-test('codici cliente WindTre con punti conservati da validazione, OCR e lettura etichetta; codici contratto invariati',()=>{
+test('codici cliente WindTre con punti conservati da validazione, OCR e lettura etichetta',()=>{
  for(const code of ['P2234324','235345','1.2343245','123.131243','001.0023','P1/02-3','.123','123.','1..23','..P123..']){
   assert.equal(Pda.customerCode(code,true),code);
   assert.equal(normalizeResult({codice_cliente:code}).codice_cliente,code);
@@ -26,7 +26,8 @@ test('codici cliente WindTre con punti conservati da validazione, OCR e lettura 
  assert.deepEqual(Pda.customerCodes(['1.2343245','1 . 2343245','12343245']),['1.2343245','12343245']);
  for(const code of ['.','...','P.FOREVER','1,234','1@234','1<script>','1'.repeat(81)])assert.equal(Pda.customerCode(code),null);
  assert.equal(Pda.customerCode('1'.repeat(80)),'1'.repeat(80));
- assert.equal(Pda.code('1.2343245'),null);
+ assert.equal(Pda.code('1.2343245'),'1.2343245');
+ assert.equal(Pda.code('1@234'),'1@234');
  assert.equal(Pda.code('C00002'),'C00002');
 });
 test('etichetta cliente distinta da contratto/POS; assenza, discordanza e ripetizioni trattate senza inventare',()=>{

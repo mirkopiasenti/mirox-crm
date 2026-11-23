@@ -139,7 +139,7 @@ codice_rivenditore: codice numerico del punto vendita che ha emesso il PDA WindT
   Valori ammessi (solo questi due): "9001415852" oppure "9000822241". Se il codice trovato NON e' uno di questi due valori esatti -> null. Se non trovato -> null.
 
 === IDENTIFICAZIONE DEL CONTRATTO ===
-codice_contratto: stringa esatta in ALTO A DESTRA della PDA. Fisso: "Numero Contratto"; Mobile/Customer Base: "Codice Contratto:". NON codice cliente, codice POS o numero telefono. Conserva lettere e zeri iniziali. Se valori discordanti o illeggibili -> null. Una PDA contiene un solo contratto.
+codice_contratto: stringa esatta in ALTO A DESTRA della PDA. Fisso: "Numero Contratto"; Mobile/Customer Base: "Codice Contratto:". NON codice cliente, codice POS o numero telefono. Conserva lettere, zeri iniziali, punti e altri separatori del codice. Se valori discordanti o illeggibili -> null. Una PDA contiene un solo contratto.
 
 === OFFERTA E NUMERAZIONI MOBILE ===
 Leggi ogni sezione separatamente, non confondere numeri del contratto con il contatto firma elettronica.

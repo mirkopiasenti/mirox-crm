@@ -1315,6 +1315,10 @@ Per i nuovi upload Mobile/Fisso/Customer Base, `codice_contratto` e' obbligatori
 deriva da Codice Contratto/Numero Contratto, mai dal codice cliente. Una PDA
 contiene un solo contratto. Normalizzazione condivisa `js/vendita-pda-core.js`:
 stringa maiuscola senza spazi, zeri iniziali conservati; nessuna conversione numerica.
+Il codice ammette da 1 a 80 caratteri con almeno una lettera ASCII o una cifra.
+I simboli `. _ / - + # @ & * % =` sono parte del valore canonico, anche a inizio
+codice. La regola vale nel popup manuale, nel carrello, nelle API e negli editor PDA.
+La lettura PDF e il riscontro Business conservano i separatori per confrontare il codice intero.
 Duplicati bloccati globalmente fra negozi, categorie, clienti, mesi, operatori e
 stati, anche nelle bozze e nel carrello; reinserimenti ammessi con codice nuovo.
 Il percorso manuale chiede prima il codice; OCR mancante/ambiguo richiede input

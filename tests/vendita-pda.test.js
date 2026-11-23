@@ -13,7 +13,9 @@ const id = '11111111-1111-4111-8111-111111111111';
 
 test('identificatori PDA: conserva lettere, zeri e separatori; non accetta markup o numeri convertiti', () => {
   assert.equal(Pda.code(' 00ab 123/4-5 '), '00AB123/4-5');
-  for (const bad of [null, '', 1234, 'a'.repeat(81), '<img>', '123;drop']) assert.equal(Pda.code(bad), null);
+  assert.equal(Pda.code(' .00ab_123#+@&*%=/4-5 '), '.00AB_123#+@&*%=/4-5');
+  assert.equal(Pda.code('0'.repeat(79) + '.'), '0'.repeat(79) + '.');
+  for (const bad of [null, '', 1234, 'a'.repeat(81), '._-', '<img>', '123;drop']) assert.equal(Pda.code(bad), null);
   for (const bad of ['9.999', '-1', '9,99 EUR', '1e2', 'Infinity', '1.000,00']) assert.equal(Pda.money(bad), null);
   assert.equal(Pda.money('0,00'), 0);
   assert.equal(Pda.phone('0039 333 123456'), '333123456');
@@ -87,6 +89,31 @@ test('duplicati globali: KO/storico/altro negozio restano bloccanti, errori DB n
   await assert.rejects(serverPda.findDuplicate(duplicateDb([],true),'ABC'),/DB non disponibile/);
   assert.equal(serverPda.isDuplicateViolation({code:'23505',message:'index vendita_contratti_codice_pda_unique'}),true);
   assert.equal(serverPda.isDuplicateViolation({code:'23505',message:'altro indice'}),false);
+});
+
+test('il popup manuale conserva il codice con simboli nei controlli carrello e API', async () => {
+  const code = '00123.45_A+#2';
+  const requests = [];
+  const alerts = [];
+  const window = {
+    MiroxPda: Pda,
+    MiroxUI: { prompt: async () => ' 00123.45_a+#2 ', alert: async text => alerts.push(text) },
+    MiroxApi: { fetch: async (_url, options) => {
+      requests.push(JSON.parse(options.body));
+      return { ok: true, json: async () => ({ success: true, duplicate: null }) };
+    } }
+  };
+  const source = fs.readFileSync(path.join(__dirname, '../js/vendita-pda-ui.js'), 'utf8');
+  vm.runInNewContext(source, { window });
+  const ui = window.MiroxPdaUI;
+  const entered = await ui.askCode('');
+  assert.equal(entered, code);
+  assert.equal(await ui.checkCode(entered, [{ temp_id: 'other', codice_contratto: code.toLowerCase() }]), false);
+  assert.equal(alerts.length, 1);
+  assert.deepEqual(requests, []);
+  assert.equal(await ui.checkCode(entered, [{ temp_id: 'other', codice_contratto: '0012345A2' }]), true);
+  assert.deepEqual(requests, [{ action: 'check_codice', codice_contratto: code }]);
+  assert.equal((await serverPda.findDuplicate(duplicateDb([{ id, codice_contratto: code }]), code.toLowerCase())).id, id);
 });
 
 function loadHandler(file, db) {
@@ -340,8 +367,8 @@ for (const failRollback of [false,true]) test(`collisione durante INSERT: rollba
   const identity = require('../netlify/functions/_lib/identita-upload');
   const token=identity.sign({version:1,at:Date.now(),user:id,customer:{cf_piva:'RSSMRA80A01H501U',ragione_sociale:'Cliente prova',cluster:'Consumer'},result:{stato:'coerente'}},'test');
   const response=await api.handler(event({cliente:{cf_piva:'RSSMRA80A01H501U',ragione_sociale:'Cliente prova',cluster:'Consumer',cellulare:'3350000000',email:'test@example.invalid'},pratica:{identita_token:token},
-    contratti:[{...mobile,categoria_id:'cat',offerta_id:'offer',tipo_firma:'elettronica'}]}));
-  assert.equal(response.statusCode,409,response.body);assert.equal(inserted,1);assert.equal(deleted,1);assert.equal(savedCode,'00AB123');
+    contratti:[{...mobile,codice_contratto:' 00ab.123_#4 ',categoria_id:'cat',offerta_id:'offer',tipo_firma:'elettronica'}]}));
+  assert.equal(response.statusCode,409,response.body);assert.equal(inserted,1);assert.equal(deleted,1);assert.equal(savedCode,'00AB.123_#4');
   const body=JSON.parse(response.body);assert.equal(body.rollback_failed,failRollback);
   if(failRollback)assert.match(body.error,/Ripristino.*incompleto/);
 });

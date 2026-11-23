@@ -53,6 +53,12 @@ test('numeri discordanti non vengono scelti arbitrariamente e non usano la firma
   assert.deepEqual(sectionFields('Il testo cita DATI DELLA SIM WINDTRE senza una sezione.\nNumero di telefono: 3351234567'),{});
 });
 
+test('il codice contratto PDF conserva punti e simboli senza assorbire il campo successivo', () => {
+  const code = '.00123.45_#2+@A';
+  assert.equal(sectionFields(`Numero Contratto ${code} Data: 23/11/2026`).codice_contratto, code);
+  assert.equal(sectionFields(`Codice Contratto: ${code}\nCodice Contratto: 0012345`).codice_contratto, null);
+});
+
 test('PDF ibrido: senza MNP testuale non conclude automaticamente nuova attivazione', () => {
   const fields=sectionFields('DATI DELLA SIM WINDTRE\nNumero di telefono: 3331234567',false);
   assert.deepEqual(fields,{numero_sim:'3331234567'});

@@ -11,7 +11,7 @@
   function code(value) {
     if (typeof value !== 'string') return null;
     const s = value.replace(/\s/g, '').toUpperCase();
-    return /^[A-Z0-9][A-Z0-9/-]{0,79}$/.test(s) ? s : null;
+    return /^[A-Z0-9._/+#@&*%=-]{1,80}$/.test(s) && /[A-Z0-9]/.test(s) ? s : null;
   }
   // Codice cliente e codice contratto sono identificativi distinti, entrambi testuali.
   function customerCode(value, required = false) {

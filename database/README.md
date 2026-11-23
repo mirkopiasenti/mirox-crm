@@ -903,6 +903,15 @@ nuovo numero oppure MNP; le righe legacy con tutti i campi NULL restano valide.
 Il backend richiede il codice sui nuovi PDA e dati completi solo per Mobile;
 Customer Base/Fisso solo codice. Nessuna estrazione o riscrittura dello storico.
 
+`20261123174819_vendita_codice_pda_separatori.sql` sostituisce il solo CHECK
+`vendita_codice_pda_formato`, applicato e riletto in produzione il 23/11 come
+`20261123175336`. Accetta da 1 a 80 caratteri fra lettere ASCII
+maiuscole, cifre e `. _ / - + # @ & * % =`, con almeno una lettera o una cifra.
+I codici precedenti e i NULL restano validi. L’indice UNIQUE continua a confrontare
+il valore canonico completo, simboli inclusi. Rilettura su 2.924 contratti con
+516 codici già presenti, tutti validi. Impronte contratti e Controllo Fissi, altri
+vincoli, indice univoco, trigger, policy e conteggi degli advisor identici.
+
 Due nuove funzioni/trigger INVOKER con search_path vuoto, nessun SECURITY DEFINER:
 all'INSERT del controllo Fisso si copia il codice tracciato; le correzioni si
 propagano nelle due direzioni senza ricorsione, sotto lo stesso vincolo UNIQUE.
