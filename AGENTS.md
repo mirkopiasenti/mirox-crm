@@ -322,6 +322,16 @@ Sostituire sempre con testo descrittivo (es. `🔄 Aggiorna` → `Aggiorna`, `�
 
 ### Monitor KPI negozio — pubblicato05/11/2026
 
+Sprint TV richiesto il 24/11/2026, fino a tutto il 30/11 Europe/Rome.
+“Chiudiamo novembre” sostituisce solo il blocco mensile con i residui per
+Mobile +30, Fisso +8, Business +12 (Extra Gara P.IVA, confermato) e Luce & Gas
++5 (punti Standard). I residui usano il delta dai totali mensili effettivi
+rilevati prima del rilascio, inclusi decimali e rettifiche. La proiezione
+autenticata v2 consegna i quattro valori iniziali, conservati in tabella
+privata e mai inseriti negli asset. La UI mostra il mensile consueto se manca
+la configurazione completa o si passa al 1° dicembre, ora italiana.
+Schema/grant operativi, CC, obiettivi Dashboard e frequenza letture invariati.
+
 Revisione richiesta18/11 per ridurre quasi a zero Netlify: nuova postazione
 legge una RPC Supabase dedicata con la credenziale dispositivo esistente;
 nessun utente operativo, service_role o segreto nel browser. La RPC pubblica

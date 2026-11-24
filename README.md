@@ -49,6 +49,13 @@ CI Linux/Windows verde e723test. Popup e asset verificati online via HTTP.
 
 ## Monitor KPI negozio — aggiornato06/11/2026
 
+**Chiudiamo novembre, 24–30/11/2026:** il monitor di Legnago mostra su fondo
+grigio i punti ancora da recuperare per Mobile (+30), Fisso (+8), Business
+(Extra Gara P.IVA, +12) e Luce & Gas (+5). Ogni residuo parte dai punti
+mensili rilevati all’attivazione e segue le regole dell’Avanzamento Mensile.
+Il 1° dicembre a mezzanotte (Europe/Rome) torna la vista mensile consueta.
+L’aggiornamento web arriva tramite il manifest già usato dalla postazione.
+
 **Intervallo30secondi,19/11 — pubblicato:** su richiesta
 del proprietario il nuovo helper passa da3s a30s (90%letture Supabase in meno),
 con prima lettura immediata e nessuna sovrapposizione. Avviso45s/obsoleto90s

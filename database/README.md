@@ -144,6 +144,15 @@ identici via HTTP.
 
 ## Monitor negozio — migration applicata05/11/2026
 
+La migration `20261124215619_monitor_sprint_novembre.sql` aggiunge
+`mirox_monitor_privato.sprint_novembre_2026`, quattro valori iniziali per
+metrica, con RLS e senza grant alle API. Il lettore privato aggiunge
+`mirox_sprint_novembre_2026` alla sola proiezione v2 delle quattro metriche
+configurate durante il 24–30/11/2026 Europe/Rome, includendolo nella revisione.
+La configurazione iniziale si ricava con il motore mensile da una lettura
+coerente di novembre. Importi iniziali e prove production restano privati.
+Nessuna modifica a catalogo, obiettivi mensili, viste o tabelle operative.
+
 **Revisione18–19/11 applicata e riletta come20261119123037:**
 `20261118223737_monitor_diretto_supabase.sql` aggiunge soltanto lo schema privato
 `mirox_monitor_privato` e due funzioni, senza tabelle/trigger/policy sulle sorgenti.

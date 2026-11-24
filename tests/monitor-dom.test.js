@@ -6,11 +6,11 @@ const {fakeDb,fixture,directFixture}=require('./monitor-helpers.cjs');
 const core=require('../js/monitor-core');
 const root=path.resolve(__dirname,'..');
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
-async function page({local=true,release=null}={}) {
+async function page({local=true,release=null,now=Date.now()}={}) {
   const ids=[...fs.readFileSync(path.join(root,'monitor.html'),'utf8').matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]);
   const document=documentFixture(ids);for(const id of ids)document.getElementById(id).style={};document.getElementById('monitorStage').scrollHeight=2200;
   document.querySelector=selector=>selector==='meta[name="mirox-monitor-session"]'?(local?{content:'nonce'}:null):selector==='meta[name="mirox-monitor-release"]'&&release?{content:release}:null;
-  const clock=[],timers=[],timerDelays=[],intervalDelays=[],state={value:{stato:'non_associato'},reloads:0,calls:[],now:Date.now()};
+  const clock=[],timers=[],timerDelays=[],intervalDelays=[],state={value:{stato:'non_associato'},reloads:0,calls:[],now};
   class PageDate extends Date {constructor(...args){super(...(args.length?args:[state.now]));}static now(){return state.now;}}
   const location={hostname:local?'127.0.0.1':'mirox-crm.it',port:local?'8765':'',reload:()=>state.reloads++};
   const window={MiroxMonitorCore:core,MiroxMonitorReport:require('../js/monitor-report-core')};
@@ -89,3 +89,52 @@ test('attesa primo snapshot: heartbeat vivo ma rendering non confermato, senza f
   x.timers.shift()();await flush();assert.equal(x.document.getElementById('dayTable').innerHTML,html);assert.match(x.document.getElementById('monitorHealth').textContent,/Connesso/);
   x.state.value={stato:'revocato',snapshot:null};x.timers.shift()();await flush();assert.equal(x.document.getElementById('monitorData').hidden,true);
  });
+
+test('sprint sul Monitor: usa i KPI correnti, mostra i traguardi e torna al mensile a dicembre',async()=>{
+  const x=await page({now:Date.parse('2026-11-30T22:59:57Z')});
+  const p=directFixture('2026-11-30');
+  const initial=(points,rule)=>({...rule,mirox_sprint_novembre_2026:points});
+  p.metriche=[
+    {...p.metriche[0],id:9,regola:initial(1.5,{categoria:'Mobile'})},
+    {id:12,nome:'FISSI',tabella:'avanzamento_standard',regola:initial(0,{categoria:'Fisso'})},
+    {id:13,nome:'LUCE & GAS',tabella:'avanzamento_standard',regola:initial(0,{categoria:'Energia'})},
+    {id:21,nome:'EXTRA GARA P.IVA',tabella:'avanzamento_extra_piva',regola:initial(1,{cluster:'Business'})}
+  ];
+  const node=id=>x.document.getElementById(id);
+  async function refresh(payload) {
+    const stamp=new Date(x.state.now).toISOString();
+    x.state.value={stato:'attivo',snapshot:{...payload,revisione:stamp,aggiornato_il:stamp,verificato_il:stamp}};
+    x.timers.shift()();
+    await flush();
+  }
+  await refresh(p);
+  assert.equal(node('monitorMonth').hidden,true);
+  assert.equal(node('monitorSprint').hidden,false);
+  assert.equal(node('sprintScore').textContent,'0/4');
+  assert.match(node('sprintGoals').innerHTML,/<strong>30<\/strong>/);
+  x.state.now+=1000;
+  p.contratti.push(
+    {...p.contratti[0],id:'business',punteggio_gara_totale:1.25,punteggio_extra_gara_totale:13},
+    {...p.contratti[0],id:'fisso',categoria_snapshot:'Fisso',punteggio_gara_totale:8,punteggio_extra_gara_totale:9},
+    {...p.contratti[0],id:'energia',categoria_snapshot:'Energia'}
+  );
+  p.post.energia=[{contratto_id:'energia',stato:'Rifiutato'}];
+  await refresh(p);
+  assert.equal(node('sprintScore').textContent,'2/4');
+  assert.match(node('sprintGoals').innerHTML,/<strong>28,75<\/strong>/);
+  assert.match(node('sprintGoals').innerHTML,/<progress aria-label="Avanzamento Business" max="12" value="12"/);
+  assert.match(node('sprintGoals').innerHTML,/<progress aria-label="Avanzamento Luce &amp; Gas" max="5" value="0"/);
+
+  x.state.now+=1000;
+  p.post.fisso=[{contratto_id:'fisso',stato:'KO',tecnologia:'FWA'}];
+  await refresh(p);
+  assert.equal(node('sprintScore').textContent,'1/4','un KO fa riemergere il residuo');
+  x.state.now+=1000;
+  x.clock[x.intervalDelays.indexOf(1000)]();
+  assert.equal(node('monitorSprint').hidden,true);
+  assert.equal(node('monitorMonth').hidden,false);
+  await refresh({...p,data:'2026-12-01',contratti:[]});
+  assert.equal(node('monitorData').hidden,false);
+  assert.equal(node('monitorMonth').hidden,false);
+  assert.equal(node('monthTitle').textContent,'dicembre 2026');
+});

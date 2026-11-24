@@ -1,5 +1,21 @@
 # Monitor KPI negozio — servizio Windows e aggiornamenti pagina
 
+## Chiudiamo novembre —24–30/11/2026
+
+Il riquadro mensile della TV di Legnago diventa una griglia grigio antracite
+con i residui e i traguardi centrati. Obiettivi aggiuntivi: Mobile 30 punti
+(metrica MOBILI), Fisso 8 (FISSI), Business 12 (EXTRA GARA P.IVA) e Luce &
+Gas 5 (LUCE & GAS Standard, punti). Il totale iniziale è fissato in Supabase
+al rilascio e il browser sottrae il guadagno netto calcolato dal consueto
+motore mensile. Una rettifica può far riapparire un residuo. Day by Day e
+agenda restano disponibili. Il mensile torna il 1° dicembre Europe/Rome,
+anche con una pagina aperta, al primo snapshot del nuovo giorno.
+
+Il lettore v2 aggiunge soltanto i valori iniziali alla proiezione riservata
+delle metriche. La postazione scarica HTML, CSS e JS tramite il manifest
+esistente; il servizio Windows, l’associazione e il polling funzionano con
+il pacchetto diretto già installato.
+
 ## Intervallo30secondi —19/11, pubblicato
 
 Richiesta successiva del proprietario: controllare i dati ogni30secondi.

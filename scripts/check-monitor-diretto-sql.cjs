@@ -101,5 +101,26 @@ async function insert(table,row){const keys=Object.keys(row);await query(`INSERT
   await check("SELECT count(*)::int AS n FROM pg_policies WHERE schemaname='public'",[{n:0}]);
   await check("SELECT has_schema_privilege('anon','mirox_monitor_privato','CREATE') AS permesso",[{permesso:false}]);
   await check("SELECT count(*)::int AS n FROM pg_proc p JOIN pg_namespace ns ON ns.oid=p.pronamespace WHERE (ns.nspname='mirox_monitor_privato' AND p.proname='leggi' OR ns.nspname='public' AND p.proname='mirox_monitor_leggi') AND p.proconfig @> ARRAY['search_path=\"\"']",[{n:2}]);
+  await db.exec(fs.readFileSync('database/20261124215619_monitor_sprint_novembre.sql','utf8'));
+  await query("UPDATE public.mirox_monitor_dispositivi SET stato='attivo' WHERE token_hash=$1",[hash]);
+  const beforeSprint=await read();
+  await query('INSERT INTO mirox_monitor_privato.sprint_novembre_2026 VALUES (1,12.75)');
+  for(const role of ['anon','authenticated','service_role']){
+    await db.exec('SET ROLE '+role);
+    await denied('SELECT * FROM mirox_monitor_privato.sprint_novembre_2026');
+    await denied('SELECT public.mirox_monitor_leggi($1,NULL)',['b'.repeat(64)]);
+    const current=await read(beforeSprint.revisione);
+    if(day>='2026-11-24'&&day<'2026-12-01'){
+      assert.equal(current.metriche.find(m=>m.id===1).regola.mirox_sprint_novembre_2026,12.75);
+      assert.equal(minimize(current).metriche.find(m=>m.id===1).regola.mirox_sprint_novembre_2026,12.75);
+      assert.equal((await read(current.revisione)).invariato,true);
+    }else{
+      assert.equal(current.invariato,true);
+      assert.ok(!JSON.stringify(await read()).includes('mirox_sprint_novembre_2026'));
+    }
+    checks+=3;
+    await db.exec('RESET ROLE');
+  }
+  await check("SELECT regola FROM public.gara_metriche WHERE id=1",[{regola:{categoria:'Mobile'}}]);
   console.log('Monitor diretto SQL: '+checks+' verifiche riuscite ('+Math.round(performance.now()-t0)+'ms), nessun collegamento production.');
 })().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>db.close());

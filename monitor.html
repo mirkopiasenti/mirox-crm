@@ -37,13 +37,23 @@
           <ol id="agendaList" class="agenda-list" aria-label="Appuntamenti successivi"></ol>
         </section>
       </div>
-      <section class="monitor-panel month-panel" aria-label="Avanzamento mensile">
+      <section id="monitorMonth" class="monitor-panel month-panel" aria-label="Avanzamento mensile">
         <header>
           <div><p class="monitor-eyebrow">AVANZAMENTO MENSILE</p><h1 id="monthTitle"></h1></div>
           <span>Punti / obiettivo</span>
         </header>
         <h2>STANDARD</h2><div id="monthStandard"></div>
         <h2>PARTITA IVA</h2><div id="monthBusiness" class="month-business"></div><div id="monthExtra"></div>
+      </section>
+      <section id="monitorSprint" class="sprint-panel" aria-labelledby="sprintTitle" hidden>
+        <header class="sprint-header">
+          <div><time datetime="2026-11-30">Entro il 30 novembre</time><h1 id="sprintTitle">Chiudiamo novembre</h1></div>
+          <p class="sprint-score"><strong id="sprintScore"></strong> obiettivi centrati</p>
+        </header>
+        <div class="sprint-body">
+          <p id="sprintUnit">Punti da recuperare</p>
+          <dl id="sprintGoals" class="sprint-goals" aria-describedby="sprintUnit"></dl>
+        </div>
       </section>
     </div>
     <footer><span id="monitorStation">Solo visione · 08:30–20:00 · Europe/Rome</span><span id="monitorTimestamp"></span></footer>

@@ -19,6 +19,20 @@
   function day(p){let group=null;return `<table class="pezzi"><colgroup><col class="col-label">${p.operatori.map(()=>'<col class="col-op">').join('')}</colgroup><thead><tr><th class="col-data col-label">${e(C.rome(new Date(p.data+'T12:00:00Z'),{day:'numeric',month:'long'}).toUpperCase())}</th>${p.operatori.map(op=>`<th class="col-op">${e(op)}</th>`).join('')}</tr></thead><tbody>${p.day.map(row=>{let header='';if(row.gruppo!==group){group=row.gruppo;header=`<tr class="gruppo-header"><td colspan="${p.operatori.length+1}">${e(group)}</td></tr>`;}return header+`<tr><td class="cell-label" style="background:${S.safeCssColor(row.colore,'#f1f5f9')}">${e(row.nome)}</td>${row.operatori.map(n=>`<td class="cell-num${n?'':' zero'}">${n?number(n):''}</td>`).join('')}</tr>`;}).join('')}</tbody></table>`;}
   function metric(r){const configured=r.obiettivo>0;const pace=!configured?'Obiettivo assente':r.andamento==='RAGGIUNTO'?'Raggiunto':r.eccedenza===0?'In linea':`${r.eccedenza>0?'+':''}${number(r.eccedenza)} pt sul ritmo`;const width=configured?Math.max(0,Math.min(100,r.punti/r.obiettivo*100)):0;return `<div class="month-row"><span>${e(r.nome)}</span><div class="month-value">${number(r.punti)} <small>${configured?'/ '+number(r.obiettivo)+' pt':'pt'}</small></div><div class="month-track"><div class="month-fill" style="width:${width}%"></div></div><span class="month-pace${!configured?' unset':r.eccedenza<0?' behind':''}">${e(pace)}</span></div>${r.netto===undefined?'':`<div class="month-net">Conteggio Netto: ${number(r.netto)} · ultimo CSV: ${r.ultimo_csv?e(C.rome(new Date(r.ultimo_csv),{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})):'non disponibile'}</div>`}`;}
   function render(p){$('monitorStore').textContent=p.negozio.toUpperCase();$('dayTotal').textContent=`Totale pezzi: ${number(p.totale_day)}`;$('dayTable').innerHTML=day(p);$('monthTitle').textContent=C.rome(new Date(p.data+'T12:00:00Z'),{month:'long',year:'numeric'});$('monthStandard').innerHTML=p.mensile.filter(r=>r.tabella==='avanzamento_standard').map(metric).join('') || '<p>Nessuna metrica configurata.</p>';$('monthBusiness').innerHTML=p.mensile.filter(r=>r.tabella==='avanzamento_piva').map(r=>`<div><span>${e(r.nome)}</span><strong>${number(r.punti)} pt</strong></div>`).join('');$('monthExtra').innerHTML=p.mensile.filter(r=>r.tabella==='avanzamento_extra_piva').map(metric).join('');$('monitorTimestamp').textContent='Dati: '+time(p.aggiornato_il);$('monitorStation').textContent=`${p.postazione} · Solo visione · 08:30–20:00`;lastRendered=p.aggiornato_il;}
+  function renderSprint(goals) {
+    const completed = goals.filter(goal => goal.residuo === 0).length;
+    $('sprintScore').textContent = `${completed}/${goals.length}`;
+    $('sprintGoals').innerHTML = goals.map(goal => {
+      const done = goal.residuo === 0;
+      return `<div class="sprint-goal${done ? ' is-complete' : ''}">
+        <dt>${e(goal.nome)}</dt>
+        <dd>
+          <div class="sprint-remaining"><strong>${number(goal.residuo)}</strong><span>${done ? 'Centrato' : 'pt'}</span></div>
+          <progress aria-label="Avanzamento ${e(goal.nome)}" max="${goal.obiettivo}" value="${goal.avanzamento}"></progress>
+        </dd>
+      </div>`;
+    }).join('');
+  }
   function renderAgenda(now){
     const agenda=snapshot.agenda;
     const {next,rows,page,pages}=C.agendaPage(agenda.appuntamenti,tick);
@@ -36,7 +50,11 @@
     $('agendaList').innerHTML=rows.map(slot=>`<li class="agenda-row"><time>${time(slot.ora)}</time>
       <div><strong>${e(slot.codice)}</strong>${slot.durata>0?`<small>${number(slot.durata)} min</small>`:''}</div></li>`).join('');
   }
-  function clock(){const now=new Date();tick=Math.floor((now.getTime()-startedAt)/1000);$('monitorClock').textContent=C.rome(now,{hour:'2-digit',minute:'2-digit'});$('monitorDate').textContent=C.rome(now,{weekday:'long',day:'numeric',month:'long',year:'numeric'});if(snapshot){const f=C.freshness(snapshot,now);$('monitorData').hidden=f.hide;$('monitorHealth').textContent=f.text;$('monitorHealth').className='monitor-health'+(f.error?' is-error':f.stale?' is-stale':'');if(!f.hide)renderAgenda(now);}fit();}
+  function clock(){const now=new Date();tick=Math.floor((now.getTime()-startedAt)/1000);$('monitorClock').textContent=C.rome(now,{hour:'2-digit',minute:'2-digit'});$('monitorDate').textContent=C.rome(now,{weekday:'long',day:'numeric',month:'long',year:'numeric'});if(snapshot){const f=C.freshness(snapshot,now);$('monitorData').hidden=f.hide;$('monitorHealth').textContent=f.text;$('monitorHealth').className='monitor-health'+(f.error?' is-error':f.stale?' is-stale':'');
+    const showSprint = !f.hide && !!snapshot.sprint;
+    $('monitorSprint').hidden = !showSprint;
+    $('monitorMonth').hidden = showSprint;
+    if(!f.hide)renderAgenda(now);}fit();}
   async function poll(){
     if(!local)return;
     let processing=false;
@@ -57,7 +75,10 @@
             ? {...snapshot,verificato_il:incoming.verificato_il,postazione:incoming.postazione}
             : window.MiroxMonitorReport.build(incoming)
           : incoming;
-        if(lastRendered!==snapshot.aggiornato_il)render(snapshot);
+        if(lastRendered!==snapshot.aggiornato_il){
+          render(snapshot);
+          if(snapshot.sprint)renderSprint(snapshot.sprint);
+        }
       }
       else if(!snapshot){$('monitorHealth').textContent=state.errore || 'In attesa del primo aggiornamento...';}
       clock();pageHealthy=pairing||!!snapshot;pageBroken=false;
