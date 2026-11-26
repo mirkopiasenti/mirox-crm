@@ -1,6 +1,21 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-23. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
+Aggiornato:2026-11-25. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
+
+## Subentri, caselle del codice cliente —25/11, in locale
+
+- Ripristinate le dieci caselle originali nei quattro percorsi con modulo. Oltre dieci caratteri il codice si distribuisce in gruppi consecutivi centrati nelle caselle, fino al limite già supportato di 40. Il modello WindTre rimane intatto. La ripresa di una chiusura interrotta riconosce il PDF già caricato solo se coincide byte per byte con quello generato dalla stessa bozza con uno dei due layout.
+- Build e 909/909 test in copia isolata, di cui 39 Subentri. Poppler e confronto pixel confermano tutte le linee originali in otto render, compresi `P1010637274`, simboli, zeri iniziali e limite di 40 caratteri. README, AGENTS e databaseREADME aggiornati. Correzione applicativa senza migration, da pubblicare su richiesta.
+
+## Anteprima Monitor Legnago —24/11
+
+- Verificati via HTTPS pagina, CSS e script del monitor pubblicato. Anteprima verticale 1080×1920 con Day by Day, agenda e mensile, popolata con dati di esempio; nella colonna giornaliera di novembre compaiono Matteo, Mirko e Cerea. HTML statico e PNG consegnati fuori dal repo. Otto test DOM verdi. I valori live e la versione installata richiedono verifica dalla postazione associata.
+
+## Sprint Monitor Legnago —24/11
+
+- Pubblicato “Chiudiamo novembre” in toni di grigio: residui Mobile +30, Fisso +8, Business +12 da EXTRA GARA P.IVA, Luce & Gas +5 da Standard. Base mensile fissata il 24/11 alle 23:01 Europe/Rome e conservata nella proiezione riservata. Dal 1° dicembre Europe/Rome ritorna il riquadro precedente. Day by Day e agenda conservati.
+- Migration sorgente `20261124215619_monitor_sprint_novembre.sql`, applicata/riletta come `20261124220113`. RLS e assenza di grant verificati, quattro basi rilette. Build e suite 907/907 in copia isolata, 79 verifiche SQL PGlite includono riservatezza, revisione e trasporto v2. DOM verifica punti decimali, rettifica e passaggio a dicembre.
+- Push richiesto `034fc66` su main. Netlify online alle 23:03 Europe/Rome, verificati manifest e 12 file per SHA, entrambe le URL HTML, CSS, JS e ZIP. CI `45496990997` verde su Linux e Windows. La TV associata scarica la pagina al prossimo controllo del manifest. Prove private in `.backup-private/sprint-monitor-20261124/`.
 
 ## Upload Contratti, simboli nel codice PDA —23/11, pubblicato
 
@@ -9,12 +24,12 @@ Aggiornato:2026-11-23. Promemoria di ripresa; non autorizza push, attivazioni o 
 - Migration applicata e riletta come `20261123175336` prima del push richiesto. Impronte dei 2.924 contratti e di Controllo Fissi, altri vincoli, indici univoci, trigger, policy e conteggi degli advisor identici. Tutti i 516 codici precedenti rispettano il nuovo formato.
 - Commit runtime `d5e1435` su main, CI `45232731922` verde Linux/Windows e Netlify `6b047de9153430dfe33c29af` online, verificato alle 18:57 Europe/Rome. I due JS e le due URL della pagina corrispondono alla build con la sola riscrittura del link Dashboard. Due API 401 senza sessione. La prossima pratica manuale con simboli può essere inserita dal wizard live.
 
-## Subentri, nuove anagrafiche e codice cliente —22/11
+## Subentri, nuove anagrafiche e codice cliente —22/11, pubblicati
 
 - Nei quattro percorsi con modulo, Invia pratica e Compilazione standard censiscono nel CRM cedente e cessionario mancanti per CF/P.IVA. Si salvano nome/ragione sociale, cluster, referente per Business, recapito e indirizzo pertinente quando disponibili. Schede già presenti conservate. Documenti, IBAN, consensi e codice cliente restano nella pratica. 1928 e storico già chiuso fuori perimetro.
 - RPC INVOKER service-only `subentri_finalizza_con_anagrafiche` rende atomici censimento e chiusura dopo verifica degli allegati e salvataggio PDF. Migration `20261122163641_subentri_censisci_anagrafiche.sql`, applicata e riletta su Supabase come `20261122164822`; niente modifiche a schema/trigger/RLS dell’anagrafica condivisa. Verificati in PGlite permessi, quattro tipi, 1928, schede legacy con spazi/minuscole, rollback, retry, sede legale e profilo operatore.
-- Codice cliente fino a 40 caratteri stampabili con maiuscole/minuscole, zeri, punti e simboli conservati. Fino a dieci usa le caselle, oltre dieci una riga adattata. Render controllato e quattro PDF numerici identici alla versione precedente. Build e 904/904 test, 37 Subentri. README, AGENTS e databaseREADME aggiornati.
-- Push e migration esplicitamente autorizzati. RPC riletta INVOKER service-only, senza variazioni a vincoli, ACL, trigger e RLS delle due tabelle o ai conteggi degli advisor sicurezza. Build, 37 test e SQL sulla copia esatta del runtime. Push e verifica del deploy in corso.
+- Codice cliente fino a 40 caratteri stampabili con maiuscole/minuscole, zeri, punti e simboli conservati. Il rilascio del 22/11 usava una riga adattata oltre dieci caratteri, oggetto della correzione del 25/11. Quattro PDF numerici identici alla versione precedente. Build e 904/904 test, 37 Subentri.
+- Push e migration esplicitamente autorizzati. RPC riletta INVOKER service-only, senza variazioni a vincoli, ACL, trigger e RLS delle due tabelle o ai conteggi degli advisor sicurezza. Push `8fb8616`, CI `45045979868` verde Linux/Windows, Netlify `6b031d20511c5ba9ba7ea813` verificato alle 17:51 Europe/Rome. Due URL HTML, JS/CSS, due API 401 e PDF PEC 404 via percorso statico verificati. Prove HTTP in `.backup-private/release-subentri-anagrafiche-20261122/`. Prossimo passo: normale uso dei subentri con anagrafiche mancanti.
 
 ## Segnalazioni, chiusura Più Sicuri —22/11, pubblicata
 

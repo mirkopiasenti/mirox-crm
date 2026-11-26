@@ -13,7 +13,7 @@ function resolveTemplatePath(filename = 'cessione-mobile-2024-06.pdf') {
   throw new Error('Modello PDF subentri non disponibile');
 }
 function formatDate(value) { return value ? value.split('-').reverse().join('/') : ''; }
-async function generateSubentroPdf(raw, { createdAt = new Date().toISOString() } = {}) {
+async function generateSubentroPdf(raw, { createdAt = new Date().toISOString(), legacyCustomerCodeLayout = false } = {}) {
   const data = validatePayload(raw);
   const source = await PDFDocument.load(fs.readFileSync(resolveTemplatePath()));
   const doc = await PDFDocument.create();
@@ -35,17 +35,32 @@ async function generateSubentroPdf(raw, { createdAt = new Date().toISOString() }
   function drawCustomerCode(page) {
     const code = data.codice_cliente;
     try { font.encodeText(code); } catch (_) { throw new ValidationError('Codice cliente WINDTRE: contiene caratteri non supportati dal modulo'); }
-    if (code.length <= MAP.codice_cliente.cells.length) {
+    const {cells,baseline} = MAP.codice_cliente;
+    if (code.length <= cells.length) {
       grid(page,'codice_cliente',code,7);
       return;
     }
-    // Lascia il bordo del riquadro e sostituisce le divisioni interne con una riga continua.
     const size = 7;
-    const horizontalScale = Math.min(1, 107 / font.widthOfTextAtSize(code, size));
-    page.drawRectangle({x:440, y:page.getHeight()-39.45, width:112, height:10.85, color:rgb(1,1,1)});
-    page.pushOperators(pushGraphicsState(), translate(442,page.getHeight()-MAP.codice_cliente.baseline), scale(horizontalScale,1));
-    page.drawText(code,{x:0,y:0,size,font,color:ink});
-    page.pushOperators(popGraphicsState());
+    const y = page.getHeight()-baseline;
+    if (legacyCustomerCodeLayout) {
+      // Solo per riconoscere i byte già salvati da un retry iniziato prima della correzione.
+      const horizontalScale = Math.min(1, 107 / font.widthOfTextAtSize(code, size));
+      page.drawRectangle({x:440, y:page.getHeight()-39.45, width:112, height:10.85, color:rgb(1,1,1)});
+      page.pushOperators(pushGraphicsState(), translate(442,y), scale(horizontalScale,1));
+      page.drawText(code,{x:0,y:0,size,font,color:ink});
+      page.pushOperators(popGraphicsState());
+      return;
+    }
+    const availableWidth = cells[1]-cells[0]-2;
+    cells.forEach((center,index) => {
+      const word = code.slice(Math.floor(index*code.length/cells.length),Math.floor((index+1)*code.length/cells.length));
+      const width = font.widthOfTextAtSize(word,size);
+      const horizontalScale = Math.min(1,availableWidth/width);
+      const x = center-width*horizontalScale/2;
+      page.pushOperators(pushGraphicsState(),translate(x,y),scale(horizontalScale,1));
+      page.drawText(word,{x:0,y:0,size,font,color:ink});
+      page.pushOperators(popGraphicsState());
+    });
   }
   function phone(page,key,value) {
     const m=MAP[key]; const prefix=value.startsWith('0') ? Math.min(4,value.length-1) : 3;
