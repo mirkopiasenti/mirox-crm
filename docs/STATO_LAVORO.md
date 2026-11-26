@@ -1,11 +1,17 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-25. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
+Aggiornato:2026-11-26. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
 
-## Subentri, caselle del codice cliente —25/11, in locale
+## Subentri, limite codice cliente —26/11
+
+- Nei quattro percorsi con modulo arrivano nel PDF al massimo 10 caratteri stampabili, uno per casella originale. Lettere, zeri, punti e simboli ammessi. Oltre 10 il compilatore segnala l’errore alla conferma senza troncare il valore. Il server blocca sia la nuova bozza sia la generazione da una bozza precedente oltre il limite. I PDF già archiviati restano consultabili. Nessuna migration.
+- Build e 910/910 test in copia isolata, di cui 40 Subentri. Verificati submit senza chiamata API oltre il limite, blocco lato server, PDF valido identico byte per byte e render Poppler delle caselle. Guide aggiornate. Push richiesto dal proprietario.
+
+## Subentri, caselle del codice cliente —pubblicate il 26/11
 
 - Ripristinate le dieci caselle originali nei quattro percorsi con modulo. Oltre dieci caratteri il codice si distribuisce in gruppi consecutivi centrati nelle caselle, fino al limite già supportato di 40. Il modello WindTre rimane intatto. La ripresa di una chiusura interrotta riconosce il PDF già caricato solo se coincide byte per byte con quello generato dalla stessa bozza con uno dei due layout.
-- Build e 909/909 test in copia isolata, di cui 39 Subentri. Poppler e confronto pixel confermano tutte le linee originali in otto render, compresi `P1010637274`, simboli, zeri iniziali e limite di 40 caratteri. README, AGENTS e databaseREADME aggiornati. Correzione applicativa senza migration, da pubblicare su richiesta.
+- Build e 909/909 test in copia isolata, di cui 39 Subentri. Poppler e confronto pixel confermano tutte le linee originali in otto render, compresi `P1010637274`, simboli, zeri iniziali e limite di 40 caratteri. README, AGENTS e databaseREADME aggiornati. Correzione applicativa senza migration.
+- Push richiesto `b67d9f8` su main. CI `45791213307` verde su Linux e Windows. Netlify `6b07fa18bf73bf95ba476539` verificato alle 10:23 Europe/Rome tramite SHA pubblicato; due URL HTML, due JS e CSS corrispondono alla build salvo il link Dashboard riscritto da Netlify. Due API 401 senza sessione e accesso statico al PDF PEC 404. Prove in `.backup-private/release-subentri-caselle-20261126/`. Prossimo passo: normale uso dei moduli.
 
 ## Anteprima Monitor Legnago —24/11
 

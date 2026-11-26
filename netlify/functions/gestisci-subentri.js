@@ -149,13 +149,10 @@ async function validateFile(file,manifest) {
     if(file.buffer.length<4||!file.buffer.subarray(0,3).equals(Buffer.from([255,216,255]))) fail('Immagine JPEG non valida');
   } else if(!file.buffer.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) fail('Immagine PNG non valida');
 }
-async function downloadStoredFile(supabase,path) {
+async function downloadVerified(supabase,path,hash,size) {
   const result=await supabase.storage.from(BUCKET).download(path);
   if(result.error||!result.data) fail('Allegato non disponibile: riprova il caricamento prima di generare',409);
-  return Buffer.from(await result.data.arrayBuffer());
-}
-async function downloadVerified(supabase,path,hash,size) {
-  const bytes=await downloadStoredFile(supabase,path);
+  const bytes=Buffer.from(await result.data.arrayBuffer());
   if((size!==undefined&&bytes.length!==size)||digest(bytes)!==hash) fail('Verifica dell’allegato non riuscita: riprova il caricamento',409);
   return bytes;
 }
@@ -187,16 +184,11 @@ async function finalize({supabase,auth,body}) {
   const pdf=await generateSubentroPdf(row.dati_compilazione,{createdAt:row.created_at});
   if(pdf.buffer.length>MAX_FILE) fail('Il PDF generato supera il limite del documento');
   const path=`${row.storage_prefix}/subentro.pdf`;
-  let hash=digest(pdf.buffer);
+  const hash=digest(pdf.buffer);
   const result=await supabase.storage.from(BUCKET).upload(path,pdf.buffer,{contentType:'application/pdf',upsert:false,metadata:{created_by:auth.user.id,subentro_id:row.id}});
   if(result.error) {
     if(!/already exists|duplicate|resource.*exists/i.test(String(result.error.message||result.error.error||''))) throw result.error;
-    const stored=await downloadStoredFile(supabase,path);
-    if(!stored.equals(pdf.buffer)) {
-      const prior=await generateSubentroPdf(row.dati_compilazione,{createdAt:row.created_at,legacyCustomerCodeLayout:true});
-      if(!stored.equals(prior.buffer)) fail('Verifica del PDF non riuscita: riprova il caricamento',409);
-      hash=digest(stored);
-    }
+    await downloadVerified(supabase,path,hash,pdf.buffer.length);
   }
   checkError(await supabase.rpc('subentri_finalizza_con_anagrafiche',{
     p_id:row.id,p_operatore:auth.user.id,p_pdf_sha256:hash,

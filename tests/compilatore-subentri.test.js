@@ -51,23 +51,26 @@ test('subentri: PDF identico nei retry della stessa bozza, firme non compilate',
   const options={createdAt:'2026-10-18T10:00:00Z'};const first=await generateSubentroPdf(sample(),options);const second=await generateSubentroPdf(sample(),options);assert.equal(hash(first.buffer),hash(second.buffer));
   const pdf=await PDFDocument.load(first.buffer);const text=drawnText(normalizedText(pdf,0));assert.doesNotMatch(text,/FIRMA|DOMICILIAZIONE|CARTA DI CREDITO/);
 });
-test('subentri: codice cliente testuale conservato integro anche oltre le caselle del PDF',async()=>{
-  for(const code of ['00Ab.1/_-#','P1010637274','w3.000123/AB_#-','W'.repeat(40)]) {
+test('subentri: codice cliente testuale fino a dieci caratteri conservato nel PDF',async()=>{
+  for(const code of ['A','00Ab.1/_-#','P101063727','W'.repeat(10)]) {
     const raw={...sample(5),codice_cliente:` ${code} `};
     assert.equal(Core.validatePayload(raw).codice_cliente,code);
     const {buffer}=await generateSubentroPdf(raw);
     const pdf=await PDFDocument.load(buffer);
     for(let page=0;page<2;page++) assert.ok(drawnText(normalizedText(pdf,page)).includes(code));
   }
-  assert.throws(()=>Core.validatePayload({...sample(),codice_cliente:'A'.repeat(41)}),/massimo 40 caratteri/);
   assert.throws(()=>Core.validatePayload({...sample(),codice_cliente:'A\n1'}),/non supportati/);
 });
-test('subentri: il codice di 11 caratteri è scritto nelle dieci caselle originali',async()=>{
-  const {buffer}=await generateSubentroPdf({...sample(1),codice_cliente:'P1010637274'});
+test('subentri: un carattere per casella e generazione bloccata oltre dieci',async()=>{
+  const raw={...sample(1),codice_cliente:'P101063727'};
+  const {buffer}=await generateSubentroPdf(raw);
   const pdf=await PDFDocument.load(buffer);
   const content=normalizedText(pdf,0);
   const runs=[...content.matchAll(/<([\dA-F]+)>\s*Tj/g)].map(match=>Buffer.from(match[1],'hex').toString('latin1'));
-  assert.deepEqual(runs.slice(0,10),['P','1','0','1','0','6','3','7','2','74']);
+  assert.deepEqual(runs.slice(0,10),[...raw.codice_cliente]);
+  const oversized={...raw,codice_cliente:'P1010637274'};
+  assert.throws(()=>Core.validatePayload(oversized),/massimo 10 caratteri/);
+  await assert.rejects(generateSubentroPdf(oversized),/massimo 10 caratteri/);
 });
 test('subentri: manifest richiede le tre categorie, limiti e path generati dal server',()=>{
   const manifest=['identita','tessera_sanitaria','visura'].map(tipo=>({id:crypto.randomUUID(),tipo,nome:'prova.pdf',mime:'application/pdf',size:20,sha256:'a'.repeat(64),storage_path:'../../altro'}));
@@ -214,7 +217,7 @@ test('subentri: flusso completo e retry finale producono una sola pratica con do
 });
 test('subentri: se il censimento fallisce la pratica resta in bozza e il retry riusa il PDF',async()=>{
   const store=memoryStore();
-  const body={action:'create',id,subentro:{...sample(),codice_cliente:'w3.01234567/#'},modalita_compilazione:'standard',documenti:[]};
+  const body={action:'create',id,subentro:{...sample(),codice_cliente:'w3.01234/#'},modalita_compilazione:'standard',documenti:[]};
   assert.equal((await request(store,body)).status,200);
   assert.equal(store.finalizations.length,0);
   store.setFailFinalization(true);
@@ -230,20 +233,45 @@ test('subentri: se il censimento fallisce la pratica resta in bozza e il retry r
   assert.equal(store.files.size,1);
   assert.deepEqual(store.finalizations[1],store.finalizations[0]);
 });
-test('subentri: il retry riconosce i PDF della versione precedente e rifiuta file diversi',async()=>{
+test('subentri: il retry rifiuta un PDF diverso da quello della stessa bozza',async()=>{
   const store=memoryStore();
-  const body={action:'create',id,subentro:{...sample(1),codice_cliente:'P1010637274'},modalita_compilazione:'standard',documenti:[]};
+  const body={action:'create',id,subentro:sample(1),modalita_compilazione:'standard',documenti:[]};
   assert.equal((await request(store,body)).status,200);
   const row=store.rows.get(id);
   const path=`${row.storage_prefix}/subentro.pdf`;
-  const prior=await generateSubentroPdf(body.subentro,{createdAt:row.created_at,legacyCustomerCodeLayout:true});
+  const pdf=await generateSubentroPdf(body.subentro,{createdAt:row.created_at});
   store.files.set(path,Buffer.from('%PDF-non-corrispondente'));
   assert.equal((await request(store,{action:'finalize',id})).status,409);
   assert.equal(store.finalizations.length,0);
-  store.files.set(path,prior.buffer);
+  store.files.set(path,pdf.buffer);
   assert.equal((await request(store,{action:'finalize',id})).status,200);
-  assert.equal(store.finalizations[0].p_pdf_sha256,hash(prior.buffer));
-  assert.deepEqual(store.files.get(path),prior.buffer);
+  assert.equal(store.finalizations[0].p_pdf_sha256,hash(pdf.buffer));
+  assert.deepEqual(store.files.get(path),pdf.buffer);
+});
+test('subentri: codice oltre dieci rifiutato in creazione e nelle bozze precedenti, storico accessibile',async()=>{
+  const store=memoryStore();
+  const body={action:'create',id,subentro:sample(1),modalita_compilazione:'standard',documenti:[]};
+  const longCode='P1010637274';
+  for(const mode of ['standard','invia_pratica']) {
+    const result=await request(store,{...body,modalita_compilazione:mode,subentro:{...body.subentro,codice_cliente:longCode}});
+    assert.equal(result.status,400);
+    assert.match(result.error,/massimo 10 caratteri/);
+  }
+  assert.equal(store.rows.size,0);
+  assert.equal((await request(store,body)).status,200);
+  const row=store.rows.get(id);
+  row.dati_compilazione.codice_cliente=longCode;
+  const result=await request(store,{action:'finalize',id});
+  assert.equal(result.status,400);
+  assert.match(result.error,/massimo 10 caratteri/);
+  assert.equal(store.files.size,0);
+  assert.equal(store.finalizations.length,0);
+  assert.equal(row.stato,'bozza');
+
+  Object.assign(row,{stato:'generato',storage_path:`${row.storage_prefix}/subentro.pdf`});
+  assert.equal((await request(store,{action:'signed_url',id})).status,200);
+  const duplicate=await request(store,{action:'duplicate_data',id});
+  assert.equal(duplicate.subentro.codice_cliente,longCode);
 });
 test('subentri: un errore signed URL non trasforma un salvataggio riuscito in un duplicato',async()=>{
   const store=memoryStore();const {bytes,row}=await draft(store);for(const entry of row.documenti)await upload(store,multipart(row,entry,bytes));

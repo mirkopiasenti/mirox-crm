@@ -54,7 +54,7 @@
   });
   // [nome, etichetta, lunghezza, validazione, facoltativo]
   const FIELDS = Object.freeze({
-    generale: [['codice_cliente', 'Codice cliente WINDTRE', 40, 'cliente']],
+    generale: [['codice_cliente', 'Codice cliente WINDTRE', 10, 'cliente']],
     cedente: [
       ['cedente_nome', 'Nome della persona/delegato', 60],
       ['cedente_cognome', 'Cognome della persona/delegato', 60],
