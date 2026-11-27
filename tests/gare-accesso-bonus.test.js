@@ -2,14 +2,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const core = require('../js/dashboard-report-core');
-const {O,M,contract,repeat,complete,render} = require('./gare-accesso-fixture.cjs');
-const access = (list,period='2026-11') => core.accessoBonusGare(list,O,id=>id==='alias-o'?O:id,period);
+const {O,M,extraMetric,contract,repeat,complete,render} = require('./gare-accesso-fixture.cjs');
+const bonusState = (contrattiMese,extra={}) => ({contrattiMese,metricheGara:[extraMetric],
+  resolveOperatore:id=>id==='alias-o'?O:id,...extra});
+const access = (list,period='2026-11',extra) => core.accessoBonusGare(bonusState(list,extra),O,period);
+const punti = risultato => risultato.soglie.find(s=>s.id==='extra_gara_piva').attuale;
 const metric = {id:6,nome:'PARTITA IVA',tabella:'gara_individuale',tipo_conteggio:'individuale',tipo_compenso:'squadra',regola:{cluster:'Business'}};
 const goal = {metrica_id:6,operatore_id:null,anno:2026,mese:11,obiettivo:45,
   compenso_regola:{tipo:'scaglioni',scaglioni:[{da:35,importo:150,tipo_calcolo:'flat'}]}};
 test('quattro requisiti personali con confine esatto e Fisso Business incluso nel Fisso totale',()=>{
   assert.deepEqual(access(complete()).soglie.map(s=>[s.id,s.obiettivo,s.attuale,s.raggiunta]),[
-    ['fisso',10,10,true],['energia',10,10,true],['mobile_business',10,10,true],['fisso_business',1,1,true]
+    ['fisso',10,10,true],['energia',10,10,true],['extra_gara_piva',10,10,true],['fisso_business',1,1,true]
   ]);
   assert.equal(access(complete()).ammesso,true);
   for(const index of [0,10,20,9]) {
@@ -18,39 +21,70 @@ test('quattro requisiti personali con confine esatto e Fisso Business incluso ne
   }
   assert.equal(access([...complete(),...repeat(50,'Mobile','Business',{operatore_id:M})].filter(c=>c.categoria_snapshot!=='Energia')).ammesso,false);
 });
-test('accesso conta pezzi senza pesi, alias e tutti i Mobile Business; esclude Consumer, CB e reinserimenti',()=>{
-  const names=['Professional Staff','Professional Full','Professional Country','Professional Dati','FWA Indoor','TIED','UNTIED','Nuova offerta'];
-  const list=complete().filter(c=>c.categoria_snapshot!=='Mobile');
-  list.push(...names.map(nome_offerta_snapshot=>contract('Mobile','Business',{nome_offerta_snapshot,operatore_id:'alias-o'})),
-    ...repeat(2,'Mobile','Business',{codice_rivenditore:core.CEREA}),
-    ...repeat(20,'Mobile'),...repeat(20,'Customer Base','Business'),
-    ...repeat(20,'Mobile','Business',{stato_inserimento:'reinserimento'}),
-    ...repeat(20,'Mobile','Business',{operatore_id:M}));
-  list[0]={...list[0],nome_opzione_snapshot:'Seconda linea',punteggio_gara_totale:100};
-  list.push(contract('Fisso','Business',{stato_inserimento:'reinserimento',reinserimento_fisso_finalizzato:true}));
-  const result=access(list);
-  assert.equal(result.ammesso,true);
-  assert.deepEqual(result.soglie.map(s=>s.attuale),[10,10,10,1]);
+test('la soglia personale usa gli stessi punteggi e filtri dell’Extra Gara P.IVA',()=>{
+  const business = (id,categoria,punteggio,extra={}) => contract(categoria,'Business',
+    {id,punteggio_extra_gara_totale:punteggio,...extra});
+  const list=[
+    business('mobile','Mobile',1.25,{operatore_id:'alias-o'}),
+    business('energia','Energia',1.5),
+    business('fisso','Fisso',1.25),
+    business('assicurazioni','Assicurazioni',1),
+    business('cerea','Mobile',20,{codice_rivenditore:core.CEREA}),
+    business('reinserimento','Mobile',20,{stato_inserimento:'reinserimento'}),
+    business('altro-operatore','Mobile',20,{operatore_id:M}),
+    business('consumer','Mobile',20,{cluster_cliente:'Consumer'}),
+    business('rifiutata','Energia',20),
+    business('annullata','Energia',20),
+    business('fisso-pendente','Fisso',20),
+    business('fisso-ko','Fisso',20),
+    business('firmato-nel-mese','Allarmi',20),
+    business('da-attivare','Allarmi',20)
+  ];
+  const statoPostVendita={
+    fisso:new Map([['fisso','In Attivazione'],['fisso-ko','KO']]),
+    energia:new Map([['rifiutata','Rifiutato'],['annullata','Annullato']]),
+    allarmi:new Map([['allarme-precedente','OK'],['firmato-nel-mese','OK'],['da-attivare','In Attivazione']])
+  };
+  const allarmiAttivatiMese=[business('allarme-precedente','Allarmi',5,{data_contratto:'2026-10-28T10:00:00Z'})];
+  const state=bonusState(list,{anno:2026,mese:11,operatoriAttiviMese:[{id:O}],obiettivi:[],
+    statoPostVendita,allarmiAttivatiMese});
+  assert.equal(punti(core.accessoBonusGare(state,O,'2026-11')),10);
+  assert.equal(core.monthlyRows(state,'2026-11-27')[0].punteggio,10);
+  assert.equal(punti(access(list,'2026-11',{statoPostVendita})),5,'un OK senza attivazione nel mese non vale');
+  assert.equal(punti(access(list,'2026-11',{metricheGara:[],statoPostVendita,allarmiAttivatiMese})),0);
+  const html=render({contracts:list,statoPostVendita,allarmiAttivatiMese});
+  assert.match(html,/<td>Extra Gara P\.IVA<\/td><td>10 \/ 8,75 punti<\/td><td class="esito-ko">KO/);
+});
+test('10 pezzi con meno di 10 punti non bastano e i centesimi raggiungono la soglia esatta',()=>{
+  const base=complete().filter(c=>c.categoria_snapshot!=='Mobile');
+  const discreti=repeat(10,'Mobile','Business',{punteggio_extra_gara_totale:0});
+  assert.equal(access([...base,...discreti]).ammesso,false);
+  const points=[...base,contract('Customer Base','Business',{punteggio_extra_gara_totale:9.99})];
+  assert.equal(punti(access(points)),9.99);
+  assert.equal(access(points).ammesso,false);
+  const exact=[...points,contract('Mobile','Business',{punteggio_extra_gara_totale:0.01})];
+  assert.equal(punti(access(exact)),10);
+  assert.equal(access(exact).ammesso,true);
 });
 test('nessuna retroattivita: ottobre senza requisiti; da novembre anche nei prossimi anni, UUID fuori periodo esclusi',()=>{
   assert.deepEqual(access([],'2026-10'),{applicabile:false,ammesso:true,soglie:[]});
   for(const periodo of ['2026-11','2026-12','2027-01','2100-12']) assert.equal(access([],periodo).ammesso,false);
-  const result=core.accessoBonusGare(complete().map(c=>({...c,operatore_id:'0284cf55-d97a-4709-9ece-d3f4894b80a7'})),
-    '0284cf55-d97a-4709-9ece-d3f4894b80a7',id=>id,'2026-11');
+  const result=core.accessoBonusGare(bonusState(complete().map(c=>({...c,operatore_id:'0284cf55-d97a-4709-9ece-d3f4894b80a7'}))),
+    '0284cf55-d97a-4709-9ece-d3f4894b80a7','2026-11');
   assert.ok(result.soglie.every(s=>s.attuale===0));
   assert.throws(()=>access([],'novembre'),/Periodo/);
 });
-test('bonus squadra 150 visibile con 5 SIM personali, totale0 e indicatore sulla riga Partita IVA',()=>{
+test('bonus squadra 150 visibile con 5 punti Extra personali, totale0 e indicatore sulla riga Partita IVA',()=>{
   const contracts=[...complete().filter(c=>c.categoria_snapshot!=='Mobile'),...repeat(5,'Mobile','Business'),
     ...repeat(29,'Mobile','Business',{operatore_id:M})];
   const result=core.valutaGara(metric,goal,contracts,O,id=>id,'2026-11');
   assert.equal(result.attualeSquadra,35);assert.equal(result.euro,150);
   const html=render({contracts,metrics:[metric],goals:[goal]});
   assert.match(html,/PARTITA IVA <span class="gara-accesso-warning"[^>]*>!<\/span>/);
-  assert.match(html,/P\.iva Mobile 5\/10 pz/);
+  assert.match(html,/Extra Gara P\.IVA 5\/10 punti/);
   assert.match(html,/class="compenso">€ 150</);
   assert.match(html,/compenso-tot">€ 0</);
-  assert.match(html,/<td>P\.iva Mobile<\/td><td>10 \/ 5 pz\.<\/td><td class="esito-ko">KO/);
+  assert.match(html,/<td>Extra Gara P\.IVA<\/td><td>10 \/ 5 punti<\/td><td class="esito-ko">KO/);
   assert.equal((html.match(/class="esito-ok">OK/g)||[]).length,3);
   assert.match(html,/Totale a zero/);
   // La scheda intera viene esportata, compreso il riepilogo che segue il totale.

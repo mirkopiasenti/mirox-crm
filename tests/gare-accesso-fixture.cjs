@@ -5,8 +5,10 @@ const vm = require('node:vm');
 const core = require('../js/dashboard-report-core');
 const O = '00000000-0000-4000-8000-000000000001';
 const M = '53f8fdfc-0595-4864-af49-5090bf3177db';
+const extraMetric = {id:21,nome:'EXTRA GARA P.IVA',tabella:'avanzamento_extra_piva',regola:{cluster:'Business'}};
 const contract = (categoria, cluster = 'Consumer', extra = {}) => ({
   operatore_id: O, categoria_snapshot: categoria, cluster_cliente: cluster,
+  punteggio_extra_gara_totale: categoria === 'Mobile' && cluster === 'Business' ? 1 : 0,
   stato_inserimento: 'inserimento', codice_rivenditore: core.LEGNAGO, ...extra
 });
 const repeat = (n, categoria, cluster, extra) => Array.from({length:n}, () => contract(categoria, cluster, extra));
@@ -15,7 +17,8 @@ const complete = () => [...repeat(9, 'Fisso'), contract('Fisso', 'Business'),
 const source = fs.readFileSync(path.join(__dirname, '../moduli/dashboard_pezzi.html'), 'utf8');
 const script = [...source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
   .map(m => m[1]).find(s => s.includes('const sb')).split('(function init()')[0];
-function render({contracts = complete(), metrics, goals, month = 11, year = 2026, operators = [{id:O,nome:'Operatore di prova'}]} = {}) {
+function render({contracts = complete(), metrics, goals, month = 11, year = 2026,
+  operators = [{id:O,nome:'Operatore di prova'}], allarmiAttivatiMese, statoPostVendita} = {}) {
   const nodes = new Map();
   const document = {getElementById(id) {
     if (!nodes.has(id)) nodes.set(id, {innerHTML:'',textContent:'',querySelectorAll:()=>[]});
@@ -26,8 +29,9 @@ function render({contracts = complete(), metrics, goals, month = 11, year = 2026
   const context = vm.createContext({db:{},document,MiroxDashboardReport:core,MiroxSafe:safe.MiroxSafe});
   vm.runInContext(script, context);
   Object.assign(vm.runInContext('DPState', context), {anno:year,mese:month,contrattiMese:contracts,
-    metricheGara:metrics || [], obiettivi:goals || [], operatoriInGara:operators,resolveOperatore:id=>id});
+    metricheGara:[...(metrics || []),extraMetric], obiettivi:goals || [], operatoriInGara:operators,
+    resolveOperatore:id=>id, allarmiAttivatiMese, statoPostVendita});
   vm.runInContext('renderGare()', context);
   return nodes.get('tabContentGare').innerHTML;
 }
-module.exports = {O,M,contract,repeat,complete,render,source};
+module.exports = {O,M,extraMetric,contract,repeat,complete,render,source};

@@ -267,6 +267,8 @@ test('W3 Protetti P.IVA attribuisce i 5 punti al mese di attivazione in Dashboar
     assert.equal(rows.find(r=>r.id===6).punteggio,expected);
     assert.equal(rows.find(r=>r.nome==='Allarmi').attuale,month===10?6:1);
     assert.equal(state.contrattiMese.some(c=>c.id==='firmato-ottobre'),month===10);
+    const accesso=core.accessoBonusGare(state,'solo-attivazioni',date);
+    assert.equal(accesso.soglie.find(s=>s.id==='extra_gara_piva')?.attuale,month===10?undefined:5);
     const target=await reports.buildReports(db,date,now);
     assert.equal(target.mensile.find(r=>r.nome==='EXTRA GARA P.IVA').punteggio,expected);
     assert.equal(target.mensile.find(r=>r.nome==='EXTRA GARA P.IVA').pezzi,expected/5);
@@ -350,14 +352,12 @@ test('Luce & Gas P.IVA ed Extra escludono Annullato e Rifiutato da pezzi e punti
   assert.equal(rows.find(r=>r.nome==='Energia').attuale,6);
   assert.equal(rows.find(r=>r.nome==='Energia').punteggio,6);
   assert.equal(rows.find(r=>r.nome==='Energia').conteggioNetto,3);
-  const html=fs.readFileSync(require('node:path').join(__dirname,'../moduli/dashboard_pezzi.html'),'utf8');
-  const script=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(s=>s.includes('const sb'));
-  const ctx=vm.createContext({db:{},MiroxDashboardReport:core});
-  vm.runInContext(script.split('(function init()')[0],ctx);
-  Object.assign(vm.runInContext('DPState',ctx),state);
-  for(const [id,stato] of cases) {
-    assert.equal(ctx.isContrattoValidoAvanzamentoPiva({id,categoria_snapshot:'Energia'}),!['Annullato','Rifiutato'].includes(stato));
-  }
+  const {ctx}=pageContext('moduli/dashboard_pezzi.html',fakeDb(f));
+  const browserState=vm.runInContext('DPState',ctx);
+  Object.assign(browserState,{anno:2026,mese:10});
+  await ctx.caricaDatiMensili();
+  const browser=core.monthlyRows(browserState,'2026-10-05');
+  assert.equal(browser.find(r=>r.nome==='EXTRA GARA P.IVA').punteggio,5);
 });
 test('Netto Luce & Gas: solo stati valorizzati validi nel perimetro mensile, data CSV globale e resa dopo Eccedenza',async()=> {
   const f=fixture();

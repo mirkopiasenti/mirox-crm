@@ -175,25 +175,29 @@ function valutaGara(metrica, obiettivo, contratti, operatoreId, resolveOperatore
     descrizione: gara.descrizione ?? metrica.descrizione ?? ''
   };
 }
-// Riceve la stessa produzione del mese di firma usata da valutaGara.
-// I requisiti di accesso sono pezzi personali, indipendenti dai pesi delle gare.
-function accessoBonusGare(contratti, operatoreId, resolveOperatore = id => id, periodo) {
+// I requisiti Fisso ed Energia usano la produzione delle Gare. I punti Extra
+// usano gli stessi contratti e la stessa metrica dell'Avanzamento P.IVA.
+function accessoBonusGare(state, operatoreId, periodo) {
   const mese = reportPeriod(periodo);
   if (mese < '2026-11') return { applicabile: false, ammesso: true, soglie: [] };
+  const { contrattiMese, metricheGara, resolveOperatore } = state;
   const canonico = resolveOperatore(operatoreId);
-  const personali = (contratti || []).filter(c =>
-    isReportOperator(canonico, mese) && c.stato_inserimento !== 'reinserimento'
-    && resolveOperatore(c.operatore_id) === canonico);
+  const ammissibile = isReportOperator(canonico, mese);
+  const personale = c => resolveOperatore(c.operatore_id) === canonico;
+  const personali = ammissibile ? contrattiMese.filter(c =>
+    c.stato_inserimento !== 'reinserimento' && personale(c)) : [];
+  const extra = metricheGara.find(m => m.tabella === 'avanzamento_extra_piva');
+  const puntiExtra = ammissibile && extra
+    ? sommaPuntiExtra(produzionePiva(state).filter(c => personale(c) && matchRegola(c, extra.regola))) : 0;
+  const pezzi = regola => personali.filter(c => matchRegola(c, regola)).length;
   const requisiti = [
-    ['fisso', 'Fisso', 10, { categoria: 'Fisso', cluster_in: ['Consumer', 'Business'] }],
-    ['energia', 'Luce&Gas (Consumer + Business)', 10, { categoria: 'Energia', cluster_in: ['Consumer', 'Business'] }],
-    ['mobile_business', 'P.iva Mobile', 10, { categoria: 'Mobile', cluster: 'Business' }],
-    ['fisso_business', 'P.iva Fisso', 1, { categoria: 'Fisso', cluster: 'Business' }]
+    ['fisso', 'Fisso', 10, pezzi({ categoria: 'Fisso', cluster_in: ['Consumer', 'Business'] }), 'pz.'],
+    ['energia', 'Luce&Gas (Consumer + Business)', 10, pezzi({ categoria: 'Energia', cluster_in: ['Consumer', 'Business'] }), 'pz.'],
+    ['extra_gara_piva', 'Extra Gara P.IVA', 10, puntiExtra, 'punti'],
+    ['fisso_business', 'P.iva Fisso', 1, pezzi({ categoria: 'Fisso', cluster: 'Business' }), 'pz.']
   ];
-  const soglie = requisiti.map(([id, nome, obiettivo, regola]) => {
-    const attuale = personali.filter(c => matchRegola(c, regola)).length;
-    return { id, nome, obiettivo, attuale, raggiunta: attuale >= obiettivo };
-  });
+  const soglie = requisiti.map(([id, nome, obiettivo, attuale, unita]) =>
+    ({ id, nome, obiettivo, attuale, unita, raggiunta: attuale >= obiettivo }));
   return { applicabile: true, ammesso: soglie.every(s => s.raggiunta), soglie };
 }
 function easter(year) {
@@ -257,28 +261,33 @@ function monthlyState(contracts,metrics,objectives,profiles,post,activations,yea
     fissoFTTCAttivatiMese:activations.filter(c=>c.categoria_snapshot==='Fisso'),
     allarmiAttivatiMese:activations.filter(c=>c.categoria_snapshot==='Allarmi')};
 }
+function produzionePiva(state) {
+  const stato=state.statoPostVendita;
+  // Per la P.IVA gli Allarmi OK arrivano dalla selezione del mese di attivazione.
+  return state.contrattiMese.filter(c=>c.categoria_snapshot!=='Allarmi')
+    .concat(state.allarmiAttivatiMese||[]).filter(c=> {
+    if(!inMonthlyScope(c)) return false;
+    if(c.categoria_snapshot==='Fisso') return ['In Attivazione','Attivo'].includes(stato?.fisso.get(c.id));
+    if(c.categoria_snapshot==='Energia') return !['Rifiutato','Annullato'].includes(stato?.energia.get(c.id));
+    if(c.categoria_snapshot==='Allarmi') return stato?.allarmi.get(c.id)==='OK';
+    return true;
+  });
+}
+function sommaPuntiExtra(contratti) {
+  // I punti sono salvati con due decimali. I centesimi evitano errori sulla soglia.
+  return contratti.reduce((sum,c)=>sum+Math.round(Number(c.punteggio_extra_gara_totale||0)*100),0)/100;
+}
 function monthlyRows(state,asOf) {
   const year=state.anno,month=state.mese;
-  // Per la P.IVA gli Allarmi OK arrivano dalla selezione del mese di attivazione.
-  const contrattiPiva=state.contrattiMese.filter(c=>c.categoria_snapshot!=='Allarmi')
-    .concat(state.allarmiAttivatiMese||[]);
-  const validPiva=c=> {
-    const status=state.statoPostVendita;
-    if(c.categoria_snapshot==='Fisso') return ['In Attivazione','Attivo'].includes(status.fisso.get(c.id));
-    if(c.categoria_snapshot==='Energia') return !['Rifiutato','Annullato'].includes(status.energia.get(c.id));
-    if(c.categoria_snapshot==='Allarmi') return status.allarmi.get(c.id)==='OK';
-    return true;
-  };
+  const contrattiPiva=produzionePiva(state);
   return state.metricheGara.filter(m=>m.tabella.startsWith('avanzamento_')).map(m=> {
     const piva=m.tabella!=='avanzamento_standard';
     const standardFissi=!piva && m.regola?.categoria==='Fisso';
-    const contratti=piva?contrattiPiva:state.contrattiMese;
+    const contratti=piva?contrattiPiva:state.contrattiMese.filter(c=>inMonthlyScope(c,standardFissi));
     let lists=state.operatoriAttiviMese.map(op=>contratti.filter(c=>
-      inMonthlyScope(c,standardFissi)
-      && state.resolveOperatore(c.operatore_id)===op.id && matchRegola(c,m.regola)));
-    if(piva) lists=lists.map(list=>list.filter(validPiva));
-    else if(m.regola?.categoria==='Energia') lists=lists.map(list=>list.filter(c=>state.statoPostVendita.energia.get(c.id)!=='Rifiutato'));
-    else if(m.regola?.categoria==='Allarmi') lists=lists.map(list=>list.filter(c=>['In Attivazione','OK'].includes(state.statoPostVendita.allarmi.get(c.id))));
+      state.resolveOperatore(c.operatore_id)===op.id && matchRegola(c,m.regola)));
+    if(!piva && m.regola?.categoria==='Energia') lists=lists.map(list=>list.filter(c=>state.statoPostVendita.energia.get(c.id)!=='Rifiutato'));
+    else if(!piva && m.regola?.categoria==='Allarmi') lists=lists.map(list=>list.filter(c=>['In Attivazione','OK'].includes(state.statoPostVendita.allarmi.get(c.id))));
     else if(standardFissi) lists=lists.map((list,index)=>[
       // Il controllo nasce dopo la verifica: prima, il Fisso e' ancora pendente.
       ...list.filter(c=>state.tecnologiaFisso.get(c.id)!=='FTTC' && (!state.statoPostVendita.fisso.has(c.id)
@@ -287,8 +296,9 @@ function monthlyRows(state,asOf) {
     ]);
     const conteggi=lists.map(list=>list.reduce((sum,c)=>sum+pesoContratto(c,m.regola),0));
     const attuale=conteggi.reduce((a,b)=>a+b,0);
-    const field=piva?'punteggio_extra_gara_totale':({Assicurazioni:'punteggio_gara_totale',Fisso:'punteggio_gara_totale'}[m.regola?.categoria]||m.punteggio_campo);
-    const punteggio=field?lists.reduce((sum,list)=>sum+list.reduce((a,c)=>a+Number(c[field]||0),0),0):attuale;
+    const field={Assicurazioni:'punteggio_gara_totale',Fisso:'punteggio_gara_totale'}[m.regola?.categoria]||m.punteggio_campo;
+    const punteggio=piva?sommaPuntiExtra(lists.flat())
+      :field?lists.reduce((sum,list)=>sum+list.reduce((a,c)=>a+Number(c[field]||0),0),0):attuale;
     const o=state.obiettivi.find(o=>o.metrica_id===m.id && !o.operatore_id);
     const obiettivo=o?.obiettivo??0;
     const netto=!piva && m.regola?.categoria==='Energia'

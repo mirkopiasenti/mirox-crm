@@ -894,28 +894,6 @@ function contaMatchTotale(metrica) {
   return contaConPesi(contrattiMatchTotali(metrica), metrica);
 }
 
-// Filtro post-vendita per Avanzamento P.IVA / Extra Gara P.IVA:
-// Fisso   -> stato IN ('In Attivazione','Attivo')
-// Energia -> stato diverso da 'Rifiutato' e 'Annullato' (NULL ammesso)
-// Allarmi -> stato = 'OK'
-// Altre categorie -> sempre valido
-function isContrattoValidoAvanzamentoPiva(c) {
-  const cat = c.categoria_snapshot;
-  if (cat === 'Fisso') {
-    const s = DPState.statoPostVendita?.fisso.get(c.id);
-    return s === 'In Attivazione' || s === 'Attivo';
-  }
-  if (cat === 'Energia') {
-    const s = DPState.statoPostVendita?.energia.get(c.id);
-    return !['Rifiutato', 'Annullato'].includes(s);
-  }
-  if (cat === 'Allarmi') {
-    const s = DPState.statoPostVendita?.allarmi.get(c.id);
-    return s === 'OK';
-  }
-  return true;
-}
-
 // ============================================================
 // TAB "GARE INDIVIDUALI"
 // ============================================================
@@ -928,9 +906,10 @@ function renderGare() {
   }
   const metriche = DPState.metricheGara.filter(m => m.tabella === 'gara_individuale');
   const periodo = `${DPState.anno}-${String(DPState.mese).padStart(2,'0')}`;
+  const fmtSoglia = valore => valore.toLocaleString('it-IT', { maximumFractionDigits: 2 });
   let html = '<div class="gare-grid">';
   DPState.operatoriInGara.forEach(op => {
-    const accesso = MiroxDashboardReport.accessoBonusGare(DPState.contrattiMese, op.id, DPState.resolveOperatore, periodo);
+    const accesso = MiroxDashboardReport.accessoBonusGare(DPState, op.id, periodo);
     let totCompenso = 0;
     let bodyHtml = '';
     const gare = metriche.map(m => {
@@ -957,9 +936,9 @@ function renderGare() {
       const hasDesc = !!String(c.descrizione).trim();
       const iconaInfo = hasDesc ? ' <span class="mx-info-dot" title="Come funziona questa gara">i</span>' : '';
       const requisitiRiga = m.nome === 'FISSO' ? ['fisso'] : m.nome === 'LUCE & GAS' ? ['energia']
-        : m.nome === 'PARTITA IVA' ? ['mobile_business', 'fisso_business'] : [];
+        : m.nome === 'PARTITA IVA' ? ['extra_gara_piva', 'fisso_business'] : [];
       const mancanti = accesso.soglie.filter(s => requisitiRiga.includes(s.id) && !s.raggiunta);
-      const motivo = 'Totale compensi bloccato: ' + mancanti.map(s => `${s.nome} ${s.attuale}/${s.obiettivo} pz`).join('; ');
+      const motivo = 'Requisiti mancanti per il totale compensi. ' + mancanti.map(s => `${s.nome} ${fmtSoglia(s.attuale)}/${s.obiettivo} ${s.unita}`).join(', ');
       const avviso = haGuadagno && mancanti.length ? ` <span class="gara-accesso-warning" role="img" aria-label="${escapeHtml(motivo)}" title="${escapeHtml(motivo)}">!</span>` : '';
       const nomeCol = escapeHtml(m.nome) + avviso + badgeSquadra + iconaInfo;
       const rowAttr = hasDesc ? ` class="clickable" data-metrica-id="${m.id}" data-descrizione="${escapeHtml(c.descrizione)}"` : '';
@@ -993,8 +972,8 @@ function renderGare() {
       ${accesso.applicabile ? `<section class="gara-accesso" aria-label="Soglie minime per accesso bonus">
         <h3>SOGLIE MINIME PER ACCESSO BONUS</h3>
         <table aria-label="Requisiti personali del mese">
-          <thead><tr><th>Requisito personale</th><th>Soglia / inserito</th><th>Esito</th></tr></thead>
-          <tbody>${accesso.soglie.map(s => `<tr><td>${escapeHtml(s.nome)}</td><td>${s.obiettivo} / ${s.attuale} pz.</td><td class="${s.raggiunta ? 'esito-ok' : 'esito-ko'}">${s.raggiunta ? 'OK' : 'KO'}</td></tr>`).join('')}</tbody>
+          <thead><tr><th>Requisito personale</th><th>Soglia / attuale</th><th>Esito</th></tr></thead>
+          <tbody>${accesso.soglie.map(s => `<tr><td>${escapeHtml(s.nome)}</td><td>${s.obiettivo} / ${fmtSoglia(s.attuale)} ${s.unita}</td><td class="${s.raggiunta ? 'esito-ok' : 'esito-ko'}">${s.raggiunta ? 'OK' : 'KO'}</td></tr>`).join('')}</tbody>
         </table>
         <p class="gara-accesso-nota${accesso.ammesso ? '' : ' bloccato'}">${accesso.ammesso
           ? 'Tutte le soglie personali raggiunte. Bonus inclusi nel totale.'

@@ -256,13 +256,18 @@ PGlite0.5.13 con fixture indipendente verifica preflight/rollback/retry, confine
 storico/altri popup invariati e rollback su soglia/descrizione/riga inattesa o
 mutazioni degli importi/catalogo. Dipendenza QA temporanea, non runtime.
 
-Le quattro soglie personali che bloccano il totale (Fisso10, Energia10,
-Mobile Business10, Fisso Business1) sono nel core `accessoBonusGare`, con
-decorrenza dal periodo selezionato2026-11. Stesso input mensile delle Gare,
-entrambi i negozi, alias, reinserimenti esclusi, un contratto=un pezzo; Mobile
-Business comprende ogni offerta della categoria Mobile, non Customer Base.
-Ogni riga mantiene il proprio compenso, compresi bonus squadra. Solo il totale
-si azzera se manca un requisito; riepilogo e avvisi sono inclusi nel PNG.
+Le soglie personali dal periodo novembre 2026 sono nel core
+`accessoBonusGare`. Fisso10, Luce & Gas10 e Fisso Business1 usano i pezzi
+dei due negozi e il mese di firma, escludendo i reinserimenti. Dal 27/11 il
+quarto requisito è 10 punti personali Extra Gara P.IVA. Il core legge la
+metrica attiva `avanzamento_extra_piva` e riusa il perimetro e le regole
+dell’Avanzamento P.IVA. I punti sono la somma di
+`vendita_contratti.punteggio_extra_gara_totale` alla precisione di due decimali.
+Per gli allarmi vale `post_vendita_controllo_allarmi.data_attivazione`.
+Dashboard e PNG mostrano pezzi o punti secondo il requisito. Gli importi delle
+righe restano visibili quando una soglia porta il totale a zero. La rettifica
+del 27/11 non richiede scritture dati o migrazioni.
+
 Questi override sono successivi alla replica: non rilanciare vecchi script
 per sovrascrivere le configurazioni nuove. Renderer e popup reali verificati
 con le configurazioni production rilette:9Fissi decurtazione/10Fissi100EUR,
