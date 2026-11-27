@@ -1116,6 +1116,20 @@ individuale15 come obiettivo collettivo. La nuova riga vale nel catalogo per tut
 i mesi ed e' letta automaticamente da Dashboard/PNG/Target senza deploy frontend.
 Applicata e riletta production:id23, ordine35. Hash delle altre metriche e di
 tutti gli obiettivi identici prima-dopo, preflight successivo riuscito.
+
+## Cambi piano Business nel Day by Day (27/11/2026)
+
+`configura_cambi_piano_business_day_by_day.sql` aggiorna la regola della riga
+attiva 13 `CAMBIO PIANO EASY PAY` in `dashboard_righe_giornaliera`. Il ramo
+preesistente per Customer Base TIED, con esclusione UNTIED, resta nella
+disgiunzione accanto al ramo Customer Base Business per `Cambio Piano - MOBILE`.
+Il conteggio vale un pezzo per contratto di Legnago, senza reinserimenti,
+anche nei giorni passati. Pagina, monitor e Target leggono la riga condivisa.
+
+Lo script verifica la regola per impostazione predefinita. Con `applica=true`
+blocca la singola riga, aggiorna solo `regola` e consente un retry idempotente.
+Applicazione e rilettura completate in produzione il 27/11. Le impronte delle
+altre righe giornaliere, di tutte le metriche e degli obiettivi coincidono.
 Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
 
 ## Elenco file

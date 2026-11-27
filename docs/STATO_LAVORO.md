@@ -1,6 +1,6 @@
 # Stato del lavoro — Mirox CRM
 
-Aggiornato:2026-11-26. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
+Aggiornato:2026-11-27. Promemoria di ripresa; non autorizza push, attivazioni o ripresa di attività sospese. Dettagli tecnici in AGENTS/README/databaseREADME e nelle guide citate.
 
 ## Subentri, limite codice cliente —26/11
 
@@ -176,6 +176,7 @@ Aggiornato:2026-11-26. Promemoria di ripresa; non autorizza push, attivazioni o 
 ## Roster, gare, planning e TV installata
 
 - Uscita Vincenzo14/11:e0d8752/migration20261114090359. Da novembre escluso da Day/Gare/Mensile/PNG/Target/Admin/Personale, nessun sostituto; ottobre e precedenti con Francesca. Account conservato/disabilitato, UUID storico immutato. Planning conserva raw/turni cessati e merge da vecchi client; nessuna rigenerazione turni altrui.
+- Day by Day 27/11. Su richiesta, il `Cambio Piano - MOBILE` Business aggiunge 1 pezzo alla riga `CAMBIO PIANO EASY PAY`, anche nelle date passate. Solo Legnago e inserimenti originali. I TIED continuano a contare e il `Cambio Piano - FISSO` Business è escluso. Aggiornata e riletta in produzione la sola regola della riga 13, con retry idempotente. Impronte delle altre righe, metriche e obiettivi identiche. 64 test mirati verdi e prova della pagina e del core con regola live e contratti sintetici. README, AGENTS e databaseREADME aggiornati. Prossimo caricamento della Dashboard legge la nuova regola.
 - CC da novembre dipende dalla sola presenza Matteo, conferma esplicita proprietario. Snapshot approvato, assenze/riposi/chiusure/offsite e durata intera; fallback legacy senza prima pubblicazione. Nessun appuntamento spostato. Guida docs/PLANNING_PERSONALE.md;789test/113checkSQL/HTTP verdi.
 - Gare04/11: replica ottobre→novembre2026–dicembre2100 applicata,19580INSERT/890mesi, Avanzamento escluso. Poi11570descrizioni e2670soglie Fisso aggiornate. Retry replica originale può segnalare conflitto con descrizioni successive: mai sovrascrivere. Storico/catalogo/profili/finanze estranee verificati.
 - Accesso bonus da novembre:10Fissi/10Energia/10MobileBusiness(noCB)/1FissoBusiness incluso nei10; personali obbligatori anche per squadra, firma mese/entrambi negozi/alias/no reinserimenti. Righe compensi conservate, totale0se manca soglia. Avvisi! soltanto con almeno una riga>=1EUR; OK/KO grassetto.72ee5ee/3bf67e2, suite/HTTP verdi.
