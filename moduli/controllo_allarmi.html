@@ -167,6 +167,7 @@ function fmtDate(iso) {
   return d.toLocaleDateString('it-IT', { day:'2-digit', month:'2-digit', year:'numeric' });
 }
 function slug(s) { return String(s||'').toLowerCase().replace(/\s+/g,'-'); }
+function etichettaStato(stato) { return stato === 'In Attivazione' ? 'In Attesa' : stato; }
 
 async function loadAll() {
   const wrap = document.getElementById('listaAlr');
@@ -175,7 +176,7 @@ async function loadAll() {
     const { data, error } = await sb
       .from('post_vendita_controllo_allarmi')
       .select(`
-        id, contratto_id, pratica_id, anagrafica_id, stato, created_at, updated_at,
+        id, contratto_id, pratica_id, anagrafica_id, stato, data_attivazione, created_at, updated_at,
         anagrafica:anagrafica_id ( id, cf_piva, ragione_sociale, cluster, cellulare, email ),
         contratto:contratto_id (
           id, categoria_id, operatore_id, data_contratto, created_at,
@@ -220,7 +221,7 @@ function matchSearch(r, q) {
   const haystack = [
     ana.ragione_sociale, ana.cf_piva, ana.cluster, ana.cellulare, ana.email,
     c.nome_offerta_snapshot, c.modalita_pagamento,
-    operatoreNome(r), r.stato
+    operatoreNome(r), etichettaStato(r.stato)
   ].filter(Boolean).join(' ').toLowerCase();
   return haystack.includes(q);
 }
@@ -244,6 +245,7 @@ function render() {
     <th>Operatore</th>
     <th>Modalità di pagamento</th>
     <th>Stato</th>
+    <th>Data attivazione</th>
     <th style="text-align:right;">Azioni</th>`;
 
   const STATI_ALR = ['In Attivazione','OK','KO'];
@@ -254,7 +256,7 @@ function render() {
     const c = r.contratto || {};
     const modPag = c.modalita_pagamento || '';
     const stato = r.stato || 'In Attivazione';
-    const options = STATI_ALR.map(s => `<option value="${escapeHtml(s)}" ${s === stato ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+    const options = STATI_ALR.map(s => `<option value="${escapeHtml(s)}" ${s === stato ? 'selected' : ''}>${escapeHtml(etichettaStato(s))}</option>`).join('');
     return `<tr>
       <td>${fmtDate(dataInserimento(r))}</td>
       <td class="cell-cliente">${escapeHtml(ana.ragione_sociale || '-')}</td>
@@ -266,6 +268,7 @@ function render() {
       <td>
         <select class="stato-select ${statoClass(stato)}" data-row-id="${r.id}" data-prev="${escapeHtml(stato)}" onchange="onCambiaStato(this)">${options}</select>
       </td>
+      <td>${escapeHtml(r.data_attivazione ? r.data_attivazione.split('-').reverse().join('/') : '—')}</td>
       <td style="text-align:right;white-space:nowrap;">
         <a class="btn-mini" href="verifica_contratti.html?contratto_id=${encodeURIComponent(r.contratto_id)}">Vai alla pratica</a>
       </td>
@@ -280,32 +283,67 @@ document.getElementById('searchAlr').addEventListener('input', e => {
   render();
 });
 
+function chiediDataAttivazione() {
+  const oggi = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date());
+  return new Promise(resolve => {
+    let data = null;
+    const popup = MiroxUI._build({
+      title: 'Data di attivazione',
+      bodyHtml: `<label for="alrDataAttivazione">Giorno di attivazione effettiva</label>
+        <input id="alrDataAttivazione" type="date" class="mx-input" max="${oggi}" required>`,
+      footerHtml: '<button type="button" class="mx-btn mx-btn-secondary" data-alr-cancel>Annulla</button> ' +
+        '<button type="button" class="mx-btn mx-btn-primary" data-alr-confirm>Conferma OK</button>',
+      onClose: () => resolve(data)
+    });
+    const campo = popup.body.querySelector('#alrDataAttivazione');
+    popup.foot.querySelector('[data-alr-cancel]').addEventListener('click', popup.close);
+    popup.foot.querySelector('[data-alr-confirm]').addEventListener('click', () => {
+      if (!campo.reportValidity()) return;
+      data = campo.value;
+      popup.close();
+    });
+    campo.focus();
+  });
+}
+
 window.onCambiaStato = async function(sel) {
   const rowId = sel.dataset.rowId;
   const prev = sel.dataset.prev;
   const next = sel.value;
-  if (!rowId || prev === next) return;
-
-  const conferma = await MiroxUI.confirm(`Cambiare lo stato di questa pratica Allarmi da "${prev}" a "${next}"?`);
-  if (!conferma) { sel.value = prev; return; }
-
+  const riga = AlrState.righe.find(r => r.id === rowId);
+  sel.value = prev;
+  if (!riga || prev === next) return;
+  const versione = riga.updated_at;
+  sel.disabled = true;
   sel.classList.add('saving');
   try {
+    const dataAttivazione = next === 'OK' ? await chiediDataAttivazione() : null;
+    if (next === 'OK' ? !dataAttivazione : !await MiroxUI.confirm(
+      `Cambiare lo stato da "${etichettaStato(prev)}" a "${etichettaStato(next)}"?`
+    )) return;
+
     const profilo = window.__profilo || null;
-    const { error } = await sb
+    const { data, error } = await sb
       .from('post_vendita_controllo_allarmi')
       .update({
         stato: next,
+        data_attivazione: dataAttivazione,
         stato_cambiato_at: new Date().toISOString(),
         stato_cambiato_da: profilo?.id || null
       })
-      .eq('id', rowId);
+      .eq('id', rowId)
+      .eq('updated_at', versione)
+      .select('stato, data_attivazione, updated_at').maybeSingle();
     if (error) throw error;
-
-    const riga = AlrState.righe.find(r => r.id === rowId);
-    if (riga) riga.stato = next;
-    sel.dataset.prev = next;
-    sel.className = `stato-select ${next ? next.toLowerCase().replace(/\s+/g,'-') : 'vuoto'}`;
+    if (!data) {
+      await loadAll();
+      MiroxUI.toast('La pratica è cambiata. Controlla lo stato e riprova.', 'warning');
+      return;
+    }
+    const corrente = AlrState.righe.find(r => r.id === rowId);
+    if (corrente) Object.assign(corrente, data);
     MiroxUI.toast({ message: 'Stato aggiornato', type: 'ok' });
     render();
   } catch (e) {
@@ -313,6 +351,7 @@ window.onCambiaStato = async function(sel) {
     sel.value = prev;
     MiroxUI.alert('Errore aggiornamento stato: ' + (e.message || e));
   } finally {
+    sel.disabled = false;
     sel.classList.remove('saving');
   }
 };

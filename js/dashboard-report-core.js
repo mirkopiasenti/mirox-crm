@@ -244,19 +244,24 @@ function dettaglioEnergiaMensile(state, regola) {
   });
 }
 const CONTRACT_FIELDS = 'id,operatore_id,cluster_cliente,categoria_snapshot,nome_offerta_snapshot,nome_opzione_snapshot,nome_reload_snapshot,tipo_attivazione,apri_chiudi,intestatario,switch_sim,modalita_pagamento,dispositivo_associato,tipo_acquisto,fascia_prezzo,finanziaria,kolme,reload_exchange,data_contratto,stato_inserimento,reinserimento_fisso_finalizzato,codice_rivenditore,punteggio_gara_totale,punteggio_extra_gara_totale,punteggio_offerta,punteggio_opzione,punteggio_totale,punteggio_gara_offerta,punteggio_gara_opzione,punteggio_extra_gara_offerta,punteggio_extra_gara_opzione';
-function monthlyState(contracts,metrics,objectives,profiles,post,fttc,year,month) {
+function monthlyState(contracts,metrics,objectives,profiles,post,activations,year,month) {
   const active=reportProfiles(profiles,`${year}-${String(month).padStart(2,'0')}`).filter(p=>p.attivo);
   const map=new Map(active.map(p=>[p.id,p]));
   const resolve=id=> { let cur=id; for(let i=0;i<3;i++) { const p=map.get(cur); if(!p?.alias_di) return cur; cur=p.alias_di; } return cur; };
   const ids=new Set(active.filter(p=>p.in_gara&&!p.alias_di).map(p=>p.id));
-  [...contracts,...fttc].filter(c=>inMonthlyScope(c,true)).forEach(c=>ids.add(resolve(c.operatore_id)));
+  [...contracts,...activations].filter(c=>inMonthlyScope(c,true)).forEach(c=>ids.add(resolve(c.operatore_id)));
   return {anno:year,mese:month,contrattiMese:contracts.filter(isMonthlyCandidate),metricheGara:metrics,obiettivi:objectives,
     operatoriAttiviMese:[...ids].map(id=>map.get(id)).filter(p=>p&&!p.alias_di),resolveOperatore:resolve,
     statoPostVendita:{fisso:new Map(post.fisso.map(r=>[r.contratto_id,r.stato])),energia:new Map(post.energia.map(r=>[r.contratto_id,r.stato])),allarmi:new Map(post.allarmi.map(r=>[r.contratto_id,r.stato]))},
-    tecnologiaFisso:new Map(post.fisso.map(r=>[r.contratto_id,r.tecnologia])),fissoFTTCAttivatiMese:fttc};
+    tecnologiaFisso:new Map(post.fisso.map(r=>[r.contratto_id,r.tecnologia])),
+    fissoFTTCAttivatiMese:activations.filter(c=>c.categoria_snapshot==='Fisso'),
+    allarmiAttivatiMese:activations.filter(c=>c.categoria_snapshot==='Allarmi')};
 }
 function monthlyRows(state,asOf) {
   const year=state.anno,month=state.mese;
+  // Per la P.IVA gli Allarmi OK arrivano dalla selezione del mese di attivazione.
+  const contrattiPiva=state.contrattiMese.filter(c=>c.categoria_snapshot!=='Allarmi')
+    .concat(state.allarmiAttivatiMese||[]);
   const validPiva=c=> {
     const status=state.statoPostVendita;
     if(c.categoria_snapshot==='Fisso') return ['In Attivazione','Attivo'].includes(status.fisso.get(c.id));
@@ -267,7 +272,8 @@ function monthlyRows(state,asOf) {
   return state.metricheGara.filter(m=>m.tabella.startsWith('avanzamento_')).map(m=> {
     const piva=m.tabella!=='avanzamento_standard';
     const standardFissi=!piva && m.regola?.categoria==='Fisso';
-    let lists=state.operatoriAttiviMese.map(op=>state.contrattiMese.filter(c=>
+    const contratti=piva?contrattiPiva:state.contrattiMese;
+    let lists=state.operatoriAttiviMese.map(op=>contratti.filter(c=>
       inMonthlyScope(c,standardFissi)
       && state.resolveOperatore(c.operatore_id)===op.id && matchRegola(c,m.regola)));
     if(piva) lists=lists.map(list=>list.filter(validPiva));

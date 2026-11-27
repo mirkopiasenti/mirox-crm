@@ -22,7 +22,8 @@ async function insert(table,row){const keys=Object.keys(row);await query(`INSERT
     CREATE TABLE public.gara_obiettivi_mensili(id bigint PRIMARY KEY,metrica_id bigint,operatore_id uuid,obiettivo int,anno int,mese int);
     CREATE TABLE public.post_vendita_controllo_fissi(id uuid DEFAULT gen_random_uuid(),contratto_id uuid,stato text,tecnologia text,data_attivazione date);
     CREATE TABLE public.post_vendita_controllo_lg(id uuid DEFAULT gen_random_uuid(),contratto_id uuid,stato text,ultimo_csv_upload_at timestamptz);
-    CREATE TABLE public.post_vendita_controllo_allarmi(id uuid DEFAULT gen_random_uuid(),contratto_id uuid,stato text);
+    CREATE TABLE public.post_vendita_controllo_allarmi(id uuid DEFAULT gen_random_uuid(),contratto_id uuid,stato text NOT NULL,
+      stato_cambiato_at timestamptz,stato_cambiato_da uuid);
     CREATE TABLE public.appuntamenti(id uuid PRIMARY KEY,stato text,data_ora timestamptz,durata_minuti int,presentato text,nome text,telefono text,note text);`);
   const booleans=new Set(['dispositivo_associato','kolme','reload_exchange','reinserimento_fisso_finalizzato']);
   const columns=CONTRACT_FIELDS.split(',').map(k=>k+' '+(['id','operatore_id'].includes(k)?'uuid':k==='data_contratto'?'timestamptz':booleans.has(k)?'boolean':k.startsWith('punteggio')?'numeric':'text'));
@@ -122,5 +123,34 @@ async function insert(table,row){const keys=Object.keys(row);await query(`INSERT
     await db.exec('RESET ROLE');
   }
   await check("SELECT regola FROM public.gara_metriche WHERE id=1",[{regola:{categoria:'Mobile'}}]);
+  const allarme='44444444-4444-4444-8444-444444444444';
+  await insert('vendita_contratti',{id:allarme,operatore_id:admin,cluster_cliente:'Business',
+    categoria_snapshot:'Allarmi',data_contratto:'2020-01-01T12:00:00Z',stato_inserimento:'inserimento',
+    codice_rivenditore:'9001415852',punteggio_extra_gara_totale:5,numero_telefono:'RISERVATO'});
+  await insert('post_vendita_controllo_allarmi',{contratto_id:allarme,stato:'OK'});
+  await insert('post_vendita_controllo_allarmi',{contratto_id:cid,stato:'KO'});
+  await insert('gara_metriche',{id:3,nome:'EXTRA GARA P.IVA',tabella:'avanzamento_extra_piva',ordine:3,
+    regola:{cluster:'Business'},attiva:true});
+  await db.exec(fs.readFileSync('database/20261127144802_allarmi_data_attivazione.sql','utf8'));
+  await check("SELECT stato FROM public.post_vendita_controllo_allarmi WHERE data_attivazione IS NULL ORDER BY stato",[{stato:'KO'},{stato:'OK'}]);
+  await denied("UPDATE public.post_vendita_controllo_allarmi SET stato='OK' WHERE contratto_id=$1",[cid]);
+  const riapri=fs.readFileSync('database/20261127145010_allarmi_riapri_ok_senza_data.sql','utf8');
+  await db.exec(riapri);
+  await check("SELECT stato FROM public.post_vendita_controllo_allarmi ORDER BY stato",[{stato:'In Attivazione'},{stato:'KO'}]);
+  await check("SELECT convalidated FROM pg_constraint WHERE conname='pvcal_data_attivazione_chk'",[{convalidated:true}]);
+  await denied("UPDATE public.post_vendita_controllo_allarmi SET data_attivazione=$2 WHERE contratto_id=$1",[allarme,start]);
+  await denied("UPDATE public.post_vendita_controllo_allarmi SET stato='OK',data_attivazione='infinity' WHERE contratto_id=$1",[allarme]);
+  const pending=await read();
+  await query("UPDATE public.post_vendita_controllo_allarmi SET stato='OK',data_attivazione=$2 WHERE contratto_id=$1",[allarme,start]);
+  await db.exec(riapri);
+  await db.exec('SET ROLE anon');
+  const activated=await read(pending.revisione);
+  assert.equal(activated.invariato,false);
+  assert.ok(!activated.contratti.some(c=>c.id===allarme));
+  assert.ok(activated.fttc.some(c=>c.id===allarme));
+  assert.doesNotMatch(JSON.stringify(activated),/RISERVATO|data_attivazione/);
+  assert.equal(Report.build(minimize(activated)).mensile.find(r=>r.nome==='EXTRA GARA P.IVA').punti,6);
+  checks+=5;
+  await db.exec('RESET ROLE');
   console.log('Monitor diretto SQL: '+checks+' verifiche riuscite ('+Math.round(performance.now()-t0)+'ms), nessun collegamento production.');
 })().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>db.close());

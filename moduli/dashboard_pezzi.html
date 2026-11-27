@@ -715,7 +715,7 @@ async function caricaDatiMensili() {
   const annoPost = state.mese === 12 ? state.anno + 1 : state.anno;
   const end = `${annoPost}-${String(mesePost).padStart(2,'0')}-01T00:00:00.000Z`;
 
-  const [rContratti, rMetriche, rObiettivi, rProfili, rUltimoCsvLg] = await Promise.all([
+  const [rContratti, rMetriche, rObiettivi, rProfili, rUltimoCsvLg, rAllarmiAttivati] = await Promise.all([
     sb.from('vendita_contratti').select(`
         id, operatore_id, cluster_cliente,
         categoria_snapshot, nome_offerta_snapshot, nome_opzione_snapshot, nome_reload_snapshot,
@@ -731,23 +731,39 @@ async function caricaDatiMensili() {
     sb.from('gara_obiettivi_mensili').select('*').eq('anno', state.anno).eq('mese', state.mese),
     sb.from('profili').select('id, nome, attivo, in_gara, alias_di, ordine_gara').order('ordine_gara', { ascending: true, nullsFirst: false }).order('nome'),
     sb.from('post_vendita_controllo_lg').select('ultimo_csv_upload_at')
-      .not('ultimo_csv_upload_at', 'is', null).order('ultimo_csv_upload_at', { ascending: false }).limit(1)
+      .not('ultimo_csv_upload_at', 'is', null).order('ultimo_csv_upload_at', { ascending: false }).limit(1),
+    sb.from('post_vendita_controllo_allarmi').select('contratto_id').eq('stato', 'OK')
+      .gte('data_attivazione', start.slice(0, 10)).lt('data_attivazione', end.slice(0, 10))
   ]);
   if (rContratti.error) throw rContratti.error;
   if (rMetriche.error) throw rMetriche.error;
   if (rObiettivi.error) throw rObiettivi.error;
   if (rProfili.error) throw rProfili.error;
   if (rUltimoCsvLg.error) throw rUltimoCsvLg.error;
+  if (rAllarmiAttivati.error) throw rAllarmiAttivati.error;
   state.ultimoCsvLgAt = rUltimoCsvLg.data?.[0]?.ultimo_csv_upload_at || null;
 
   state.contrattiMese = (rContratti.data || []).filter(MiroxDashboardReport.isMonthlyCandidate);
 
+  state.allarmiAttivatiMese = [];
+  const allarmiIds = (rAllarmiAttivati.data || []).map(r => r.contratto_id);
+  if (allarmiIds.length) {
+    const rAllarmiContratti = await sb.from('vendita_contratti')
+      .select(MiroxDashboardReport.CONTRACT_FIELDS).in('id', allarmiIds)
+      .eq('codice_rivenditore', CODICE_LEGNAGO).eq('cluster_cliente', 'Business')
+      .eq('categoria_snapshot', 'Allarmi');
+    if (rAllarmiContratti.error) throw rAllarmiContratti.error;
+    state.allarmiAttivatiMese = (rAllarmiContratti.data || []).filter(c =>
+      MiroxDashboardReport.inMonthlyScope(c)
+    );
+  }
+
   // Stati post-vendita per i filtri Avanzamento (P.IVA + Energia/Fisso Standard).
   // Carichiamo per TUTTI i contratti Fisso/Energia/Allarmi del mese (senza filtro cluster)
   // perche' i filtri Standard coprono anche i cluster non-Business.
-  const contrattiPostVenditaIds = state.contrattiMese
+  const contrattiPostVenditaIds = [...new Set([...state.contrattiMese, ...state.allarmiAttivatiMese]
     .filter(c => ['Fisso','Energia','Allarmi'].includes(c.categoria_snapshot))
-    .map(c => c.id);
+    .map(c => c.id))];
   state.statoPostVendita = { fisso: new Map(), energia: new Map(), allarmi: new Map() };
   state.tecnologiaFisso = new Map();
   if (contrattiPostVenditaIds.length) {
@@ -803,14 +819,14 @@ async function caricaDatiMensili() {
 
   // Operatori attivi nel mese (per l'Avanzamento Mensile): union in_gara + chi ha contratti
   // Legnago o Fissi Cerea, risolti al canonico per i contratti storici con alias.
-  // Include anche gli operatori di FTTC attivati nel mese in entrambi i negozi.
+  // Include chi ha attivazioni FTTC o Allarmi P.IVA nel mese.
   const opConContratti = new Set(
     state.contrattiMese
       .filter(c => MiroxDashboardReport.inMonthlyScope(c, true))
       .map(c => state.resolveOperatore(c.operatore_id))
       .filter(Boolean)
   );
-  state.fissoFTTCAttivatiMese.forEach(c => {
+  [...state.fissoFTTCAttivatiMese, ...state.allarmiAttivatiMese].forEach(c => {
     const op = state.resolveOperatore(c.operatore_id);
     if (op) opConContratti.add(op);
   });

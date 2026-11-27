@@ -40,6 +40,17 @@ async function byIds(db,table,fields,ids) {
   for(let i=0;i<ids.length;i+=200) result.push(...await paged(db,table,fields,q=>q.in('contratto_id',ids.slice(i,i+200))));
   return result;
 }
+async function alarmActivations(db,start,end) {
+  const controls=await paged(db,'post_vendita_controllo_allarmi','id,contratto_id',
+    q=>q.eq('stato','OK').gte('data_attivazione',start).lt('data_attivazione',end));
+  const contracts=[];
+  for(let i=0;i<controls.length;i+=200) {
+    const ids=controls.slice(i,i+200).map(r=>r.contratto_id);
+    contracts.push(...await paged(db,'vendita_contratti',CONTRACT_FIELDS,q=>q.in('id',ids)
+      .eq('codice_rivenditore',core.LEGNAGO).eq('cluster_cliente','Business').eq('categoria_snapshot','Allarmi')));
+  }
+  return contracts.filter(c=>core.inMonthlyScope(c));
+}
 
 function callSummary(consumer,business,appointments,profiles,date) {
   const resolver=buildProfileResolver(profiles);
@@ -65,7 +76,7 @@ async function buildReports(db,date = today(),now = new Date()) {
   const start=date.slice(0,7)+'-01',end=new Date(Date.UTC(year,month,1)).toISOString().slice(0,10);
   const callStart=romeMidnight(date),callEnd=romeMidnight(nextDay(date));
   const timeFilter=col=>q=>q.gte(col,callStart).lt(col,callEnd).lte(col,now.toISOString());
-  const [contracts,rows,metrics,objectives,profiles,consumer,business,appointments,activations]=await Promise.all([
+  const [contracts,rows,metrics,objectives,profiles,consumer,business,appointments,activations,activatedAlarms]=await Promise.all([
     paged(db,'vendita_contratti',CONTRACT_FIELDS,q=>q.gte('data_contratto',start+'T00:00:00Z').lt('data_contratto',end+'T00:00:00Z').in('codice_rivenditore',[core.LEGNAGO,core.CEREA])),
     paged(db,'dashboard_righe_giornaliera','id,nome,gruppo,ordine,regola',q=>q.eq('attiva',true)),
     paged(db,'gara_metriche','id,nome,tabella,ordine,regola,punteggio_campo',q=>q.eq('attiva',true).in('tabella',['avanzamento_standard','avanzamento_extra_piva'])),
@@ -74,19 +85,21 @@ async function buildReports(db,date = today(),now = new Date()) {
     paged(db,'chiamate','id,operatore_id,data_ora,esito',timeFilter('data_ora')),
     paged(db,'call_center_lead_outbound_chiamate','id,operatore_id,data_ora,esito',timeFilter('data_ora')),
     paged(db,'appuntamenti','id,fissato_da_operatore_id,created_at,originato_da_id,chiamata_outbound_id',timeFilter('created_at')),
-    paged(db,'post_vendita_controllo_fissi','id,contratto_id',q=>q.eq('tecnologia','FTTC').eq('stato','Attivo').gte('data_attivazione',start).lt('data_attivazione',end))
+    paged(db,'post_vendita_controllo_fissi','id,contratto_id',q=>q.eq('tecnologia','FTTC').eq('stato','Attivo').gte('data_attivazione',start).lt('data_attivazione',end)),
+    alarmActivations(db,start,end)
   ]);
   const ids=contracts.filter(c=>['Fisso','Energia','Allarmi'].includes(c.categoria_snapshot)).map(c=>c.id);
+  const alarmIds=[...new Set([...ids,...activatedAlarms.map(c=>c.id)])];
   const [fisso,energia,allarmi,fttc]=await Promise.all([
     byIds(db,'post_vendita_controllo_fissi','id,contratto_id,stato,tecnologia',ids),
     byIds(db,'post_vendita_controllo_lg','id,contratto_id,stato',ids),
-    byIds(db,'post_vendita_controllo_allarmi','id,contratto_id,stato',ids),
+    byIds(db,'post_vendita_controllo_allarmi','id,contratto_id,stato',alarmIds),
     (async()=>{const results=[];for(let i=0;i<activations.length;i+=200) results.push(...await paged(db,'vendita_contratti',CONTRACT_FIELDS,q=>q.in('id',activations.slice(i,i+200).map(r=>r.contratto_id))));return results;})()
   ]);
   rows.sort((a,b)=>a.ordine-b.ordine);
   metrics.sort((a,b)=>(a.tabella==='avanzamento_standard'?0:1)-(b.tabella==='avanzamento_standard'?0:1)||a.ordine-b.ordine);
   const daily=core.dailyRows(contracts.filter(c=>new Date(c.data_contratto).toISOString().slice(0,10)===date),rows,profiles,date);
-  const monthly=core.monthlyRows(monthlyState(contracts,metrics,objectives,profiles,{fisso,energia,allarmi},fttc,year,month),today(now))
+  const monthly=core.monthlyRows(monthlyState(contracts,metrics,objectives,profiles,{fisso,energia,allarmi},[...fttc,...activatedAlarms],year,month),today(now))
     .map(({nome,tabella,attuale,punteggio,obiettivo,andamento,eccedenza})=>({nome,tabella,pezzi:attuale,punteggio,obiettivo,andamento,eccedenza}));
   return {data:date,letto_il:now.toISOString(),vendite:{categorie:daily,totale:daily.reduce((sum,r)=>sum+r.totale,0)},chiamate:callSummary(consumer,business,appointments,profiles,date),mensile:monthly,
     criteri:'Vendite: Legnago, data contratto UTC come Day by Day, reinserimenti esclusi; totale delle righe, possibili sovrapposizioni. CC: eventi Europe/Rome, ogni tentativo registrato, appuntamenti per creazione, spostamenti separati. Mensile: stati attuali dei record, non fotografia storica; Standard e Extra Gara P.IVA, lun-sab senza festivita\u0027 nazionali, eccedenza arrotondata verso l\u0027esterno; obiettivo raggiunto: eccedenza nascosta come pagina.'};
@@ -111,4 +124,4 @@ function formatReportMessages(p) {
   return [text[0],...[[images.callsImage(p),'Call Center','call-center',text[1]],[images.monthImage(p),'Andamento mensile','andamento-mensile',text[2]]].map(([layout,title,file,alternate])=>({type:'image',...layout,filename:`mirox-target-${file}-${p.data}.png`,caption:`MIROX AI - Target · ${title} · ${p.data.split('-').reverse().join('/')}`,text:alternate}))];
 }
 
-module.exports={buildReports,formatReports,formatReportMessages,paged,monthlyState,callSummary,romeParts,romeMidnight,today,validateDate,nextDay,due,CONTRACT_FIELDS};
+module.exports={buildReports,formatReports,formatReportMessages,paged,alarmActivations,monthlyState,callSummary,romeParts,romeMidnight,today,validateDate,nextDay,due,CONTRACT_FIELDS};

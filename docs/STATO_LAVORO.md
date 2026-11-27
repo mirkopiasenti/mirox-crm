@@ -7,6 +7,11 @@ Aggiornato:2026-11-27. Promemoria di ripresa; non autorizza push, attivazioni o 
 - Nei quattro percorsi con modulo arrivano nel PDF al massimo 10 caratteri stampabili, uno per casella originale. Lettere, zeri, punti e simboli ammessi. Oltre 10 il compilatore segnala l’errore alla conferma senza troncare il valore. Il server blocca sia la nuova bozza sia la generazione da una bozza precedente oltre il limite. I PDF già archiviati restano consultabili. Nessuna migration.
 - Build e 910/910 test in copia isolata, di cui 40 Subentri. Verificati submit senza chiamata API oltre il limite, blocco lato server, PDF valido identico byte per byte e render Poppler delle caselle. Guide aggiornate. Push richiesto dal proprietario.
 
+## W3 Protetti, data di attivazione —27/11
+
+- In Controllo Allarmi lo stato OK richiede la data di attivazione. W3 Protetti P.IVA ed Extra Gara P.IVA usano il mese di attivazione in Dashboard, PNG, Target e monitor. In Attesa corrisponde allo stato tecnico In Attivazione. Standard e Gare conservano il mese di firma.
+- Due migrazioni. Prima data e lettore monitor, poi riapertura dei soli OK senza data e validazione del vincolo dopo il deploy. Prima lettura in produzione: 10 OK e 5 KO. Build e 912 test verdi, inclusi il flusso UI e il confine ottobre/novembre. 90 verifiche SQL isolate verdi. Guide aggiornate. Dopo la pubblicazione e il ripristino, il proprietario ricompila le date.
+
 ## Subentri, caselle del codice cliente —pubblicate il 26/11
 
 - Ripristinate le dieci caselle originali nei quattro percorsi con modulo. Oltre dieci caratteri il codice si distribuisce in gruppi consecutivi centrati nelle caselle, fino al limite già supportato di 40. Il modello WindTre rimane intatto. La ripresa di una chiusura interrotta riconosce il PDF già caricato solo se coincide byte per byte con quello generato dalla stessa bozza con uno dei due layout.

@@ -36,6 +36,7 @@
     const operators=core.dayOperators(date);
     const day=rows.map(r=>({nome:r.nome,gruppo:r.gruppo,colore:r.colore_hex,
       operatori:operators.map(op=>counts.get(key(r))?.[op]||0)}));
+    // Il trasporto v2 conserva la chiave fttc anche per gli Allarmi attivati.
     const state=core.monthlyState(input.contratti,metrics,input.obiettivi,input.profili,input.post,input.fttc,year,month);
     const results=core.monthlyRows(state,date);
     const sprint=sprintRows(metrics,results,date);

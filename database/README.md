@@ -1132,6 +1132,24 @@ Applicazione e rilettura completate in produzione il 27/11. Le impronte delle
 altre righe giornaliere, di tutte le metriche e degli obiettivi coincidono.
 Verifica reale ottobre:Matteo2,Francesca0,Mirko0, punteggio totale2.
 
+## Data di attivazione Allarmi e mese P.IVA (27/11/2026)
+
+`20261127144802_allarmi_data_attivazione.sql` aggiunge a
+`post_vendita_controllo_allarmi` una data civile `data_attivazione` e un CHECK
+che richiede una data finita con stato OK. Il CHECK si applica alle nuove
+scritture e resta inizialmente `NOT VALID` per gli OK già registrati. La
+migrazione aggiorna anche il lettore privato del monitor per includere gli
+Allarmi Business di Legnago attivati nel mese. RLS e privilegi restano quelli
+esistenti. Il monitor riusa il campo v2 `fttc` per trasportare gli Allarmi
+idonei insieme alle attivazioni Fisso, distinti per categoria nel motore.
+
+Dopo il deploy del form con data, `20261127145010_allarmi_riapri_ok_senza_data.sql`
+riporta i soli OK senza data a `In Attivazione` (In Attesa nell’interfaccia)
+e valida il CHECK. Il retry conserva gli OK con data già compilata. Salvare
+prima una copia privata degli esiti precedenti. Le pratiche e i contratti
+rimangono associati e i punti extra memorizzati sul contratto vengono attribuiti
+al mese di attivazione nelle righe P.IVA.
+
 ## Elenco file
 
 | File | Cosa introduce |

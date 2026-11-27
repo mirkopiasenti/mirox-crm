@@ -235,6 +235,94 @@ test('paginazione oltre 1000 e errori post-vendita non diventano report parziali
   const broken=fakeDb(fixture());broken.fail=q=>q.table==='post_vendita_controllo_lg';
   await assert.rejects(reports.buildReports(broken,'2026-10-05',NOW),/Lettura/);
 });
+test('W3 Protetti P.IVA attribuisce i 5 punti al mese di attivazione in Dashboard, Target e monitor',async()=> {
+  const f=fixture();
+  f.profili.push({id:'solo-attivazioni',nome:'Operatore fuori gara',attivo:true,in_gara:false});
+  f.gara_metriche.push({id:7,nome:'W3 PROTETTI P.IVA',tabella:'avanzamento_piva',
+    ordine:1,attiva:true,regola:{categoria:'Allarmi',cluster:'Business'}});
+  const cases=[
+    ['firmato-ottobre','2026-11-01',{operatore_id:'solo-attivazioni'}],
+    ['firmato-novembre','2026-11-30',{data_contratto:'2026-11-05T12:00:00Z'}],
+    ['dicembre','2026-12-01',{}],
+    ['cerea','2026-11-01',{codice_rivenditore:core.CEREA}],
+    ['consumer','2026-11-01',{cluster_cliente:'Consumer'}],
+    ['reinserimento','2026-11-01',{stato_inserimento:'reinserimento'}],
+    ['ok-storico',null,{}],
+    ['in-attesa',null,{},'In Attivazione']
+  ];
+  cases.forEach(([id,data_attivazione,patch,stato='OK'])=>{
+    f.vendita_contratti.push(contract(id,'Allarmi',{cluster_cliente:'Business',punteggio_extra_gara_totale:5,...patch}));
+    f.post_vendita_controllo_allarmi.push({id:'pv-'+id,contratto_id:id,stato,data_attivazione});
+  });
+  const db=fakeDb(f);
+  const {ctx}=pageContext('moduli/dashboard_pezzi.html',db);
+  const state=vm.runInContext('DPState',ctx);
+  const now=new Date('2026-11-30T15:00:00Z');
+  for(const [month,expected] of [[10,0],[11,10]]) {
+    Object.assign(state,{anno:2026,mese:month});
+    await vm.runInContext('caricaDatiMensili()',ctx);
+    const date='2026-'+month+'-05';
+    const rows=core.monthlyRows(state,date);
+    assert.equal(rows.find(r=>r.id===7).punteggio,expected);
+    assert.equal(rows.find(r=>r.id===6).punteggio,expected);
+    assert.equal(rows.find(r=>r.nome==='Allarmi').attuale,month===10?6:1);
+    assert.equal(state.contrattiMese.some(c=>c.id==='firmato-ottobre'),month===10);
+    const target=await reports.buildReports(db,date,now);
+    assert.equal(target.mensile.find(r=>r.nome==='EXTRA GARA P.IVA').punteggio,expected);
+    assert.equal(target.mensile.find(r=>r.nome==='EXTRA GARA P.IVA').pezzi,expected/5);
+  }
+  assert.ok(state.operatoriAttiviMese.some(p=>p.id==='solo-attivazioni'));
+  const monitor=await require('../netlify/functions/_lib/monitor-snapshot').buildSnapshot(db,now);
+  assert.equal(monitor.mensile.find(r=>r.nome==='EXTRA GARA P.IVA').punti,10);
+  assert.equal(monitor.mensile.find(r=>r.nome==='W3 PROTETTI P.IVA').punti,10);
+});
+test('Controllo Allarmi salva OK e data insieme, con annullamento e protezione da una scheda non aggiornata',async()=>{
+  const riga={id:'allarme',stato:'In Attivazione',data_attivazione:null,updated_at:'versione-1'};
+  const db=fakeDb({post_vendita_controllo_allarmi:[riga]});
+  const callbacks={};
+  let confermaData;
+  const ui={
+    _build({bodyHtml,onClose}) {
+      assert.match(bodyHtml,/type="date"[^>]+required/);
+      const input={value:'',reportValidity(){return Boolean(this.value);},focus(){}};
+      confermaData=value=>{input.value=value;callbacks['[data-alr-confirm]']();};
+      return {body:{querySelector:()=>input},foot:{querySelector:key=>({addEventListener:(_,fn)=>{callbacks[key]=fn;}})},close:onClose};
+    },confirm:async()=>true,toast(){},alert(message){assert.fail(message);}
+  };
+  const lista={innerHTML:''};
+  const {ctx}=pageContext('moduli/controllo_allarmi.html',db,{
+    window:{addEventListener(){},__profilo:{id:'op'}},
+    document:{getElementById(id){
+      return id==='searchAlr'?{addEventListener(){}}:lista;
+    }},
+    MiroxUI:ui
+  });
+  await ctx.loadAll();
+  assert.match(lista.innerHTML,/In Attesa/);
+  const selezione=(prev,value)=>({dataset:{rowId:'allarme',prev},value,classList:{add(){},remove(){}}});
+  const sel=selezione('In Attivazione','OK');
+  const annulla=ctx.window.onCambiaStato(sel);
+  confermaData('');
+  assert.equal(db.log.some(q=>q.action==='update'),false);
+  callbacks['[data-alr-cancel]']();
+  await annulla;
+  assert.equal(sel.value,'In Attivazione');
+  assert.equal(sel.disabled,false);
+  const salva=ctx.window.onCambiaStato(selezione('In Attivazione','OK'));
+  confermaData('2026-10-31');
+  await salva;
+  const [salvato]=db.tables.post_vendita_controllo_allarmi;
+  assert.equal(salvato.stato,'OK');
+  assert.equal(salvato.data_attivazione,'2026-10-31');
+  assert.match(lista.innerHTML,/31\/10\/2026/);
+  assert.equal(salvato.stato_cambiato_da,'op');
+  salvato.updated_at='versione-2';
+  await ctx.window.onCambiaStato(selezione('OK','KO'));
+  assert.equal(salvato.stato,'OK');
+  await ctx.window.onCambiaStato(selezione('OK','In Attivazione'));
+  assert.equal(salvato.stato,'In Attivazione');
+  assert.equal(salvato.data_attivazione,null);
+});
 test('Luce & Gas P.IVA ed Extra escludono Annullato e Rifiutato da pezzi e punti, conservando gli altri stati e lo Standard',async()=> {
   const f=fixture();
   f.gara_metriche.push({id:7,nome:'LUCE & GAS P.IVA',ordine:1,attiva:true,tabella:'avanzamento_piva',regola:{cluster:'Business',categoria:'Energia'}});

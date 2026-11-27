@@ -16,6 +16,14 @@ delle metriche. La postazione scarica HTML, CSS e JS tramite il manifest
 esistente; il servizio Windows, l’associazione e il polling funzionano con
 il pacchetto diretto già installato.
 
+## Attivazioni W3 Protetti P.IVA —27/11
+
+Il lettore dati aggiunge gli Allarmi Business di Legnago attivati nel mese,
+anche se firmati in un mese precedente. Il trasporto v2 conserva la chiave
+`fttc` esistente. La pagina aggiornata distingue gli Allarmi dai Fissi per
+categoria e somma i punti P.IVA nel mese di attivazione. Il servizio Windows
+già associato supporta il formato e riceve la nuova pagina tramite il manifest.
+
 ## Intervallo30secondi —19/11, pubblicato
 
 Richiesta successiva del proprietario: controllare i dati ogni30secondi.
